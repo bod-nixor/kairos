@@ -45,25 +45,72 @@ try {
         }
 
         $sql = "SELECT
-                  CAST(queue_id AS UNSIGNED) AS queue_id,
-                  CAST(room_id  AS UNSIGNED) AS room_id,
-                  name,
-                  description
-                FROM queues_info";
+                  CAST(q.queue_id AS UNSIGNED) AS queue_id,
+                  CAST(q.room_id  AS UNSIGNED) AS room_id,
+                  q.name,
+                  q.description,
+                  COUNT(qe.user_id) AS occupant_count,
+                  CASE WHEN COUNT(qe.user_id) = 0 THEN JSON_ARRAY()
+                       ELSE JSON_ARRAYAGG(
+                            JSON_OBJECT(
+                              'user_id', CAST(u.user_id AS UNSIGNED),
+                              'name', u.name
+                            )
+                            ORDER BY qe.`timestamp`
+                       )
+                  END AS occupants_json
+                FROM queues_info q
+                LEFT JOIN queue_entries qe ON qe.queue_id = q.queue_id
+                LEFT JOIN users u ON u.user_id = qe.user_id";
         $args = [];
 
         if ($raw !== null && $raw !== '' && ctype_digit((string)$raw)) {
-            $sql .= " WHERE room_id = CAST(:rid AS UNSIGNED)";
+            $sql .= " WHERE q.room_id = CAST(:rid AS UNSIGNED)";
             $args[':rid'] = (int)$raw;
         }
 
-        $sql .= " ORDER BY name";
+        $sql .= " GROUP BY q.queue_id, q.room_id, q.name, q.description ORDER BY q.name";
 
         qlog("GET queues room_id_raw=".json_encode($_GET['room_id'] ?? null)." parsed=".json_encode($raw)." SQL=".preg_replace('/\s+/', ' ', $sql)." ARGS=".json_encode($args));
 
         $st = $pdo->prepare($sql);
         $ok = $st->execute($args);
         $rows = $st->fetchAll();
+
+        if (is_array($rows)) {
+            $rows = array_map(function(array $row): array {
+                $occupantCount = isset($row['occupant_count']) ? (int)$row['occupant_count'] : 0;
+                $decoded = [];
+                if (!empty($row['occupants_json']) && is_string($row['occupants_json'])) {
+                    $decoded = json_decode($row['occupants_json'], true);
+                    if (!is_array($decoded)) {
+                        $decoded = [];
+                    }
+                }
+
+                $occupants = array_values(array_filter(array_map(function($entry) {
+                    if (!is_array($entry)) {
+                        return null;
+                    }
+
+                    return [
+                        'user_id' => isset($entry['user_id']) ? (int)$entry['user_id'] : null,
+                        'name'    => isset($entry['name']) ? (string)$entry['name'] : ''
+                    ];
+                }, $decoded), function($entry) {
+                    return $entry !== null;
+                }));
+
+                return [
+                    'queue_id'       => isset($row['queue_id']) ? (int)$row['queue_id'] : null,
+                    'room_id'        => isset($row['room_id']) ? (int)$row['room_id'] : null,
+                    'name'           => isset($row['name']) ? (string)$row['name'] : '',
+                    'description'    => isset($row['description']) ? (string)$row['description'] : '',
+                    'occupant_count' => $occupantCount,
+                    'occupants'      => $occupants,
+                ];
+            }, $rows);
+        }
 
         qlog("GET result ok=".($ok?'1':'0')." rows=". (is_array($rows) ? count($rows) : -1));
 

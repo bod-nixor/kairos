@@ -122,9 +122,16 @@
 
   /* Queues inside each room */
   .queues{display:flex; flex-direction:column; gap:8px}
-  .queue-row{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:12px}
+  .queue-row{display:flex; flex-direction:column; gap:12px; padding:12px 14px; border:1px dashed var(--border); border-radius:12px}
+  .queue-header{display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap}
+  .queue-header-text{flex:1; min-width:200px; display:flex; flex-direction:column; gap:4px}
+  .queue-actions{display:flex; gap:8px; align-items:center}
   .q-name{font-weight:700}
   .q-desc{color:var(--muted); font-size:13px}
+  .queue-occupants{display:flex; flex-direction:column; gap:6px}
+  .queue-occupants.empty{color:var(--muted); font-size:13px}
+  .occupant-label{font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted)}
+  .occupant-pills{display:flex; flex-wrap:wrap; gap:6px}
   .pill{padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:12px}
 
   /* Skeletons */

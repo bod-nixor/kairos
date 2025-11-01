@@ -122,6 +122,8 @@ async function renderCourseCards(){
   selectedRoomId = null;                                 // reset room selection when leaving rooms view
   setCrumbs('Courses');
   showView('viewCourses');
+  const progressSection = document.getElementById('progressSection');
+  if (progressSection) progressSection.classList.add('hidden');
   const grid = document.getElementById('coursesGrid');
   grid.innerHTML = skeletonCards(3);
 
@@ -230,9 +232,15 @@ async function showCourse(courseId){
     }
   };
 
+  const progressSection = document.getElementById('progressSection');
+  if (progressSection) progressSection.classList.remove('hidden');
   await renderProgress(selectedCourse);
 
-  document.getElementById('backToCourses').onclick = () => renderCourseCards();
+  document.getElementById('backToCourses').onclick = () => {
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) progressSection.classList.add('hidden');
+    renderCourseCards();
+  };
   document.getElementById('navRooms').classList.add('active');
   document.getElementById('navCourses').classList.remove('active');
 }
@@ -251,12 +259,34 @@ async function loadQueuesForRoom(roomId){
     queues.forEach(q=>{
       const row = document.createElement('div');
       row.className='queue-row';
+
+      const occupantCount = Number(q.occupant_count ?? 0);
+      const occupants = Array.isArray(q.occupants) ? q.occupants : [];
+      const occupantLabel = occupantCount === 1 ? '1 person in queue' : `${occupantCount} people in queue`;
+      const occupantPills = occupants
+        .map(o => {
+          const label = o?.name ? o.name : (o?.user_id ? `User #${o.user_id}` : 'Unknown user');
+          return `<span class="pill">${escapeHtml(label)}</span>`;
+        })
+        .join('');
+
+      const occupantBody = occupantPills || '<span class="muted small">Names unavailable.</span>';
+      const occupantSection = occupantCount > 0
+        ? `<div class="queue-occupants"><div class="occupant-label">${escapeHtml(occupantLabel)}</div><div class="occupant-pills">${occupantBody}</div></div>`
+        : `<div class="queue-occupants empty"><span>No one in this queue yet.</span></div>`;
+
       row.innerHTML = `
-        <div class="q-name">${escapeHtml(q.name)}</div>
-        <div class="q-desc">${escapeHtml(q.description||'')}</div>
-        <div class="spacer"></div>
-        <button class="btn btn-ghost" data-join="${q.queue_id}">Join</button>
-        <button class="btn" data-leave="${q.queue_id}">Leave</button>
+        <div class="queue-header">
+          <div class="queue-header-text">
+            <div class="q-name">${escapeHtml(q.name)}</div>
+            <div class="q-desc">${escapeHtml(q.description||'')}</div>
+          </div>
+          <div class="queue-actions">
+            <button class="btn btn-ghost" data-join="${q.queue_id}">Join</button>
+            <button class="btn" data-leave="${q.queue_id}">Leave</button>
+          </div>
+        </div>
+        ${occupantSection}
       `;
       wrap.appendChild(row);
     });
