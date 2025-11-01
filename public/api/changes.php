@@ -12,13 +12,46 @@ header('Connection: keep-alive');
 
 $pdo = db();
 
+$allowedChannels = ['rooms','progress','queue','ta_accept'];
 $channels = isset($_GET['channels']) ? explode(',', $_GET['channels']) : ['rooms','progress'];
 $channels = array_values(array_intersect($channels, ['rooms','progress','ta_accept'])); // sanitize
+$channels = array_values(array_intersect($channels, ['rooms','progress','queue'])); // sanitize
+$channels = array_values(array_intersect($channels, $allowedChannels));
 if (!$channels) {
   // Fallback so the SQL placeholders list never ends up empty (array_fill would throw)
   $channels = ['rooms','progress'];
 }
 $courseId = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
+$queueFilterRaw = $_GET['queue_id'] ?? '';
+$queueFilters = [];
+if (is_string($queueFilterRaw)) {
+  foreach (explode(',', $queueFilterRaw) as $piece) {
+    $piece = trim($piece);
+    if ($piece === '' || !ctype_digit($piece)) {
+      continue;
+    }
+    $queueFilters[] = (int)$piece;
+  }
+} elseif (is_int($queueFilterRaw) || is_numeric($queueFilterRaw)) {
+  $queueFilters[] = (int)$queueFilterRaw;
+}
+$queueFilters = array_values(array_unique(array_filter($queueFilters, fn($v) => $v > 0)));
+$queueId  = isset($_GET['queue_id']) ? (int)$_GET['queue_id'] : 0;
+
+$hasPayload = false;
+try {
+  $check = $pdo->prepare(
+    "SELECT 1 FROM information_schema.COLUMNS".
+    " WHERE TABLE_SCHEMA = DATABASE()".
+    "   AND TABLE_NAME = 'change_log'".
+    "   AND COLUMN_NAME = 'payload_json' LIMIT 1"
+  );
+  if ($check->execute() && $check->fetchColumn()) {
+    $hasPayload = true;
+  }
+} catch (Throwable $e) {
+  $hasPayload = false;
+}
 
 // Start from the last seen id (Last-Event-ID header) or 0
 $lastId = 0;
@@ -34,7 +67,8 @@ while (time() < $endAt) {
   // Build query
   $in = implode(',', array_fill(0, count($channels), '?'));
   $args = $channels;
-  $sql = "SELECT id, channel, ref_id, course_id, UNIX_TIMESTAMP(created_at) ts
+  $payloadSelect = $hasPayload ? ', payload_json' : '';
+  $sql = "SELECT id, channel, ref_id, course_id, UNIX_TIMESTAMP(created_at) ts{$payloadSelect}
           FROM change_log
           WHERE id > ?
             AND channel IN ($in)";
@@ -43,6 +77,16 @@ while (time() < $endAt) {
   if ($courseId > 0) {
     $sql .= " AND (course_id = ? OR course_id IS NULL)";
     $args[] = $courseId;
+  }
+  if ($queueFilters) {
+    $inQueues = implode(',', array_fill(0, count($queueFilters), '?'));
+    $sql .= " AND ref_id IN ($inQueues)";
+    foreach ($queueFilters as $fid) {
+      $args[] = $fid;
+    }
+  if ($queueId > 0) {
+    $sql .= " AND (channel NOT IN ('queue','ta_accept') OR ref_id = ?)";
+    $args[] = $queueId;
   }
   $sql .= " ORDER BY id ASC LIMIT 100";
 
@@ -53,10 +97,23 @@ while (time() < $endAt) {
   if ($rows) {
     foreach ($rows as $row) {
       $lastId = (int)$row['id'];
-      // name the event by channel: 'rooms' or 'progress'
+      $data = [
+        'id'        => $lastId,
+        'channel'   => $row['channel'],
+        'ref_id'    => isset($row['ref_id']) ? (int)$row['ref_id'] : null,
+        'course_id' => isset($row['course_id']) ? (int)$row['course_id'] : null,
+        'ts'        => isset($row['ts']) ? (int)$row['ts'] : null,
+      ];
+      if ($hasPayload && array_key_exists('payload_json', $row) && $row['payload_json'] !== null && $row['payload_json'] !== '') {
+        $decoded = json_decode($row['payload_json'], true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+          $data['payload'] = $decoded;
+        }
+      }
+
       echo "id: {$lastId}\n";
       echo "event: {$row['channel']}\n";
-      echo 'data: '.json_encode($row, JSON_UNESCAPED_SLASHES)."\n\n";
+      echo 'data: '.json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n\n";
     }
     @ob_flush(); @flush();
   }

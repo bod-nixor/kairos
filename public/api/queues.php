@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/bootstrap.php';
+require_once __DIR__.'/queue_helpers.php';
 $user = require_login();
 $pdo  = db();
 
@@ -153,6 +154,13 @@ try {
             ON DUPLICATE KEY UPDATE `timestamp` = `timestamp`
           ");
           $ins->execute([':qid' => $queue_id, ':uid' => $user['user_id']]);
+
+          $meta = queue_meta($pdo, $queue_id);
+          emit_change($pdo, 'queue', $queue_id, $meta['course_id'] ?? null, [
+            'action'  => 'join',
+            'user_id' => (int)$user['user_id'],
+          ]);
+
           qlog("POST join success qid=$queue_id");
           json_out(['success' => true, 'joined' => true]);
           exit;
@@ -164,6 +172,13 @@ try {
                 WHERE `queue_id` = :qid AND `user_id` = :uid
             ");
             $del->execute([':qid' => $queue_id, ':uid' => $user['user_id']]);
+
+            $meta = queue_meta($pdo, $queue_id);
+            emit_change($pdo, 'queue', $queue_id, $meta['course_id'] ?? null, [
+                'action'  => 'leave',
+                'user_id' => (int)$user['user_id'],
+            ]);
+
             qlog("POST leave success qid=$queue_id");
             json_out(['success' => true, 'left' => true]);
             exit;
