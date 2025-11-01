@@ -120,6 +120,8 @@ function showView(id){
 async function renderCourseCards(){
   setCrumbs('Courses');
   showView('viewCourses');
+  const progressSection = document.getElementById('progressSection');
+  if (progressSection) progressSection.classList.add('hidden');
   const grid = document.getElementById('coursesGrid');
   grid.innerHTML = skeletonCards(3);
 
@@ -186,9 +188,15 @@ async function showCourse(courseId){
     loadQueuesForRoom(room.room_id);
   }
 
+  const progressSection = document.getElementById('progressSection');
+  if (progressSection) progressSection.classList.remove('hidden');
   await renderProgress(selectedCourse);
 
-  document.getElementById('backToCourses').onclick = () => renderCourseCards();
+  document.getElementById('backToCourses').onclick = () => {
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) progressSection.classList.add('hidden');
+    renderCourseCards();
+  };
   document.getElementById('navRooms').classList.add('active');
   document.getElementById('navCourses').classList.remove('active');
 }
