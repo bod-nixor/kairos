@@ -19,6 +19,11 @@ if ($queueId <= 0 || $userId <= 0) {
     json_out(['error' => 'queue_id and user_id required'], 400);
 }
 
+$taId = isset($ta['user_id']) ? (int)$ta['user_id'] : 0;
+if (!user_can_manage_queue($pdo, $taId, $queueId)) {
+    json_out(['error' => 'forbidden'], 403);
+}
+
 try {
     $pdo->beginTransaction();
 

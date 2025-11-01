@@ -110,6 +110,196 @@ function queue_meta(PDO $pdo, int $queueId): array
 }
 
 /**
+ * Determine whether a user has TA/staff permissions for a queue.
+ *
+ * The legacy schemas we integrate with are not consistent, so this helper
+ * checks several common layouts before falling back to role-based checks.
+ */
+function user_can_manage_queue(PDO $pdo, int $userId, int $queueId): bool
+{
+    if ($userId <= 0 || $queueId <= 0) {
+        return false;
+    }
+
+    $meta = queue_meta($pdo, $queueId);
+    $roomId = $meta['room_id'] ?? null;
+    $courseId = $meta['course_id'] ?? null;
+
+    $tableHasColumns = function(string $table, array $columns) use ($pdo): bool {
+        static $cache = [];
+        $key = strtolower($table).'|'.implode(',', array_map('strtolower', $columns));
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        try {
+            $placeholders = implode(',', array_fill(0, count($columns), '?'));
+            $sql = "SELECT COUNT(*) FROM information_schema.COLUMNS".
+                   " WHERE TABLE_SCHEMA = DATABASE()".
+                   "   AND TABLE_NAME = ?".
+                   "   AND COLUMN_NAME IN ($placeholders)";
+            $args = array_merge([$table], $columns);
+            $st = $pdo->prepare($sql);
+            $st->execute($args);
+            $count = (int)$st->fetchColumn();
+            return $cache[$key] = ($count === count($columns));
+        } catch (Throwable $e) {
+            return $cache[$key] = false;
+        }
+    };
+
+    $checkSimpleMapping = function(string $table, string $refCol, string $userCol, int $refId) use ($pdo, $userId, $tableHasColumns): bool {
+        if (!$tableHasColumns($table, [$refCol, $userCol])) {
+            return false;
+        }
+
+        try {
+            $sql = "SELECT 1 FROM `$table` WHERE `$refCol` = :ref AND `$userCol` = :uid LIMIT 1";
+            $st = $pdo->prepare($sql);
+            $st->execute([':ref' => $refId, ':uid' => $userId]);
+            return (bool)$st->fetchColumn();
+        } catch (Throwable $e) {
+            return false;
+        }
+    };
+
+    $checkRoleMapping = function(string $table, string $refCol, string $userCol, string $roleCol, int $refId, array $allowedRoles) use ($pdo, $userId, $tableHasColumns): bool {
+        $columns = [$refCol, $userCol, $roleCol];
+        if (!$tableHasColumns($table, $columns)) {
+            return false;
+        }
+
+        try {
+            $placeholders = implode(',', array_fill(0, count($allowedRoles), '?'));
+            $sql = "SELECT 1 FROM `$table`".
+                   " WHERE `$refCol` = ? AND `$userCol` = ?".
+                   "   AND LOWER(`$roleCol`) IN ($placeholders)".
+                   " LIMIT 1";
+            $args = array_merge([$refId, $userId], array_map('strtolower', $allowedRoles));
+            $st = $pdo->prepare($sql);
+            $st->execute($args);
+            return (bool)$st->fetchColumn();
+        } catch (Throwable $e) {
+            return false;
+        }
+    };
+
+    $roleNames = ['ta', 'assistant', 'staff', 'instructor', 'teacher', 'admin', 'manager'];
+
+    // Direct queue level assignments.
+    $queueTables = [
+        ['queue_staff', 'queue_id', 'user_id'],
+        ['queue_tas', 'queue_id', 'user_id'],
+        ['queue_permissions', 'queue_id', 'user_id'],
+    ];
+    foreach ($queueTables as [$table, $refCol, $userCol]) {
+        if ($checkSimpleMapping($table, $refCol, $userCol, $queueId)) {
+            return true;
+        }
+    }
+
+    // Queue level mappings where a role flag determines the permission.
+    $queueRoleTables = [
+        ['queue_users', 'queue_id', 'user_id', 'role'],
+        ['queue_members', 'queue_id', 'user_id', 'role'],
+    ];
+    foreach ($queueRoleTables as [$table, $refCol, $userCol, $roleCol]) {
+        if ($checkRoleMapping($table, $refCol, $userCol, $roleCol, $queueId, $roleNames)) {
+            return true;
+        }
+    }
+
+    // Room level assignments (a room hosts a queue).
+    if ($roomId) {
+        $roomTables = [
+            ['room_staff', 'room_id', 'user_id'],
+            ['room_tas', 'room_id', 'user_id'],
+        ];
+        foreach ($roomTables as [$table, $refCol, $userCol]) {
+            if ($checkSimpleMapping($table, $refCol, $userCol, (int)$roomId)) {
+                return true;
+            }
+        }
+
+        $roomRoleTables = [
+            ['room_users', 'room_id', 'user_id', 'role'],
+        ];
+        foreach ($roomRoleTables as [$table, $refCol, $userCol, $roleCol]) {
+            if ($checkRoleMapping($table, $refCol, $userCol, $roleCol, (int)$roomId, $roleNames)) {
+                return true;
+            }
+        }
+    }
+
+    // Course level staff (queues belong to a course via room -> course).
+    if ($courseId) {
+        $courseTables = [
+            ['course_staff', 'course_id', 'user_id'],
+            ['course_tas', 'course_id', 'user_id'],
+            ['courses_staff', 'course_id', 'user_id'],
+            ['staff_courses', 'course_id', 'user_id'],
+        ];
+        foreach ($courseTables as [$table, $refCol, $userCol]) {
+            if ($checkSimpleMapping($table, $refCol, $userCol, (int)$courseId)) {
+                return true;
+            }
+        }
+
+        $courseRoleTables = [
+            ['course_users', 'course_id', 'user_id', 'role'],
+            ['course_members', 'course_id', 'user_id', 'role'],
+        ];
+        foreach ($courseRoleTables as [$table, $refCol, $userCol, $roleCol]) {
+            if ($checkRoleMapping($table, $refCol, $userCol, $roleCol, (int)$courseId, $roleNames)) {
+                return true;
+            }
+        }
+    }
+
+    // Finally fall back to checking the user's global role assignment.
+    try {
+        $placeholders = implode(',', array_fill(0, count($roleNames), '?'));
+        $sql = "SELECT 1".
+               " FROM users u".
+               " JOIN roles r ON r.role_id = u.role_id".
+               " WHERE u.user_id = ? AND LOWER(r.name) IN ($placeholders)".
+               " LIMIT 1";
+        $args = array_merge([$userId], array_map('strtolower', $roleNames));
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        if ($st->fetchColumn()) {
+            return true;
+        }
+    } catch (Throwable $e) {
+        // Ignore and fall through to final false.
+    }
+
+    // Some installs store a boolean flag directly on the users table.
+    try {
+        if ($tableHasColumns('users', ['is_staff'])) {
+            $st = $pdo->prepare("SELECT is_staff FROM users WHERE user_id = :uid LIMIT 1");
+            $st->execute([':uid' => $userId]);
+            $flag = $st->fetchColumn();
+            if ($flag !== false && (int)$flag === 1) {
+                return true;
+            }
+        }
+        if ($tableHasColumns('users', ['is_admin'])) {
+            $st = $pdo->prepare("SELECT is_admin FROM users WHERE user_id = :uid LIMIT 1");
+            $st->execute([':uid' => $userId]);
+            $flag = $st->fetchColumn();
+            if ($flag !== false && (int)$flag === 1) {
+                return true;
+            }
+        }
+    } catch (Throwable $e) {
+        // fall through
+    }
+
+    return false;
+}
+
+/**
  * Try to compute an average handle time (in minutes) for a queue using several fallbacks.
  */
 function queue_avg_handle_minutes(PDO $pdo, int $queueId): ?float
