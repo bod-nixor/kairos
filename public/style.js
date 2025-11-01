@@ -55,6 +55,7 @@
   .btn-primary{background:var(--primary); color:#fff}
   .btn-primary:hover{filter:brightness(.95)}
   .btn-ghost{background:var(--primary-ghost); color:var(--primary)}
+  .btn[disabled]{opacity:.55; cursor:not-allowed}
   .btn-link{background:transparent; color:var(--primary); padding:8px 10px}
   .spacer{flex:1}
 
@@ -139,6 +140,55 @@
   .sk::after{content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
     transform:translateX(-100%); animation:sh 1.2s infinite}
   @keyframes sh{to{transform:translateX(100%)}}
+
+  /* TA dashboard */
+  .ta-dashboard{display:flex; flex-direction:column; gap:20px}
+  .ta-toolbar{display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end}
+  .ta-toolbar fieldset{border:0; padding:0; margin:0; min-width:220px}
+  .ta-toolbar label{display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; color:var(--muted)}
+  .ta-toolbar select{width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; font-size:14px}
+  .ta-layout{display:grid; gap:20px; grid-template-columns:minmax(0,2fr) minmax(0,1.2fr)}
+  .ta-queue-list{display:flex; flex-direction:column; gap:14px}
+  .ta-queue-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; display:flex; flex-direction:column; gap:14px}
+  .ta-queue-header{display:flex; justify-content:space-between; gap:12px; align-items:flex-start}
+  .ta-queue-title{margin:0; font-size:18px; font-weight:700}
+  .ta-queue-desc{color:var(--muted); font-size:13px}
+  .ta-queue-serving{font-size:13px; color:var(--muted)}
+  .ta-student-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px}
+  .ta-student-item{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:#f8f9fc}
+  .ta-student-item.active{border-color:var(--primary); background:rgba(23,105,255,.08)}
+  .ta-student-name{font-weight:600; font-size:15px}
+  .ta-student-meta{font-size:12px; color:var(--muted)}
+  .ta-student-info{display:flex; flex-direction:column; gap:4px}
+  .ta-student-actions{display:flex; gap:8px; align-items:center}
+  .ta-student-actions .btn{padding:8px 12px; font-size:13px}
+  .ta-queue-empty{color:var(--muted); font-size:13px}
+  .ta-student-panel{display:flex; flex-direction:column; gap:18px}
+  .ta-progress-group{display:flex; flex-direction:column; gap:12px}
+  .ta-progress-category{font-weight:700; font-size:15px; margin-bottom:2px}
+  .ta-progress-item{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff}
+  .ta-progress-item .detail-name{font-weight:500; flex:1}
+  .ta-progress-item select{padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:13px}
+  .ta-comments{display:flex; flex-direction:column; gap:12px}
+  .ta-comment-list{display:flex; flex-direction:column; gap:10px}
+  .ta-comment{padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f6f8ff}
+  .ta-comment-meta{font-size:12px; color:var(--muted); margin-bottom:6px}
+  .ta-comment-form{display:flex; flex-direction:column; gap:10px}
+  .ta-comment-form textarea{width:100%; min-height:90px; border-radius:12px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical}
+  .ta-comment-form button{align-self:flex-end}
+
+  /* Modal */
+  .modal{position:fixed; inset:0; z-index:120; display:flex; align-items:center; justify-content:center}
+  .modal.hidden{display:none!important}
+  .modal-backdrop{position:absolute; inset:0; background:rgba(11,18,37,.65)}
+  .modal-card{position:relative; background:var(--panel); border-radius:20px; box-shadow:var(--shadow); padding:26px; width:min(420px,90vw); z-index:1; display:flex; flex-direction:column; gap:14px}
+  .modal-card h3{margin:0; font-size:20px}
+  .modal-card p{margin:0; color:var(--muted)}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px}
+
+  @media(max-width:1100px){
+    .ta-layout{grid-template-columns:1fr}
+  }
 
   @media(max-width:920px){
     .sidebar{width:76px}

@@ -13,7 +13,7 @@ header('Connection: keep-alive');
 $pdo = db();
 
 $channels = isset($_GET['channels']) ? explode(',', $_GET['channels']) : ['rooms','progress'];
-$channels = array_values(array_intersect($channels, ['rooms','progress'])); // sanitize
+$channels = array_values(array_intersect($channels, ['rooms','progress','ta_accept'])); // sanitize
 if (!$channels) {
   // Fallback so the SQL placeholders list never ends up empty (array_fill would throw)
   $channels = ['rooms','progress'];
