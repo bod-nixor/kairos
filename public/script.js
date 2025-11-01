@@ -2,6 +2,16 @@
 let evtSource = null;
 const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com'; // IMPORTANT: same as in auth.php
 let selectedCourse = null;
+let selectedRoomId = null;
+let currentUserId = null;
+
+const queueLiveState = {
+  roomId: null,
+  queueIds: new Set(),
+  evtSource: null,
+  pollTimer: null,
+};
+const queuePendingFetches = new Map();
 
 function showSignin() {
   document.getElementById('signin').classList.remove('hidden');  // show login card
@@ -75,6 +85,13 @@ async function bootstrap() {
     document.getElementById('name').textContent = me.name || '';
     document.getElementById('email').textContent = me.email || '';
 
+    currentUserId = (typeof me.user_id === 'number' && Number.isFinite(me.user_id))
+      ? me.user_id
+      : (me?.user_id != null ? Number(me.user_id) : null);
+    if (!Number.isFinite(currentUserId)) {
+      currentUserId = null;
+    }
+
     showApp();
 
     // Step 1: show only the user's enrolled courses as cards
@@ -118,6 +135,8 @@ function showView(id){
 
 // COURSES (cards: enrolled only)
 async function renderCourseCards(){
+  selectedRoomId = null;                                 // reset room selection when leaving rooms view
+  stopQueueLiveUpdates();
   setCrumbs('Courses');
   showView('viewCourses');
   const progressSection = document.getElementById('progressSection');
@@ -249,6 +268,86 @@ async function showCourse(courseId){
   document.getElementById('navCourses').classList.remove('active');
 }
 
+// queues per room (unchanged logic, prettier buttons)
+async function loadQueuesForRoom(roomId){
+  const wrap = document.getElementById(`queues-for-${roomId}`);
+  if (!wrap) return;
+  if (String(selectedRoomId || '') !== String(roomId)) return;
+  wrap.innerHTML = '<div class="sk"></div>';
+  stopQueueLiveUpdates();
+  try{
+    const queues = await apiGet('./api/queues.php?room_id='+encodeURIComponent(roomId));
+    if (String(selectedRoomId || '') !== String(roomId)) return;
+    if(!queues.length){ wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`; return; }
+    wrap.innerHTML = '';
+    const queueIds = [];
+    queues.forEach(q=>{
+      const row = document.createElement('div');
+      row.className='queue-row';
+      row.dataset.queueId = String(q.queue_id ?? '');
+      row.innerHTML = `
+        <div class="queue-header">
+          <div class="queue-header-text">
+            <div class="q-name">${escapeHtml(q.name)}</div>
+            <div class="q-desc">${escapeHtml(q.description||'')}</div>
+          </div>
+          <div class="queue-meta">
+            <div class="queue-count" data-role="queue-count">Loading…</div>
+            <div class="queue-eta" data-role="queue-eta"></div>
+          </div>
+          <div class="queue-actions">
+            <button class="btn btn-ghost" data-join="${q.queue_id}">Join</button>
+            <button class="btn" data-leave="${q.queue_id}">Leave</button>
+          </div>
+        </div>
+        <div class="queue-occupants empty" data-role="queue-occupants">
+          <span class="muted small">Loading participants…</span>
+        </div>
+      `;
+      wrap.appendChild(row);
+      queueIds.push(String(q.queue_id ?? ''));
+    });
+    initQueueLiveUpdates(roomId, queueIds);
+    wrap.onclick = async (e)=>{
+      const joinId = e.target.getAttribute('data-join');
+      const leaveId = e.target.getAttribute('data-leave');
+      if(joinId){
+        await fetch('./api/queues.php',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'join',queue_id:joinId})});
+        await loadQueuesForRoom(roomId);
+      }
+      if(leaveId){
+        await fetch('./api/queues.php',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'leave',queue_id:leaveId})});
+        await loadQueuesForRoom(roomId);
+      }
+    };
+  }catch{
+    if (String(selectedRoomId || '') === String(roomId)) {
+      wrap.innerHTML = `<div class="muted">Failed to load queues.</div>`;
+    }
+  }
+}
+
+function updateRoomSelectionUI(){
+  document.querySelectorAll('#roomsGrid .room-card').forEach(card => {
+    const roomId = card.dataset.roomId;
+    const isActive = selectedRoomId && String(selectedRoomId) === String(roomId);
+    const joinBtn = card.querySelector('button[data-join-room]');
+    const leaveBtn = card.querySelector('button[data-leave-room]');
+    const queues = card.querySelector('.queues');
+    if (joinBtn) joinBtn.classList.toggle('hidden', !!isActive);
+    if (leaveBtn) leaveBtn.classList.toggle('hidden', !isActive);
+    if (queues) {
+      queues.classList.toggle('hidden', !isActive);
+      if (!isActive) {
+        queues.innerHTML = '';
+      }
+    }
+  });
+  if (!selectedRoomId) {
+    stopQueueLiveUpdates();
+  }
+}
+
 // Map status string to CSS class (from your code)
 function statusClass(s) {
     const key = String(s || 'None').toLowerCase();
@@ -320,6 +419,181 @@ function escapeHtml(s){
 }
 function skeletonCards(n=3,h=120){
   return Array.from({length:n}).map(()=>`<div class="sk" style="height:${h}px"></div>`).join('');
+}
+
+async function refreshQueueMeta(queueId){
+  const id = String(queueId ?? '');
+  if (!id || !queueLiveState.queueIds.has(id)) return;
+  const safeId = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') ? CSS.escape(id) : id.replace(/"/g, '\\"');
+  const row = document.querySelector(`.queue-row[data-queue-id="${safeId}"]`);
+  if (!row) return;
+
+  if (queuePendingFetches.has(id)) {
+    return queuePendingFetches.get(id);
+  }
+
+  const promise = (async () => {
+    try {
+      const data = await apiGet('./api/queue_participants.php?queue_id=' + encodeURIComponent(id));
+      const count = Number(data?.count ?? 0);
+      const eta = Number(data?.eta_minutes ?? 0);
+      const position = data?.position != null ? Number(data.position) : null;
+      const participants = Array.isArray(data?.participants) ? data.participants : [];
+
+      const countEl = row.querySelector('[data-role="queue-count"]');
+      const etaEl = row.querySelector('[data-role="queue-eta"]');
+      const occupantsEl = row.querySelector('[data-role="queue-occupants"]');
+
+      if (countEl) {
+        let label;
+        if (count <= 0) {
+          label = 'No one waiting';
+        } else if (count === 1) {
+          label = '1 person waiting';
+        } else {
+          label = `${count} people waiting`;
+        }
+        if (position && position > 0) {
+          label += ` • You are #${position}`;
+        }
+        countEl.textContent = label;
+      }
+
+      if (etaEl) {
+        if (eta > 0) {
+          etaEl.textContent = `ETA ~ ${eta} min`;
+        } else {
+          etaEl.textContent = 'ETA ~ —';
+        }
+      }
+
+      if (occupantsEl) {
+        if (count > 0 && participants.length) {
+          const pills = participants.map((entry, idx) => {
+            const uid = entry?.user_id != null ? Number(entry.user_id) : null;
+            const name = entry?.name ? entry.name : (uid ? `User #${uid}` : `User ${idx + 1}`);
+            const isSelf = currentUserId != null && uid === Number(currentUserId);
+            const suffix = isSelf ? ' (you)' : '';
+            return `<span class="pill${isSelf ? ' you' : ''}">${escapeHtml(name)}${suffix}</span>`;
+          }).join('');
+          occupantsEl.classList.remove('empty');
+          occupantsEl.innerHTML = `<div class="occupant-pills">${pills}</div>`;
+        } else {
+          occupantsEl.classList.add('empty');
+          occupantsEl.innerHTML = '<span>No one in this queue yet.</span>';
+        }
+      }
+    } catch (err) {
+      const occupantsEl = row.querySelector('[data-role="queue-occupants"]');
+      const countEl = row.querySelector('[data-role="queue-count"]');
+      const etaEl = row.querySelector('[data-role="queue-eta"]');
+      if (countEl) countEl.textContent = 'Queue unavailable';
+      if (etaEl) etaEl.textContent = 'ETA unavailable';
+      if (occupantsEl) {
+        occupantsEl.classList.add('empty');
+        occupantsEl.innerHTML = '<span class="muted small">Unable to load queue.</span>';
+      }
+      console.warn('refreshQueueMeta failed for queue', queueId, err);
+    } finally {
+      queuePendingFetches.delete(id);
+    }
+  })();
+
+  queuePendingFetches.set(id, promise);
+  return promise;
+}
+
+function initQueueLiveUpdates(roomId, queueIds){
+  stopQueueLiveUpdates();
+  const ids = (Array.isArray(queueIds) ? queueIds : [])
+    .map(id => String(id))
+    .filter(id => /^\d+$/.test(id));
+  queueLiveState.roomId = roomId != null ? String(roomId) : null;
+  queueLiveState.queueIds = new Set(ids);
+  if (!ids.length) {
+    return;
+  }
+  ids.forEach(id => { refreshQueueMeta(id); });
+
+  if (typeof EventSource === 'undefined') {
+    startQueuePolling();
+    return;
+  }
+
+  startQueueEventSource(queueLiveState.roomId, ids);
+}
+
+function startQueueEventSource(roomId, queueIds){
+  if (queueLiveState.evtSource) {
+    queueLiveState.evtSource.close();
+    queueLiveState.evtSource = null;
+  }
+  const params = new URLSearchParams({ channels: 'queue' });
+  const idList = Array.isArray(queueIds)
+    ? queueIds.filter(id => /^\d+$/.test(String(id)))
+    : [];
+  if (idList.length) {
+    params.set('queue_id', idList.join(','));
+  } else if (roomId) {
+    params.set('queue_id', roomId);
+  }
+  if (roomId) {
+    params.set('room_id', roomId);
+  }
+  const es = new EventSource('./api/changes.php?' + params.toString());
+  queueLiveState.evtSource = es;
+  es.onopen = () => {
+    if (queueLiveState.pollTimer) {
+      clearInterval(queueLiveState.pollTimer);
+      queueLiveState.pollTimer = null;
+    }
+  };
+  es.addEventListener('queue', (evt) => {
+    try {
+      const payload = evt?.data ? JSON.parse(evt.data) : {};
+      const ref = payload?.ref_id ?? payload?.queue_id ?? payload?.id;
+      if (ref != null) {
+        const refId = String(ref);
+        if (queueLiveState.queueIds.has(refId)) {
+          refreshQueueMeta(refId);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse queue SSE payload', e);
+    }
+  });
+  es.onerror = () => {
+    if (queueLiveState.evtSource) {
+      queueLiveState.evtSource.close();
+      queueLiveState.evtSource = null;
+    }
+    startQueuePolling();
+  };
+}
+
+function startQueuePolling(){
+  if (queueLiveState.pollTimer) {
+    clearInterval(queueLiveState.pollTimer);
+  }
+  queueLiveState.pollTimer = setInterval(() => {
+    queueLiveState.queueIds.forEach(id => {
+      refreshQueueMeta(id);
+    });
+  }, 10000);
+}
+
+function stopQueueLiveUpdates(){
+  if (queueLiveState.evtSource) {
+    queueLiveState.evtSource.close();
+    queueLiveState.evtSource = null;
+  }
+  if (queueLiveState.pollTimer) {
+    clearInterval(queueLiveState.pollTimer);
+    queueLiveState.pollTimer = null;
+  }
+  queueLiveState.queueIds = new Set();
+  queueLiveState.roomId = null;
+  queuePendingFetches.clear();
 }
 
 // ---------- SSE (optional; if you created change_log + triggers) ----------

@@ -14,12 +14,27 @@ $pdo = db();
 
 $allowedChannels = ['rooms','progress','queue','ta_accept'];
 $channels = isset($_GET['channels']) ? explode(',', $_GET['channels']) : ['rooms','progress'];
+$channels = array_values(array_intersect($channels, ['rooms','progress','queue'])); // sanitize
 $channels = array_values(array_intersect($channels, $allowedChannels));
 if (!$channels) {
   // Fallback so the SQL placeholders list never ends up empty (array_fill would throw)
   $channels = ['rooms','progress'];
 }
 $courseId = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
+$queueFilterRaw = $_GET['queue_id'] ?? '';
+$queueFilters = [];
+if (is_string($queueFilterRaw)) {
+  foreach (explode(',', $queueFilterRaw) as $piece) {
+    $piece = trim($piece);
+    if ($piece === '' || !ctype_digit($piece)) {
+      continue;
+    }
+    $queueFilters[] = (int)$piece;
+  }
+} elseif (is_int($queueFilterRaw) || is_numeric($queueFilterRaw)) {
+  $queueFilters[] = (int)$queueFilterRaw;
+}
+$queueFilters = array_values(array_unique(array_filter($queueFilters, fn($v) => $v > 0)));
 $queueId  = isset($_GET['queue_id']) ? (int)$_GET['queue_id'] : 0;
 
 $hasPayload = false;
@@ -62,6 +77,12 @@ while (time() < $endAt) {
     $sql .= " AND (course_id = ? OR course_id IS NULL)";
     $args[] = $courseId;
   }
+  if ($queueFilters) {
+    $inQueues = implode(',', array_fill(0, count($queueFilters), '?'));
+    $sql .= " AND ref_id IN ($inQueues)";
+    foreach ($queueFilters as $fid) {
+      $args[] = $fid;
+    }
   if ($queueId > 0) {
     $sql .= " AND (channel NOT IN ('queue','ta_accept') OR ref_id = ?)";
     $args[] = $queueId;
