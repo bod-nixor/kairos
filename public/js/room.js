@@ -10,6 +10,8 @@ const state = {
   roomId: null,
   loading: false,
   lastQueues: [],
+  pollTimer: null,
+  pollingInitialized: false,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -33,6 +35,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await refreshQueues();
+  initQueuePolling();
+  if (document.visibilityState === 'visible') {
+    startQueuePolling();
+  }
 });
 
 function parseRoomId() {
@@ -63,16 +69,21 @@ function redirectToIndex() {
   window.location.replace('./index.html');
 }
 
-async function refreshQueues() {
+async function refreshQueues(options = {}) {
+  const { silent = false, skipIfLoading = false } = options;
   if (!state.roomId) return;
-  setLoading(true);
+  if (skipIfLoading && state.loading) return;
+  const shouldShowSkeleton = !silent || state.lastQueues.length === 0;
+  setLoading(true, { showSkeleton: shouldShowSkeleton });
   try {
     const queues = await fetchQueues(state.roomId);
     state.lastQueues = Array.isArray(queues) ? queues : [];
     renderQueues(state.lastQueues);
   } catch (err) {
     console.error(err);
-    showErrorCard('We could not load queues for this room.');
+    if (!silent) {
+      showErrorCard('We could not load queues for this room.');
+    }
   } finally {
     setLoading(false);
   }
@@ -154,7 +165,7 @@ queuesContainer?.addEventListener('click', async (event) => {
   try {
     setButtonLoading(button, true);
     await mutateQueue(action, Number(queueId));
-    await refreshQueues();
+    await refreshQueues({ silent: true });
   } catch (err) {
     console.error(err);
     showToast(err.message || 'Something went wrong.');
@@ -200,12 +211,14 @@ function setButtonLoading(button, isLoading) {
   }
 }
 
-function setLoading(isLoading) {
+function setLoading(isLoading, { showSkeleton = true } = {}) {
   state.loading = isLoading;
   if (!roomCard || !queuesContainer) return;
   if (isLoading) {
     roomCard.classList.add('loading');
-    queuesContainer.innerHTML = skeletonCards(3);
+    if (showSkeleton) {
+      queuesContainer.innerHTML = skeletonCards(3);
+    }
   } else {
     roomCard.classList.remove('loading');
   }
@@ -248,4 +261,48 @@ function showToast(message) {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 250);
   }, 3200);
+}
+
+function initQueuePolling() {
+  if (state.pollingInitialized) return;
+  state.pollingInitialized = true;
+  document.addEventListener('visibilitychange', handleVisibilityChange, { passive: true });
+  window.addEventListener('focus', handleVisibilityGain, { passive: true });
+  window.addEventListener('blur', handleVisibilityLoss, { passive: true });
+  window.addEventListener('beforeunload', stopQueuePolling, { passive: true });
+}
+
+function startQueuePolling() {
+  stopQueuePolling();
+  state.pollTimer = window.setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    refreshQueues({ silent: true, skipIfLoading: true });
+  }, 10000);
+}
+
+function stopQueuePolling() {
+  if (state.pollTimer) {
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    startQueuePolling();
+    refreshQueues({ silent: true, skipIfLoading: true });
+  } else {
+    stopQueuePolling();
+  }
+}
+
+function handleVisibilityGain() {
+  if (document.visibilityState !== 'visible') return;
+  refreshQueues({ silent: true, skipIfLoading: true });
+  startQueuePolling();
+}
+
+function handleVisibilityLoss() {
+  if (document.visibilityState === 'visible') return;
+  stopQueuePolling();
 }
