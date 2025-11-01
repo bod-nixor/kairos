@@ -1,8 +1,11 @@
 // ---------- Google Sign-In + App flow ----------
 let evtSource = null;
+let notifySource = null;
 const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com'; // IMPORTANT: same as in auth.php
 let selectedCourse = null;
 let selectedRoomId = null;
+let selfUserId = null;
+let taAudioCtx = null;
 let currentUserId = null;
 
 const queueLiveState = {
@@ -78,13 +81,14 @@ async function bootstrap() {
     if (!ctype.includes('application/json')) throw new Error('me.php not JSON');
 
     const me = await r.json();
-    if (!me?.email) { showSignin(); return; }
+    if (!me?.email) { selfUserId = null; stopNotifySSE(); showSignin(); return; }
 
     // Fill userbar
     document.getElementById('avatar').src = me.picture_url || '';
     document.getElementById('name').textContent = me.name || '';
     document.getElementById('email').textContent = me.email || '';
 
+    selfUserId = me.user_id || null;
     currentUserId = (typeof me.user_id === 'number' && Number.isFinite(me.user_id))
       ? me.user_id
       : (me?.user_id != null ? Number(me.user_id) : null);
@@ -99,8 +103,11 @@ async function bootstrap() {
 
     // Start SSE (optional; comment out if you haven't added change_log)
     // startSSE();
+    startNotifySSE();
   } catch (e) {
     console.warn('bootstrap -> logged-out', e);
+    selfUserId = null;
+    stopNotifySSE();
     showSignin();
   }
 }
@@ -108,11 +115,23 @@ async function bootstrap() {
 document.addEventListener('DOMContentLoaded', () => {
   renderGoogleButton();
   bootstrap();
+  const dismiss = document.getElementById('taAcceptDismiss');
+  if (dismiss) dismiss.addEventListener('click', hideTaAcceptModal);
+  const modal = document.getElementById('taAcceptModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.classList.contains('modal-backdrop')) {
+        hideTaAcceptModal();
+      }
+    });
+  }
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
   stopSSE();
+  stopNotifySSE();
+  selfUserId = null;
   showSignin();
   renderGoogleButton();
 });
@@ -610,3 +629,90 @@ function startSSE() {
   evtSource.onerror = () => { /* auto-retry */ };
 }
 function stopSSE() { if (evtSource) { evtSource.close(); evtSource = null; } }
+
+// ---------- TA notifications (student side) ----------
+function startNotifySSE() {
+  if (!selfUserId) return;
+  stopNotifySSE();
+  try {
+    notifySource = new EventSource('./api/notify_push.php');
+    notifySource.addEventListener('ta_accept', handleTaAcceptEvent);
+    notifySource.onerror = () => { /* auto retry */ };
+  } catch (err) {
+    console.warn('notify SSE failed', err);
+  }
+}
+
+function stopNotifySSE() {
+  if (notifySource) {
+    notifySource.close();
+    notifySource = null;
+  }
+}
+
+function handleTaAcceptEvent(evt) {
+  if (!evt || !evt.data) return;
+  let payload = null;
+  try { payload = JSON.parse(evt.data); } catch (e) { return; }
+  if (!payload || payload.user_id !== selfUserId) return;
+
+  const taName = payload.ta_name && payload.ta_name.trim() ? payload.ta_name : 'A TA';
+  const queueLabel = payload.queue_id != null ? `#${payload.queue_id}` : 'the queue';
+  showTaAcceptModal(taName, queueLabel);
+  playTaAcceptSound();
+
+  if ('Notification' in window) {
+    const notifyBody = `${taName} is ready for queue ${queueLabel}.`;
+    if (Notification.permission === 'granted') {
+      try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) {}
+    } else if (Notification.permission === 'default') {
+      try {
+        Notification.requestPermission().then((perm) => {
+          if (perm === 'granted') {
+            try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) {}
+          }
+        }).catch(() => {});
+      } catch (_) {}
+    }
+  }
+}
+
+function showTaAcceptModal(taName, queueLabel) {
+  const modal = document.getElementById('taAcceptModal');
+  if (!modal) return;
+  const nameEl = document.getElementById('taAcceptTAName');
+  const queueEl = document.getElementById('taAcceptQueueId');
+  if (nameEl) nameEl.textContent = taName;
+  if (queueEl) queueEl.textContent = queueLabel;
+  modal.classList.remove('hidden');
+}
+
+function hideTaAcceptModal() {
+  const modal = document.getElementById('taAcceptModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function playTaAcceptSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!taAudioCtx) taAudioCtx = new Ctx();
+    if (taAudioCtx.state === 'suspended') {
+      taAudioCtx.resume().catch(() => {});
+    }
+    const ctx = taAudioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.45);
+  } catch (e) {
+    console.warn('sound failed', e);
+  }
+}

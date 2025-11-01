@@ -14,6 +14,7 @@ $pdo = db();
 
 $allowedChannels = ['rooms','progress','queue','ta_accept'];
 $channels = isset($_GET['channels']) ? explode(',', $_GET['channels']) : ['rooms','progress'];
+$channels = array_values(array_intersect($channels, ['rooms','progress','ta_accept'])); // sanitize
 $channels = array_values(array_intersect($channels, ['rooms','progress','queue'])); // sanitize
 $channels = array_values(array_intersect($channels, $allowedChannels));
 if (!$channels) {

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TA Dashboard · Signoff</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">🛶</div>
+      <div class="brand-text">TA Desk</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" type="button">
+        <span class="nav-ico">📋</span><span>Dashboard</span>
+      </button>
+    </nav>
+    <div class="nav-bottom">
+      <button class="nav-item" id="taLogoutBtn" type="button">
+        <span class="nav-ico">↩️</span><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <header class="app-header">
+    <div class="crumbs" id="taBreadcrumbs">TA Dashboard</div>
+    <div class="userbar hidden" id="taUserbar">
+      <img id="taAvatar" alt="" class="avatar" />
+      <div class="user-meta">
+        <div id="taName"></div>
+        <div id="taEmail" class="muted"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="taAuthRequired" class="centerbox card hidden">
+      <h2>Sign in required</h2>
+      <p class="muted">Please log in via the main portal before accessing the TA dashboard.</p>
+      <a class="btn btn-primary" href="./index.html">Go to login</a>
+    </section>
+
+    <section id="taForbidden" class="centerbox card hidden">
+      <h2>Access denied</h2>
+      <p class="muted">This dashboard is restricted to teaching assistants.</p>
+    </section>
+
+    <section id="taDashboard" class="view hidden">
+      <div class="ta-dashboard">
+        <div class="card ta-toolbar">
+          <fieldset>
+            <label for="taCourseSelect">Course</label>
+            <select id="taCourseSelect">
+              <option value="">Select a course…</option>
+            </select>
+          </fieldset>
+          <fieldset>
+            <label for="taRoomSelect">Room</label>
+            <select id="taRoomSelect" disabled>
+              <option value="">Select a room…</option>
+            </select>
+          </fieldset>
+          <div class="spacer"></div>
+          <div id="taServingNotice" class="small muted"></div>
+        </div>
+
+        <div class="ta-layout">
+          <div>
+            <div id="taQueueList" class="ta-queue-list"></div>
+          </div>
+          <div>
+            <div id="taEmptyPanel" class="card ta-student-panel">
+              <h3>No student selected</h3>
+              <p class="muted">Pick a student from a queue to review their progress.</p>
+            </div>
+            <div id="taStudentPanel" class="card ta-student-panel hidden">
+              <div>
+                <h3 id="taStudentName">Student</h3>
+                <p class="muted small" id="taStudentCourse"></p>
+              </div>
+              <div id="taProgressArea" class="ta-progress-group"></div>
+              <div class="ta-comments">
+                <h4 style="margin:0">Comments</h4>
+                <div id="taCommentList" class="ta-comment-list"></div>
+                <form id="taCommentForm" class="ta-comment-form">
+                  <textarea id="taCommentText" placeholder="Add a note for other TAs..."></textarea>
+                  <button type="submit" class="btn btn-primary">Add comment</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./style.js"></script>
+  <script src="./js/ta.js"></script>
+</body>
+</html>

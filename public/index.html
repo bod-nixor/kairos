@@ -71,6 +71,17 @@
     </section>
 
   </main>
+  <div id="taAcceptModal" class="modal hidden" role="alertdialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <h3>You're up!</h3>
+      <p><span id="taAcceptTAName">A TA</span> is ready to help you for queue <span id="taAcceptQueueId">?</span>.</p>
+      <p class="small">Please head over to the TA or join the designated call.</p>
+      <div class="modal-actions">
+        <button id="taAcceptDismiss" class="btn btn-primary">Got it</button>
+      </div>
+    </div>
+  </div>
   <!-- Styles + App -->
   <script src="./style.js"></script>
   <script src="./script.js"></script>
