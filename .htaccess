@@ -1,0 +1,30 @@
+# /home/nixorc5/regatta.nixorcorporate.com/signoff/.htaccess
+
+# Make sure MultiViews doesn't fight us
+Options -Indexes -MultiViews
+
+RewriteEngine On
+RewriteBase /signoff/
+
+# 1) If someone hits /signoff/public/... force a clean URL without /public
+RewriteCond %{THE_REQUEST} \s/+signoff/public/ [NC]
+RewriteRule ^public/(.*)$ $1 [R=301,L]
+
+# 2) API: map /signoff/api/* -> /signoff/public/api/*
+RewriteRule ^api/(.*)$ public/api/$1 [L]
+
+# 3) If the requested path is not an existing file/dir in the root,
+#    try to serve the matching thing from /public
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/$1 [L]
+
+# 4) Default index should be the one in /public
+DirectoryIndex public/index.php public/index.html index.php
+
+<IfModule mod_headers.c>
+  # Completely remove COOP/COEP/CORP so Google Identity can postMessage
+  Header always unset Cross-Origin-Opener-Policy
+  Header always unset Cross-Origin-Embedder-Policy
+  Header always unset Cross-Origin-Resource-Policy
+</IfModule>

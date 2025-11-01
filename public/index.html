@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Signoff Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Google Identity -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <!-- App Shell -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">🛶</div>
+      <div class="brand-text">Signoff</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="courses" id="navCourses">
+        <span class="nav-ico">📚</span><span>Courses</span>
+      </button>
+      <button class="nav-item" data-view="rooms" id="navRooms">
+        <span class="nav-ico">🏫</span><span>Rooms</span>
+      </button>
+    </nav>
+    <div class="nav-bottom">
+      <button class="nav-item" id="logoutBtn">
+        <span class="nav-ico">↩️</span><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <header class="app-header">
+    <div class="crumbs" id="breadcrumbs">Courses</div>
+    <div class="userbar hidden" id="userbar">
+      <img id="avatar" alt="" class="avatar"/>
+      <div class="user-meta">
+        <div id="name"></div>
+        <div id="email" class="muted"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main" id="appRoot">
+    <!-- Sign in -->
+    <section id="signin" class="centerbox card">
+      <h2 class="title">Sign-off manager</h2>
+      <div id="googleBtn"></div>
+      <p class="muted small">Only <strong>@nixorcollege.edu.pk</strong> accounts are allowed.</p>
+    </section>
+
+    <!-- Courses view -->
+    <section id="viewCourses" class="view">
+      <h2 class="section-title">Your courses</h2>
+      <div id="coursesGrid" class="grid cards"></div>
+    </section>
+
+    <!-- Rooms view -->
+    <section id="viewRooms" class="view hidden">
+      <div class="section-head">
+        <h2 class="section-title" id="roomsTitle">Rooms</h2>
+        <div class="spacer"></div>
+        <button id="backToCourses" class="btn btn-link">← Back</button>
+      </div>
+      <div id="roomsGrid" class="grid cards"></div>
+    </section>
+
+    <section class="progress-section">
+        <h2>Your Progress</h2>
+        <div id="progressContainer">
+            </div>
+    </section>
+
+  </main>
+  <!-- Styles + App -->
+  <script src="./style.js"></script>
+  <script src="./script.js"></script>
+</body>
+</html>
