@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Room · Signoff Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">🛶</div>
+      <div class="brand-text">Signoff</div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item" href="./index.html">
+        <span class="nav-ico">📚</span><span>Courses</span>
+      </a>
+    </nav>
+    <div class="nav-bottom">
+      <button class="nav-item" id="logoutBtn">
+        <span class="nav-ico">↩️</span><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <header class="app-header">
+    <div class="crumbs" id="breadcrumbs">Room</div>
+    <div class="userbar hidden" id="userbar">
+      <img id="avatar" alt="" class="avatar" />
+      <div class="user-meta">
+        <div id="name"></div>
+        <div id="email" class="muted"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="view" id="roomView">
+      <div class="section-head">
+        <button id="backToCourse" class="btn btn-link">← Back to courses</button>
+        <div class="spacer"></div>
+      </div>
+      <h1 class="section-title" id="roomTitle">Room</h1>
+      <p class="muted" id="roomCourse"></p>
+      <div id="roomMessage" class="room-message hidden"></div>
+      <div id="queuesContainer" class="queues"></div>
+    </section>
+  </main>
+
+  <script src="./style.js"></script>
+  <script src="./room.js"></script>
+</body>
+</html>
