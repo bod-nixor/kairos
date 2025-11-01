@@ -2,6 +2,7 @@
 let evtSource = null;
 const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com'; // IMPORTANT: same as in auth.php
 let selectedCourse = null;
+let selectedRoomId = null;
 
 function showSignin() {
   document.getElementById('signin').classList.remove('hidden');  // show login card
@@ -118,6 +119,7 @@ function showView(id){
 
 // COURSES (cards: enrolled only)
 async function renderCourseCards(){
+  selectedRoomId = null;                                 // reset room selection when leaving rooms view
   setCrumbs('Courses');
   showView('viewCourses');
   const progressSection = document.getElementById('progressSection');
@@ -175,18 +177,60 @@ async function showCourse(courseId){
   for (const room of rooms) {
     const card = document.createElement('div');
     card.className = 'room-card';
+    card.dataset.roomId = String(room.room_id);
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px">
         <span class="badge">Room #${room.room_id}</span>
         <h3 class="room-title" style="margin:0">${escapeHtml(room.name)}</h3>
       </div>
-      <div class="queues" id="queues-for-${room.room_id}">
-        <div class="sk"></div>
+      <div class="room-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" data-join-room="${room.room_id}">Join room</button>
+        <button class="btn btn-ghost hidden" data-leave-room="${room.room_id}">Leave room</button>
       </div>
+      <div class="queues hidden" id="queues-for-${room.room_id}"></div>
     `;
     grid.appendChild(card);
-    loadQueuesForRoom(room.room_id);
   }
+
+  if (selectedRoomId && !grid.querySelector(`.room-card[data-room-id="${selectedRoomId}"]`)) {
+    selectedRoomId = null;
+  }
+
+  updateRoomSelectionUI();
+
+  if (selectedRoomId) {
+    const wrap = document.getElementById(`queues-for-${selectedRoomId}`);
+    if (wrap) {
+      wrap.innerHTML = '<div class="sk"></div>';
+      await loadQueuesForRoom(selectedRoomId);
+    }
+  }
+
+  grid.onclick = async (e) => {
+    const joinBtn = e.target.closest('button[data-join-room]');
+    if (joinBtn) {
+      const roomId = joinBtn.getAttribute('data-join-room');
+      if (roomId && selectedRoomId !== roomId) {
+        selectedRoomId = roomId;
+        updateRoomSelectionUI();
+        const wrap = document.getElementById(`queues-for-${roomId}`);
+        if (wrap) {
+          wrap.innerHTML = '<div class="sk"></div>';
+        }
+        await loadQueuesForRoom(roomId);
+      }
+      return;
+    }
+
+    const leaveBtn = e.target.closest('button[data-leave-room]');
+    if (leaveBtn) {
+      const roomId = leaveBtn.getAttribute('data-leave-room');
+      if (roomId && selectedRoomId === roomId) {
+        selectedRoomId = null;
+        updateRoomSelectionUI();
+      }
+    }
+  };
 
   const progressSection = document.getElementById('progressSection');
   if (progressSection) progressSection.classList.remove('hidden');
@@ -204,8 +248,12 @@ async function showCourse(courseId){
 // queues per room (unchanged logic, prettier buttons)
 async function loadQueuesForRoom(roomId){
   const wrap = document.getElementById(`queues-for-${roomId}`);
+  if (!wrap) return;
+  if (String(selectedRoomId || '') !== String(roomId)) return;
+  wrap.innerHTML = '<div class="sk"></div>';
   try{
     const queues = await apiGet('./api/queues.php?room_id='+encodeURIComponent(roomId));
+    if (String(selectedRoomId || '') !== String(roomId)) return;
     if(!queues.length){ wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`; return; }
     wrap.innerHTML = '';
     queues.forEach(q=>{
@@ -255,8 +303,28 @@ async function loadQueuesForRoom(roomId){
       }
     };
   }catch{
-    wrap.innerHTML = `<div class="muted">Failed to load queues.</div>`;
+    if (String(selectedRoomId || '') === String(roomId)) {
+      wrap.innerHTML = `<div class="muted">Failed to load queues.</div>`;
+    }
   }
+}
+
+function updateRoomSelectionUI(){
+  document.querySelectorAll('#roomsGrid .room-card').forEach(card => {
+    const roomId = card.dataset.roomId;
+    const isActive = selectedRoomId && String(selectedRoomId) === String(roomId);
+    const joinBtn = card.querySelector('button[data-join-room]');
+    const leaveBtn = card.querySelector('button[data-leave-room]');
+    const queues = card.querySelector('.queues');
+    if (joinBtn) joinBtn.classList.toggle('hidden', !!isActive);
+    if (leaveBtn) leaveBtn.classList.toggle('hidden', !isActive);
+    if (queues) {
+      queues.classList.toggle('hidden', !isActive);
+      if (!isActive) {
+        queues.innerHTML = '';
+      }
+    }
+  });
 }
 
 // Map status string to CSS class (from your code)
