@@ -14,6 +14,10 @@ $pdo = db();
 
 $channels = isset($_GET['channels']) ? explode(',', $_GET['channels']) : ['rooms','progress'];
 $channels = array_values(array_intersect($channels, ['rooms','progress'])); // sanitize
+if (!$channels) {
+  // Fallback so the SQL placeholders list never ends up empty (array_fill would throw)
+  $channels = ['rooms','progress'];
+}
 $courseId = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
 
 // Start from the last seen id (Last-Event-ID header) or 0
