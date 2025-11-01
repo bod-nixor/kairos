@@ -1,33 +1,3 @@
-(function(){
-  const css = `
-    .section-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-    .section-title{margin:0;font-size:22px;font-weight:700}
-    .rooms-list{display:flex;flex-direction:column;gap:12px;margin-top:12px}
-    .room-entry{border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--panel)}
-    .room-header{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
-    .room-header .title{font-size:18px;font-weight:600;margin:0}
-    .room-actions{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
-    .queue-list{display:flex;flex-direction:column;gap:10px}
-    .queue-item{border:1px dashed var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;background:rgba(23,105,255,.03)}
-    .queue-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-    .queue-meta{color:var(--muted);font-size:12px}
-    .pill{padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px}
-    .btn-danger{background:#dc2626;color:#fff}
-    .btn-secondary{background:var(--primary-ghost);color:var(--primary)}
-    .list-stack{display:flex;flex-direction:column;gap:8px}
-    .list-row{border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:12px;justify-content:space-between;background:var(--panel)}
-    .list-row .meta{display:flex;flex-direction:column}
-    .list-row .meta span:first-child{font-weight:600}
-    .list-row .meta span:last-child{color:var(--muted);font-size:12px}
-    .enroll-search{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-    .enroll-search input{flex:1;min-width:220px;padding:10px 12px;border-radius:10px;border:1px solid var(--border)}
-    .enrollment-columns{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-  `;
-  const el = document.createElement('style');
-  el.textContent = css;
-  document.head.appendChild(el);
-})();
-
 const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com';
 let currentUser = null;
 let activeCourseId = null;
@@ -178,7 +148,7 @@ async function loadCourses() {
       card.innerHTML = `
         <span class="badge">Course #${course.course_id}</span>
         <h3 class="course-title">${escapeHtml(course.name || '')}</h3>
-        <div style="margin-top:8px">
+        <div class="mt-8">
           <button class="btn btn-primary" data-open-course="${course.course_id}" data-course-name="${escapeHtmlAttr(course.name || '')}">Open</button>
         </div>
       `;
@@ -260,8 +230,8 @@ function renderQueueHtml(queue) {
     <div class="queue-item" data-queue-id="${queue.queue_id}">
       <div class="queue-head">
         <span class="badge">Queue #${queue.queue_id}</span>
-        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px;">
-          <div style="font-weight:600;">${escapeHtml(queue.name || '')}</div>
+        <div class="queue-details">
+          <div class="queue-name">${escapeHtml(queue.name || '')}</div>
           <div class="queue-meta">${escapeHtml(queue.description || '')}</div>
         </div>
         <div class="room-actions">
@@ -270,7 +240,7 @@ function renderQueueHtml(queue) {
         </div>
       </div>
       <div>
-        <div class="muted" style="font-size:12px;">${occupants.length} in queue</div>
+        <div class="muted text-small">${occupants.length} in queue</div>
         ${pills}
       </div>
     </div>
