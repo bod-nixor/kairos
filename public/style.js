@@ -23,7 +23,7 @@
   .nav-bottom{margin-top:auto}
   .nav-item{
     display:flex; align-items:center; gap:10px; width:100%;
-    padding:10px 12px; border:0; border-radius:10px; color:var(--sidebar-text); background:transparent; cursor:pointer;
+    padding:10px 12px; border:0; border-radius:10px; color:var(--sidebar-text); background:transparent; cursor:pointer; text-decoration:none;
   }
   .nav-item .nav-ico{width:18px; text-align:center}
   .nav-item:hover{background:#121a33}
@@ -137,6 +137,12 @@
   .occupant-pills{display:flex; flex-wrap:wrap; gap:6px}
   .pill{padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:12px}
   .pill.you{background:#dcfce7; color:#166534}
+  .pill.me{background:#dbeafe; color:#1d4ed8; font-weight:600}
+  .queue-meta{color:var(--muted); margin-top:-4px; margin-bottom:4px}
+
+  .room-message{margin:16px 0; padding:12px 14px; border-radius:12px; background:var(--primary-ghost); color:var(--primary); font-weight:600}
+  .room-message.error{background:#fee2e2; color:#b91c1c}
+  .room-message.success{background:#dcfce7; color:#15803d}
 
   /* Skeletons */
   .sk{position:relative; overflow:hidden; background:#eef0f5; border-radius:12px; height:120px}

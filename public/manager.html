@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Manager Dashboard · Signoff</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">🛶</div>
+      <div class="brand-text">Manager</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" id="navCourses">
+        <span class="nav-ico">📚</span><span>Courses</span>
+      </button>
+    </nav>
+    <div class="nav-bottom">
+      <button class="nav-item" id="logoutBtn">
+        <span class="nav-ico">↩️</span><span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <header class="app-header">
+    <div class="crumbs" id="breadcrumbs">Courses</div>
+    <div class="userbar hidden" id="userbar">
+      <img id="avatar" alt="" class="avatar" />
+      <div class="user-meta">
+        <div id="name"></div>
+        <div id="email" class="muted"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main" id="appRoot">
+    <section id="signin" class="centerbox card">
+      <h2 class="title">Manager access</h2>
+      <div id="googleBtn"></div>
+      <p class="muted small">Sign in with your <strong>@nixorcollege.edu.pk</strong> account.</p>
+    </section>
+
+    <section id="viewCourses" class="view">
+      <div class="section-head">
+        <h2 class="section-title">Managed courses</h2>
+      </div>
+      <div id="coursesGrid" class="grid cards"></div>
+    </section>
+
+    <section id="viewCourseDetail" class="view hidden">
+      <div class="section-head">
+        <h2 class="section-title" id="courseTitle">Course</h2>
+        <div class="spacer"></div>
+        <button id="backToCourses" class="btn btn-link">← Back</button>
+      </div>
+
+      <section class="card" id="roomsPanel">
+        <div class="section-head" style="gap:12px; align-items:center;">
+          <h3 style="margin:0;">Rooms</h3>
+          <div class="spacer"></div>
+          <button id="addRoomBtn" class="btn btn-primary">+ New room</button>
+        </div>
+        <div id="roomsList" class="rooms-list"></div>
+      </section>
+
+      <section class="card" id="enrollmentPanel">
+        <div class="section-head" style="gap:12px; align-items:center;">
+          <h3 style="margin:0;">Enrollment</h3>
+        </div>
+        <div class="enroll-search">
+          <input type="search" id="userSearchInput" placeholder="Search by name or email" />
+          <button id="searchUsersBtn" class="btn btn-primary">Search</button>
+        </div>
+        <div class="enrollment-columns">
+          <div>
+            <h4>Results</h4>
+            <div id="userSearchResults" class="list-stack"></div>
+          </div>
+          <div>
+            <h4>Current roster</h4>
+            <div id="courseRoster" class="list-stack"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./style.js"></script>
+  <script src="./js/manager.js"></script>
+</body>
+</html>

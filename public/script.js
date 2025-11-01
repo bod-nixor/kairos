@@ -177,7 +177,12 @@ async function renderCourseCards(){
 
 // ROOMS (cards) + PROGRESS (bottom)
 async function showCourse(courseId){
-  selectedCourse = String(courseId);                     // <- set it here
+  selectedCourse = String(courseId);
+  try {
+    sessionStorage.setItem('signoff:lastCourseId', selectedCourse);
+  } catch (err) {
+    console.debug('Unable to persist course id', err);
+  }
   setCrumbs(`Course #${selectedCourse}`);
   showView('viewRooms');
   document.getElementById('roomsTitle').textContent = `Rooms for Course #${selectedCourse}`;
@@ -185,45 +190,46 @@ async function showCourse(courseId){
   const grid = document.getElementById('roomsGrid');
   grid.innerHTML = skeletonCards(3);
 
-  const rooms = await apiGet('./api/rooms.php?course_id=' + encodeURIComponent(selectedCourse));
+  let rooms = [];
+  try {
+    rooms = await apiGet('./api/rooms.php?course_id=' + encodeURIComponent(selectedCourse));
+  } catch (err) {
+    console.error('Failed to load rooms', err);
+  }
+
   grid.innerHTML = '';
 
-  if (!rooms.length) {
+  if (!Array.isArray(rooms) || rooms.length === 0) {
     grid.innerHTML = `<div class="card">No open rooms for this course.</div>`;
-  }
-  for (const room of rooms) {
-    const card = document.createElement('div');
-    card.className = 'room-card';
-    card.dataset.roomId = String(room.room_id);
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px">
-        <span class="badge">Room #${room.room_id}</span>
-        <h3 class="room-title" style="margin:0">${escapeHtml(room.name)}</h3>
-      </div>
-      <div class="room-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" data-join-room="${room.room_id}">Join room</button>
-        <button class="btn btn-ghost hidden" data-leave-room="${room.room_id}">Leave room</button>
-      </div>
-      <div class="queues hidden" id="queues-for-${room.room_id}"></div>
-    `;
-    grid.appendChild(card);
-  }
-
-  if (selectedRoomId && !grid.querySelector(`.room-card[data-room-id="${selectedRoomId}"]`)) {
-    selectedRoomId = null;
-  }
-
-  updateRoomSelectionUI();
-
-  if (selectedRoomId) {
-    const wrap = document.getElementById(`queues-for-${selectedRoomId}`);
-    if (wrap) {
-      wrap.innerHTML = '<div class="sk"></div>';
-      await loadQueuesForRoom(selectedRoomId);
+  } else {
+    for (const room of rooms) {
+      const card = document.createElement('div');
+      card.className = 'room-card';
+      const url = `./room.html?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(room.room_id)}`;
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge">Room #${room.room_id}</span>
+          <h3 class="room-title" style="margin:0">${escapeHtml(room.name)}</h3>
+        </div>
+        <div class="room-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn btn-primary" href="${url}">Open room</a>
+        </div>
+      `;
+      grid.appendChild(card);
     }
   }
 
   grid.onclick = async (e) => {
+    const card = e.target.closest('.room-card');
+    const insideQueues = e.target.closest('.queues');
+    if (card && !e.target.closest('button') && !insideQueues) {
+      const roomId = card.dataset.roomId;
+      if (roomId) {
+        window.location.href = `./room.html?room_id=${encodeURIComponent(roomId)}`;
+        return;
+      }
+    }
+
     const joinBtn = e.target.closest('button[data-join-room]');
     if (joinBtn) {
       const roomId = joinBtn.getAttribute('data-join-room');
