@@ -200,6 +200,42 @@ async function showCourse(courseId){
     }
   }
 
+  grid.onclick = async (e) => {
+    const card = e.target.closest('.room-card');
+    const insideQueues = e.target.closest('.queues');
+    if (card && !e.target.closest('button') && !insideQueues) {
+      const roomId = card.dataset.roomId;
+      if (roomId) {
+        window.location.href = `./room.html?room_id=${encodeURIComponent(roomId)}`;
+        return;
+      }
+    }
+
+    const joinBtn = e.target.closest('button[data-join-room]');
+    if (joinBtn) {
+      const roomId = joinBtn.getAttribute('data-join-room');
+      if (roomId && selectedRoomId !== roomId) {
+        selectedRoomId = roomId;
+        updateRoomSelectionUI();
+        const wrap = document.getElementById(`queues-for-${roomId}`);
+        if (wrap) {
+          wrap.innerHTML = '<div class="sk"></div>';
+        }
+        await loadQueuesForRoom(roomId);
+      }
+      return;
+    }
+
+    const leaveBtn = e.target.closest('button[data-leave-room]');
+    if (leaveBtn) {
+      const roomId = leaveBtn.getAttribute('data-leave-room');
+      if (roomId && selectedRoomId === roomId) {
+        selectedRoomId = null;
+        updateRoomSelectionUI();
+      }
+    }
+  };
+
   const progressSection = document.getElementById('progressSection');
   if (progressSection) progressSection.classList.remove('hidden');
   await renderProgress(selectedCourse);
