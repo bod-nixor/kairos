@@ -179,7 +179,7 @@ async function renderCourseCards(){
     card.innerHTML = `
       <span class="badge">Course #${c.course_id}</span>
       <h3 class="course-title">${escapeHtml(c.name)}</h3>
-      <div style="margin-top:8px">
+      <div class="mt-8">
         <button class="btn btn-primary" data-course="${c.course_id}">Open</button>
       </div>
     `;
@@ -226,11 +226,11 @@ async function showCourse(courseId){
       card.className = 'room-card';
       const url = `./room.html?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(room.room_id)}`;
       card.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px">
+        <div class="flex align-center gap-10">
           <span class="badge">Room #${room.room_id}</span>
-          <h3 class="room-title" style="margin:0">${escapeHtml(room.name)}</h3>
+          <h3 class="room-title title-reset">${escapeHtml(room.name)}</h3>
         </div>
-        <div class="room-actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <div class="room-actions mt-8 flex gap-8 flex-wrap">
           <a class="btn btn-primary" href="${url}">Open room</a>
         </div>
       `;
@@ -436,8 +436,8 @@ function escapeHtml(s){
     .replaceAll('"','&quot;')
     .replaceAll("'","&#039;");
 }
-function skeletonCards(n=3,h=120){
-  return Array.from({length:n}).map(()=>`<div class="sk" style="height:${h}px"></div>`).join('');
+function skeletonCards(n=3){
+  return Array.from({length:n}).map(()=>'<div class="sk"></div>').join('');
 }
 
 async function refreshQueueMeta(queueId){

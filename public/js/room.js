@@ -211,8 +211,8 @@ function setLoading(isLoading) {
   }
 }
 
-function skeletonCards(n = 2, h = 100) {
-  return Array.from({ length: n }).map(() => `<div class="sk" style="height:${h}px"></div>`).join('');
+function skeletonCards(n = 2) {
+  return Array.from({ length: n }).map(() => '<div class="sk"></div>').join('');
 }
 
 function escapeHtml(value) {

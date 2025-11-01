@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <title>Manager Dashboard · Signoff</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/manager.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -57,8 +59,8 @@
       </div>
 
       <section class="card" id="roomsPanel">
-        <div class="section-head" style="gap:12px; align-items:center;">
-          <h3 style="margin:0;">Rooms</h3>
+        <div class="section-head">
+          <h3 class="title-reset">Rooms</h3>
           <div class="spacer"></div>
           <button id="addRoomBtn" class="btn btn-primary">+ New room</button>
         </div>
@@ -66,8 +68,8 @@
       </section>
 
       <section class="card" id="enrollmentPanel">
-        <div class="section-head" style="gap:12px; align-items:center;">
-          <h3 style="margin:0;">Enrollment</h3>
+        <div class="section-head">
+          <h3 class="title-reset">Enrollment</h3>
         </div>
         <div class="enroll-search">
           <input type="search" id="userSearchInput" placeholder="Search by name or email" />
@@ -87,7 +89,6 @@
     </section>
   </main>
 
-  <script src="./style.js"></script>
   <script src="./js/manager.js"></script>
 </body>
 </html>

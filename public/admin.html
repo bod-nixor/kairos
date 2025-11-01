@@ -4,215 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Signoff – Admin</title>
-  <style>
-    :root {
-      color-scheme: light;
-      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #f6f7fb;
-      color: #0f172a;
-    }
-    header {
-      background: #101935;
-      color: #fff;
-      padding: 18px 22px;
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.3rem;
-      font-weight: 600;
-    }
-    header .spacer { flex: 1; }
-    header button {
-      background: #1d4ed8;
-      border: none;
-      color: #fff;
-      padding: 8px 14px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    main {
-      max-width: 1100px;
-      margin: 28px auto 60px auto;
-      padding: 0 20px 40px;
-      display: grid;
-      gap: 26px;
-    }
-    .card {
-      background: #fff;
-      border-radius: 16px;
-      border: 1px solid #e2e8f0;
-      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.08);
-      padding: 22px 24px;
-    }
-    .card h2 {
-      margin: 0 0 18px;
-      font-size: 1.15rem;
-    }
-    .flex {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-    }
-    form input, form textarea, form select {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid #cbd5f5;
-      font: inherit;
-    }
-    form textarea {
-      min-height: 80px;
-      resize: vertical;
-    }
-    form button {
-      background: #1d4ed8;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      font-weight: 600;
-      padding: 10px 16px;
-      cursor: pointer;
-    }
-    button.delete {
-      background: #dc2626;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    table thead {
-      background: #eff3ff;
-    }
-    table th, table td {
-      text-align: left;
-      padding: 10px 12px;
-      border-bottom: 1px solid #e2e8f0;
-      vertical-align: top;
-    }
-    table tbody tr:hover {
-      background: rgba(59, 130, 246, 0.08);
-    }
-    table tbody tr.selected {
-      background: rgba(59, 130, 246, 0.16);
-    }
-    td.actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    td.actions button {
-      flex: 1;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: #2563eb;
-      border: none;
-      color: #fff;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .muted { color: #64748b; }
-    .status {
-      padding: 10px 14px;
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.05);
-      font-size: 0.95rem;
-    }
-    .danger {
-      background: #fee2e2 !important;
-      color: #991b1b;
-    }
-    .grid-two {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-    }
-    .actions button {
-      margin-right: 8px;
-      background: #2563eb;
-    }
-    .actions button.delete {
-      background: #dc2626;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(29, 78, 216, 0.08);
-      color: #1d4ed8;
-      font-size: 0.8rem;
-      margin-right: 6px;
-    }
-    .assignments {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 12px;
-    }
-    .assignment-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: #f1f5f9;
-    }
-    .assignment-row button {
-      margin-left: auto;
-      background: #dc2626;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    #message {
-      margin: 0;
-    }
-    .hidden { display: none !important; }
-    @media (max-width: 680px) {
-      header {
-        flex-wrap: wrap;
-        gap: 10px;
-      }
-      header button {
-        width: 100%;
-      }
-      .assignment-row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      .assignment-row button {
-        width: 100%;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/admin.css" />
 </head>
-<body>
-  <header>
+<body class="admin-page">
+  <header class="admin-header">
     <h1>Admin Dashboard</h1>
     <span class="muted" id="userInfo"></span>
     <div class="spacer"></div>
     <button id="logoutBtn" type="button">Logout</button>
   </header>
-  <main>
+  <main class="admin-main">
     <section id="statusCard" class="card hidden">
       <h2>Status</h2>
       <p id="message" class="status"></p>
     </section>
 
     <section class="card" id="coursesCard">
-      <div class="flex" style="justify-content: space-between; align-items: center;">
+      <div class="flex-wrap-row justify-between align-center">
         <h2>Courses</h2>
         <span class="muted" id="courseCount"></span>
       </div>
@@ -220,10 +29,10 @@
         <table id="coursesTable">
           <thead>
             <tr>
-              <th style="width:90px">ID</th>
+              <th class="col-id">ID</th>
               <th>Name</th>
               <th>Description</th>
-              <th style="width:160px">Actions</th>
+              <th class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -237,9 +46,9 @@
         <form id="createCourseForm">
           <label class="muted">Name</label>
           <input type="text" name="name" required placeholder="Course name" />
-          <label class="muted" style="margin-top:12px; display:block;">Description</label>
+          <label class="muted">Description</label>
           <textarea name="description" placeholder="Optional description"></textarea>
-          <button type="submit" style="margin-top:16px;">Create</button>
+          <button type="submit" class="mt-16">Create</button>
         </form>
       </div>
       <div>
@@ -248,9 +57,9 @@
           <input type="hidden" name="course_id" />
           <label class="muted">Name</label>
           <input type="text" name="name" placeholder="Select a course above" disabled />
-          <label class="muted" style="margin-top:12px; display:block;">Description</label>
+          <label class="muted">Description</label>
           <textarea name="description" placeholder="Select a course" disabled></textarea>
-          <div class="flex" style="margin-top:16px; gap:10px;">
+          <div class="form-actions">
             <button type="submit" id="saveCourseBtn" disabled>Save</button>
             <button type="button" id="deleteCourseBtn" class="delete" disabled>Delete</button>
           </div>
@@ -259,11 +68,11 @@
     </section>
 
     <section class="card" id="assignCard">
-      <div class="flex" style="align-items:center; justify-content: space-between;">
+      <div class="flex-wrap-row align-center justify-between">
         <h2>Course staff</h2>
         <span class="muted" id="assignmentTitle">Select a course to view staff</span>
       </div>
-      <form id="assignForm" class="grid-two" style="align-items:flex-end;">
+      <form id="assignForm" class="grid-two align-end">
         <div>
           <label class="muted">User ID or email</label>
           <input type="text" name="user" placeholder="e.g. 42 or alex@nixorcollege.edu.pk" disabled />
