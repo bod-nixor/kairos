@@ -446,7 +446,9 @@ function fetch_change_log_events(PDO $pdo, array &$client, bool $hasPayload): ar
         }
     }
     if ($client['room_id'] > 0) {
-        $sql .= " AND (channel NOT IN ('queue','ta_accept') OR ref_id = ?)";
+        $sql .= " AND (channel NOT IN ('queue','ta_accept')"
+              . " OR EXISTS (SELECT 1 FROM queues_info qi"
+              . " WHERE qi.queue_id = change_log.ref_id AND qi.room_id = ?))";
         $args[] = $client['room_id'];
     }
     $sql .= ' ORDER BY id ASC LIMIT 100';
