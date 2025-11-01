@@ -1,8 +1,20 @@
-const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com';
+const APP_CONFIG = window.SIGNOFF_CONFIG || {};
+const CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
+const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
 let currentUser = null;
 let activeCourseId = null;
 let activeCourseName = '';
 let lastSearchTerm = '';
+
+function updateAllowedDomainCopy() {
+  const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
+    ? ALLOWED_DOMAIN.replace(/^@+/, '')
+    : '';
+  const display = domain ? `@${domain}` : 'your organization';
+  document.querySelectorAll('[data-allowed-domain-text]').forEach((el) => {
+    el.textContent = display;
+  });
+}
 
 function showSignin() {
   document.getElementById('signin').classList.remove('hidden');
@@ -38,6 +50,14 @@ async function handleCredentialResponse(resp) {
 function renderGoogleButton() {
   if (!window.google || !google.accounts?.id) {
     setTimeout(renderGoogleButton, 120);
+    return;
+  }
+  if (!CLIENT_ID) {
+    console.error('Google client ID is not configured.');
+    const btn = document.getElementById('googleBtn');
+    if (btn && !btn.textContent.trim()) {
+      btn.innerHTML = '<p class="muted small">Sign-in is temporarily unavailable.</p>';
+    }
     return;
   }
   if (!renderGoogleButton._init) {
@@ -478,6 +498,7 @@ function setupEvents() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  updateAllowedDomainCopy();
   renderGoogleButton();
   setupEvents();
   bootstrap();

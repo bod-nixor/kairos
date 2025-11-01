@@ -1,3 +1,6 @@
+const APP_CONFIG = window.SIGNOFF_CONFIG || {};
+const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+
 const state = {
   courses: [],
   selectedId: null,
@@ -20,9 +23,27 @@ const els = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  updateAllowedDomainCopy();
   bootstrap();
   bindEvents();
 });
+
+function updateAllowedDomainCopy() {
+  const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
+    ? ALLOWED_DOMAIN.replace(/^@+/, '')
+    : '';
+  const replacement = domain ? `@${domain}` : '@example.edu';
+  document.querySelectorAll('[data-allowed-domain-text]').forEach((el) => {
+    el.textContent = replacement;
+  });
+  const placeholderInput = document.querySelector('[data-allowed-domain-placeholder]');
+  if (placeholderInput) {
+    const template = placeholderInput.getAttribute('data-allowed-domain-placeholder') || '';
+    if (template) {
+      placeholderInput.setAttribute('placeholder', template.replace('{domain}', domain || 'example.edu'));
+    }
+  }
+}
 
 function bindEvents() {
   els.logoutBtn?.addEventListener('click', async () => {

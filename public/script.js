@@ -126,12 +126,24 @@ function parseSocketEventPayload(raw) {
 // ---------- Google Sign-In + App flow ----------
 const changeSocketState = createManagedSocketState();
 const notifySocketState = createManagedSocketState();
-const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com'; // IMPORTANT: same as in auth.php
+const APP_CONFIG = window.SIGNOFF_CONFIG || {};
+const CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
+const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
 let selectedCourse = null;
 let selectedRoomId = null;
 let selfUserId = null;
 let taAudioCtx = null;
 let currentUserId = null;
+
+function updateAllowedDomainCopy() {
+  const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
+    ? ALLOWED_DOMAIN.replace(/^@+/, '')
+    : '';
+  const display = domain ? `@${domain}` : 'your organization';
+  document.querySelectorAll('[data-allowed-domain-text]').forEach((el) => {
+    el.textContent = display;
+  });
+}
 
 const queueLiveState = {
   roomId: null,
@@ -176,6 +188,14 @@ async function handleCredentialResponse(resp) {
 function renderGoogleButton() {
   if (!window.google || !google.accounts?.id) {
     setTimeout(renderGoogleButton, 120);
+    return;
+  }
+  if (!CLIENT_ID) {
+    console.error('Google client ID is not configured.');
+    const target = document.getElementById('googleBtn');
+    if (target && !target.textContent.trim()) {
+      target.innerHTML = '<p class="muted small">Sign-in is temporarily unavailable.</p>';
+    }
     return;
   }
   if (!renderGoogleButton._init) {
@@ -237,6 +257,7 @@ async function bootstrap() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  updateAllowedDomainCopy();
   renderGoogleButton();
   bootstrap();
   const dismiss = document.getElementById('taAcceptDismiss');

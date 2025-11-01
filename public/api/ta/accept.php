@@ -1,13 +1,10 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__.'/common.php';
-[$pdo, $user] = require_ta_user();
-require_once __DIR__.'/../bootstrap.php';
-require_once __DIR__.'/../queue_helpers.php';
+require_once __DIR__ . '/common.php';
+require_once __DIR__ . '/../queue_helpers.php';
 
-$ta = require_login();
-$pdo = db();
+[$pdo, $ta] = require_ta_user();
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     json_out(['error' => 'method not allowed'], 405);
@@ -21,29 +18,30 @@ if ($queueId <= 0 || $studentId <= 0) {
     json_out(['error' => 'queue_id and user_id required'], 400);
 }
 
-$queueStmt = $pdo->prepare('SELECT q.queue_id, q.room_id, r.course_id, q.name
-                             FROM queues_info q
-                             JOIN rooms r ON r.room_id = q.room_id
-                             WHERE q.queue_id = :qid
-                             LIMIT 1');
+$queueStmt = $pdo->prepare(
+    'SELECT q.queue_id, q.room_id, r.course_id, q.name
+     FROM queues_info q
+     JOIN rooms r ON r.room_id = q.room_id
+     WHERE q.queue_id = :qid
+     LIMIT 1'
+);
 $queueStmt->execute([':qid' => $queueId]);
 $queue = $queueStmt->fetch();
 if (!$queue) {
     json_out(['error' => 'queue not found'], 404);
 }
-$courseId = (int)$queue['course_id'];
-if (!ta_has_course($pdo, (int)$user['user_id'], $courseId)) {
+
+$courseId = isset($queue['course_id']) ? (int)$queue['course_id'] : 0;
+if (!ta_has_course($pdo, (int)$ta['user_id'], $courseId)) {
     json_out(['error' => 'forbidden', 'message' => 'Course not assigned'], 403);
 }
 
-// ensure student is still waiting in this queue
 $waiting = $pdo->prepare('SELECT 1 FROM queue_entries WHERE queue_id = :qid AND user_id = :uid LIMIT 1');
 $waiting->execute([':qid' => $queueId, ':uid' => $studentId]);
 if (!$waiting->fetchColumn()) {
     json_out(['error' => 'student not waiting in queue'], 409);
 }
 
-// ensure no other TA currently serving
 $current = ta_active_assignment($pdo, $queueId);
 if ($current && $current['student_user_id'] !== $studentId) {
     json_out(['error' => 'queue busy', 'serving' => $current], 409);
@@ -51,14 +49,15 @@ if ($current && $current['student_user_id'] !== $studentId) {
 
 $pdo->beginTransaction();
 try {
-    // remove from queue so they are no longer waiting
     $del = $pdo->prepare('DELETE FROM queue_entries WHERE queue_id = :qid AND user_id = :uid');
     $del->execute([':qid' => $queueId, ':uid' => $studentId]);
 
-    $ins = $pdo->prepare('INSERT INTO ta_assignments (ta_user_id, student_user_id, queue_id, started_at)
-                          VALUES (:ta, :stu, :qid, NOW())');
+    $ins = $pdo->prepare(
+        'INSERT INTO ta_assignments (ta_user_id, student_user_id, queue_id, started_at)
+         VALUES (:ta, :stu, :qid, NOW())'
+    );
     $ins->execute([
-        ':ta'  => $user['user_id'],
+        ':ta'  => $ta['user_id'],
         ':stu' => $studentId,
         ':qid' => $queueId,
     ]);
@@ -68,56 +67,25 @@ try {
     if ($pk) {
         $assignmentId = $pdo->lastInsertId();
         if (!$assignmentId) {
-            $idStmt = $pdo->prepare('SELECT '.$pk.' FROM ta_assignments WHERE ta_user_id = :ta AND student_user_id = :stu AND queue_id = :qid ORDER BY started_at DESC LIMIT 1');
-            $idStmt->execute([':ta' => $user['user_id'], ':stu' => $studentId, ':qid' => $queueId]);
+            $idStmt = $pdo->prepare(
+                'SELECT ' . $pk . ' FROM ta_assignments
+                 WHERE ta_user_id = :ta AND student_user_id = :stu AND queue_id = :qid
+                 ORDER BY started_at DESC LIMIT 1'
+            );
+            $idStmt->execute([
+                ':ta'  => $ta['user_id'],
+                ':stu' => $studentId,
+                ':qid' => $queueId,
+            ]);
             $assignmentId = $idStmt->fetchColumn();
+        }
+        if (is_numeric($assignmentId)) {
+            $assignmentId = (int)$assignmentId;
         }
     }
 
     log_change($pdo, 'rooms', $queueId, $courseId);
     log_change($pdo, 'ta_accept', $queueId, $courseId);
-
-    $pdo->commit();
-} catch (Throwable $e) {
-    $pdo->rollBack();
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
-}
-
-$taNameStmt = $pdo->prepare('SELECT name FROM users WHERE user_id = :uid');
-$taNameStmt->execute([':uid' => $user['user_id']]);
-$taName = $taNameStmt->fetchColumn() ?: '';
-
-json_out([
-    'success'        => true,
-    'assignment_id'  => $assignmentId,
-    'queue_id'       => $queueId,
-    'student_user_id'=> $studentId,
-    'ta_name'        => $taName,
-$data = json_decode(file_get_contents('php://input'), true) ?? [];
-$queueId = isset($data['queue_id']) ? (int)$data['queue_id'] : 0;
-$userId  = isset($data['user_id']) ? (int)$data['user_id'] : 0;
-
-if ($queueId <= 0 || $userId <= 0) {
-    json_out(['error' => 'queue_id and user_id required'], 400);
-}
-
-$taId = isset($ta['user_id']) ? (int)$ta['user_id'] : 0;
-if (!user_can_manage_queue($pdo, $taId, $queueId)) {
-    json_out(['error' => 'forbidden'], 403);
-}
-
-try {
-    $pdo->beginTransaction();
-
-    $chk = $pdo->prepare("SELECT 1 FROM queue_entries WHERE queue_id = :qid AND user_id = :uid LIMIT 1");
-    $chk->execute([':qid' => $queueId, ':uid' => $userId]);
-    if (!$chk->fetchColumn()) {
-        $pdo->rollBack();
-        json_out(['error' => 'user not in queue'], 404);
-    }
-
-    $del = $pdo->prepare("DELETE FROM queue_entries WHERE queue_id = :qid AND user_id = :uid");
-    $del->execute([':qid' => $queueId, ':uid' => $userId]);
 
     $pdo->commit();
 } catch (Throwable $e) {
@@ -128,20 +96,24 @@ try {
 }
 
 $meta = queue_meta($pdo, $queueId);
-
 emit_change($pdo, 'queue', $queueId, $meta['course_id'] ?? null, [
     'action'  => 'accept',
-    'user_id' => $userId,
+    'user_id' => $studentId,
     'ta_id'   => $ta['user_id'] ?? null,
 ]);
 emit_change($pdo, 'ta_accept', $queueId, $meta['course_id'] ?? null, [
-    'user_id' => $userId,
+    'user_id' => $studentId,
     'ta_id'   => $ta['user_id'] ?? null,
 ]);
 
+$taNameStmt = $pdo->prepare('SELECT name FROM users WHERE user_id = :uid');
+$taNameStmt->execute([':uid' => $ta['user_id']]);
+$taName = $taNameStmt->fetchColumn() ?: '';
+
 json_out([
-    'success'  => true,
-    'ta_name'  => $ta['name'] ?? ($ta['email'] ?? ''),
-    'user_id'  => $userId,
-    'queue_id' => $queueId,
+    'success'         => true,
+    'assignment_id'   => $assignmentId,
+    'queue_id'        => $queueId,
+    'student_user_id' => $studentId,
+    'ta_name'         => $taName,
 ]);
