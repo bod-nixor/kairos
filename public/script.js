@@ -207,6 +207,16 @@ async function showCourse(courseId){
   }
 
   grid.onclick = async (e) => {
+    const card = e.target.closest('.room-card');
+    const insideQueues = e.target.closest('.queues');
+    if (card && !e.target.closest('button') && !insideQueues) {
+      const roomId = card.dataset.roomId;
+      if (roomId) {
+        window.location.href = `./room.html?room_id=${encodeURIComponent(roomId)}`;
+        return;
+      }
+    }
+
     const joinBtn = e.target.closest('button[data-join-room]');
     if (joinBtn) {
       const roomId = joinBtn.getAttribute('data-join-room');
