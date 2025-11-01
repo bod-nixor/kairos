@@ -1,6 +1,131 @@
+// ---------- WebSocket helpers ----------
+const WS_MAX_RECONNECT_DELAY = 15000;
+
+function resolveWebSocketUrl(params = {}) {
+  const query = new URLSearchParams(params);
+  const explicitUrl = typeof window.SIGNOFF_WS_URL === 'string' && window.SIGNOFF_WS_URL.trim();
+  if (explicitUrl) {
+    const base = explicitUrl.trim();
+    const joiner = base.includes('?') ? (query.toString() ? '&' : '') : (query.toString() ? '?' : '');
+    return `${base}${joiner}${query.toString()}`;
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const overrideHost = typeof window.SIGNOFF_WS_HOST === 'string' ? window.SIGNOFF_WS_HOST.trim() : '';
+  const overridePort = typeof window.SIGNOFF_WS_PORT === 'string' ? window.SIGNOFF_WS_PORT.trim() :
+    (typeof window.SIGNOFF_WS_PORT === 'number' ? String(window.SIGNOFF_WS_PORT) : '');
+  const hostname = overrideHost || window.location.hostname;
+  let port = overridePort || window.location.port;
+  if (!port && !overrideHost && !explicitUrl) {
+    port = '8090';
+  }
+  const path = typeof window.SIGNOFF_WS_PATH === 'string' && window.SIGNOFF_WS_PATH.trim()
+    ? window.SIGNOFF_WS_PATH.trim()
+    : '/ws/changes';
+  const host = port ? `${hostname}:${port}` : hostname;
+  const querySuffix = query.toString() ? `?${query.toString()}` : '';
+  return `${protocol}//${host}${path}${querySuffix}`;
+}
+
+function createManagedSocketState() {
+  return {
+    socket: null,
+    reconnectTimer: null,
+    reconnectDelay: 1000,
+    params: null,
+    handlers: null,
+  };
+}
+
+function scheduleSocketReconnect(state) {
+  if (!state || !state.params) return;
+  if (state.reconnectTimer) return;
+  const delay = state.reconnectDelay || 1000;
+  state.reconnectTimer = window.setTimeout(() => {
+    state.reconnectTimer = null;
+    state.reconnectDelay = Math.min((state.reconnectDelay || delay) * 2, WS_MAX_RECONNECT_DELAY);
+    connectManagedSocket(state, state.params, state.handlers || {});
+  }, delay);
+}
+
+function connectManagedSocket(state, params, handlers = {}) {
+  if (!state) return;
+  state.params = params;
+  state.handlers = handlers;
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+  if (state.socket) {
+    try { state.socket.close(); } catch (err) { /* noop */ }
+    state.socket = null;
+  }
+
+  if (typeof WebSocket === 'undefined') {
+    console.warn('WebSocket is not supported in this environment.');
+    return;
+  }
+
+  let socket;
+  try {
+    socket = new WebSocket(resolveWebSocketUrl(params));
+  } catch (err) {
+    scheduleSocketReconnect(state);
+    return;
+  }
+
+  state.socket = socket;
+  state.reconnectDelay = 1000;
+
+  socket.addEventListener('open', (event) => {
+    if (handlers.onOpen) handlers.onOpen(event, socket);
+  });
+  socket.addEventListener('message', (event) => {
+    if (handlers.onMessage) handlers.onMessage(event, socket);
+  });
+  socket.addEventListener('close', (event) => {
+    if (handlers.onClose) handlers.onClose(event, socket);
+    state.socket = null;
+    scheduleSocketReconnect(state);
+  });
+  socket.addEventListener('error', (event) => {
+    if (handlers.onError) handlers.onError(event, socket);
+    // Let close handler manage reconnection.
+  });
+}
+
+function disconnectManagedSocket(state) {
+  if (!state) return;
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+  if (state.socket) {
+    try { state.socket.close(); } catch (err) { /* noop */ }
+    state.socket = null;
+  }
+  state.params = null;
+  state.handlers = null;
+  state.reconnectDelay = 1000;
+}
+
+function parseSocketEventPayload(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+  } catch (err) {
+    /* ignore */
+  }
+  return null;
+}
+
 // ---------- Google Sign-In + App flow ----------
-let evtSource = null;
-let notifySource = null;
+const changeSocketState = createManagedSocketState();
+const notifySocketState = createManagedSocketState();
 const CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com'; // IMPORTANT: same as in auth.php
 let selectedCourse = null;
 let selectedRoomId = null;
@@ -11,8 +136,7 @@ let currentUserId = null;
 const queueLiveState = {
   roomId: null,
   queueIds: new Set(),
-  evtSource: null,
-  pollTimer: null,
+  socketState: createManagedSocketState(),
 };
 const queuePendingFetches = new Map();
 
@@ -534,126 +658,92 @@ function initQueueLiveUpdates(roomId, queueIds){
   }
   ids.forEach(id => { refreshQueueMeta(id); });
 
-  if (typeof EventSource === 'undefined') {
-    startQueuePolling();
-    return;
-  }
-
-  startQueueEventSource(queueLiveState.roomId, ids);
-}
-
-function startQueueEventSource(roomId, queueIds){
-  if (queueLiveState.evtSource) {
-    queueLiveState.evtSource.close();
-    queueLiveState.evtSource = null;
-  }
-  const params = new URLSearchParams({ channels: 'queue' });
-  const idList = Array.isArray(queueIds)
-    ? queueIds.filter(id => /^\d+$/.test(String(id)))
-    : [];
-  if (idList.length) {
-    params.set('queue_id', idList.join(','));
+  const params = { channels: 'queue' };
+  if (ids.length) {
+    params.queue_id = ids.join(',');
   } else if (roomId) {
-    params.set('queue_id', roomId);
+    params.queue_id = roomId;
   }
   if (roomId) {
-    params.set('room_id', roomId);
+    params.room_id = roomId;
   }
-  const es = new EventSource('./api/changes.php?' + params.toString());
-  queueLiveState.evtSource = es;
-  es.onopen = () => {
-    if (queueLiveState.pollTimer) {
-      clearInterval(queueLiveState.pollTimer);
-      queueLiveState.pollTimer = null;
-    }
-  };
-  es.addEventListener('queue', (evt) => {
-    try {
-      const payload = evt?.data ? JSON.parse(evt.data) : {};
-      const ref = payload?.ref_id ?? payload?.queue_id ?? payload?.id;
+
+  connectManagedSocket(queueLiveState.socketState, params, {
+    onMessage: (event) => {
+      const payload = parseSocketEventPayload(event?.data);
+      if (!payload || payload.type !== 'event' || payload.event !== 'queue') {
+        return;
+      }
+      const data = payload.data || {};
+      const ref = data.ref_id ?? data.queue_id ?? data.id;
       if (ref != null) {
         const refId = String(ref);
         if (queueLiveState.queueIds.has(refId)) {
           refreshQueueMeta(refId);
         }
       }
-    } catch (e) {
-      console.warn('Failed to parse queue SSE payload', e);
-    }
+    },
+    onOpen: () => {
+      queueLiveState.queueIds.forEach(id => refreshQueueMeta(id));
+    },
   });
-  es.onerror = () => {
-    if (queueLiveState.evtSource) {
-      queueLiveState.evtSource.close();
-      queueLiveState.evtSource = null;
-    }
-    startQueuePolling();
-  };
-}
-
-function startQueuePolling(){
-  if (queueLiveState.pollTimer) {
-    clearInterval(queueLiveState.pollTimer);
-  }
-  queueLiveState.pollTimer = setInterval(() => {
-    queueLiveState.queueIds.forEach(id => {
-      refreshQueueMeta(id);
-    });
-  }, 10000);
 }
 
 function stopQueueLiveUpdates(){
-  if (queueLiveState.evtSource) {
-    queueLiveState.evtSource.close();
-    queueLiveState.evtSource = null;
-  }
-  if (queueLiveState.pollTimer) {
-    clearInterval(queueLiveState.pollTimer);
-    queueLiveState.pollTimer = null;
-  }
+  disconnectManagedSocket(queueLiveState.socketState);
   queueLiveState.queueIds = new Set();
   queueLiveState.roomId = null;
   queuePendingFetches.clear();
 }
 
-// ---------- SSE (optional; if you created change_log + triggers) ----------
+// ---------- Live updates (change log) ----------
 function startSSE() {
   if (!selectedCourse) return;
-  stopSSE();
-  evtSource = new EventSource('./api/changes.php?channels=rooms,progress&course_id=' + encodeURIComponent(selectedCourse));
-  evtSource.addEventListener('rooms', async () => {
-    await showCourse(selectedCourse);
+  const params = {
+    channels: 'rooms,progress',
+    course_id: selectedCourse,
+  };
+  connectManagedSocket(changeSocketState, params, {
+    onMessage: async (event) => {
+      const payload = parseSocketEventPayload(event?.data);
+      if (!payload || payload.type !== 'event') {
+        return;
+      }
+      if (payload.event === 'rooms' && selectedCourse) {
+        await showCourse(selectedCourse);
+      } else if (payload.event === 'progress' && selectedCourse) {
+        await renderProgress(selectedCourse);
+      }
+    },
   });
-  evtSource.addEventListener('progress', async () => {
-    await renderProgress(selectedCourse);
-  });
-  evtSource.onerror = () => { /* auto-retry */ };
 }
-function stopSSE() { if (evtSource) { evtSource.close(); evtSource = null; } }
+
+function stopSSE() {
+  disconnectManagedSocket(changeSocketState);
+}
 
 // ---------- TA notifications (student side) ----------
 function startNotifySSE() {
   if (!selfUserId) return;
-  stopNotifySSE();
-  try {
-    notifySource = new EventSource('./api/notify_push.php');
-    notifySource.addEventListener('ta_accept', handleTaAcceptEvent);
-    notifySource.onerror = () => { /* auto retry */ };
-  } catch (err) {
-    console.warn('notify SSE failed', err);
-  }
+  const params = { channels: 'ta_accept' };
+  connectManagedSocket(notifySocketState, params, {
+    onMessage: (event) => {
+      const payload = parseSocketEventPayload(event?.data);
+      if (!payload || payload.type !== 'event' || payload.event !== 'ta_accept') {
+        return;
+      }
+      if (payload.data) {
+        handleTaAcceptPayload(payload.data);
+      }
+    },
+  });
 }
 
 function stopNotifySSE() {
-  if (notifySource) {
-    notifySource.close();
-    notifySource = null;
-  }
+  disconnectManagedSocket(notifySocketState);
 }
 
-function handleTaAcceptEvent(evt) {
-  if (!evt || !evt.data) return;
-  let payload = null;
-  try { payload = JSON.parse(evt.data); } catch (e) { return; }
+function handleTaAcceptPayload(payload) {
   if (!payload || payload.user_id !== selfUserId) return;
 
   const taName = payload.ta_name && payload.ta_name.trim() ? payload.ta_name : 'A TA';
