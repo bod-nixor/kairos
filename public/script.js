@@ -1,131 +1,249 @@
-// ---------- WebSocket helpers ----------
-const WS_MAX_RECONNECT_DELAY = 15000;
+// ---------- Server-Sent Events helpers ----------
+const SSE_SUPPORTED_CHANNELS = ['rooms', 'queue', 'progress'];
 
-function resolveWebSocketUrl(params = {}) {
-  const query = new URLSearchParams(params);
-  const explicitUrl = typeof window.SIGNOFF_WS_URL === 'string' && window.SIGNOFF_WS_URL.trim();
-  if (explicitUrl) {
-    const base = explicitUrl.trim();
-    const joiner = base.includes('?') ? (query.toString() ? '&' : '') : (query.toString() ? '?' : '');
-    return `${base}${joiner}${query.toString()}`;
-  }
+const eventStreamState = {
+  source: null,
+  handlers: {
+    rooms: new Set(),
+    queue: new Set(),
+    progress: new Set(),
+  },
+  openHandlers: new Set(),
+  courseFilters: new Map(),
+  queueFilters: new Map(),
+  lastEventId: null,
+  currentUrl: '',
+};
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const overrideHost = typeof window.SIGNOFF_WS_HOST === 'string' ? window.SIGNOFF_WS_HOST.trim() : '';
-  const overridePort = typeof window.SIGNOFF_WS_PORT === 'string' ? window.SIGNOFF_WS_PORT.trim() :
-    (typeof window.SIGNOFF_WS_PORT === 'number' ? String(window.SIGNOFF_WS_PORT) : '');
-  const hostname = overrideHost || window.location.hostname;
-  let port = overridePort || window.location.port;
-  if (!port && !overrideHost && !explicitUrl) {
-    port = '8090';
-  }
-  const path = typeof window.SIGNOFF_WS_PATH === 'string' && window.SIGNOFF_WS_PATH.trim()
-    ? window.SIGNOFF_WS_PATH.trim()
-    : '/ws/changes';
-  const host = port ? `${hostname}:${port}` : hostname;
-  const querySuffix = query.toString() ? `?${query.toString()}` : '';
-  return `${protocol}//${host}${path}${querySuffix}`;
+function getActiveChannels() {
+  return Object.entries(eventStreamState.handlers)
+    .filter(([, listeners]) => listeners.size > 0)
+    .map(([channel]) => channel)
+    .filter((channel) => SSE_SUPPORTED_CHANNELS.includes(channel))
+    .sort();
 }
 
-function createManagedSocketState() {
-  return {
-    socket: null,
-    reconnectTimer: null,
-    reconnectDelay: 1000,
-    params: null,
-    handlers: null,
+function computeCourseFilter() {
+  if (!eventStreamState.courseFilters.size) {
+    return null;
+  }
+  let selected = null;
+  for (const value of eventStreamState.courseFilters.values()) {
+    if (value == null) {
+      continue;
+    }
+    if (selected === null) {
+      selected = value;
+      continue;
+    }
+    if (selected !== value) {
+      return null;
+    }
+  }
+  return selected;
+}
+
+function computeQueueFilterIds() {
+  const ids = new Set();
+  for (const value of eventStreamState.queueFilters.values()) {
+    if (!value) continue;
+    for (const id of value) {
+      if (id != null && id !== '') {
+        ids.add(String(id));
+      }
+    }
+  }
+  if (!ids.size) {
+    return [];
+  }
+  return Array.from(ids).sort((a, b) => Number(a) - Number(b));
+}
+
+function buildEventStreamUrl(channels) {
+  if (!channels.length) {
+    return null;
+  }
+  const url = new URL('./api/changes.php', window.location.origin);
+  url.searchParams.set('channels', channels.join(','));
+
+  const courseId = computeCourseFilter();
+  if (courseId != null) {
+    url.searchParams.set('course_id', String(courseId));
+  }
+
+  if (channels.includes('queue')) {
+    const queueIds = computeQueueFilterIds();
+    if (queueIds.length) {
+      url.searchParams.set('queue_id', queueIds.join(','));
+    }
+  }
+
+  if (eventStreamState.lastEventId != null) {
+    url.searchParams.set('since', String(eventStreamState.lastEventId));
+  }
+
+  return url.toString();
+}
+
+function closeEventStream() {
+  if (eventStreamState.source) {
+    try { eventStreamState.source.close(); } catch (err) { /* ignore */ }
+  }
+  eventStreamState.source = null;
+  eventStreamState.currentUrl = '';
+}
+
+function ensureEventStream(force = false) {
+  const channels = getActiveChannels();
+  const nextUrl = buildEventStreamUrl(channels);
+
+  if (!nextUrl) {
+    closeEventStream();
+    return;
+  }
+
+  if (!force && eventStreamState.source && eventStreamState.currentUrl === nextUrl) {
+    return;
+  }
+
+  closeEventStream();
+
+  const source = new EventSource(nextUrl, { withCredentials: true });
+  eventStreamState.source = source;
+  eventStreamState.currentUrl = nextUrl;
+
+  const updateLastEventId = (event) => {
+    if (!event || event.lastEventId == null) {
+      return;
+    }
+    const parsed = Number(event.lastEventId);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      eventStreamState.lastEventId = parsed;
+    }
+  };
+
+  const dispatch = (channel, event) => {
+    updateLastEventId(event);
+    const listeners = eventStreamState.handlers[channel];
+    if (!listeners || listeners.size === 0) {
+      return;
+    }
+    let payload = null;
+    if (typeof event?.data === 'string' && event.data !== '') {
+      try {
+        payload = JSON.parse(event.data);
+      } catch (err) {
+        console.warn('Failed to parse SSE payload', err, event.data);
+        return;
+      }
+    }
+    listeners.forEach((listener) => {
+      try {
+        listener(payload, event);
+      } catch (err) {
+        console.error('SSE listener error', err);
+      }
+    });
+  };
+
+  source.addEventListener('rooms', (event) => dispatch('rooms', event));
+  source.addEventListener('queue', (event) => dispatch('queue', event));
+  source.addEventListener('progress', (event) => dispatch('progress', event));
+  source.onmessage = updateLastEventId;
+  source.onerror = () => {
+    // Allow the browser to manage reconnection automatically.
+  };
+  source.onopen = () => {
+    eventStreamState.openHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (err) {
+        console.error('SSE open handler error', err);
+      }
+    });
   };
 }
 
-function scheduleSocketReconnect(state) {
-  if (!state || !state.params) return;
-  if (state.reconnectTimer) return;
-  const delay = state.reconnectDelay || 1000;
-  state.reconnectTimer = window.setTimeout(() => {
-    state.reconnectTimer = null;
-    state.reconnectDelay = Math.min((state.reconnectDelay || delay) * 2, WS_MAX_RECONNECT_DELAY);
-    connectManagedSocket(state, state.params, state.handlers || {});
-  }, delay);
+function subscribeToChannel(channel, handler) {
+  if (!SSE_SUPPORTED_CHANNELS.includes(channel)) {
+    throw new Error(`Unsupported SSE channel: ${channel}`);
+  }
+  if (typeof handler !== 'function') {
+    return () => {};
+  }
+  const listeners = eventStreamState.handlers[channel];
+  listeners.add(handler);
+  ensureEventStream();
+  return () => {
+    listeners.delete(handler);
+    ensureEventStream();
+  };
 }
 
-function connectManagedSocket(state, params, handlers = {}) {
-  if (!state) return;
-  state.params = params;
-  state.handlers = handlers;
-  if (state.reconnectTimer) {
-    clearTimeout(state.reconnectTimer);
-    state.reconnectTimer = null;
+function onEventStreamOpen(handler) {
+  if (typeof handler !== 'function') {
+    return () => {};
   }
-  if (state.socket) {
-    try { state.socket.close(); } catch (err) { /* noop */ }
-    state.socket = null;
-  }
-
-  if (typeof WebSocket === 'undefined') {
-    console.warn('WebSocket is not supported in this environment.');
-    return;
-  }
-
-  let socket;
-  try {
-    socket = new WebSocket(resolveWebSocketUrl(params));
-  } catch (err) {
-    scheduleSocketReconnect(state);
-    return;
-  }
-
-  state.socket = socket;
-  state.reconnectDelay = 1000;
-
-  socket.addEventListener('open', (event) => {
-    if (handlers.onOpen) handlers.onOpen(event, socket);
-  });
-  socket.addEventListener('message', (event) => {
-    if (handlers.onMessage) handlers.onMessage(event, socket);
-  });
-  socket.addEventListener('close', (event) => {
-    if (handlers.onClose) handlers.onClose(event, socket);
-    state.socket = null;
-    scheduleSocketReconnect(state);
-  });
-  socket.addEventListener('error', (event) => {
-    if (handlers.onError) handlers.onError(event, socket);
-    // Let close handler manage reconnection.
-  });
+  eventStreamState.openHandlers.add(handler);
+  return () => {
+    eventStreamState.openHandlers.delete(handler);
+  };
 }
 
-function disconnectManagedSocket(state) {
-  if (!state) return;
-  if (state.reconnectTimer) {
-    clearTimeout(state.reconnectTimer);
-    state.reconnectTimer = null;
+function setCourseFilter(key, courseId) {
+  if (!key) return;
+  if (courseId == null) {
+    eventStreamState.courseFilters.delete(key);
+  } else {
+    eventStreamState.courseFilters.set(key, Number(courseId));
   }
-  if (state.socket) {
-    try { state.socket.close(); } catch (err) { /* noop */ }
-    state.socket = null;
-  }
-  state.params = null;
-  state.handlers = null;
-  state.reconnectDelay = 1000;
+  ensureEventStream();
 }
 
-function parseSocketEventPayload(raw) {
-  if (!raw) return null;
-  if (typeof raw === 'object') return raw;
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') {
-      return parsed;
+function clearCourseFilter(key) {
+  if (!key) return;
+  if (eventStreamState.courseFilters.has(key)) {
+    eventStreamState.courseFilters.delete(key);
+    ensureEventStream();
+  }
+}
+
+function setQueueFilter(key, ids) {
+  if (!key) return;
+  if (!ids || !ids.length) {
+    eventStreamState.queueFilters.delete(key);
+  } else {
+    const normalized = new Set();
+    ids.forEach((id) => {
+      if (id == null) return;
+      const str = String(id).trim();
+      if (/^\d+$/.test(str)) {
+        normalized.add(str);
+      }
+    });
+    if (normalized.size) {
+      eventStreamState.queueFilters.set(key, normalized);
+    } else {
+      eventStreamState.queueFilters.delete(key);
     }
-  } catch (err) {
-    /* ignore */
   }
-  return null;
+  ensureEventStream();
 }
+
+window.addEventListener('beforeunload', () => {
+  closeEventStream();
+});
 
 // ---------- Google Sign-In + App flow ----------
-const changeSocketState = createManagedSocketState();
-const notifySocketState = createManagedSocketState();
+const COURSE_FILTER_KEY = 'course-view';
+const QUEUE_LIVE_FILTER_KEY = 'queue-live';
+const QUEUE_NOTIFY_FILTER_KEY = 'queue-notify';
+
+const changeStreamSubscriptions = {
+  rooms: null,
+  progress: null,
+};
+let notifyQueueSubscription = null;
 const APP_CONFIG = window.SIGNOFF_CONFIG || {};
 const CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
 const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
@@ -148,7 +266,8 @@ function updateAllowedDomainCopy() {
 const queueLiveState = {
   roomId: null,
   queueIds: new Set(),
-  socketState: createManagedSocketState(),
+  subscription: null,
+  openSubscription: null,
 };
 const queuePendingFetches = new Map();
 
@@ -670,48 +789,43 @@ async function refreshQueueMeta(queueId){
 function initQueueLiveUpdates(roomId, queueIds){
   stopQueueLiveUpdates();
   const ids = (Array.isArray(queueIds) ? queueIds : [])
-    .map(id => String(id))
-    .filter(id => /^\d+$/.test(id));
+    .map((id) => String(id))
+    .filter((id) => /^\d+$/.test(id));
   queueLiveState.roomId = roomId != null ? String(roomId) : null;
   queueLiveState.queueIds = new Set(ids);
+  setQueueFilter(QUEUE_LIVE_FILTER_KEY, ids);
   if (!ids.length) {
     return;
   }
-  ids.forEach(id => { refreshQueueMeta(id); });
+  ids.forEach((id) => { refreshQueueMeta(id); });
 
-  const params = { channels: 'queue' };
-  if (ids.length) {
-    params.queue_id = ids.join(',');
-  } else if (roomId) {
-    params.queue_id = roomId;
-  }
-  if (roomId) {
-    params.room_id = roomId;
-  }
-
-  connectManagedSocket(queueLiveState.socketState, params, {
-    onMessage: (event) => {
-      const payload = parseSocketEventPayload(event?.data);
-      if (!payload || payload.type !== 'event' || payload.event !== 'queue') {
-        return;
+  queueLiveState.subscription = subscribeToChannel('queue', (data) => {
+    if (!data) {
+      return;
+    }
+    const ref = data.ref_id ?? data.queue_id ?? data.id;
+    if (ref != null) {
+      const refId = String(ref);
+      if (queueLiveState.queueIds.has(refId)) {
+        refreshQueueMeta(refId);
       }
-      const data = payload.data || {};
-      const ref = data.ref_id ?? data.queue_id ?? data.id;
-      if (ref != null) {
-        const refId = String(ref);
-        if (queueLiveState.queueIds.has(refId)) {
-          refreshQueueMeta(refId);
-        }
-      }
-    },
-    onOpen: () => {
-      queueLiveState.queueIds.forEach(id => refreshQueueMeta(id));
-    },
+    }
+  });
+  queueLiveState.openSubscription = onEventStreamOpen(() => {
+    queueLiveState.queueIds.forEach((id) => refreshQueueMeta(id));
   });
 }
 
 function stopQueueLiveUpdates(){
-  disconnectManagedSocket(queueLiveState.socketState);
+  if (queueLiveState.subscription) {
+    queueLiveState.subscription();
+    queueLiveState.subscription = null;
+  }
+  if (queueLiveState.openSubscription) {
+    queueLiveState.openSubscription();
+    queueLiveState.openSubscription = null;
+  }
+  setQueueFilter(QUEUE_LIVE_FILTER_KEY, null);
   queueLiveState.queueIds = new Set();
   queueLiveState.roomId = null;
   queuePendingFetches.clear();
@@ -719,49 +833,67 @@ function stopQueueLiveUpdates(){
 
 // ---------- Live updates (change log) ----------
 function startSSE() {
-  if (!selectedCourse) return;
-  const params = {
-    channels: 'rooms,progress',
-    course_id: selectedCourse,
-  };
-  connectManagedSocket(changeSocketState, params, {
-    onMessage: async (event) => {
-      const payload = parseSocketEventPayload(event?.data);
-      if (!payload || payload.type !== 'event') {
-        return;
-      }
-      if (payload.event === 'rooms' && selectedCourse) {
+  if (!selectedCourse) {
+    stopSSE();
+    return;
+  }
+  setCourseFilter(COURSE_FILTER_KEY, selectedCourse);
+  if (!changeStreamSubscriptions.rooms) {
+    changeStreamSubscriptions.rooms = subscribeToChannel('rooms', async () => {
+      if (selectedCourse) {
         await showCourse(selectedCourse);
-      } else if (payload.event === 'progress' && selectedCourse) {
+      }
+    });
+  }
+  if (!changeStreamSubscriptions.progress) {
+    changeStreamSubscriptions.progress = subscribeToChannel('progress', async () => {
+      if (selectedCourse) {
         await renderProgress(selectedCourse);
       }
-    },
-  });
+    });
+  }
 }
 
 function stopSSE() {
-  disconnectManagedSocket(changeSocketState);
+  if (changeStreamSubscriptions.rooms) {
+    changeStreamSubscriptions.rooms();
+    changeStreamSubscriptions.rooms = null;
+  }
+  if (changeStreamSubscriptions.progress) {
+    changeStreamSubscriptions.progress();
+    changeStreamSubscriptions.progress = null;
+  }
+  clearCourseFilter(COURSE_FILTER_KEY);
 }
 
 // ---------- TA notifications (student side) ----------
 function startNotifySSE() {
-  if (!selfUserId) return;
-  const params = { channels: 'ta_accept' };
-  connectManagedSocket(notifySocketState, params, {
-    onMessage: (event) => {
-      const payload = parseSocketEventPayload(event?.data);
-      if (!payload || payload.type !== 'event' || payload.event !== 'ta_accept') {
+  if (!selfUserId) {
+    stopNotifySSE();
+    return;
+  }
+  if (!notifyQueueSubscription) {
+    notifyQueueSubscription = subscribeToChannel('queue', (data) => {
+      const payload = data?.payload;
+      if (!payload || payload.action !== 'accept' || payload.user_id !== selfUserId) {
         return;
       }
-      if (payload.data) {
-        handleTaAcceptPayload(payload.data);
-      }
-    },
-  });
+      handleTaAcceptPayload({
+        user_id: payload.user_id,
+        ta_name: payload.ta_name || '',
+        queue_id: data?.ref_id ?? payload.queue_id ?? null,
+      });
+    });
+  }
+  setQueueFilter(QUEUE_NOTIFY_FILTER_KEY, null);
 }
 
 function stopNotifySSE() {
-  disconnectManagedSocket(notifySocketState);
+  if (notifyQueueSubscription) {
+    notifyQueueSubscription();
+    notifyQueueSubscription = null;
+  }
+  setQueueFilter(QUEUE_NOTIFY_FILTER_KEY, null);
 }
 
 function handleTaAcceptPayload(payload) {
