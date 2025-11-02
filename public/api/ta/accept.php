@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/../queue_helpers.php';
+require_once __DIR__ . '/../_ws_notify.php';
 
 [$pdo, $ta] = require_ta_user();
 
@@ -106,9 +107,28 @@ emit_change($pdo, 'ta_accept', $queueId, $meta['course_id'] ?? null, [
     'ta_id'   => $ta['user_id'] ?? null,
 ]);
 
+$wsEvent = [
+    'event'   => 'ta_accept',
+    'ref_id'  => $assignmentId,
+    'payload' => [
+        'queue_id'          => $queueId,
+        'student_user_id'   => $studentId,
+        'ta_user_id'        => isset($ta['user_id']) ? (int)$ta['user_id'] : null,
+    ],
+];
+if (!empty($meta['course_id'])) {
+    $wsEvent['course_id'] = (int)$meta['course_id'];
+}
+if (!empty($queue['room_id'])) {
+    $wsEvent['room_id'] = (int)$queue['room_id'];
+}
+
 $taNameStmt = $pdo->prepare('SELECT name FROM users WHERE user_id = :uid');
 $taNameStmt->execute([':uid' => $ta['user_id']]);
 $taName = $taNameStmt->fetchColumn() ?: '';
+
+$wsEvent['payload']['ta_name'] = $taName;
+ws_notify($wsEvent);
 
 json_out([
     'success'         => true,

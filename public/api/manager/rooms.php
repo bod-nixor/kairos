@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_helpers.php';
+require_once __DIR__ . '/../_ws_notify.php';
 
 $user = require_login();
 $pdo  = db();
@@ -45,6 +46,7 @@ try {
         $stmt = $pdo->prepare('INSERT INTO rooms (course_id, name) VALUES (:cid, :name)');
         $stmt->execute([':cid' => $courseId, ':name' => $name]);
         $id = (int)$pdo->lastInsertId();
+        ws_notify(['event' => 'rooms', 'course_id' => $courseId]);
         json_out(['success' => true, 'room_id' => $id]);
     }
 
@@ -65,6 +67,7 @@ try {
         }
         $stmt = $pdo->prepare('UPDATE rooms SET name = :name WHERE room_id = :rid');
         $stmt->execute([':name' => $name, ':rid' => $roomId]);
+        ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
         json_out(['success' => true]);
     }
 
@@ -79,6 +82,7 @@ try {
         assert_manager_controls_course($pdo, $userId, $courseFromRoom);
         $stmt = $pdo->prepare('DELETE FROM rooms WHERE room_id = :rid LIMIT 1');
         $stmt->execute([':rid' => $roomId]);
+        ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
         json_out(['success' => true, 'deleted' => $stmt->rowCount() > 0]);
     }
 } catch (Throwable $e) {

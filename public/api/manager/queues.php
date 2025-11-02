@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_helpers.php';
+require_once __DIR__ . '/../_ws_notify.php';
 
 $user = require_login();
 $pdo  = db();
@@ -54,6 +55,7 @@ try {
             ':description' => $description ?? '',
         ]);
         $id = (int)$pdo->lastInsertId();
+        ws_notify(['event' => 'rooms', 'course_id' => $courseId]);
         json_out(['success' => true, 'queue_id' => $id]);
     }
 
@@ -85,6 +87,7 @@ try {
         $sql = 'UPDATE queues SET ' . implode(', ', $fields) . ' WHERE queue_id = :qid';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
+        ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
         json_out(['success' => true]);
     }
 
@@ -99,6 +102,7 @@ try {
         assert_manager_controls_course($pdo, $userId, (int)$info['course_id']);
         $stmt = $pdo->prepare('DELETE FROM queues WHERE queue_id = :qid LIMIT 1');
         $stmt->execute([':qid' => $queueId]);
+        ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
         json_out(['success' => true, 'deleted' => $stmt->rowCount() > 0]);
     }
 } catch (Throwable $e) {

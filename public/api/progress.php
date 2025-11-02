@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/bootstrap.php';
+require_once __DIR__.'/_ws_notify.php';
 $user = require_login();
 $pdo  = db();
 
@@ -183,6 +184,29 @@ try {
       $del = $pdo->prepare("DELETE FROM progress WHERE user_id = :uid AND detail_id = :did");
       $del->execute([':uid' => $user['user_id'], ':did' => $detail_id]);
     }
+
+    $notifyCourseId = $cidPost;
+    if ($notifyCourseId === null) {
+      try {
+        $lookup = $pdo->prepare(
+          'SELECT c.course_id FROM progress_details d JOIN progress_category c ON c.category_id = d.category_id WHERE d.detail_id = :did LIMIT 1'
+        );
+        $lookup->execute([':did' => $detail_id]);
+        $courseVal = $lookup->fetchColumn();
+        if ($courseVal !== false) {
+          $notifyCourseId = (int)$courseVal;
+        }
+      } catch (Throwable $e) {
+        // ignore lookup failures – course filter remains null
+      }
+    }
+
+    $payload = ['user_id' => (int)$user['user_id']];
+    $event = ['event' => 'progress', 'ref_id' => $detail_id, 'payload' => $payload];
+    if ($notifyCourseId !== null) {
+      $event['course_id'] = $notifyCourseId;
+    }
+    ws_notify($event);
 
     json_out(['success' => true]);
     exit;

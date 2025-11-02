@@ -10,6 +10,24 @@ const taState = {
   studentDirectory: {},
 };
 
+function reloadRooms() {
+  if (taState.selectedCourse) {
+    loadRooms(taState.selectedCourse);
+  }
+}
+
+function reloadQueues() {
+  if (taState.selectedRoom) {
+    loadQueues(taState.selectedRoom);
+  }
+}
+
+function reloadProgress() {
+  if (taState.selectedStudent) {
+    loadStudentProgress(taState.selectedStudent);
+  }
+}
+
 const TA_SECTIONS = {
   auth: 'taAuthRequired',
   forbidden: 'taForbidden',
@@ -36,6 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
       renderRooms([]);
       renderQueues();
       clearStudentPanel();
+      if (window.SignoffWS) {
+        window.SignoffWS.updateFilters({
+          courseId: val ? Number(val) : null,
+          roomId: null,
+        });
+      }
       if (val) {
         loadRooms(val);
       } else {
@@ -53,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
       taState.selectedStudent = null;
       renderQueues();
       clearStudentPanel();
+      if (window.SignoffWS) {
+        window.SignoffWS.updateFilters({ roomId: val ? Number(val) : null });
+      }
       if (val) {
         loadQueues(val);
       }
@@ -126,6 +153,20 @@ async function bootstrapTA() {
     }
     taState.me = me;
     updateUserbar(me);
+    if (window.SignoffWS) {
+      if (me.user_id != null) {
+        window.SignoffWS.setSelfUserId(Number(me.user_id));
+      }
+      window.SignoffWS.init({
+        getFilters: () => ({
+          courseId: taState.selectedCourse ? Number(taState.selectedCourse) : null,
+          roomId: taState.selectedRoom ? Number(taState.selectedRoom) : null,
+        }),
+        onQueue: () => reloadQueues(),
+        onRooms: () => reloadRooms(),
+        onProgress: () => reloadProgress(),
+      });
+    }
   } catch (err) {
     console.error('me.php failed', err);
     setTaView('auth');
