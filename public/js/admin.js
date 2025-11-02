@@ -11,6 +11,10 @@ const els = {
   statusMessage: document.getElementById('message'),
   userInfo: document.getElementById('userInfo'),
   logoutBtn: document.getElementById('logoutBtn'),
+  forbiddenCard: document.getElementById('forbiddenCard'),
+  coursesCard: document.getElementById('coursesCard'),
+  formsCard: document.getElementById('formsCard'),
+  assignCard: document.getElementById('assignCard'),
   coursesTableBody: document.querySelector('#coursesTable tbody'),
   courseCount: document.getElementById('courseCount'),
   createCourseForm: document.getElementById('createCourseForm'),
@@ -52,7 +56,7 @@ function bindEvents() {
     } catch (err) {
       console.warn('logout failed', err);
     }
-    window.location.href = './index.html';
+    window.location.href = '/signoff/';
   });
 
   els.coursesTableBody?.addEventListener('click', (event) => {
@@ -197,6 +201,10 @@ async function bootstrap() {
       return;
     }
     els.userInfo.textContent = `${me.name || ''} ${me.email ? `(${me.email})` : ''}`.trim();
+    els.forbiddenCard?.classList.add('hidden');
+    els.coursesCard?.classList.remove('hidden');
+    els.formsCard?.classList.remove('hidden');
+    els.assignCard?.classList.remove('hidden');
   } catch (err) {
     reportError(err, 'Unable to verify session.');
     disableInterface();
@@ -206,8 +214,12 @@ async function bootstrap() {
   try {
     await loadCourses({ preserveSelection: false });
   } catch (err) {
-    reportError(err, 'Failed to load courses');
-    disableInterface();
+    if (err?.status === 403) {
+      showForbidden();
+    } else {
+      reportError(err, 'Failed to load courses');
+      disableInterface();
+    }
   }
 }
 
@@ -215,6 +227,15 @@ function disableInterface() {
   toggleEditForm(false);
   toggleAssignForm(false);
   els.createCourseForm?.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+}
+
+function showForbidden() {
+  disableInterface();
+  els.statusCard?.classList.add('hidden');
+  els.coursesCard?.classList.add('hidden');
+  els.formsCard?.classList.add('hidden');
+  els.assignCard?.classList.add('hidden');
+  els.forbiddenCard?.classList.remove('hidden');
 }
 
 async function loadCourses({ preserveSelection = null } = {}) {
@@ -395,6 +416,10 @@ function showStatus(message, type = 'info') {
 }
 
 function reportError(err, fallback) {
+  if (err?.status === 403) {
+    showForbidden();
+    return;
+  }
   console.error(fallback, err);
   const message = extractErrorMessage(err) || fallback;
   showStatus(message, 'error');
@@ -416,6 +441,9 @@ async function fetchJSON(url, options = {}) {
   const res = await fetch(url, opts);
   const text = await res.text();
   const data = text ? safeJsonParse(text) : null;
+  if (res.status === 403) {
+    showForbidden();
+  }
   if (!res.ok) {
     const err = new Error(data?.error || res.statusText || 'Request failed');
     err.status = res.status;

@@ -1,26 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../bootstrap.php';
-
-function ensure_manager_role(PDO $pdo, array $user): void {
-    $roleId = isset($user['role_id']) ? (int)$user['role_id'] : 0;
-    if ($roleId <= 0) {
-        json_out(['error' => 'forbidden', 'message' => 'manager role required'], 403);
-    }
-
-    static $roleCache = [];
-    if (!array_key_exists($roleId, $roleCache)) {
-        $stmt = $pdo->prepare('SELECT name FROM roles WHERE role_id = :rid LIMIT 1');
-        $stmt->execute([':rid' => $roleId]);
-        $roleCache[$roleId] = $stmt->fetchColumn() ?: null;
-    }
-
-    $name = $roleCache[$roleId];
-    if (!$name || strcasecmp((string)$name, 'manager') !== 0) {
-        json_out(['error' => 'forbidden', 'message' => 'manager access only'], 403);
-    }
-}
+require_once __DIR__ . '/../_helpers.php';
 
 function table_exists(PDO $pdo, string $table): bool {
     static $cache = [];

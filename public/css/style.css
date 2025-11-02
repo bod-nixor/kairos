@@ -227,6 +227,34 @@ body {
   font-weight: 600;
 }
 
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: 24px;
+}
+
+.top-nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.top-nav-link:hover,
+.top-nav-link:focus {
+  color: var(--text);
+  background: var(--primary-ghost);
+  outline: none;
+}
+
+.top-nav-link[aria-current="page"] {
+  color: var(--text);
+  background: var(--primary-ghost);
+}
+
 .userbar {
   margin-left: auto;
   display: flex;

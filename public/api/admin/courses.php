@@ -1,14 +1,12 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../_helpers.php';
 
 $user = require_login();
 $pdo  = db();
 
-if (!is_admin($pdo, $user)) {
-    json_out(['error' => 'forbidden'], 403);
-}
+require_role_or_higher($pdo, $user, 'admin');
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -103,25 +101,6 @@ try {
     json_out(['error' => 'method not allowed'], 405);
 } catch (Throwable $e) {
     json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
-}
-
-function is_admin(PDO $pdo, array $user): bool
-{
-    $roleId = isset($user['role_id']) ? (int)$user['role_id'] : 0;
-    if ($roleId <= 0) {
-        return false;
-    }
-    static $cache = [];
-    if (!array_key_exists($roleId, $cache)) {
-        try {
-            $stmt = $pdo->prepare('SELECT LOWER(name) FROM roles WHERE role_id = :rid LIMIT 1');
-            $stmt->execute([':rid' => $roleId]);
-            $cache[$roleId] = strtolower((string)$stmt->fetchColumn());
-        } catch (Throwable $e) {
-            $cache[$roleId] = '';
-        }
-    }
-    return $cache[$roleId] === 'admin';
 }
 
 function table_has_column(PDO $pdo, string $table, string $column): bool

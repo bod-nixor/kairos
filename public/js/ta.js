@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (logout) {
     logout.addEventListener('click', async () => {
       try { await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' }); }
-      finally { window.location.href = './index.html'; }
+      finally { window.location.href = '/signoff/'; }
     });
   }
   const courseSelect = document.getElementById('taCourseSelect');

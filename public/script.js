@@ -264,6 +264,7 @@ let selectedRoomId = null;
 let selfUserId = null;
 let taAudioCtx = null;
 let currentUserId = null;
+let sessionCapabilities = { is_logged_in: false, roles: { student: false, ta: false, manager: false, admin: false } };
 
 function updateAllowedDomainCopy() {
   const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
@@ -275,6 +276,88 @@ function updateAllowedDomainCopy() {
   });
 }
 
+function setTopNavActive(key) {
+  const nav = document.getElementById('mainNav');
+  if (!nav) return;
+  const ids = {
+    home: 'navHomeLink',
+    courses: 'navCoursesLink',
+    ta: 'navTaLink',
+    manager: 'navManagerLink',
+    admin: 'navAdminLink',
+  };
+  nav.querySelectorAll('.top-nav-link').forEach((link) => {
+    link.removeAttribute('aria-current');
+  });
+  if (!key || !ids[key]) {
+    return;
+  }
+  const target = document.getElementById(ids[key]);
+  if (target) {
+    target.setAttribute('aria-current', 'page');
+  }
+}
+
+function applySessionCapabilities(caps) {
+  const defaults = { is_logged_in: false, roles: { student: false, ta: false, manager: false, admin: false } };
+  const next = {
+    ...defaults,
+    ...(caps || {}),
+    roles: { ...defaults.roles, ...((caps && caps.roles) || {}) },
+  };
+  sessionCapabilities = next;
+
+  const nav = document.getElementById('mainNav');
+  if (!nav) {
+    return;
+  }
+
+  const isLogged = !!next.is_logged_in;
+  nav.classList.toggle('hidden', !isLogged);
+
+  ['navHomeLink', 'navCoursesLink'].forEach((id) => {
+    const link = document.getElementById(id);
+    if (link) {
+      link.classList.toggle('hidden', !isLogged);
+    }
+  });
+
+  const roleLinks = [
+    ['navTaLink', 'ta'],
+    ['navManagerLink', 'manager'],
+    ['navAdminLink', 'admin'],
+  ];
+  roleLinks.forEach(([id, role]) => {
+    const link = document.getElementById(id);
+    if (!link) return;
+    const allowed = isLogged && !!next.roles[role];
+    link.classList.toggle('hidden', !allowed);
+  });
+
+  if (!isLogged) {
+    setTopNavActive(null);
+  }
+}
+
+async function refreshSessionCapabilities() {
+  try {
+    const res = await fetch('./api/session_capabilities.php', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error('session_capabilities.php ' + res.status);
+    const ctype = res.headers.get('content-type') || '';
+    if (!ctype.includes('application/json')) throw new Error('session_capabilities not JSON');
+    const json = await res.json();
+    applySessionCapabilities(json);
+    return json;
+  } catch (err) {
+    console.warn('Failed to load session capabilities', err);
+    applySessionCapabilities({ is_logged_in: false, roles: { student: false, ta: false, manager: false, admin: false } });
+    return null;
+  }
+}
+
 const queueLiveState = {
   roomId: null,
   queueIds: new Set(),
@@ -284,6 +367,7 @@ const queueLiveState = {
 const queuePendingFetches = new Map();
 
 function showSignin() {
+  applySessionCapabilities(null);
   document.getElementById('signin').classList.remove('hidden');  // show login card
   document.getElementById('userbar').classList.add('hidden');    // hide user info
   // hide app views while logged out
@@ -371,6 +455,7 @@ async function bootstrap() {
       currentUserId = null;
     }
 
+    await refreshSessionCapabilities();
     showApp();
 
     // Step 1: show only the user's enrolled courses as cards
@@ -391,6 +476,18 @@ document.addEventListener('DOMContentLoaded', () => {
   updateAllowedDomainCopy();
   renderGoogleButton();
   bootstrap();
+  const mainNav = document.getElementById('mainNav');
+  if (mainNav) {
+    mainNav.addEventListener('click', (event) => {
+      const link = event.target.closest('a.top-nav-link');
+      if (!link) return;
+      const view = link.dataset.view;
+      if (view === 'home' || view === 'courses') {
+        event.preventDefault();
+        renderCourseCards();
+      }
+    });
+  }
   const dismiss = document.getElementById('taAcceptDismiss');
   if (dismiss) dismiss.addEventListener('click', hideTaAcceptModal);
   const modal = document.getElementById('taAcceptModal');
@@ -426,6 +523,11 @@ function showView(id){
   document.getElementById(id).classList.remove('hidden');
   document.getElementById('navCourses').classList.toggle('active', id==='viewCourses');
   document.getElementById('navRooms').classList.toggle('active', id==='viewRooms');
+  if (id === 'viewCourses') {
+    setTopNavActive('courses');
+  } else {
+    setTopNavActive(null);
+  }
 }
 
 // COURSES (cards: enrolled only)
@@ -500,7 +602,7 @@ async function showCourse(courseId){
     for (const room of rooms) {
       const card = document.createElement('div');
       card.className = 'room-card';
-      const url = `./room.html?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(room.room_id)}`;
+      const url = `/signoff/room?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(room.room_id)}`;
       card.innerHTML = `
         <div class="flex align-center gap-10">
           <span class="badge">Room #${room.room_id}</span>
@@ -520,7 +622,7 @@ async function showCourse(courseId){
     if (card && !e.target.closest('button') && !insideQueues) {
       const roomId = card.dataset.roomId;
       if (roomId) {
-        window.location.href = `./room.html?room_id=${encodeURIComponent(roomId)}`;
+        window.location.href = `/signoff/room?room_id=${encodeURIComponent(roomId)}`;
         return;
       }
     }
