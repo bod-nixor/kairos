@@ -4,6 +4,7 @@
   const DEFAULT_CHANNELS = ['rooms', 'queue', 'progress', 'ta_accept'];
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
+  const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000; // 9 minutes; server rejects tokens after ~10 minutes
 
   const state = {
     me: null,
@@ -30,6 +31,8 @@
       roomId: undefined,
     },
     selfUserId: null,
+    meFetchedAt: 0,
+    forceRefresh: false,
   };
 
   function normalizeId(value) {
@@ -96,8 +99,25 @@
     state.channels = new Set(cleaned.length ? cleaned : DEFAULT_CHANNELS);
   }
 
-  async function loadMe() {
-    if (state.meLoaded) {
+  function shouldRefreshToken() {
+    if (!state.meLoaded) {
+      return true;
+    }
+    const wsInfo = state.me?.ws;
+    if (!wsInfo?.token) {
+      return true;
+    }
+    if (!state.meFetchedAt) {
+      return true;
+    }
+    if (Date.now() - state.meFetchedAt >= TOKEN_REFRESH_THRESHOLD_MS) {
+      return true;
+    }
+    return false;
+  }
+
+  async function loadMe(forceRefresh) {
+    if (!forceRefresh && !shouldRefreshToken()) {
       return state.me;
     }
     state.connecting = true;
@@ -115,6 +135,8 @@
       const data = await resp.json();
       state.me = data || {};
       state.meLoaded = true;
+      state.meFetchedAt = Date.now();
+      state.forceRefresh = false;
       const maybeUser = data && typeof data === 'object' ? data : {};
       if (state.selfUserId === null && maybeUser.user_id != null) {
         const normalized = normalizeId(maybeUser.user_id);
@@ -319,6 +341,7 @@
     ws.onmessage = handleMessage;
     ws.onerror = (err) => {
       console.debug('WS error event', err);
+      state.forceRefresh = true;
     };
     ws.onclose = () => {
       const manual = state.manualClose;
@@ -331,6 +354,7 @@
         resetBackoff();
         ensureConnection();
       } else {
+        state.forceRefresh = true;
         scheduleReconnect();
       }
     };
@@ -353,6 +377,7 @@
     } catch (err) {
       console.warn('WS connection failed', err);
       state.ws = null;
+      state.forceRefresh = true;
       scheduleReconnect();
     }
   }
@@ -362,7 +387,7 @@
       return;
     }
     try {
-      await loadMe();
+      await loadMe(state.forceRefresh);
     } catch (err) {
       scheduleReconnect();
       return;
