@@ -13,6 +13,7 @@ session_write_close();
 $hasPayload = change_log_has_payload($pdo);
 $taPrimaryKey = ta_assignment_primary_key($pdo);
 $allowedChannels = ['rooms', 'progress', 'queue', 'ta_accept'];
+$allowedOrigins = resolve_allowed_ws_origins();
 
 $server = @stream_socket_server("tcp://{$host}:{$port}", $errno, $errstr);
 if (!$server) {
@@ -65,7 +66,7 @@ while (true) {
 
         if (!$client['handshake']) {
             if (strpos($client['buffer'], "\r\n\r\n") !== false) {
-                if (!perform_handshake($client, $allowedChannels, $pdo)) {
+                if (!perform_handshake($client, $allowedChannels, $allowedOrigins, $pdo)) {
                     remove_client($clients, $id);
                     unset($client);
                     continue;
@@ -142,7 +143,74 @@ function create_client_state($stream): array
     ];
 }
 
-function perform_handshake(array &$client, array $allowedChannels, PDO $pdo): bool
+function infer_default_port(string $scheme): ?int
+{
+    static $map = [
+        'http' => 80,
+        'https' => 443,
+        'ws' => 80,
+        'wss' => 443,
+    ];
+
+    $scheme = strtolower($scheme);
+
+    return $map[$scheme] ?? null;
+}
+
+function resolve_allowed_ws_origins(): array
+{
+    $raw = env('SIGNOFF_WS_ALLOWED_ORIGINS');
+    $entries = [];
+
+    if (is_string($raw) && trim($raw) !== '') {
+        $entries = array_filter(array_map('trim', preg_split('/[\s,]+/', $raw))); // split on comma or whitespace
+    }
+
+    if (!$entries) {
+        $entries = ['https://regatta.nixorcorporate.com'];
+    }
+
+    $allowed = [];
+
+    foreach ($entries as $entry) {
+        if ($entry === '') {
+            continue;
+        }
+
+        $parsed = @parse_url($entry);
+        if (!$parsed || empty($parsed['scheme']) || empty($parsed['host'])) {
+            fwrite(STDERR, "Ignoring invalid SIGNOFF_WS_ALLOWED_ORIGINS entry: {$entry}\n");
+            continue;
+        }
+
+        $scheme = strtolower($parsed['scheme']);
+        $host = strtolower($parsed['host']);
+        $port = isset($parsed['port']) ? (int)$parsed['port'] : infer_default_port($scheme);
+
+        if ($port === null) {
+            fwrite(STDERR, "Ignoring SIGNOFF_WS_ALLOWED_ORIGINS entry with unknown port: {$entry}\n");
+            continue;
+        }
+
+        if (!isset($allowed[$host])) {
+            $allowed[$host] = [];
+        }
+        if (!isset($allowed[$host][$scheme])) {
+            $allowed[$host][$scheme] = [];
+        }
+
+        $allowed[$host][$scheme][$port] = true;
+    }
+
+    if ($allowed === []) {
+        fwrite(STDERR, "No valid SIGNOFF_WS_ALLOWED_ORIGINS entries configured.\n");
+        exit(1);
+    }
+
+    return $allowed;
+}
+
+function perform_handshake(array &$client, array $allowedChannels, array $allowedOrigins, PDO $pdo): bool
 {
     $request = $client['buffer'];
     [$headerPart] = explode("\r\n\r\n", $request, 2);
@@ -172,40 +240,32 @@ function perform_handshake(array &$client, array $allowedChannels, PDO $pdo): bo
     
     // Preferred: Origin. Fallback: Sec-WebSocket-Origin (older clients).
     $origin = $headers['origin'] ?? ($headers['sec-websocket-origin'] ?? '');
+    if ($origin === '') {
+        send_http_response($client['stream'], 403, 'Forbidden', 'Missing origin header.');
+        return false;
+    }
 
-    // Allow-list (host + optional port), schema must be https/wss
-    // You can move this to env/config if you prefer:
-    $allowed = [
-        // host => [allowed_schemes, allowed_port_or_null]
-        'regatta.nixorcorporate.com' => [['https','wss'], null],       // any port
-        // 'admin.regatta.nixorcorporate.com' => [['https','wss'], 443],
-    ];
+    $p = @parse_url($origin);
+    // parse_url must succeed and include scheme + host
+    if (!$p || empty($p['scheme']) || empty($p['host'])) {
+        send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
+        return false;
+    }
 
-    if ($origin !== '') {
-        $p = @parse_url($origin);
-        // parse_url must succeed and include scheme + host
-        if (!$p || empty($p['scheme']) || empty($p['host'])) {
-            send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
-            return false;
-        }
+    $scheme = strtolower($p['scheme']);
+    $host   = strtolower($p['host']);
+    $port   = isset($p['port']) ? (int)$p['port'] : infer_default_port($scheme);
 
-        $scheme = strtolower($p['scheme']);
-        $host   = strtolower($p['host']);
-        $port   = isset($p['port']) ? (int)$p['port'] : null;
+    if ($port === null) {
+        send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
+        return false;
+    }
 
-        $ok = false;
-        if (isset($allowed[$host])) {
-            [$schemes, $allowedPort] = $allowed[$host];
-            if (in_array($scheme, $schemes, true)) {
-                // If an allowed port is specified, require exact match. Otherwise accept any port.
-                $ok = ($allowedPort === null) ? true : ($port === $allowedPort);
-            }
-        }
+    $ok = isset($allowedOrigins[$host][$scheme][$port]);
 
-        if (!$ok) {
-            send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
-            return false;
-        }
+    if (!$ok) {
+        send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
+        return false;
     }
     
     $secKey = $headers['sec-websocket-key'] ?? '';
