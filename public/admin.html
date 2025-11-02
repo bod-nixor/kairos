@@ -6,6 +6,7 @@
   <title>Signoff – Admin</title>
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/admin.css" />
+  <script src="./app-config.js.php"></script>
 </head>
 <body class="admin-page">
   <header class="admin-header">
@@ -75,7 +76,7 @@
       <form id="assignForm" class="grid-two align-end">
         <div>
           <label class="muted">User ID or email</label>
-          <input type="text" name="user" placeholder="e.g. 42 or alex@nixorcollege.edu.pk" disabled />
+          <input type="text" name="user" data-allowed-domain-placeholder="e.g. 42 or alex@{domain}" placeholder="e.g. 42 or alex@example.edu" disabled />
         </div>
         <div>
           <label class="muted">Role</label>

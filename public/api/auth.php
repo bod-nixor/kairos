@@ -114,10 +114,12 @@ $credential = $input['credential'] ?? '';
 if (!$credential) json_out(['success'=>false, 'error'=>'missing credential'], 400);
 
 try {
-  // IMPORTANT: set your GIS client ID here (same as in index.html)
-  $CLIENT_ID = '92449888009-s6re3fb58a3ik1sj90g49erpkolhcp24.apps.googleusercontent.com';
+  $clientId = env('GOOGLE_CLIENT_ID');
+  if (!is_string($clientId) || $clientId === '') {
+    throw new Exception('Google client ID is not configured');
+  }
 
-  $payload = verify_google_id_token($credential, $CLIENT_ID);
+  $payload = verify_google_id_token($credential, $clientId);
 
   // Domain check
   $hd = $payload['hd'] ?? '';
