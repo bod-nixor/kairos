@@ -144,6 +144,10 @@ if (!defined('ALLOWED_DOMAIN')) {
     if (!is_string($allowedDomain) || $allowedDomain === '') {
         throw new RuntimeException('ALLOWED_DOMAIN environment variable must be configured.');
     }
+    $allowedDomain = ltrim($allowedDomain, '@');
+    if ($allowedDomain === '') {
+        throw new RuntimeException('ALLOWED_DOMAIN environment variable must specify a valid domain.');
+    }
     define('ALLOWED_DOMAIN', $allowedDomain);
 }
 
