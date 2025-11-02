@@ -2,7 +2,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
-require_once __DIR__ . '/queue_helpers.php';
 
 require_login();
 
@@ -10,36 +9,54 @@ ignore_user_abort(true);
 set_time_limit(0);
 
 header('Content-Type: text/event-stream');
-header('Cache-Control: no-cache');
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('X-Accel-Buffering: no');
 header('Connection: keep-alive');
+
+while (ob_get_level() > 0) {
+    ob_end_flush();
+}
+flush();
 
 $pdo = db();
 
-$allowedChannels = ['rooms', 'progress', 'queue', 'ta_accept'];
+$allowedChannels = ['rooms', 'queue', 'progress'];
 $channelsParam = isset($_GET['channels']) ? (string)$_GET['channels'] : '';
-$channels = array_filter(array_map('trim', explode(',', $channelsParam))); 
+$channels = array_values(array_filter(array_map('trim', explode(',', $channelsParam))));
 $channels = array_values(array_intersect($channels, $allowedChannels));
 if (!$channels) {
     $channels = ['rooms', 'progress'];
 }
 
-$courseId = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
-$queueFilterRaw = $_GET['queue_id'] ?? '';
+$courseId = null;
+if (isset($_GET['course_id']) && $_GET['course_id'] !== '') {
+    $courseId = (int)$_GET['course_id'];
+    if ($courseId <= 0) {
+        $courseId = null;
+    }
+}
+
 $queueFilters = [];
-if (is_string($queueFilterRaw)) {
-    foreach (explode(',', $queueFilterRaw) as $piece) {
+$queueParam = $_GET['queue_id'] ?? '';
+if (is_string($queueParam)) {
+    foreach (explode(',', $queueParam) as $piece) {
         $piece = trim($piece);
         if ($piece === '' || !ctype_digit($piece)) {
             continue;
         }
-        $queueFilters[] = (int)$piece;
+        $queueId = (int)$piece;
+        if ($queueId > 0) {
+            $queueFilters[$queueId] = $queueId;
+        }
     }
-} elseif (is_numeric($queueFilterRaw)) {
-    $queueFilters[] = (int)$queueFilterRaw;
+} elseif (is_numeric($queueParam)) {
+    $queueId = (int)$queueParam;
+    if ($queueId > 0) {
+        $queueFilters[$queueId] = $queueId;
+    }
 }
-$queueFilters = array_values(array_unique(array_filter($queueFilters, static function ($value) {
-    return is_int($value) && $value > 0;
-})));
+$queueFilters = array_values($queueFilters);
 
 $hasPayload = false;
 try {
@@ -58,70 +75,105 @@ try {
 
 $lastId = 0;
 if (!empty($_SERVER['HTTP_LAST_EVENT_ID'])) {
-    $lastId = (int)$_SERVER['HTTP_LAST_EVENT_ID'];
+    $lastId = max($lastId, (int)$_SERVER['HTTP_LAST_EVENT_ID']);
 }
-if (isset($_GET['since'])) {
+if (isset($_GET['since']) && $_GET['since'] !== '') {
     $lastId = max($lastId, (int)$_GET['since']);
 }
 
-$endAt = time() + 25;
-while (time() < $endAt) {
-    $placeholders = implode(',', array_fill(0, count($channels), '?'));
-    $args = $channels;
-    $payloadSelect = $hasPayload ? ', payload_json' : '';
+$sleepMs = 300;
+$maxSleepMs = 2000;
+$minSleepMs = 50;
+$heartbeatInterval = 15;
+$nextHeartbeatAt = microtime(true) + $heartbeatInterval;
+$endAt = microtime(true) + 90;
+
+$payloadSelect = $hasPayload ? ', payload_json' : '';
+
+while (microtime(true) < $endAt) {
+    if (connection_aborted()) {
+        break;
+    }
+
+    $params = [':lastId' => $lastId];
+    $channelPlaceholders = [];
+    foreach ($channels as $idx => $channel) {
+        $placeholder = ':ch' . $idx;
+        $channelPlaceholders[] = $placeholder;
+        $params[$placeholder] = $channel;
+    }
+
     $sql = "SELECT id, channel, ref_id, course_id, UNIX_TIMESTAMP(created_at) AS ts{$payloadSelect}" .
            " FROM change_log" .
-           " WHERE id > ?" .
-           "   AND channel IN ($placeholders)";
-    array_unshift($args, $lastId);
+           " WHERE id > :lastId" .
+           "   AND channel IN (" . implode(',', $channelPlaceholders) . ')';
 
-    if ($courseId > 0) {
-        $sql .= " AND (course_id = ? OR course_id IS NULL)";
-        $args[] = $courseId;
+    if ($courseId !== null) {
+        $sql .= ' AND (course_id = :courseId OR course_id IS NULL)';
+        $params[':courseId'] = $courseId;
     }
 
     if ($queueFilters) {
-        $queuePlaceholders = implode(',', array_fill(0, count($queueFilters), '?'));
-        $sql .= " AND ref_id IN ($queuePlaceholders)";
-        foreach ($queueFilters as $queueId) {
-            $args[] = $queueId;
+        $queuePlaceholders = [];
+        foreach ($queueFilters as $idx => $queueId) {
+            $placeholder = ':qid' . $idx;
+            $queuePlaceholders[] = $placeholder;
+            $params[$placeholder] = $queueId;
         }
+        $sql .= ' AND ref_id IN (' . implode(',', $queuePlaceholders) . ')';
     }
 
-    $sql .= " ORDER BY id ASC LIMIT 100";
+    $sql .= ' ORDER BY id ASC LIMIT 100';
 
     $st = $pdo->prepare($sql);
-    $st->execute($args);
+    $st->execute($params);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC);
 
     if ($rows) {
         foreach ($rows as $row) {
-            $lastId = isset($row['id']) ? (int)$row['id'] : $lastId;
-            $data = [
-                'id'        => $lastId,
+            if (!isset($row['id'])) {
+                continue;
+            }
+            $eventId = (int)$row['id'];
+            if ($eventId <= $lastId) {
+                continue;
+            }
+            $lastId = $eventId;
+            $event = [
+                'id'        => $eventId,
                 'channel'   => $row['channel'] ?? null,
                 'ref_id'    => isset($row['ref_id']) ? (int)$row['ref_id'] : null,
                 'course_id' => isset($row['course_id']) ? (int)$row['course_id'] : null,
                 'ts'        => isset($row['ts']) ? (int)$row['ts'] : null,
             ];
-            if ($hasPayload && array_key_exists('payload_json', $row) && $row['payload_json']) {
-                $decoded = json_decode($row['payload_json'], true);
+            if ($hasPayload && array_key_exists('payload_json', $row) && $row['payload_json'] !== null && $row['payload_json'] !== '') {
+                $decoded = json_decode((string)$row['payload_json'], true);
                 if (json_last_error() === JSON_ERROR_NONE) {
-                    $data['payload'] = $decoded;
+                    $event['payload'] = $decoded;
                 }
             }
 
-            echo 'id: ' . $lastId . "\n";
-            echo 'event: ' . ($row['channel'] ?? 'change') . "\n";
-            echo 'data: ' . json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n\n";
+            echo 'id: ' . $eventId . "\n";
+            echo 'event: ' . ($row['channel'] ?? 'message') . "\n";
+            echo 'data: ' . json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n\n";
         }
-        @ob_flush();
-        @flush();
+        $sleepMs = $minSleepMs;
+        $nextHeartbeatAt = microtime(true) + $heartbeatInterval;
+        flush();
+    } else {
+        $now = microtime(true);
+        if ($now >= $nextHeartbeatAt) {
+            echo ": hb\n\n";
+            flush();
+            $nextHeartbeatAt = $now + $heartbeatInterval;
+        }
+        $sleepMs = (int)min($maxSleepMs, max($sleepMs * 1.5, 300));
     }
 
-    usleep(300000);
+    if ($sleepMs > 0) {
+        usleep($sleepMs * 1000);
+    }
 }
 
-echo ": keep-alive\n\n";
-@ob_flush();
-@flush();
+echo ": closing\n\n";
+flush();
