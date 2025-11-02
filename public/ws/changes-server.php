@@ -169,7 +169,14 @@ function perform_handshake(array &$client, array $allowedChannels, PDO $pdo): bo
         $headers[strtolower(trim($name))] = trim($value);
     }
     $client['headers'] = $headers;
-
+    
+    $origin = $headers['origin'] ?? '';
+    $allowedOrigin = 'https://regatta.nixorcorporate.com';
+    if ($origin !== '' && stripos($origin, $allowedOrigin) !== 0) {
+        send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
+        return false;
+    }
+    
     $secKey = $headers['sec-websocket-key'] ?? '';
     if ($secKey === '') {
         send_http_response($client['stream'], 400, 'Bad Request', 'Missing Sec-WebSocket-Key header.');
