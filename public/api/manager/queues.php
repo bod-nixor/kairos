@@ -5,7 +5,7 @@ require_once __DIR__ . '/_helpers.php';
 
 $user = require_login();
 $pdo  = db();
-ensure_manager_role($pdo, $user);
+require_role_or_higher($pdo, $user, 'manager');
 $userId = isset($user['user_id']) ? (int)$user['user_id'] : 0;
 if ($userId <= 0) {
     json_out(['error' => 'forbidden', 'message' => 'missing user id'], 403);

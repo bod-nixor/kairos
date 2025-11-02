@@ -2,9 +2,7 @@
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "no-referrer-when-downgrade"
-
-  # Remove COOP/COEP/CORP completely
-  Header always unset Cross-Origin-Opener-Policy
+  Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
   Header always unset Cross-Origin-Embedder-Policy
   Header always unset Cross-Origin-Resource-Policy
 </IfModule>

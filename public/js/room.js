@@ -202,7 +202,7 @@ async function ensureLoggedIn() {
 }
 
 function redirectToIndex() {
-  window.location.replace('./index.html');
+  window.location.replace('/signoff/');
 }
 
 async function refreshQueues(options = {}) {
@@ -380,7 +380,7 @@ function showErrorCard(message) {
     <section class="card error-card">
       <h2>Room unavailable</h2>
       <p class="muted">${escapeHtml(message)}</p>
-      <p><a class="btn btn-primary" href="./index.html">Return to dashboard</a></p>
+      <p><a class="btn btn-primary" href="/signoff/">Return to dashboard</a></p>
     </section>
   `;
 }

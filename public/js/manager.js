@@ -23,10 +23,22 @@ function showSignin() {
   const btn = document.getElementById('googleBtn');
   if (btn) btn.innerHTML = '';
   renderGoogleButton();
+  const forbidden = document.getElementById('managerForbidden');
+  if (forbidden) forbidden.classList.add('hidden');
 }
 
 function showApp() {
   document.getElementById('signin').classList.add('hidden');
+  document.getElementById('userbar').classList.remove('hidden');
+  const forbidden = document.getElementById('managerForbidden');
+  if (forbidden) forbidden.classList.add('hidden');
+}
+
+function showForbidden() {
+  document.getElementById('signin').classList.add('hidden');
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  const forbidden = document.getElementById('managerForbidden');
+  if (forbidden) forbidden.classList.remove('hidden');
   document.getElementById('userbar').classList.remove('hidden');
 }
 
@@ -115,9 +127,16 @@ async function apiGet(url) {
     showSignin();
     throw new Error('unauthenticated');
   }
+  if (r.status === 403) {
+    showForbidden();
+    const msg = await safeErrorMessage(r);
+    throw Object.assign(new Error(msg || 'forbidden'), { status: 403 });
+  }
   if (!r.ok) {
     const msg = await safeErrorMessage(r);
-    throw new Error(msg || (url + ' -> ' + r.status));
+    const error = new Error(msg || (url + ' -> ' + r.status));
+    error.status = r.status;
+    throw error;
   }
   return r.json();
 }
@@ -133,10 +152,16 @@ async function apiPost(url, payload) {
     showSignin();
     throw new Error('unauthenticated');
   }
+  if (r.status === 403) {
+    showForbidden();
+  }
   const data = await r.json().catch(() => ({}));
   if (!r.ok || data?.error) {
     const msg = data?.message || data?.error || (url + ' -> ' + r.status);
-    throw new Error(msg);
+    const error = new Error(msg);
+    error.status = r.status;
+    error.body = data;
+    throw error;
   }
   return data;
 }
@@ -176,6 +201,9 @@ async function loadCourses() {
     });
     grid.onclick = onCourseGridClick;
   } catch (err) {
+    if (err?.status === 403) {
+      return;
+    }
     grid.innerHTML = `<div class="card">Failed to load courses.<br/><span class="muted small">${escapeHtml(err.message)}</span></div>`;
   }
 }
@@ -215,6 +243,9 @@ async function loadRooms() {
       container.appendChild(renderRoom(room, queues));
     });
   } catch (err) {
+    if (err?.status === 403) {
+      return;
+    }
     container.innerHTML = `<div class="muted">Failed to load rooms: ${escapeHtml(err.message)}</div>`;
   }
 }
@@ -296,7 +327,9 @@ async function onRoomActionClick(event) {
     }
     await loadRooms();
   } catch (err) {
-    alert(err.message);
+    if (err?.status !== 403) {
+      alert(err.message);
+    }
   }
 }
 
@@ -395,10 +428,15 @@ async function loadRoster() {
         await apiPost('./api/manager/unenroll.php', { user_id: uid, course_id: activeCourseId });
         await Promise.all([loadRoster(), rerunLastSearch()]);
       } catch (err) {
-        alert(err.message);
+        if (err?.status !== 403) {
+          alert(err.message);
+        }
       }
     };
   } catch (err) {
+    if (err?.status === 403) {
+      return;
+    }
     rosterEl.innerHTML = `<div class="muted">Failed to load roster: ${escapeHtml(err.message)}</div>`;
   }
 }
@@ -448,10 +486,15 @@ async function searchUsers() {
         }
         await Promise.all([loadRoster(), rerunLastSearch()]);
       } catch (err) {
-        alert(err.message);
+        if (err?.status !== 403) {
+          alert(err.message);
+        }
       }
     };
   } catch (err) {
+    if (err?.status === 403) {
+      return;
+    }
     resultsEl.innerHTML = `<div class="muted">Search failed: ${escapeHtml(err.message)}</div>`;
   }
 }

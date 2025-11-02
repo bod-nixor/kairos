@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__.'/../bootstrap.php';
+require_once __DIR__.'/../_helpers.php';
 
 /**
  * Ensure the current session belongs to a TA user and return [$pdo, $user].
@@ -10,9 +10,7 @@ function require_ta_user(): array {
     $user = require_login();
     $pdo  = db();
 
-    if (!user_is_ta($pdo, $user)) {
-        json_out(['error' => 'forbidden', 'message' => 'TA access required'], 403);
-    }
+    require_role_or_higher($pdo, $user, 'ta');
 
     return [$pdo, $user];
 }
@@ -21,19 +19,7 @@ function require_ta_user(): array {
  * Determine whether the provided session user has the TA role.
  */
 function user_is_ta(PDO $pdo, array $user): bool {
-    static $cache = [];
-    $roleId = isset($user['role_id']) ? (int)$user['role_id'] : 0;
-    if (!$roleId) return false;
-
-    if (array_key_exists($roleId, $cache)) {
-        return $cache[$roleId];
-    }
-
-    $st = $pdo->prepare('SELECT LOWER(name) FROM roles WHERE role_id = :rid LIMIT 1');
-    $st->execute([':rid' => $roleId]);
-    $role = $st->fetchColumn();
-    $cache[$roleId] = is_string($role) && trim($role) === 'ta';
-    return $cache[$roleId];
+    return has_role_or_higher($pdo, $user, 'ta');
 }
 
 /**
