@@ -169,7 +169,45 @@ function perform_handshake(array &$client, array $allowedChannels, PDO $pdo): bo
         $headers[strtolower(trim($name))] = trim($value);
     }
     $client['headers'] = $headers;
+    
+    // Preferred: Origin. Fallback: Sec-WebSocket-Origin (older clients).
+    $origin = $headers['origin'] ?? ($headers['sec-websocket-origin'] ?? '');
 
+    // Allow-list (host + optional port), schema must be https/wss
+    // You can move this to env/config if you prefer:
+    $allowed = [
+        // host => [allowed_schemes, allowed_port_or_null]
+        'regatta.nixorcorporate.com' => [['https','wss'], null],       // any port
+        // 'admin.regatta.nixorcorporate.com' => [['https','wss'], 443],
+    ];
+
+    if ($origin !== '') {
+        $p = @parse_url($origin);
+        // parse_url must succeed and include scheme + host
+        if (!$p || empty($p['scheme']) || empty($p['host'])) {
+            send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
+            return false;
+        }
+
+        $scheme = strtolower($p['scheme']);
+        $host   = strtolower($p['host']);
+        $port   = isset($p['port']) ? (int)$p['port'] : null;
+
+        $ok = false;
+        if (isset($allowed[$host])) {
+            [$schemes, $allowedPort] = $allowed[$host];
+            if (in_array($scheme, $schemes, true)) {
+                // If an allowed port is specified, require exact match. Otherwise accept any port.
+                $ok = ($allowedPort === null) ? true : ($port === $allowedPort);
+            }
+        }
+
+        if (!$ok) {
+            send_http_response($client['stream'], 403, 'Forbidden', 'Bad origin');
+            return false;
+        }
+    }
+    
     $secKey = $headers['sec-websocket-key'] ?? '';
     if ($secKey === '') {
         send_http_response($client['stream'], 400, 'Bad Request', 'Missing Sec-WebSocket-Key header.');
