@@ -1,6 +1,8 @@
 // ---------- Server-Sent Events helpers ----------
 const SSE_SUPPORTED_CHANNELS = ['rooms', 'queue', 'progress'];
 
+const COURSE_FILTER_ALLOW_ALL = Symbol('course:all');
+
 const eventStreamState = {
   source: null,
   handlers: {
@@ -31,6 +33,9 @@ function computeCourseFilter() {
   for (const value of eventStreamState.courseFilters.values()) {
     if (value == null) {
       continue;
+    }
+    if (value === COURSE_FILTER_ALLOW_ALL) {
+      return null;
     }
     if (selected === null) {
       selected = value;
@@ -208,6 +213,12 @@ function clearCourseFilter(key) {
   }
 }
 
+function setCourseFilterAllowAll(key) {
+  if (!key) return;
+  eventStreamState.courseFilters.set(key, COURSE_FILTER_ALLOW_ALL);
+  ensureEventStream();
+}
+
 function setQueueFilter(key, ids) {
   if (!key) return;
   if (!ids || !ids.length) {
@@ -238,6 +249,7 @@ window.addEventListener('beforeunload', () => {
 const COURSE_FILTER_KEY = 'course-view';
 const QUEUE_LIVE_FILTER_KEY = 'queue-live';
 const QUEUE_NOTIFY_FILTER_KEY = 'queue-notify';
+const COURSE_NOTIFY_FILTER_KEY = 'course-notify';
 
 const changeStreamSubscriptions = {
   rooms: null,
@@ -885,6 +897,7 @@ function startNotifySSE() {
       });
     });
   }
+  setCourseFilterAllowAll(COURSE_NOTIFY_FILTER_KEY);
   setQueueFilter(QUEUE_NOTIFY_FILTER_KEY, null);
 }
 
@@ -894,6 +907,7 @@ function stopNotifySSE() {
     notifyQueueSubscription = null;
   }
   setQueueFilter(QUEUE_NOTIFY_FILTER_KEY, null);
+  clearCourseFilter(COURSE_NOTIFY_FILTER_KEY);
 }
 
 function handleTaAcceptPayload(payload) {
