@@ -10,7 +10,7 @@ header('Expires: 0');
 
 $config = [
     'googleClientId' => env('GOOGLE_CLIENT_ID', ''),
-    'allowedDomain'  => env('ALLOWED_DOMAIN', ''),
+    'allowedDomain'  => ltrim((string)env('ALLOWED_DOMAIN', ''), '@'),
 ];
 
 echo 'window.SIGNOFF_CONFIG = Object.freeze(';
