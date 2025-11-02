@@ -366,6 +366,53 @@ const queueLiveState = {
 };
 const queuePendingFetches = new Map();
 
+async function reloadRooms() {
+  if (!selectedCourse) {
+    return;
+  }
+  try {
+    await showCourse(selectedCourse);
+  } catch (err) {
+    console.warn('reloadRooms failed', err);
+  }
+}
+
+async function reloadQueues() {
+  if (!selectedRoomId) {
+    return;
+  }
+  try {
+    await loadQueuesForRoom(selectedRoomId);
+  } catch (err) {
+    console.warn('reloadQueues failed', err);
+  }
+}
+
+async function reloadProgress() {
+  if (!selectedCourse) {
+    return;
+  }
+  try {
+    await renderProgress(selectedCourse);
+  } catch (err) {
+    console.warn('reloadProgress failed', err);
+  }
+}
+
+function handleTaAcceptEvent(message) {
+  if (!message) {
+    return;
+  }
+  const payload = Object.assign({}, message.payload || {});
+  if (payload.queue_id == null && message.ref_id != null) {
+    payload.queue_id = message.ref_id;
+  }
+  if (payload.student_user_id == null && payload.user_id != null) {
+    payload.student_user_id = payload.user_id;
+  }
+  handleTaAcceptPayload(payload);
+}
+
 function showSignin() {
   applySessionCapabilities(null);
   document.getElementById('signin').classList.remove('hidden');  // show login card
@@ -532,8 +579,12 @@ function showView(id){
 
 // COURSES (cards: enrolled only)
 async function renderCourseCards(){
+  selectedCourse = null;
   selectedRoomId = null;                                 // reset room selection when leaving rooms view
   stopQueueLiveUpdates();
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ courseId: null, roomId: null });
+  }
   setCrumbs('Courses');
   showView('viewCourses');
   const progressSection = document.getElementById('progressSection');
@@ -579,6 +630,9 @@ async function showCourse(courseId){
     sessionStorage.setItem('signoff:lastCourseId', selectedCourse);
   } catch (err) {
     console.debug('Unable to persist course id', err);
+  }
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ courseId: Number(selectedCourse), roomId: selectedRoomId ? Number(selectedRoomId) : null });
   }
   setCrumbs(`Course #${selectedCourse}`);
   showView('viewRooms');
@@ -632,6 +686,9 @@ async function showCourse(courseId){
       const roomId = joinBtn.getAttribute('data-join-room');
       if (roomId && selectedRoomId !== roomId) {
         selectedRoomId = roomId;
+        if (window.SignoffWS) {
+          window.SignoffWS.updateFilters({ roomId: Number(selectedRoomId) });
+        }
         updateRoomSelectionUI();
         const wrap = document.getElementById(`queues-for-${roomId}`);
         if (wrap) {
@@ -647,6 +704,9 @@ async function showCourse(courseId){
       const roomId = leaveBtn.getAttribute('data-leave-room');
       if (roomId && selectedRoomId === roomId) {
         selectedRoomId = null;
+        if (window.SignoffWS) {
+          window.SignoffWS.updateFilters({ roomId: null });
+        }
         updateRoomSelectionUI();
       }
     }
@@ -901,122 +961,83 @@ async function refreshQueueMeta(queueId){
 }
 
 function initQueueLiveUpdates(roomId, queueIds){
-  stopQueueLiveUpdates();
   const ids = (Array.isArray(queueIds) ? queueIds : [])
     .map((id) => String(id))
     .filter((id) => /^\d+$/.test(id));
   queueLiveState.roomId = roomId != null ? String(roomId) : null;
   queueLiveState.queueIds = new Set(ids);
-  setQueueFilter(QUEUE_LIVE_FILTER_KEY, ids);
-  if (!ids.length) {
-    return;
+  if (window.SignoffWS) {
+    const numericRoom = queueLiveState.roomId != null ? Number(queueLiveState.roomId) : null;
+    window.SignoffWS.updateFilters({ roomId: numericRoom });
   }
   ids.forEach((id) => { refreshQueueMeta(id); });
-
-  queueLiveState.subscription = subscribeToChannel('queue', (data) => {
-    if (!data) {
-      return;
-    }
-    const ref = data.ref_id ?? data.queue_id ?? data.id;
-    if (ref != null) {
-      const refId = String(ref);
-      if (queueLiveState.queueIds.has(refId)) {
-        refreshQueueMeta(refId);
-      }
-    }
-  });
-  queueLiveState.openSubscription = onEventStreamOpen(() => {
-    queueLiveState.queueIds.forEach((id) => refreshQueueMeta(id));
-  });
 }
 
 function stopQueueLiveUpdates(){
-  if (queueLiveState.subscription) {
-    queueLiveState.subscription();
-    queueLiveState.subscription = null;
-  }
-  if (queueLiveState.openSubscription) {
-    queueLiveState.openSubscription();
-    queueLiveState.openSubscription = null;
-  }
-  setQueueFilter(QUEUE_LIVE_FILTER_KEY, null);
   queueLiveState.queueIds = new Set();
   queueLiveState.roomId = null;
   queuePendingFetches.clear();
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ roomId: null });
+  }
 }
 
 // ---------- Live updates (change log) ----------
 function startSSE() {
-  if (!selectedCourse) {
-    stopSSE();
-    return;
-  }
-  setCourseFilter(COURSE_FILTER_KEY, selectedCourse);
-  if (!changeStreamSubscriptions.rooms) {
-    changeStreamSubscriptions.rooms = subscribeToChannel('rooms', async () => {
-      if (selectedCourse) {
-        await showCourse(selectedCourse);
-      }
-    });
-  }
-  if (!changeStreamSubscriptions.progress) {
-    changeStreamSubscriptions.progress = subscribeToChannel('progress', async () => {
-      if (selectedCourse) {
-        await renderProgress(selectedCourse);
-      }
-    });
+  if (window.SignoffWS) {
+    const numericCourse = selectedCourse ? Number(selectedCourse) : null;
+    window.SignoffWS.updateFilters({ courseId: numericCourse });
   }
 }
 
 function stopSSE() {
-  if (changeStreamSubscriptions.rooms) {
-    changeStreamSubscriptions.rooms();
-    changeStreamSubscriptions.rooms = null;
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ courseId: null });
   }
-  if (changeStreamSubscriptions.progress) {
-    changeStreamSubscriptions.progress();
-    changeStreamSubscriptions.progress = null;
-  }
-  clearCourseFilter(COURSE_FILTER_KEY);
 }
 
 // ---------- TA notifications (student side) ----------
 function startNotifySSE() {
+  if (!window.SignoffWS) {
+    return;
+  }
   if (!selfUserId) {
     stopNotifySSE();
     return;
   }
-  if (!notifyQueueSubscription) {
-    notifyQueueSubscription = subscribeToChannel('queue', (data) => {
-      const payload = data?.payload;
-      if (!payload || payload.action !== 'accept' || payload.user_id !== selfUserId) {
-        return;
-      }
-      handleTaAcceptPayload({
-        user_id: payload.user_id,
-        ta_name: payload.ta_name || '',
-        queue_id: data?.ref_id ?? payload.queue_id ?? null,
-      });
+  try {
+    window.SignoffWS.setSelfUserId(selfUserId);
+    window.SignoffWS.init({
+      getFilters: () => ({
+        courseId: selectedCourse ? Number(selectedCourse) : null,
+        roomId: selectedRoomId ? Number(selectedRoomId) : null,
+      }),
+      onQueue: () => { reloadQueues(); },
+      onProgress: () => { reloadProgress(); },
+      onRooms: () => { reloadRooms(); },
+      onTaAccept: (event) => { handleTaAcceptEvent(event); },
     });
+  } catch (err) {
+    console.error('Realtime init failed', err);
   }
-  setCourseFilterAllowAll(COURSE_NOTIFY_FILTER_KEY);
-  setQueueFilter(QUEUE_NOTIFY_FILTER_KEY, null);
 }
 
 function stopNotifySSE() {
-  if (notifyQueueSubscription) {
-    notifyQueueSubscription();
-    notifyQueueSubscription = null;
+  if (!window.SignoffWS) {
+    return;
   }
-  setQueueFilter(QUEUE_NOTIFY_FILTER_KEY, null);
-  clearCourseFilter(COURSE_NOTIFY_FILTER_KEY);
+  window.SignoffWS.setSelfUserId(null);
+  window.SignoffWS.updateFilters({ courseId: null, roomId: null });
 }
 
 function handleTaAcceptPayload(payload) {
-  if (!payload || payload.user_id !== selfUserId) return;
+  if (!payload) return;
+  const studentId = payload.student_user_id ?? payload.user_id;
+  if (!selfUserId || studentId == null || Number(studentId) !== Number(selfUserId)) return;
 
-  const taName = payload.ta_name && payload.ta_name.trim() ? payload.ta_name : 'A TA';
-  const queueLabel = payload.queue_id != null ? `#${payload.queue_id}` : 'the queue';
+  const taName = payload.ta_name && String(payload.ta_name).trim() ? String(payload.ta_name).trim() : 'A TA';
+  const queueSource = payload.queue_id ?? payload.ref_id ?? null;
+  const queueLabel = queueSource != null ? `#${queueSource}` : 'the queue';
   showTaAcceptModal(taName, queueLabel);
   playTaAcceptSound();
 

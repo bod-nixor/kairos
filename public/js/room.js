@@ -148,6 +148,7 @@ const state = {
   streamHandlersSet: false,
   refreshPending: false,
   refreshTimer: null,
+  userId: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -158,16 +159,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   state.roomId = roomId;
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ roomId: Number(roomId) });
+  }
   document.title = `Room #${roomId}`;
   if (roomBadgeEl) roomBadgeEl.textContent = `Room #${roomId}`;
   if (roomTitleEl) roomTitleEl.textContent = `Room #${roomId}`;
   if (roomMetaEl) roomMetaEl.textContent = 'Queues currently open for this room.';
 
+  let me = null;
   try {
-    await ensureLoggedIn();
+    me = await ensureLoggedIn();
   } catch (err) {
     redirectToIndex();
     return;
+  }
+
+  if (window.SignoffWS) {
+    if (me && me.user_id != null) {
+      window.SignoffWS.setSelfUserId(Number(me.user_id));
+    }
+    window.SignoffWS.init({
+      getFilters: () => ({ roomId: state.roomId ? Number(state.roomId) : null }),
+      onQueue: () => {
+        refreshQueues({ silent: true, skipIfLoading: true }).catch(() => {});
+      },
+    });
   }
 
   await refreshQueues();
@@ -199,6 +216,8 @@ async function ensureLoggedIn() {
   if (!data || !data.email) {
     throw new Error('auth');
   }
+  state.userId = data.user_id != null ? Number(data.user_id) : null;
+  return data;
 }
 
 function redirectToIndex() {
@@ -417,19 +436,6 @@ function startQueueUpdates(force = false) {
         .filter((id) => id && /^\d+$/.test(id))
     : [];
 
-  updateQueueStreamIds(queueIds, force);
-
-  if (!state.streamHandlersSet) {
-    setQueueStreamHandlers(() => {
-      scheduleQueueRefresh();
-    }, () => {
-      scheduleQueueRefresh();
-    });
-    state.streamHandlersSet = true;
-  } else if (force) {
-    ensureQueueStream(true);
-  }
-
   if (queueIds.length && (force || !state.refreshPending)) {
     scheduleQueueRefresh();
   }
@@ -442,8 +448,6 @@ function stopQueueUpdates() {
   }
   state.refreshPending = false;
   state.streamHandlersSet = false;
-  setQueueStreamHandlers(null, null);
-  updateQueueStreamIds([], true);
 }
 
 function scheduleQueueRefresh() {

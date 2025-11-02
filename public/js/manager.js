@@ -105,6 +105,16 @@ async function bootstrap() {
     document.getElementById('name').textContent = me.name || '';
     document.getElementById('email').textContent = me.email || '';
     showApp();
+    if (window.SignoffWS) {
+      if (me.user_id != null) {
+        window.SignoffWS.setSelfUserId(Number(me.user_id));
+      }
+      window.SignoffWS.init({
+        getFilters: () => ({ courseId: activeCourseId ? Number(activeCourseId) : null }),
+        onRooms: () => { if (activeCourseId) loadRooms().catch(() => {}); },
+        onQueue: () => { if (activeCourseId) loadRooms().catch(() => {}); },
+      });
+    }
     await loadCourses();
   } catch (err) {
     console.warn('bootstrap failed', err);
@@ -176,6 +186,11 @@ async function safeErrorMessage(response) {
 }
 
 async function loadCourses() {
+  activeCourseId = null;
+  activeCourseName = '';
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ courseId: null });
+  }
   setBreadcrumbs('Courses');
   showView('viewCourses');
   const grid = document.getElementById('coursesGrid');
@@ -219,6 +234,9 @@ function onCourseGridClick(event) {
 async function openCourse(courseId, courseName) {
   activeCourseId = Number(courseId);
   activeCourseName = courseName;
+  if (window.SignoffWS) {
+    window.SignoffWS.updateFilters({ courseId: activeCourseId });
+  }
   setBreadcrumbs(`Course #${activeCourseId}`);
   document.getElementById('courseTitle').textContent = `${courseName || 'Course'} (#${activeCourseId})`;
   showView('viewCourseDetail');

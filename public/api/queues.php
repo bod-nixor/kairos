@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/bootstrap.php';
 require_once __DIR__.'/queue_helpers.php';
+require_once __DIR__.'/_ws_notify.php';
 $user = require_login();
 $pdo  = db();
 
@@ -160,6 +161,12 @@ try {
             'action'  => 'join',
             'user_id' => (int)$user['user_id'],
           ]);
+          $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
+          $event = ['event' => 'queue', 'ref_id' => $queue_id];
+          if ($roomId !== null) {
+            $event['room_id'] = $roomId;
+          }
+          ws_notify($event);
 
           qlog("POST join success qid=$queue_id");
           json_out(['success' => true, 'joined' => true]);
@@ -178,6 +185,12 @@ try {
                 'action'  => 'leave',
                 'user_id' => (int)$user['user_id'],
             ]);
+            $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
+            $event = ['event' => 'queue', 'ref_id' => $queue_id];
+            if ($roomId !== null) {
+                $event['room_id'] = $roomId;
+            }
+            ws_notify($event);
 
             qlog("POST leave success qid=$queue_id");
             json_out(['success' => true, 'left' => true]);
