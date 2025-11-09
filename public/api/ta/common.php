@@ -111,19 +111,42 @@ function ta_courses(PDO $pdo, int $taUserId): array {
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    $coursesById = [];
+
+    $appendCourses = static function(array $rows) use (&$coursesById): void {
+        foreach ($rows as $row) {
+            if (!isset($row['course_id'])) {
+                continue;
+            }
+            $courseId = (int)$row['course_id'];
+            if ($courseId <= 0) {
+                continue;
+            }
+            $coursesById[$courseId] = [
+                'course_id' => $courseId,
+                'name'      => isset($row['name']) ? (string)$row['name'] : '',
+            ];
+        }
+    };
+
     $managerCourses = [];
     if ($rank >= role_rank('manager')) {
         $managerCourses = ta_manager_course_ids($pdo, $taUserId);
         if ($managerCourses) {
             $rows = ta_fetch_courses_by_ids($pdo, $managerCourses);
             if ($rows) {
-                return $rows;
+                $appendCourses($rows);
             }
         }
     }
 
     if ($rank < role_rank('ta')) {
-        return [];
+        if (!$coursesById) {
+            return [];
+        }
+        $courses = array_values($coursesById);
+        usort($courses, static fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
+        return $courses;
     }
 
     $mappings = [
@@ -147,11 +170,19 @@ function ta_courses(PDO $pdo, int $taUserId): array {
         $st->execute([':uid' => $taUserId]);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
         if ($rows) {
-            return $rows;
+            $appendCourses($rows);
+            break;
         }
     }
 
-    return [];
+    if (!$coursesById) {
+        return [];
+    }
+
+    $courses = array_values($coursesById);
+    usort($courses, static fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
+
+    return $courses;
 }
 
 function table_exists(PDO $pdo, string $table): bool {
