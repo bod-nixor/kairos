@@ -2,7 +2,7 @@
 Systemd unit example:
 
 [Unit]
-Description=Signoff WebSocket relay
+Description=Kairos WebSocket relay
 After=network.target
 
 [Service]

@@ -15,30 +15,60 @@ function require_ta_user(): array {
     return [$pdo, $user];
 }
 
+function ta_user_rank(PDO $pdo, int $userId): int {
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    static $cache = [];
+    if (array_key_exists($userId, $cache)) {
+        return $cache[$userId];
+    }
+
+    try {
+        $st = $pdo->prepare('SELECT role_id FROM users WHERE user_id = :uid LIMIT 1');
+        $st->execute([':uid' => $userId]);
+        $roleId = $st->fetchColumn();
+        if ($roleId === false) {
+            return $cache[$userId] = 0;
+        }
+        return $cache[$userId] = user_role_rank($pdo, ['role_id' => (int)$roleId]);
+    } catch (Throwable $e) {
+        return $cache[$userId] = 0;
+    }
+}
+
 /**
  * Determine whether the provided session user has the TA role.
  */
 function user_is_ta(PDO $pdo, array $user): bool {
-    return has_role_or_higher($pdo, $user, 'ta');
+    return user_role_at_least($pdo, $user, 'ta');
 }
 
 /**
  * Check whether the TA is linked to the provided course id.
  */
 function ta_has_course(PDO $pdo, int $taUserId, int $courseId): bool {
-    if ($courseId <= 0) return false;
+    if ($courseId <= 0 || $taUserId <= 0) return false;
 
-    static $tableCache = null;
-    if ($tableCache === null) {
-        $tableCache = [];
-        $tables = ['ta_courses', 'course_tas', 'ta_enrollments', 'staff_courses'];
-        $st = $pdo->prepare('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('.implode(',', array_fill(0, count($tables), '?')).')');
-        $st->execute($tables);
-        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $t) {
-            $tableCache[strtolower($t)] = true;
+    $rank = ta_user_rank($pdo, $taUserId);
+    if ($rank >= role_rank('admin')) {
+        return true;
+    }
+
+    $managerCourseIds = [];
+    if ($rank >= role_rank('manager')) {
+        $managerCourseIds = ta_manager_course_ids($pdo, $taUserId);
+        if (in_array($courseId, $managerCourseIds, true)) {
+            return true;
         }
     }
 
+    if ($rank < role_rank('ta')) {
+        return false;
+    }
+
+    static $taTableCache = [];
     $mappings = [
         ['table' => 'ta_courses',     'ta_col' => 'ta_user_id', 'course_col' => 'course_id'],
         ['table' => 'course_tas',     'ta_col' => 'user_id',    'course_col' => 'course_id'],
@@ -47,21 +77,55 @@ function ta_has_course(PDO $pdo, int $taUserId, int $courseId): bool {
     ];
 
     foreach ($mappings as $map) {
-        if (empty($tableCache[strtolower($map['table'])])) continue;
+        $cacheKey = strtolower($map['table']).'|'.$map['ta_col'].'|'.$map['course_col'];
+        if (!array_key_exists($cacheKey, $taTableCache)) {
+            $taTableCache[$cacheKey] = ta_table_has_columns($pdo, $map['table'], [$map['ta_col'], $map['course_col']]);
+        }
+        if (!$taTableCache[$cacheKey]) {
+            continue;
+        }
+
         $sql = "SELECT 1 FROM `{$map['table']}` WHERE `{$map['ta_col']}` = :uid AND `{$map['course_col']}` = :cid LIMIT 1";
         $st = $pdo->prepare($sql);
         $st->execute([':uid' => $taUserId, ':cid' => $courseId]);
-        if ($st->fetchColumn()) return true;
+        if ($st->fetchColumn()) {
+            return true;
+        }
     }
 
-    // If no mapping matched, fall back to false.
     return false;
 }
 
 /**
- * Helper to fetch all courses a TA is linked with.
+ * Helper to fetch all courses a TA (or elevated role) is linked with.
  */
 function ta_courses(PDO $pdo, int $taUserId): array {
+    $rank = ta_user_rank($pdo, $taUserId);
+
+    if ($rank >= role_rank('admin')) {
+        if (!ta_table_has_columns($pdo, 'courses', ['course_id', 'name'])) {
+            return [];
+        }
+        $st = $pdo->prepare('SELECT CAST(course_id AS UNSIGNED) AS course_id, name FROM courses ORDER BY name');
+        $st->execute();
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $managerCourses = [];
+    if ($rank >= role_rank('manager')) {
+        $managerCourses = ta_manager_course_ids($pdo, $taUserId);
+        if ($managerCourses) {
+            $rows = ta_fetch_courses_by_ids($pdo, $managerCourses);
+            if ($rows) {
+                return $rows;
+            }
+        }
+    }
+
+    if ($rank < role_rank('ta')) {
+        return [];
+    }
+
     $mappings = [
         ['table' => 'ta_courses',     'ta_col' => 'ta_user_id', 'course_col' => 'course_id'],
         ['table' => 'course_tas',     'ta_col' => 'user_id',    'course_col' => 'course_id'],
@@ -69,9 +133,10 @@ function ta_courses(PDO $pdo, int $taUserId): array {
         ['table' => 'staff_courses',  'ta_col' => 'user_id',    'course_col' => 'course_id'],
     ];
 
-    $courses = [];
     foreach ($mappings as $map) {
-        if (!table_exists($pdo, $map['table'])) continue;
+        if (!ta_table_has_columns($pdo, $map['table'], [$map['ta_col'], $map['course_col']])) {
+            continue;
+        }
         $sql = "SELECT c.course_id, c.name
                 FROM courses c
                 JOIN `{$map['table']}` l ON l.`{$map['course_col']}` = c.course_id
@@ -80,10 +145,13 @@ function ta_courses(PDO $pdo, int $taUserId): array {
                 ORDER BY c.name";
         $st = $pdo->prepare($sql);
         $st->execute([':uid' => $taUserId]);
-        $rows = $st->fetchAll();
-        if ($rows) { $courses = $rows; break; }
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        if ($rows) {
+            return $rows;
+        }
     }
-    return $courses;
+
+    return [];
 }
 
 function table_exists(PDO $pdo, string $table): bool {
@@ -94,6 +162,103 @@ function table_exists(PDO $pdo, string $table): bool {
     $st->execute([':t' => $table]);
     $cache[$key] = (bool)$st->fetchColumn();
     return $cache[$key];
+}
+
+function ta_table_has_columns(PDO $pdo, string $table, array $columns): bool {
+    if (!table_exists($pdo, $table)) {
+        return false;
+    }
+
+    static $cache = [];
+    $normalized = array_map(static fn($col) => strtolower((string)$col), $columns);
+    $key = strtolower($table).'|'.implode(',', $normalized);
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($columns), '?'));
+        $sql = 'SELECT COUNT(*) FROM information_schema.COLUMNS'
+             . ' WHERE TABLE_SCHEMA = DATABASE()'
+             . '   AND TABLE_NAME = ?'
+             . "   AND COLUMN_NAME IN ($placeholders)";
+        $args = array_merge([$table], $columns);
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        $count = (int)$st->fetchColumn();
+        return $cache[$key] = ($count === count($columns));
+    } catch (Throwable $e) {
+        return $cache[$key] = false;
+    }
+}
+
+function ta_manager_course_mappings(): array {
+    return [
+        ['table' => 'manager_courses', 'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => null, 'role_value' => null],
+        ['table' => 'course_staff',    'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role', 'role_value' => 'manager'],
+        ['table' => 'course_roles',    'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role', 'role_value' => 'manager'],
+        ['table' => 'enrollments',     'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role', 'role_value' => 'manager'],
+        ['table' => 'user_courses',    'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role', 'role_value' => 'manager'],
+    ];
+}
+
+function ta_manager_course_ids(PDO $pdo, int $userId): array {
+    static $cache = [];
+    if (array_key_exists($userId, $cache)) {
+        return $cache[$userId];
+    }
+
+    $ids = [];
+    foreach (ta_manager_course_mappings() as $map) {
+        $columns = [$map['user_col'], $map['course_col']];
+        if ($map['role_col']) {
+            $columns[] = $map['role_col'];
+        }
+        if (!ta_table_has_columns($pdo, $map['table'], $columns)) {
+            continue;
+        }
+
+        $sql = "SELECT DISTINCT CAST(`{$map['course_col']}` AS UNSIGNED)"
+             . " FROM `{$map['table']}`"
+             . " WHERE `{$map['user_col']}` = :uid";
+        $args = [':uid' => $userId];
+        if ($map['role_col'] && $map['role_value'] !== null) {
+            $sql .= " AND LOWER(`{$map['role_col']}`) = LOWER(:role)";
+            $args[':role'] = $map['role_value'];
+        }
+
+        $st = $pdo->prepare($sql);
+        $st->execute($args);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $cid) {
+            if ($cid === null) {
+                continue;
+            }
+            $ids[(int)$cid] = true;
+        }
+    }
+
+    $cache[$userId] = array_keys($ids);
+    sort($cache[$userId]);
+    return $cache[$userId];
+}
+
+function ta_fetch_courses_by_ids(PDO $pdo, array $courseIds): array {
+    $ids = array_values(array_unique(array_map('intval', $courseIds)));
+    if (!$ids) {
+        return [];
+    }
+    if (!ta_table_has_columns($pdo, 'courses', ['course_id', 'name'])) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $sql = 'SELECT CAST(course_id AS UNSIGNED) AS course_id, name'
+         . ' FROM courses'
+         . " WHERE course_id IN ($placeholders)"
+         . ' ORDER BY name';
+    $st = $pdo->prepare($sql);
+    $st->execute($ids);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 /**

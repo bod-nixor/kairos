@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Signoff Portal</title>
+  <title>Kairos Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/png" href="/signoff/public/images/logo.png" />
   <link rel="stylesheet" href="./css/style.css" />
   <!-- Google Identity -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -13,8 +14,8 @@
   <!-- App Shell -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="logo">🛶</div>
-      <div class="brand-text">Signoff</div>
+      <div class="logo"><img src="/signoff/public/images/logo.png" alt="Kairos" /></div>
+      <div class="brand-text">Kairos</div>
     </div>
     <nav class="nav">
       <button class="nav-item active" data-view="courses" id="navCourses">
@@ -32,6 +33,9 @@
   </aside>
 
   <header class="app-header">
+    <a class="app-brand" href="/signoff/" aria-label="Kairos home">
+      <img src="/signoff/public/images/logo-full" alt="Kairos" class="app-brand-logo" />
+    </a>
     <div class="crumbs" id="breadcrumbs">Courses</div>
     <nav id="mainNav" class="top-nav hidden" aria-label="Primary">
       <a href="/signoff/" data-view="home" class="top-nav-link" id="navHomeLink">Home</a>
@@ -52,7 +56,8 @@
   <main class="app-main" id="appRoot">
     <!-- Sign in -->
     <section id="signin" class="centerbox card">
-      <h2 class="title">Sign-off manager</h2>
+      <img src="/signoff/public/images/logo-full" alt="Kairos" class="signin-logo" />
+      <h2 class="title">Kairos queue manager</h2>
       <div id="googleBtn"></div>
       <p class="muted small">Only <strong data-allowed-domain-text>@example.edu</strong> accounts are allowed.</p>
     </section>

@@ -6,10 +6,10 @@ require_once __DIR__ . '/bootstrap.php';
 function role_rank(string $name): int
 {
     static $map = [
-        'student' => 1,
-        'ta'      => 2,
-        'manager' => 3,
-        'admin'   => 4,
+        'student' => 10,
+        'ta'      => 20,
+        'manager' => 30,
+        'admin'   => 40,
     ];
 
     $normalized = strtolower(trim($name));
@@ -36,14 +36,19 @@ function user_role_rank(PDO $pdo, array $user): int
     return $cache[$roleId];
 }
 
+function user_role_at_least(PDO $pdo, array $user, string $role): bool
+{
+    return user_role_rank($pdo, $user) >= role_rank($role);
+}
+
 function require_role_or_higher(PDO $pdo, array $user, string $minRole): void
 {
-    if (user_role_rank($pdo, $user) < role_rank($minRole)) {
+    if (!user_role_at_least($pdo, $user, $minRole)) {
         json_out(['error' => 'forbidden', 'message' => 'insufficient role'], 403);
     }
 }
 
 function has_role_or_higher(PDO $pdo, array $user, string $minRole): bool
 {
-    return user_role_rank($pdo, $user) >= role_rank($minRole);
+    return user_role_at_least($pdo, $user, $minRole);
 }
