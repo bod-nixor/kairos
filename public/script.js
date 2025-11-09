@@ -760,21 +760,72 @@ async function loadQueuesForRoom(roomId){
         <div class="queue-occupants empty" data-role="queue-occupants">
           <span class="muted small">Loading participants…</span>
         </div>
+        <div class="queue-feedback small" data-role="queue-error" aria-live="polite"></div>
       `;
       wrap.appendChild(row);
       queueIds.push(String(q.queue_id ?? ''));
     });
     initQueueLiveUpdates(roomId, queueIds);
     wrap.onclick = async (e)=>{
-      const joinId = e.target.getAttribute('data-join');
-      const leaveId = e.target.getAttribute('data-leave');
-      if(joinId){
-        await fetch('./api/queues.php',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'join',queue_id:joinId})});
-        await loadQueuesForRoom(roomId);
+      const button = e.target.closest('button[data-join], button[data-leave]');
+      if (!button) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const queueId = button.getAttribute('data-join') || button.getAttribute('data-leave');
+      if (!queueId) return;
+      const row = button.closest('.queue-row');
+      if (!row) return;
+      if (row.dataset.pending === '1') {
+        return;
       }
-      if(leaveId){
-        await fetch('./api/queues.php',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'leave',queue_id:leaveId})});
+
+      const joinBtn = row.querySelector('button[data-join]');
+      const leaveBtn = row.querySelector('button[data-leave]');
+      const errorEl = row.querySelector('[data-role="queue-error"]');
+      if (errorEl) {
+        errorEl.textContent = '';
+      }
+
+      row.dataset.pending = '1';
+      [joinBtn, leaveBtn].forEach((btn) => { if (btn) btn.disabled = true; });
+      const originalLabels = new Map();
+      if (joinBtn) originalLabels.set(joinBtn, joinBtn.textContent);
+      if (leaveBtn) originalLabels.set(leaveBtn, leaveBtn.textContent);
+
+      const action = button.hasAttribute('data-join') ? 'join' : 'leave';
+      button.textContent = action === 'join' ? 'Joining…' : 'Leaving…';
+      const minDelay = new Promise((resolve) => setTimeout(resolve, 250));
+
+      try {
+        const response = await fetch('./api/queues.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ action, queue_id: queueId })
+        });
+        const data = await response.json().catch(() => ({}));
+        await minDelay;
+        if (!response.ok || data.success !== true) {
+          throw new Error('Request failed');
+        }
         await loadQueuesForRoom(roomId);
+      } catch (err) {
+        await minDelay;
+        if (errorEl) {
+          errorEl.textContent = action === 'join'
+            ? 'Unable to join right now. Please try again.'
+            : 'Unable to leave right now. Please try again.';
+        }
+      } finally {
+        delete row.dataset.pending;
+        [joinBtn, leaveBtn].forEach((btn) => {
+          if (!btn) return;
+          btn.disabled = false;
+          if (originalLabels.has(btn)) {
+            btn.textContent = originalLabels.get(btn);
+          }
+        });
       }
     };
   }catch{

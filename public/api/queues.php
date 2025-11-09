@@ -34,6 +34,7 @@ set_exception_handler(function(Throwable $e){
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
+header('Content-Type: application/json; charset=utf-8');
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -149,52 +150,83 @@ try {
         }
 
         if ($action === 'join') {
-          $ins = $pdo->prepare("
-            INSERT INTO queue_entries (`queue_id`, `user_id`, `timestamp`)
-            VALUES (:qid, :uid, NOW())
-            ON DUPLICATE KEY UPDATE `timestamp` = `timestamp`
-          ");
-          $ins->execute([':qid' => $queue_id, ':uid' => $user['user_id']]);
+            $joined = false;
+            $already = false;
+            $pdo->beginTransaction();
+            try {
+                $ins = $pdo->prepare(
+                    'INSERT IGNORE INTO queue_entries (`queue_id`, `user_id`, `timestamp`)
+                     VALUES (:qid, :uid, NOW())'
+                );
+                $ins->execute([':qid' => $queue_id, ':uid' => $user['user_id']]);
+                $joined = $ins->rowCount() > 0;
+                $already = !$joined;
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
+            }
 
-          $meta = queue_meta($pdo, $queue_id);
-          emit_change($pdo, 'queue', $queue_id, $meta['course_id'] ?? null, [
-            'action'  => 'join',
-            'user_id' => (int)$user['user_id'],
-          ]);
-          $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
-          $event = ['event' => 'queue', 'ref_id' => $queue_id];
-          if ($roomId !== null) {
-            $event['room_id'] = $roomId;
-          }
-          ws_notify($event);
+            if ($joined) {
+                $meta = queue_meta($pdo, $queue_id);
+                emit_change($pdo, 'queue', $queue_id, $meta['course_id'] ?? null, [
+                    'action'  => 'join',
+                    'user_id' => (int)$user['user_id'],
+                ]);
+                $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
+                $event = ['event' => 'queue', 'ref_id' => $queue_id];
+                if ($roomId !== null) {
+                    $event['room_id'] = $roomId;
+                }
+                ws_notify($event);
+                qlog("POST join success qid=$queue_id");
+            } else {
+                qlog("POST join skipped (already in queue) qid=$queue_id");
+            }
 
-          qlog("POST join success qid=$queue_id");
-          json_out(['success' => true, 'joined' => true]);
-          exit;
+            json_out(['success' => true, 'joined' => $joined, 'already' => $already]);
         }
 
         if ($action === 'leave') {
-            $del = $pdo->prepare("
-                DELETE FROM queue_entries
-                WHERE `queue_id` = :qid AND `user_id` = :uid
-            ");
-            $del->execute([':qid' => $queue_id, ':uid' => $user['user_id']]);
-
-            $meta = queue_meta($pdo, $queue_id);
-            emit_change($pdo, 'queue', $queue_id, $meta['course_id'] ?? null, [
-                'action'  => 'leave',
-                'user_id' => (int)$user['user_id'],
-            ]);
-            $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
-            $event = ['event' => 'queue', 'ref_id' => $queue_id];
-            if ($roomId !== null) {
-                $event['room_id'] = $roomId;
+            $left = false;
+            $already = false;
+            $pdo->beginTransaction();
+            try {
+                $del = $pdo->prepare(
+                    'DELETE FROM queue_entries
+                     WHERE `queue_id` = :qid AND `user_id` = :uid'
+                );
+                $del->execute([':qid' => $queue_id, ':uid' => $user['user_id']]);
+                $left = $del->rowCount() > 0;
+                $already = !$left;
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
             }
-            ws_notify($event);
 
-            qlog("POST leave success qid=$queue_id");
-            json_out(['success' => true, 'left' => true]);
-            exit;
+            if ($left) {
+                $meta = queue_meta($pdo, $queue_id);
+                emit_change($pdo, 'queue', $queue_id, $meta['course_id'] ?? null, [
+                    'action'  => 'leave',
+                    'user_id' => (int)$user['user_id'],
+                ]);
+                $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
+                $event = ['event' => 'queue', 'ref_id' => $queue_id];
+                if ($roomId !== null) {
+                    $event['room_id'] = $roomId;
+                }
+                ws_notify($event);
+                qlog("POST leave success qid=$queue_id");
+            } else {
+                qlog("POST leave skipped (not in queue) qid=$queue_id");
+            }
+
+            json_out(['success' => true, 'left' => $left, 'already' => $already]);
         }
 
         qlog("POST error: unknown action=".json_encode($action));
