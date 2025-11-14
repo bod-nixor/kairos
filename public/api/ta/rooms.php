@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__.'/common.php';
+require_once __DIR__ . '/common.php';
+require_once dirname(__DIR__, 2) . '/../src/rbac.php';
 [$pdo, $user] = require_ta_user();
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -13,7 +14,7 @@ if ($courseId <= 0) {
     json_out(['error' => 'course_id required'], 400);
 }
 
-if (!ta_has_course($pdo, (int)$user['user_id'], $courseId)) {
+if (!rbac_can_act_as_ta($pdo, $user, $courseId)) {
     json_out(['error' => 'forbidden', 'message' => 'Course not assigned'], 403);
 }
 
