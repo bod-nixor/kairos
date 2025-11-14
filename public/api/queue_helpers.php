@@ -186,6 +186,13 @@ function queue_snapshot_data(PDO $pdo, int $queueId): array
         }
     }
 
+    $waitingCount = 0;
+    foreach ($students as $student) {
+        if (($student['status'] ?? 'waiting') === 'waiting') {
+            $waitingCount++;
+        }
+    }
+
     return [
         'students'      => $students,
         'serving'       => $serving,
