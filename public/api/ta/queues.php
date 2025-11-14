@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/common.php';
+require_once __DIR__.'/queue_helpers.php';
 [$pdo, $user] = require_ta_user();
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -52,30 +53,82 @@ $rows = $st->fetchAll();
 
 $result = [];
 foreach ($rows as $row) {
+    $queueId = isset($row['queue_id']) ? (int)$row['queue_id'] : 0;
+    $snapshot = $queueId > 0 ? queue_snapshot_data($pdo, $queueId) : null;
+
     $occupants = [];
-    if (!empty($row['occupants_json'])) {
+    $students = [];
+    $waitingCount = isset($row['occupant_count']) ? (int)$row['occupant_count'] : 0;
+    $serving = null;
+    $updatedAt = time();
+
+    if ($snapshot) {
+        $serving = $snapshot['serving'] ?? null;
+        $updatedAt = $snapshot['updated_at'] ?? $updatedAt;
+        foreach ($snapshot['students'] ?? [] as $student) {
+            if (!is_array($student) || !isset($student['id'])) {
+                continue;
+            }
+            $status = $student['status'] ?? 'waiting';
+            if (!in_array($status, ['waiting', 'serving', 'done'], true)) {
+                $status = 'waiting';
+            }
+            $studentRow = [
+                'id'        => (int)$student['id'],
+                'name'      => isset($student['name']) ? (string)$student['name'] : '',
+                'status'    => $status,
+                'joined_at' => $student['joined_at'] ?? null,
+            ];
+            $students[] = $studentRow;
+            if ($status === 'waiting') {
+                $occupants[] = [
+                    'user_id'   => $studentRow['id'],
+                    'name'      => $studentRow['name'],
+                    'joined_at' => $studentRow['joined_at'],
+                ];
+            }
+        }
+        if (array_key_exists('waiting_count', $snapshot)) {
+            $waitingCount = (int)$snapshot['waiting_count'];
+        } else {
+            $waitingCount = count($occupants);
+        }
+    }
+
+    if (!$students && !empty($row['occupants_json'])) {
         $decoded = json_decode($row['occupants_json'], true);
         if (is_array($decoded)) {
             foreach ($decoded as $entry) {
-                if (!is_array($entry)) continue;
+                if (!is_array($entry) || !isset($entry['user_id'])) continue;
+                $students[] = [
+                    'id'        => (int)$entry['user_id'],
+                    'name'      => $entry['name'] ?? '',
+                    'status'    => 'waiting',
+                    'joined_at' => $entry['joined_at'] ?? null,
+                ];
                 $occupants[] = [
-                    'user_id'   => isset($entry['user_id']) ? (int)$entry['user_id'] : null,
+                    'user_id'   => (int)$entry['user_id'],
                     'name'      => $entry['name'] ?? '',
                     'joined_at' => $entry['joined_at'] ?? null,
                 ];
             }
         }
     }
-    $queueId = (int)$row['queue_id'];
-    $serving = ta_active_assignment($pdo, $queueId);
+
+    if (!$serving && $queueId > 0) {
+        $serving = ta_active_assignment($pdo, $queueId);
+    }
+
     $result[] = [
         'queue_id'       => $queueId,
-        'room_id'        => (int)$row['room_id'],
+        'room_id'        => isset($row['room_id']) ? (int)$row['room_id'] : null,
         'name'           => $row['name'] ?? '',
         'description'    => $row['description'] ?? '',
-        'occupant_count' => isset($row['occupant_count']) ? (int)$row['occupant_count'] : 0,
+        'occupant_count' => $waitingCount,
         'occupants'      => $occupants,
+        'students'       => $students,
         'serving'        => $serving,
+        'updated_at'     => $updatedAt,
     ];
 }
 

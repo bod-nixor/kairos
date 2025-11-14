@@ -407,6 +407,88 @@ function ta_assignment_primary_key(PDO $pdo): ?string {
     return $cache;
 }
 
+function ta_audit_log_table(PDO $pdo): ?string {
+    static $cache = false;
+    if ($cache !== false) {
+        return $cache;
+    }
+
+    foreach (['ta_audit_log', 'audit_log'] as $candidate) {
+        if (table_exists($pdo, $candidate)) {
+            return $cache = $candidate;
+        }
+    }
+
+    $cache = null;
+    return $cache;
+}
+
+function ta_append_audit_log_file(array $entry): void {
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0775, true);
+    }
+    $file = $logDir . '/ta_audit.log';
+    $payload = [
+        'ts'      => date('c'),
+        'actor'   => $entry['actor_user_id'] ?? null,
+        'action'  => $entry['action'] ?? '',
+        'queue'   => $entry['queue_id'] ?? null,
+        'student' => $entry['student_user_id'] ?? null,
+        'meta'    => $entry['meta'] ?? null,
+    ];
+    @file_put_contents($file, json_encode($payload, JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+}
+
+function ta_log_audit_event(PDO $pdo, array $entry): void {
+    $action = isset($entry['action']) ? (string)$entry['action'] : '';
+    $actor = isset($entry['actor_user_id']) ? (int)$entry['actor_user_id'] : 0;
+    if ($action === '' || $actor <= 0) {
+        return;
+    }
+
+    $table = ta_audit_log_table($pdo);
+    $recorded = false;
+    if ($table) {
+        try {
+            $columns = ['actor_user_id', 'action', 'created_at'];
+            $placeholders = [':actor', ':action', ':created'];
+            $params = [
+                ':actor'   => $actor,
+                ':action'  => $action,
+                ':created' => date('Y-m-d H:i:s'),
+            ];
+            if (isset($entry['queue_id'])) {
+                $columns[] = 'queue_id';
+                $placeholders[] = ':queue';
+                $params[':queue'] = (int)$entry['queue_id'];
+            }
+            if (isset($entry['student_user_id'])) {
+                $columns[] = 'student_user_id';
+                $placeholders[] = ':student';
+                $params[':student'] = (int)$entry['student_user_id'];
+            }
+            if (!empty($entry['meta'])) {
+                $columns[] = 'meta_json';
+                $placeholders[] = ':meta';
+                $params[':meta'] = json_encode($entry['meta']);
+            }
+
+            $sql = 'INSERT INTO `' . $table . '` (' . implode(',', $columns) . ')
+                    VALUES (' . implode(',', $placeholders) . ')';
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
+            $recorded = true;
+        } catch (Throwable $e) {
+            $recorded = false;
+        }
+    }
+
+    if (!$recorded) {
+        ta_append_audit_log_file($entry);
+    }
+}
+
 function log_change(PDO $pdo, string $channel, int $refId, ?int $courseId = null): void {
     if (!table_exists($pdo, 'change_log')) return;
     $st = $pdo->prepare('INSERT INTO change_log (channel, ref_id, course_id, created_at) VALUES (:ch, :ref, :cid, NOW())');

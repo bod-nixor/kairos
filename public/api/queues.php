@@ -81,8 +81,11 @@ try {
         $rows = $st->fetchAll();
 
         if (is_array($rows)) {
-            $rows = array_map(function(array $row): array {
+            $rows = array_map(function(array $row) use ($pdo): array {
+                $queueId = isset($row['queue_id']) ? (int)$row['queue_id'] : 0;
+                $roomId = isset($row['room_id']) ? (int)$row['room_id'] : null;
                 $occupantCount = isset($row['occupant_count']) ? (int)$row['occupant_count'] : 0;
+
                 $decoded = [];
                 if (!empty($row['occupants_json']) && is_string($row['occupants_json'])) {
                     $decoded = json_decode($row['occupants_json'], true);
@@ -91,26 +94,98 @@ try {
                     }
                 }
 
-                $occupants = array_values(array_filter(array_map(function($entry) {
+                $occupants = array_values(array_filter(array_map(static function($entry) {
                     if (!is_array($entry)) {
                         return null;
                     }
 
                     return [
                         'user_id' => isset($entry['user_id']) ? (int)$entry['user_id'] : null,
-                        'name'    => isset($entry['name']) ? (string)$entry['name'] : ''
+                        'name'    => isset($entry['name']) ? (string)$entry['name'] : '',
                     ];
-                }, $decoded), function($entry) {
+                }, $decoded), static function($entry) {
                     return $entry !== null;
                 }));
 
+                $snapshot = $queueId > 0 ? queue_snapshot_data($pdo, $queueId) : null;
+                $students = [];
+                $waitingStudents = [];
+                $waitingCount = $occupantCount;
+                $serving = null;
+                $updatedAt = time();
+
+                if ($snapshot) {
+                    $serving = $snapshot['serving'] ?? null;
+                    $updatedAt = $snapshot['updated_at'] ?? $updatedAt;
+
+                    foreach ($snapshot['students'] ?? [] as $student) {
+                        if (!is_array($student) || !isset($student['id'])) {
+                            continue;
+                        }
+                        $status = $student['status'] ?? 'waiting';
+                        if (!in_array($status, ['waiting', 'serving', 'done'], true)) {
+                            $status = 'waiting';
+                        }
+                        $studentRow = [
+                            'id'        => (int)$student['id'],
+                            'name'      => isset($student['name']) ? (string)$student['name'] : '',
+                            'status'    => $status,
+                            'joined_at' => $student['joined_at'] ?? null,
+                        ];
+                        $students[] = $studentRow;
+                        if ($status === 'waiting') {
+                            $waitingStudents[] = [
+                                'user_id'   => $studentRow['id'],
+                                'name'      => $studentRow['name'],
+                                'joined_at' => $studentRow['joined_at'],
+                            ];
+                        }
+                    }
+                    if (array_key_exists('waiting_count', $snapshot)) {
+                        $waitingCount = (int)$snapshot['waiting_count'];
+                    } else {
+                        $waitingCount = count($waitingStudents);
+                    }
+                }
+
+                if (!$students && $occupants) {
+                    foreach ($occupants as $occ) {
+                        if (!isset($occ['user_id'])) {
+                            continue;
+                        }
+                        $students[] = [
+                            'id'        => (int)$occ['user_id'],
+                            'name'      => $occ['name'] ?? '',
+                            'status'    => 'waiting',
+                            'joined_at' => null,
+                        ];
+                    }
+                    $waitingStudents = array_map(static function(array $occ): array {
+                        return [
+                            'user_id'   => $occ['user_id'],
+                            'name'      => $occ['name'] ?? '',
+                            'joined_at' => null,
+                        ];
+                    }, $occupants);
+                }
+
+                if (!$waitingStudents) {
+                    $waitingStudents = $occupants;
+                }
+                if ($waitingCount < 0) {
+                    $waitingCount = 0;
+                }
+
                 return [
-                    'queue_id'       => isset($row['queue_id']) ? (int)$row['queue_id'] : null,
-                    'room_id'        => isset($row['room_id']) ? (int)$row['room_id'] : null,
+                    'queue_id'       => $queueId,
+                    'room_id'        => $roomId,
                     'name'           => isset($row['name']) ? (string)$row['name'] : '',
                     'description'    => isset($row['description']) ? (string)$row['description'] : '',
-                    'occupant_count' => $occupantCount,
-                    'occupants'      => $occupants,
+                    'occupant_count' => $waitingCount,
+                    'occupants'      => $waitingStudents,
+                    'students'       => $students,
+                    'serving'        => $serving,
+                    'updated_at'     => $updatedAt,
                 ];
             }, $rows);
         }
@@ -175,12 +250,10 @@ try {
                     'action'  => 'join',
                     'user_id' => (int)$user['user_id'],
                 ]);
-                $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
-                $event = ['event' => 'queue', 'ref_id' => $queue_id];
-                if ($roomId !== null) {
-                    $event['room_id'] = $roomId;
-                }
-                ws_notify($event);
+                queue_ws_notify($pdo, $queue_id, 'join', [
+                    'student_id'   => (int)$user['user_id'],
+                    'student_name' => isset($user['name']) ? (string)$user['name'] : null,
+                ]);
                 qlog("POST join success qid=$queue_id");
             } else {
                 qlog("POST join skipped (already in queue) qid=$queue_id");
@@ -215,12 +288,10 @@ try {
                     'action'  => 'leave',
                     'user_id' => (int)$user['user_id'],
                 ]);
-                $roomId = isset($meta['room_id']) ? (int)$meta['room_id'] : null;
-                $event = ['event' => 'queue', 'ref_id' => $queue_id];
-                if ($roomId !== null) {
-                    $event['room_id'] = $roomId;
-                }
-                ws_notify($event);
+                queue_ws_notify($pdo, $queue_id, 'leave', [
+                    'student_id'   => (int)$user['user_id'],
+                    'student_name' => isset($user['name']) ? (string)$user['name'] : null,
+                ]);
                 qlog("POST leave success qid=$queue_id");
             } else {
                 qlog("POST leave skipped (not in queue) qid=$queue_id");

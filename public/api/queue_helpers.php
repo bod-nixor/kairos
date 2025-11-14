@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__.'/ta/common.php';
+
 /**
  * Attempt to insert a row into change_log to notify SSE listeners.
  * Silently ignores errors (e.g. table missing) because the API should still work.
@@ -107,6 +109,199 @@ function queue_meta(PDO $pdo, int $queueId): array
     }
 
     return $cache[$queueId] = $meta;
+}
+
+function queue_student_name(PDO $pdo, int $userId): string
+{
+    static $cache = [];
+    if ($userId <= 0) {
+        return '';
+    }
+    if (array_key_exists($userId, $cache)) {
+        return $cache[$userId];
+    }
+
+    try {
+        $st = $pdo->prepare('SELECT name FROM users WHERE user_id = :uid LIMIT 1');
+        $st->execute([':uid' => $userId]);
+        $name = $st->fetchColumn();
+        if ($name === false || $name === null) {
+            $name = '';
+        }
+        return $cache[$userId] = (string)$name;
+    } catch (Throwable $e) {
+        return $cache[$userId] = '';
+    }
+}
+
+function queue_snapshot_data(PDO $pdo, int $queueId): array
+{
+    $students = [];
+    $waitingCount = 0;
+
+    try {
+        $sql = 'SELECT qe.user_id, qe.`timestamp` AS joined_at, u.name '
+             . 'FROM queue_entries qe '
+             . 'LEFT JOIN users u ON u.user_id = qe.user_id '
+             . 'WHERE qe.queue_id = :qid '
+             . 'ORDER BY qe.`timestamp`';
+        $st = $pdo->prepare($sql);
+        $st->execute([':qid' => $queueId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            $id = isset($row['user_id']) ? (int)$row['user_id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $students[] = [
+                'id'        => $id,
+                'name'      => isset($row['name']) ? (string)$row['name'] : '',
+                'status'    => 'waiting',
+                'joined_at' => isset($row['joined_at']) ? (string)$row['joined_at'] : null,
+            ];
+        }
+        $waitingCount = count($students);
+    } catch (Throwable $e) {
+        // ignore, fall back to empty snapshot
+    }
+
+    $serving = null;
+    try {
+        $serving = ta_active_assignment($pdo, $queueId);
+    } catch (Throwable $e) {
+        $serving = null;
+    }
+    if ($serving) {
+        $servingStudentId = isset($serving['student_user_id']) ? (int)$serving['student_user_id'] : 0;
+        if ($servingStudentId > 0) {
+            $students = array_values(array_filter($students, static function(array $student) use ($servingStudentId): bool {
+                return ($student['id'] ?? 0) !== $servingStudentId;
+            }));
+            $students[] = [
+                'id'        => $servingStudentId,
+                'name'      => $serving['student_name'] ?? '',
+                'status'    => 'serving',
+                'joined_at' => $serving['started_at'] ?? null,
+            ];
+        }
+    }
+
+    $waitingCount = 0;
+    foreach ($students as $student) {
+        if (($student['status'] ?? 'waiting') === 'waiting') {
+            $waitingCount++;
+        }
+    }
+
+    return [
+        'students'      => $students,
+        'serving'       => $serving,
+        'waiting_count' => $waitingCount,
+        'updated_at'    => time(),
+    ];
+}
+
+function queue_ws_notify(PDO $pdo, int $queueId, string $change, array $options = []): void
+{
+    $meta = queue_meta($pdo, $queueId);
+    $roomId = $meta['room_id'] ?? null;
+    $courseId = $meta['course_id'] ?? null;
+
+    $studentId = isset($options['student_id']) ? (int)$options['student_id'] : null;
+    $studentName = isset($options['student_name']) ? (string)$options['student_name'] : null;
+    if ($studentId && ($studentName === null || $studentName === '')) {
+        $studentName = queue_student_name($pdo, $studentId);
+    }
+
+    $snapshot = empty($options['skip_snapshot']) ? queue_snapshot_data($pdo, $queueId) : null;
+
+    $servingTaId = array_key_exists('serving_ta_id', $options)
+        ? $options['serving_ta_id']
+        : ($snapshot['serving']['ta_user_id'] ?? null);
+    $servingTaName = array_key_exists('serving_ta_name', $options)
+        ? $options['serving_ta_name']
+        : ($snapshot['serving']['ta_name'] ?? null);
+    $servingStudentId = array_key_exists('serving_student_id', $options)
+        ? $options['serving_student_id']
+        : ($snapshot['serving']['student_user_id'] ?? null);
+    $servingStudentName = array_key_exists('serving_student_name', $options)
+        ? $options['serving_student_name']
+        : ($snapshot['serving']['student_name'] ?? null);
+
+    $payloadSnapshot = null;
+    if ($snapshot) {
+        $students = [];
+        foreach ($snapshot['students'] ?? [] as $student) {
+            if (!is_array($student) || !isset($student['id'])) {
+                continue;
+            }
+            $status = $student['status'] ?? 'waiting';
+            if (!in_array($status, ['waiting', 'serving', 'done'], true)) {
+                $status = 'waiting';
+            }
+            $students[] = [
+                'id'       => (int)$student['id'],
+                'name'     => isset($student['name']) ? (string)$student['name'] : '',
+                'status'   => $status,
+                'joinedAt' => $student['joined_at'] ?? null,
+            ];
+        }
+        if (!empty($options['extra_students']) && is_array($options['extra_students'])) {
+            $existingIds = [];
+            foreach ($students as $student) {
+                $existingIds[$student['id']] = true;
+            }
+            foreach ($options['extra_students'] as $extra) {
+                if (!is_array($extra) || !isset($extra['id'])) {
+                    continue;
+                }
+                $extraId = (int)$extra['id'];
+                if ($extraId <= 0 || isset($existingIds[$extraId])) {
+                    continue;
+                }
+                $status = $extra['status'] ?? 'waiting';
+                if (!in_array($status, ['waiting', 'serving', 'done'], true)) {
+                    $status = 'waiting';
+                }
+                $students[] = [
+                    'id'       => $extraId,
+                    'name'     => isset($extra['name']) ? (string)$extra['name'] : '',
+                    'status'   => $status,
+                    'joinedAt' => $extra['joined_at'] ?? null,
+                ];
+            }
+        }
+        $payloadSnapshot = [
+            'students'  => $students,
+            'updatedAt' => $snapshot['updated_at'] ?? time(),
+        ];
+    }
+
+    $payload = [
+        'roomId'             => $roomId,
+        'queueId'            => $queueId,
+        'change'             => $change,
+        'student'            => $studentId ? ['id' => $studentId, 'name' => $studentName ?? ''] : null,
+        'servingTaId'        => $servingTaId !== null ? (int)$servingTaId : null,
+        'servingTaName'      => $servingTaName !== null ? (string)$servingTaName : null,
+        'servingStudentId'   => $servingStudentId !== null ? (int)$servingStudentId : null,
+        'servingStudentName' => $servingStudentName !== null ? (string)$servingStudentName : null,
+        'snapshot'           => $payloadSnapshot,
+    ];
+    if ($snapshot && array_key_exists('waiting_count', $snapshot)) {
+        $payload['waitingCount'] = (int)$snapshot['waiting_count'];
+    }
+    if (isset($options['assignment_id'])) {
+        $payload['assignmentId'] = $options['assignment_id'];
+    }
+
+    ws_notify([
+        'event'     => 'queue',
+        'course_id' => $courseId,
+        'room_id'   => $roomId,
+        'ref_id'    => $options['ref_id'] ?? $queueId,
+        'payload'   => $payload,
+    ]);
 }
 
 /**
