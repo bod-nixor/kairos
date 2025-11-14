@@ -8,7 +8,10 @@ const taState = {
   selectedRoom: '',
   selectedStudent: null,
   studentDirectory: {},
+  queueRefs: new Map(),
 };
+
+const toastStack = document.getElementById('taToastStack');
 
 function reloadRooms() {
   if (taState.selectedCourse) {
@@ -140,6 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
         highlightSelectedStudent();
         loadStudentProgress(userId);
       }
+      if (action === 'stop-serving') {
+        handleStopServing(queueId, actionBtn);
+      }
     });
   }
 });
@@ -157,16 +163,16 @@ async function bootstrapTA() {
       if (me.user_id != null) {
         window.SignoffWS.setSelfUserId(Number(me.user_id));
       }
-      window.SignoffWS.init({
-        getFilters: () => ({
-          courseId: taState.selectedCourse ? Number(taState.selectedCourse) : null,
-          roomId: taState.selectedRoom ? Number(taState.selectedRoom) : null,
-        }),
-        onQueue: () => reloadQueues(),
-        onRooms: () => reloadRooms(),
-        onProgress: () => reloadProgress(),
-      });
-    }
+    window.SignoffWS.init({
+      getFilters: () => ({
+        courseId: taState.selectedCourse ? Number(taState.selectedCourse) : null,
+        roomId: taState.selectedRoom ? Number(taState.selectedRoom) : null,
+      }),
+      onQueue: handleQueueBroadcast,
+      onRooms: () => reloadRooms(),
+      onProgress: () => reloadProgress(),
+    });
+  }
   } catch (err) {
     console.error('me.php failed', err);
     setTaView('auth');
@@ -268,7 +274,7 @@ function renderRooms(rooms) {
 async function loadQueues(roomId) {
   try {
     const data = await apiGet(`./api/ta/queues.php?room_id=${encodeURIComponent(roomId)}`);
-    taState.queues = Array.isArray(data?.queues) ? data.queues : [];
+    taState.queues = Array.isArray(data?.queues) ? data.queues.map(normalizeTaQueue) : [];
     renderQueues();
   } catch (err) {
     console.error('queues failed', err);
@@ -283,114 +289,424 @@ function renderQueues() {
   const notice = document.getElementById('taServingNotice');
   if (!list) return;
   list.innerHTML = '';
+  taState.queueRefs = new Map();
+  taState.studentDirectory = {};
   if (notice) notice.textContent = '';
-  if (!taState.studentDirectory) taState.studentDirectory = {};
 
   if (!taState.selectedRoom) {
     list.innerHTML = '<div class="card">Select a room to view queues.</div>';
     return;
   }
-  if (!taState.queues.length) {
+  if (!Array.isArray(taState.queues) || !taState.queues.length) {
     list.innerHTML = '<div class="card">No active queues in this room.</div>';
     return;
   }
 
-  let servingMessage = '';
+  const fragment = document.createDocumentFragment();
   taState.queues.forEach((queue) => {
-    const card = document.createElement('div');
-    card.className = 'ta-queue-card';
-    card.dataset.queueId = queue.queue_id;
-    const serving = queue.serving;
-    if (serving && taState.me && serving.ta_user_id === taState.me.user_id) {
-      servingMessage = `Serving ${serving.student_name || 'a student'} in ${queue.name || `Queue #${queue.queue_id}`}`;
+    const card = createTaQueueCard(queue);
+    if (card) fragment.appendChild(card);
+  });
+  list.appendChild(fragment);
+  updateServingNotice();
+}
+
+function normalizeTaQueue(raw) {
+  const queueId = Number(raw?.queue_id ?? 0);
+  const name = raw?.name || `Queue #${queueId}`;
+  const description = raw?.description || '';
+  const studentsRaw = Array.isArray(raw?.students) ? raw.students : [];
+  const students = studentsRaw.map(normalizeQueueStudentEntry);
+  let occupants = Array.isArray(raw?.occupants)
+    ? raw.occupants.map((occ) => ({
+        user_id: occ?.user_id != null ? Number(occ.user_id) : null,
+        name: occ?.name || '',
+        joined_at: occ?.joined_at || null,
+      })).filter((occ) => occ.user_id != null)
+    : [];
+  if (!occupants.length) {
+    occupants = students
+      .filter((student) => student.status === 'waiting')
+      .map((student) => ({
+        user_id: student.id,
+        name: student.name,
+        joined_at: student.joinedAt || null,
+      }));
+  }
+  const occupantCount = raw?.occupant_count != null
+    ? Number(raw.occupant_count)
+    : occupants.length;
+
+  let serving = null;
+  const servingRaw = raw?.serving;
+  if (servingRaw && typeof servingRaw === 'object') {
+    const taId = servingRaw.ta_user_id != null ? Number(servingRaw.ta_user_id) : null;
+    const studentId = servingRaw.student_user_id != null ? Number(servingRaw.student_user_id) : null;
+    if (taId || studentId) {
+      serving = {
+        ta_user_id: taId,
+        ta_name: servingRaw.ta_name || '',
+        student_user_id: studentId,
+        student_name: servingRaw.student_name || '',
+        started_at: servingRaw.started_at || null,
+      };
     }
-    const header = document.createElement('div');
-    header.className = 'ta-queue-header';
-    const titleWrap = document.createElement('div');
-    const title = document.createElement('h3');
-    title.className = 'ta-queue-title';
-    title.textContent = queue.name || `Queue #${queue.queue_id}`;
+  }
+
+  const updatedAt = raw?.updated_at != null ? Number(raw.updated_at) : Math.floor(Date.now() / 1000);
+
+  return {
+    queue_id: queueId,
+    room_id: raw?.room_id != null ? Number(raw.room_id) : null,
+    name,
+    description,
+    occupant_count: occupantCount,
+    occupants,
+    students,
+    serving,
+    updated_at: updatedAt,
+  };
+}
+
+function normalizeQueueStudentEntry(student) {
+  const id = Number(student?.id ?? student?.user_id ?? 0);
+  let status = student?.status || 'waiting';
+  if (!['waiting', 'serving', 'done'].includes(status)) {
+    status = 'waiting';
+  }
+  const joinedAt = student?.joined_at ?? student?.joinedAt ?? null;
+  return {
+    id,
+    name: student?.name || '',
+    status,
+    joinedAt,
+  };
+}
+
+function createTaQueueCard(queue) {
+  const card = document.createElement('div');
+  card.className = 'ta-queue-card';
+  card.dataset.queueId = queue.queue_id;
+
+  const header = document.createElement('div');
+  header.className = 'ta-queue-header';
+
+  const titleWrap = document.createElement('div');
+  const title = document.createElement('h3');
+  title.className = 'ta-queue-title';
+  title.textContent = queue.name || `Queue #${queue.queue_id}`;
+  titleWrap.appendChild(title);
+  if (queue.description) {
     const desc = document.createElement('div');
     desc.className = 'ta-queue-desc';
-    desc.textContent = queue.description || '';
-    titleWrap.appendChild(title);
-    if (queue.description) titleWrap.appendChild(desc);
-    header.appendChild(titleWrap);
-    if (serving && serving.student_name) {
-      const servingEl = document.createElement('div');
-      servingEl.className = 'ta-queue-serving';
-      servingEl.textContent = `Serving ${serving.student_name} (${serving.ta_name || 'TA'})`;
-      header.appendChild(servingEl);
-    }
-    card.appendChild(header);
+    desc.textContent = queue.description;
+    titleWrap.appendChild(desc);
+  }
+  header.appendChild(titleWrap);
 
-    const ul = document.createElement('ul');
-    ul.className = 'ta-student-list';
-    if (!queue.occupants.length) {
-      const empty = document.createElement('div');
-      empty.className = 'ta-queue-empty';
-      empty.textContent = 'No students waiting.';
-      card.appendChild(empty);
-    } else {
-      queue.occupants.forEach((occ) => {
-        if (!occ || !occ.user_id) return;
-        taState.studentDirectory[occ.user_id] = occ.name;
-        const li = document.createElement('li');
-        li.className = 'ta-student-item';
-        li.dataset.queueId = queue.queue_id;
-        li.dataset.userId = occ.user_id;
-        if (taState.selectedStudent === occ.user_id) li.classList.add('active');
+  const statusWrap = document.createElement('div');
+  statusWrap.className = 'ta-queue-status';
+  const servingEl = document.createElement('div');
+  servingEl.className = 'ta-queue-serving';
+  statusWrap.appendChild(servingEl);
+  const stopSlot = document.createElement('div');
+  stopSlot.dataset.role = 'stop-slot';
+  statusWrap.appendChild(stopSlot);
+  header.appendChild(statusWrap);
 
-        const info = document.createElement('div');
-        info.className = 'ta-student-info';
-        const name = document.createElement('div');
-        name.className = 'ta-student-name';
-        name.textContent = occ.name || `Student #${occ.user_id}`;
-        const meta = document.createElement('div');
-        meta.className = 'ta-student-meta';
-        meta.textContent = occ.joined_at ? `Waiting since ${formatTime(occ.joined_at)}` : 'Waiting';
-        info.appendChild(name);
-        info.appendChild(meta);
+  card.appendChild(header);
 
-        const actions = document.createElement('div');
-        actions.className = 'ta-student-actions';
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'btn btn-ghost';
-        viewBtn.type = 'button';
-        viewBtn.dataset.action = 'view';
-        viewBtn.dataset.queueId = queue.queue_id;
-        viewBtn.dataset.userId = occ.user_id;
-        viewBtn.textContent = 'View';
-        const acceptBtn = document.createElement('button');
-        acceptBtn.className = 'btn btn-primary';
-        acceptBtn.type = 'button';
-        acceptBtn.dataset.action = 'accept';
-        acceptBtn.dataset.queueId = queue.queue_id;
-        acceptBtn.dataset.userId = occ.user_id;
-        const isBusy = serving && serving.student_user_id && serving.student_user_id !== occ.user_id;
-        const isCurrent = serving && serving.student_user_id === occ.user_id;
-        if (isBusy) {
-          acceptBtn.disabled = true;
-          acceptBtn.textContent = 'In use';
-        } else if (isCurrent) {
-          acceptBtn.disabled = true;
-          acceptBtn.textContent = 'Serving';
-        } else {
-          acceptBtn.textContent = 'Accept';
-        }
-        actions.appendChild(viewBtn);
-        actions.appendChild(acceptBtn);
+  const list = document.createElement('ul');
+  list.className = 'ta-student-list';
+  card.appendChild(list);
 
-        li.appendChild(info);
-        li.appendChild(actions);
-        ul.appendChild(li);
-      });
-      card.appendChild(ul);
-    }
+  const empty = document.createElement('div');
+  empty.className = 'ta-queue-empty hidden';
+  empty.textContent = 'No students waiting.';
+  card.appendChild(empty);
 
-    list.appendChild(card);
+  taState.queueRefs.set(queue.queue_id, {
+    root: card,
+    list,
+    empty,
+    serving: servingEl,
+    stopSlot,
   });
-  if (notice && servingMessage) notice.textContent = servingMessage;
+
+  updateTaQueueCard(queue);
+  return card;
+}
+
+function updateTaQueueCard(queue) {
+  updateTaQueueStudents(queue);
+  updateTaServingStatus(queue);
+  highlightSelectedStudent();
+}
+
+function updateTaQueueStudents(queue) {
+  const refs = taState.queueRefs.get(queue.queue_id);
+  if (!refs || !refs.list || !refs.empty) return;
+
+  const list = refs.list;
+  const empty = refs.empty;
+  const waiting = Array.isArray(queue.occupants) ? queue.occupants.filter((occ) => occ && occ.user_id != null) : [];
+
+  waiting.forEach((occ) => {
+    if (occ?.user_id != null) {
+      taState.studentDirectory[occ.user_id] = occ.name || '';
+    }
+  });
+
+  if (!waiting.length) {
+    list.innerHTML = '';
+    list.classList.add('hidden');
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  list.classList.remove('hidden');
+
+  const existing = new Map();
+  Array.from(list.children).forEach((node) => {
+    if (!(node instanceof HTMLElement)) return;
+    const userId = Number(node.dataset.userId);
+    if (userId) {
+      existing.set(userId, node);
+    }
+  });
+
+  const newOrder = [];
+  waiting.forEach((occ) => {
+    const userId = Number(occ.user_id);
+    if (!userId) return;
+    let item = existing.get(userId);
+    if (item) {
+      existing.delete(userId);
+      updateTaStudentItem(item, queue, occ);
+    } else {
+      item = createTaStudentItem(queue, occ);
+    }
+    newOrder.push(item);
+  });
+
+  existing.forEach((node) => node.remove());
+
+  newOrder.forEach((node, index) => {
+    const current = list.children[index];
+    if (current !== node) {
+      list.insertBefore(node, current ?? null);
+    }
+  });
+}
+
+function createTaStudentItem(queue, occ) {
+  const li = document.createElement('li');
+  li.className = 'ta-student-item';
+  li.dataset.queueId = queue.queue_id;
+  li.dataset.userId = occ.user_id;
+
+  const info = document.createElement('div');
+  info.className = 'ta-student-info';
+  const name = document.createElement('div');
+  name.className = 'ta-student-name';
+  info.appendChild(name);
+  const meta = document.createElement('div');
+  meta.className = 'ta-student-meta';
+  info.appendChild(meta);
+  li.appendChild(info);
+
+  const actions = document.createElement('div');
+  actions.className = 'ta-student-actions';
+  const viewBtn = document.createElement('button');
+  viewBtn.className = 'btn btn-ghost';
+  viewBtn.type = 'button';
+  viewBtn.dataset.action = 'view';
+  viewBtn.dataset.queueId = queue.queue_id;
+  viewBtn.dataset.userId = occ.user_id;
+  viewBtn.textContent = 'View';
+  actions.appendChild(viewBtn);
+
+  const acceptBtn = document.createElement('button');
+  acceptBtn.className = 'btn btn-primary';
+  acceptBtn.type = 'button';
+  acceptBtn.dataset.action = 'accept';
+  acceptBtn.dataset.queueId = queue.queue_id;
+  acceptBtn.dataset.userId = occ.user_id;
+  acceptBtn.textContent = 'Accept';
+  actions.appendChild(acceptBtn);
+
+  li.appendChild(actions);
+  updateTaStudentItem(li, queue, occ);
+  return li;
+}
+
+function updateTaStudentItem(li, queue, occ) {
+  const userId = Number(occ?.user_id ?? 0);
+  const nameEl = li.querySelector('.ta-student-name');
+  const metaEl = li.querySelector('.ta-student-meta');
+  const acceptBtn = li.querySelector('button[data-action="accept"]');
+
+  if (nameEl) {
+    nameEl.textContent = occ?.name || `Student #${userId || ''}`;
+  }
+  if (metaEl) {
+    const since = occ?.joined_at ? formatTime(occ.joined_at) : 'Waiting';
+    metaEl.textContent = since ? `Waiting since ${since}` : 'Waiting';
+  }
+
+  if (taState.selectedStudent === userId) {
+    li.classList.add('active');
+  } else {
+    li.classList.remove('active');
+  }
+
+  if (acceptBtn) {
+    const serving = queue.serving;
+    if (acceptBtn.dataset.loading === '1') {
+      acceptBtn.disabled = true;
+    } else if (serving && serving.student_user_id && serving.student_user_id !== userId) {
+      acceptBtn.disabled = true;
+      acceptBtn.textContent = 'In use';
+    } else if (serving && serving.student_user_id === userId) {
+      acceptBtn.disabled = true;
+      acceptBtn.textContent = 'Serving';
+    } else {
+      acceptBtn.disabled = false;
+      acceptBtn.textContent = 'Accept';
+    }
+  }
+}
+
+function updateTaServingStatus(queue) {
+  const refs = taState.queueRefs.get(queue.queue_id);
+  if (!refs) return;
+  const servingEl = refs.serving;
+  const stopSlot = refs.stopSlot;
+
+  if (servingEl) {
+    if (queue.serving && queue.serving.student_name) {
+      const taName = queue.serving.ta_name || 'TA';
+      servingEl.textContent = `Serving ${queue.serving.student_name} (${taName})`;
+    } else if (queue.serving && queue.serving.student_user_id) {
+      servingEl.textContent = 'Serving a student';
+    } else {
+      servingEl.textContent = '';
+    }
+  }
+
+  if (stopSlot) {
+    stopSlot.innerHTML = '';
+    if (queue.serving && queue.serving.ta_user_id && taState.me && queue.serving.ta_user_id === taState.me.user_id) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-danger btn-sm';
+      btn.dataset.action = 'stop-serving';
+      btn.dataset.queueId = queue.queue_id;
+      btn.textContent = 'Stop Serving';
+      stopSlot.appendChild(btn);
+    }
+  }
+
+  updateServingNotice();
+}
+
+function updateServingNotice() {
+  const notice = document.getElementById('taServingNotice');
+  if (!notice) return;
+  let message = '';
+  const selfId = taState.me?.user_id != null ? Number(taState.me.user_id) : null;
+  if (selfId != null) {
+    for (const queue of taState.queues) {
+      if (queue?.serving && queue.serving.ta_user_id === selfId) {
+        const queueName = queue.name || `Queue #${queue.queue_id}`;
+        const studentName = queue.serving.student_name || 'a student';
+        message = `Serving ${studentName} in ${queueName}`;
+        break;
+      }
+    }
+  }
+  notice.textContent = message;
+}
+
+function handleQueueBroadcast(message) {
+  const payload = message?.payload;
+  if (!payload || payload.queueId == null) {
+    return;
+  }
+  const queueId = Number(payload.queueId);
+  if (!Number.isFinite(queueId) || queueId <= 0) {
+    return;
+  }
+  if (taState.selectedRoom) {
+    const roomId = payload.roomId != null ? Number(payload.roomId) : null;
+    if (roomId && Number(taState.selectedRoom) !== roomId) {
+      return;
+    }
+  }
+
+  const queue = taState.queues.find((q) => q.queue_id === queueId);
+  if (!queue) {
+    if (payload.change === 'bulk_refresh' && taState.selectedRoom) {
+      loadQueues(taState.selectedRoom);
+    }
+    return;
+  }
+
+  if (payload.change === 'bulk_refresh') {
+    if (taState.selectedRoom) {
+      loadQueues(taState.selectedRoom);
+    }
+    return;
+  }
+
+  if (payload.snapshot && Array.isArray(payload.snapshot.students)) {
+    queue.students = payload.snapshot.students.map(normalizeQueueStudentEntry);
+  }
+
+  if (payload.waitingCount != null) {
+    queue.occupant_count = Number(payload.waitingCount);
+  } else {
+    queue.occupant_count = queue.students.filter((student) => student.status === 'waiting').length;
+  }
+
+  queue.occupants = queue.students
+    .filter((student) => student.status === 'waiting')
+    .map((student) => ({
+      user_id: student.id,
+      name: student.name,
+      joined_at: student.joinedAt || null,
+    }));
+
+  const hasServingInfo = Object.prototype.hasOwnProperty.call(payload, 'servingTaId')
+    || Object.prototype.hasOwnProperty.call(payload, 'servingStudentId')
+    || Object.prototype.hasOwnProperty.call(payload, 'servingTaName')
+    || Object.prototype.hasOwnProperty.call(payload, 'servingStudentName');
+
+  if (hasServingInfo) {
+    const taId = payload.servingTaId != null ? Number(payload.servingTaId) : null;
+    const studentId = payload.servingStudentId != null ? Number(payload.servingStudentId) : null;
+    const taName = payload.servingTaName != null ? payload.servingTaName : (queue.serving?.ta_name || '');
+    const studentName = payload.servingStudentName != null ? payload.servingStudentName : (queue.serving?.student_name || '');
+
+    if (taId || studentId) {
+      queue.serving = {
+        ta_user_id: taId,
+        ta_name: taName,
+        student_user_id: studentId,
+        student_name: studentName,
+        started_at: queue.serving?.started_at || null,
+      };
+    } else {
+      queue.serving = null;
+    }
+  }
+
+  queue.updated_at = payload.snapshot?.updatedAt != null
+    ? Number(payload.snapshot.updatedAt)
+    : Math.floor(Date.now() / 1000);
+
+  updateTaQueueCard(queue);
 }
 
 async function handleAccept(queueId, userId, button) {
@@ -398,15 +714,35 @@ async function handleAccept(queueId, userId, button) {
     alert('Select a course before accepting students.');
     return;
   }
-  button.disabled = true;
-  button.textContent = 'Accepting…';
+  startButtonLoading(button, 'Accepting…');
   try {
     await apiPost('./api/ta/accept.php', {
       queue_id: queueId,
       user_id: userId,
     });
     taState.selectedStudent = userId;
-    await loadQueues(taState.selectedRoom);
+    const queue = taState.queues.find((q) => q.queue_id === queueId);
+    if (queue) {
+      const studentName = taState.studentDirectory?.[userId] || queue.occupants.find((occ) => occ.user_id === userId)?.name || '';
+      queue.occupants = queue.occupants.filter((occ) => occ.user_id !== userId);
+      queue.students = queue.students.filter((student) => !(student.id === userId && student.status === 'waiting'));
+      queue.students.push({
+        id: userId,
+        name: studentName,
+        status: 'serving',
+        joinedAt: null,
+      });
+      queue.occupant_count = queue.occupants.length;
+      queue.serving = {
+        ta_user_id: taState.me?.user_id ?? null,
+        ta_name: taState.me?.name || '',
+        student_user_id: userId,
+        student_name: studentName,
+        started_at: new Date().toISOString(),
+      };
+      stopButtonLoading(button, { keepDisabled: true });
+      updateTaQueueCard(queue);
+    }
     highlightSelectedStudent();
     await loadStudentProgress(userId);
   } catch (err) {
@@ -414,9 +750,34 @@ async function handleAccept(queueId, userId, button) {
     const body = err?.body;
     const message = typeof body === 'string' ? body : (body?.message || body?.error);
     alert(message || 'Failed to accept student.');
-  } finally {
-    button.disabled = false;
-    button.textContent = 'Accept';
+    stopButtonLoading(button);
+  }
+}
+
+async function handleStopServing(queueId, button) {
+  const queue = taState.queues.find((q) => q.queue_id === queueId);
+  if (!queue || !queue.serving) {
+    return;
+  }
+  startButtonLoading(button, 'Stopping…');
+  try {
+    const res = await apiPost('./api/ta/stop.php', { queue_id: queueId });
+    if (res?.success) {
+      queue.serving = null;
+      queue.students = queue.students.filter((student) => student.status !== 'serving');
+      queue.occupant_count = queue.students.filter((student) => student.status === 'waiting').length;
+      stopButtonLoading(button, { keepDisabled: true });
+      updateTaQueueCard(queue);
+      showToast('Serving session ended.');
+    } else {
+      const message = res?.message || res?.error;
+      throw new Error(message || 'Failed to stop serving.');
+    }
+  } catch (err) {
+    console.error('stop serving failed', err);
+    stopButtonLoading(button);
+    const message = err?.message || 'Failed to stop serving.';
+    showToast(message, { tone: 'error' });
   }
 }
 
@@ -582,6 +943,13 @@ function highlightSelectedStudent() {
 
 function findStudentInQueues(userId) {
   for (const queue of taState.queues) {
+    if (queue?.serving && queue.serving.student_user_id === userId) {
+      return {
+        user_id: queue.serving.student_user_id,
+        name: queue.serving.student_name,
+        joined_at: queue.serving.started_at || null,
+      };
+    }
     for (const occ of queue.occupants || []) {
       if (occ.user_id === userId) return occ;
     }
@@ -597,6 +965,29 @@ function buildStatusOptions() {
     if (!options.includes(name)) options.push(name);
   });
   return options;
+}
+
+function startButtonLoading(button, label) {
+  if (!button) return;
+  if (!button.dataset.originalContent) {
+    button.dataset.originalContent = button.innerHTML;
+  }
+  button.dataset.loading = '1';
+  const text = label || 'Working…';
+  button.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span class="btn-label">${escapeHtml(text)}</span>`;
+  button.disabled = true;
+}
+
+function stopButtonLoading(button, { keepDisabled = false } = {}) {
+  if (!button) return;
+  if (button.dataset.originalContent) {
+    button.innerHTML = button.dataset.originalContent;
+    delete button.dataset.originalContent;
+  }
+  if (!keepDisabled) {
+    button.disabled = false;
+  }
+  delete button.dataset.loading;
 }
 
 async function apiGet(url) {
@@ -635,5 +1026,32 @@ function formatTime(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return ts;
   return d.toLocaleString([], { hour: '2-digit', minute: '2-digit', hour12: true, month: 'short', day: 'numeric' });
+}
+
+function showToast(message, { tone = 'info' } = {}) {
+  if (!toastStack) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (tone === 'error') {
+    toast.classList.add('toast-error');
+  }
+  toast.textContent = message;
+  toastStack.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 250);
+  }, 3200);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 

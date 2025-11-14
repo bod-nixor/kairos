@@ -130,6 +130,17 @@ $taName = $taNameStmt->fetchColumn() ?: '';
 $wsEvent['payload']['ta_name'] = $taName;
 ws_notify($wsEvent);
 
+$studentName = queue_student_name($pdo, $studentId);
+queue_ws_notify($pdo, $queueId, 'serve', [
+    'student_id'           => $studentId,
+    'student_name'         => $studentName,
+    'serving_ta_id'        => $ta['user_id'] ?? null,
+    'serving_ta_name'      => $taName,
+    'serving_student_id'   => $studentId,
+    'serving_student_name' => $studentName,
+    'assignment_id'        => $assignmentId,
+]);
+
 json_out([
     'success'         => true,
     'assignment_id'   => $assignmentId,
