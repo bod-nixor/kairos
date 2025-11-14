@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/bootstrap.php';
-require_once __DIR__.'/queue_helpers.php';
-require_once __DIR__.'/_ws_notify.php';
+require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/_helpers.php';
+require_once __DIR__ . '/queue_helpers.php';
+require_once __DIR__ . '/_ws_notify.php';
+require_once dirname(__DIR__, 2) . '/src/rbac.php';
 $user = require_login();
 $pdo  = db();
 
@@ -47,9 +49,15 @@ try {
             $raw = trim($raw, " \t\n\r\0\x0B\"'");
         }
 
+        $roomId = null;
+        if ($raw !== null && $raw !== '' && ctype_digit((string)$raw)) {
+            $roomId = (int)$raw;
+        }
+
         $sql = "SELECT
                   CAST(q.queue_id AS UNSIGNED) AS queue_id,
                   CAST(q.room_id  AS UNSIGNED) AS room_id,
+                  CAST(r.course_id AS UNSIGNED) AS course_id,
                   q.name,
                   q.description,
                   COUNT(qe.user_id) AS occupant_count,
@@ -63,22 +71,67 @@ try {
                        )
                   END AS occupants_json
                 FROM queues_info q
+                JOIN rooms r ON r.room_id = q.room_id
                 LEFT JOIN queue_entries qe ON qe.queue_id = q.queue_id
                 LEFT JOIN users u ON u.user_id = qe.user_id";
-        $args = [];
 
-        if ($raw !== null && $raw !== '' && ctype_digit((string)$raw)) {
-            $sql .= " WHERE q.room_id = CAST(:rid AS UNSIGNED)";
-            $args[':rid'] = (int)$raw;
+        $where = [];
+        $args  = [];
+
+        if ($roomId) {
+            $roomScope = rbac_room_scope($pdo, $roomId);
+            if (!$roomScope) {
+                json_out(['error' => 'not_found', 'message' => 'room not found'], 404);
+            }
+            if (!rbac_can_view_room($pdo, $user, $roomId)) {
+                rbac_debug_deny('queues.room.forbidden', [
+                    'user_id' => rbac_user_id($user),
+                    'room_id' => $roomId,
+                ]);
+                json_out(['error' => 'forbidden', 'message' => 'room access denied'], 403);
+            }
+            $where[] = 'q.room_id = :rid';
+            $args[':rid'] = $roomId;
+        } else {
+            $courseScope = rbac_accessible_course_ids($pdo, $user);
+            if ($courseScope !== null) {
+                if (!$courseScope) {
+                    json_out([]);
+                }
+                $coursePlaceholders = [];
+                foreach ($courseScope as $idx => $cid) {
+                    $param = ':course' . $idx;
+                    $coursePlaceholders[] = $param;
+                    $args[$param] = (int)$cid;
+                }
+                $where[] = 'r.course_id IN (' . implode(',', $coursePlaceholders) . ')';
+            }
         }
 
-        $sql .= " GROUP BY q.queue_id, q.room_id, q.name, q.description ORDER BY q.name";
+        if ($where) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
 
-        qlog("GET queues room_id_raw=".json_encode($_GET['room_id'] ?? null)." parsed=".json_encode($raw)." SQL=".preg_replace('/\s+/', ' ', $sql)." ARGS=".json_encode($args));
+        $sql .= ' GROUP BY q.queue_id, q.room_id, r.course_id, q.name, q.description ORDER BY q.name';
+
+        qlog('GET queues room_id=' . json_encode($roomId) . ' SQL=' . preg_replace('/\\s+/', ' ', $sql) . ' ARGS=' . json_encode($args));
 
         $st = $pdo->prepare($sql);
         $ok = $st->execute($args);
-        $rows = $st->fetchAll();
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $rows = array_values(array_filter($rows, static function(array $row) use ($pdo, $user): bool {
+            $queueId = isset($row['queue_id']) ? (int)$row['queue_id'] : 0;
+            if ($queueId <= 0) {
+                return false;
+            }
+            $scope = [
+                'queue_id'  => $queueId,
+                'room_id'   => isset($row['room_id']) ? (int)$row['room_id'] : null,
+                'course_id' => isset($row['course_id']) ? (int)$row['course_id'] : null,
+            ];
+            return rbac_can_view_queue($pdo, $user, $queueId, $scope);
+        }));
 
         if (is_array($rows)) {
             $rows = array_map(function(array $row) use ($pdo): array {
@@ -224,7 +277,29 @@ try {
             json_out(['error' => 'queue_id required'], 400);
         }
 
+        $scope = rbac_queue_scope($pdo, $queue_id);
+        if (!$scope) {
+            qlog("POST error: queue not found qid=$queue_id");
+            json_out(['error' => 'not_found', 'message' => 'queue not found'], 404);
+        }
+
+        if (!rbac_can_view_queue($pdo, $user, $queue_id, $scope)) {
+            rbac_debug_deny('queues.post.forbidden', [
+                'user_id' => rbac_user_id($user),
+                'queue_id' => $queue_id,
+                'action'  => $action,
+            ]);
+            json_out(['error' => 'forbidden', 'message' => 'queue access denied'], 403);
+        }
+
         if ($action === 'join') {
+            if (!rbac_can_student_join_queue($pdo, $user, $queue_id, $scope)) {
+                rbac_debug_deny('queues.join.forbidden', [
+                    'user_id' => rbac_user_id($user),
+                    'queue_id' => $queue_id,
+                ]);
+                json_out(['error' => 'forbidden', 'message' => 'queue join not permitted'], 403);
+            }
             $joined = false;
             $already = false;
             $pdo->beginTransaction();
@@ -263,6 +338,13 @@ try {
         }
 
         if ($action === 'leave') {
+            if (!rbac_can_student_view_queue($pdo, $user, $queue_id, $scope)) {
+                rbac_debug_deny('queues.leave.forbidden', [
+                    'user_id' => rbac_user_id($user),
+                    'queue_id' => $queue_id,
+                ]);
+                json_out(['error' => 'forbidden', 'message' => 'queue leave not permitted'], 403);
+            }
             $left = false;
             $already = false;
             $pdo->beginTransaction();
