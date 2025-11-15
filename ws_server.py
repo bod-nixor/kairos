@@ -54,13 +54,35 @@ WS_HOST = _env("WS_HOST", "0.0.0.0")
 WS_PORT = int(_env("WS_PORT", "8090"))
 
 _default_origin = "https://regatta.nixorcorporate.com"
+
+
+def _derive_origin_from_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    if parsed.scheme not in {"http", "https", "ws", "wss"}:
+        return None
+    scheme = "https" if parsed.scheme in {"https", "wss"} else "http"
+    origin = f"{scheme}://{parsed.netloc}".rstrip("/")
+    return origin or None
+
+
 allowed_origins_env = _env("WS_ALLOWED_ORIGINS")
 if allowed_origins_env:
     ALLOWED_ORIGINS: Set[str] = {
         origin.strip().rstrip("/") for origin in allowed_origins_env.split(",") if origin.strip()
     }
 else:
-    ALLOWED_ORIGINS = {_default_origin}
+    derived_origin = _derive_origin_from_url(_env("WS_PUBLIC_URL"))
+    ALLOWED_ORIGINS = {
+        origin
+        for origin in {_default_origin, derived_origin}
+        if origin
+    }
 
 
 @dataclass(eq=False)
