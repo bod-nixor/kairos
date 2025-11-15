@@ -2,6 +2,13 @@ Options -Indexes -MultiViews
 RewriteEngine On
 RewriteBase /signoff/
 
+# 1) WebSocket proxy: /signoff/ws -> ws://127.0.0.1:8090/ws
+RewriteCond %{HTTP:Upgrade} =websocket [NC]
+RewriteRule ^ws/?$ ws://127.0.0.1:8090/ws [P,L]
+
+# 2) HTTP emit proxy: /signoff/emit -> http://127.0.0.1:8090/emit
+RewriteRule ^emit/?$ http://127.0.0.1:8090/emit [P,L]
+
 # If someone hits /signoff/public/... force clean URL without /public
 RewriteCond %{THE_REQUEST} \s/+signoff/public/ [NC]
 RewriteRule ^public/(.*)$ $1 [R=301,L]
@@ -10,19 +17,17 @@ RewriteRule ^public/(.*)$ $1 [R=301,L]
 RewriteRule ^api/(.*)$ public/api/$1 [L]
 
 # Pretty pages (no .html in location bar)
-# Map known slugs to actual files under /public
 RewriteRule ^$ public/index.html [L]
 RewriteRule ^ta/?$ public/ta.html [L]
 RewriteRule ^manager/?$ public/manager.html [L]
 RewriteRule ^admin/?$ public/admin.html [L]
 RewriteRule ^room/?$ public/room.html [L]
 
-# Fallback: if not a real file/dir, serve from /public (assets, SPA links)
+# Fallback
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ public/$1 [L]
 
-# Security headers already present elsewhere; do NOT reintroduce COOP/COEP that break Google Identity
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
