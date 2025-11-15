@@ -1,13 +1,17 @@
 Options -Indexes -MultiViews
 RewriteEngine On
-RewriteBase /signoff/
 
-# 1) WebSocket proxy: /signoff/ws -> ws://127.0.0.1:8090/ws
+# --- WebSocket + emit reverse proxy (must be before RewriteBase/other rules) ---
+
+# Proxy WebSocket: /signoff/ws → ws://127.0.0.1:8090/ws
 RewriteCond %{HTTP:Upgrade} =websocket [NC]
-RewriteRule ^ws/?$ ws://127.0.0.1:8090/ws [P,L]
+RewriteCond %{HTTP:Connection} upgrade [NC]
+RewriteRule ^ws$ ws://127.0.0.1:8090/ws [P,L]
 
-# 2) HTTP emit proxy: /signoff/emit -> http://127.0.0.1:8090/emit
-RewriteRule ^emit/?$ http://127.0.0.1:8090/emit [P,L]
+# Proxy emit HTTP: /signoff/emit → http://127.0.0.1:8090/emit
+RewriteRule ^emit$ http://127.0.0.1:8090/emit [P,L]
+
+RewriteBase /signoff/
 
 # If someone hits /signoff/public/... force clean URL without /public
 RewriteCond %{THE_REQUEST} \s/+signoff/public/ [NC]
@@ -23,7 +27,7 @@ RewriteRule ^manager/?$ public/manager.html [L]
 RewriteRule ^admin/?$ public/admin.html [L]
 RewriteRule ^room/?$ public/room.html [L]
 
-# Fallback
+# Fallback: if not a real file/dir, serve from /public
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ public/$1 [L]
