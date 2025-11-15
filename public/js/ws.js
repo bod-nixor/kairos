@@ -144,9 +144,9 @@
           state.selfUserId = normalized;
         }
       }
-      if (!data?.ws?.token || !data?.ws?.ws_url) {
+      if (!data?.ws?.token) {
         state.disabled = true;
-        console.info('WS disabled: missing token or URL');
+        console.info('WS disabled: missing token');
       }
       return state.me;
     } catch (err) {
@@ -216,22 +216,53 @@
     return null;
   }
 
+  function resolveWsPath(rawValue) {
+    const DEFAULT_PATH = '/signoff/ws';
+    let path = DEFAULT_PATH;
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim();
+      if (trimmed) {
+        path = trimmed;
+      }
+    }
+    if (/^wss?:\/\//i.test(path)) {
+      try {
+        const parsed = new URL(path);
+        path = parsed.pathname || DEFAULT_PATH;
+        if (parsed.search) {
+          path += parsed.search;
+        }
+      } catch (err) {
+        path = DEFAULT_PATH;
+      }
+    }
+    if (!path.startsWith('/')) {
+      path = '/' + path.replace(/^\/+/, '');
+    }
+    const lower = path.toLowerCase();
+    if (!lower.startsWith('/signoff')) {
+      const withoutLeading = path.replace(/^\/+/, '');
+      if (withoutLeading.toLowerCase().startsWith('signoff')) {
+        path = '/' + withoutLeading;
+      } else {
+        path = DEFAULT_PATH;
+      }
+    }
+    if (!path.includes('?')) {
+      path = path.replace(/\/+$/, '');
+      if (!path.toLowerCase().endsWith('/ws')) {
+        path += '/ws';
+      }
+    }
+    return path;
+  }
+
   function computeEndpoint() {
     const wsInfo = state.me?.ws;
-    if (!wsInfo?.token || !wsInfo?.ws_url) {
+    if (!wsInfo?.token) {
       return null;
     }
-    let base = String(wsInfo.ws_url);
-    if (!base) {
-      return null;
-    }
-    const hasQuery = base.includes('?');
-    if (!hasQuery) {
-      base = base.replace(/\/+$/, '');
-    }
-    if (!hasQuery && !base.toLowerCase().endsWith('/ws')) {
-      base += '/ws';
-    }
+    const path = resolveWsPath(wsInfo?.ws_url);
     const params = new URLSearchParams();
     const channels = Array.from(state.channels);
     if (channels.length) {
@@ -245,11 +276,20 @@
       params.set('room_id', String(filters.roomId));
     }
     params.set('token', wsInfo.token);
+
+    const origin = window.location.origin;
+    const baseUrl = new URL(path, origin);
+    baseUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
     const query = params.toString();
-    if (hasQuery) {
-      return base + '&' + query;
+    if (query) {
+      if (baseUrl.search) {
+        baseUrl.search += '&' + query;
+      } else {
+        baseUrl.search = '?' + query;
+      }
     }
-    return base + '?' + query;
+    return baseUrl.toString();
   }
 
   function clearReconnectTimer() {
