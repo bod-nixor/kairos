@@ -1,4 +1,4 @@
-"""Minimal TLS WebSocket relay for Kairos Signoff."""
+"""Minimal TLS WebSocket relay for Kairos Signoff (modern websockets API)."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from typing import Any, Dict, Optional, Set
 from urllib.parse import parse_qs, urlparse
 
 import websockets
+from websockets.asyncio.server import ServerConnection
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
-from websockets.server import WebSocketServerProtocol
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(message)s")
 LOGGER = logging.getLogger("ws_server")
@@ -35,8 +35,10 @@ def _env(name: str, default: Optional[str] = None) -> Optional[str]:
 WS_SHARED_SECRET = _env("WS_SHARED_SECRET") or ""
 if not WS_SHARED_SECRET:
     LOGGER.warning("WS_SHARED_SECRET is not configured – refusing unauthenticated connections")
+
 WS_HOST = _env("WS_HOST", "0.0.0.0") or "0.0.0.0"
 WS_PORT = int(_env("WS_PORT", str(DEFAULT_PORT)) or DEFAULT_PORT)
+
 WS_SSL_CERT = _env("WS_SSL_CERT")
 WS_SSL_KEY = _env("WS_SSL_KEY")
 
@@ -54,7 +56,7 @@ else:
 
 @dataclass(eq=False)
 class Client:
-    websocket: WebSocketServerProtocol
+    websocket: ServerConnection
     channels: Set[str]
     course_id: Optional[int]
     room_id: Optional[int]
@@ -95,17 +97,22 @@ def _validate_token(token: str) -> Optional[Dict[str, Any]]:
     parts = token.split(".")
     if len(parts) != 3:
         return None
+
     signature, ts_str, user_id_str = parts
     if not signature or not ts_str or not user_id_str:
         return None
+
     try:
         ts = int(ts_str)
         user_id = int(user_id_str)
     except ValueError:
         return None
+
     now = int(time.time())
+    # Token valid for ~10 minutes skew
     if ts < now - 600 or ts > now + 60:
         return None
+
     import hmac
     import hashlib
 
@@ -114,6 +121,7 @@ def _validate_token(token: str) -> Optional[Dict[str, Any]]:
     expected = hmac.new(secret_bytes, raw, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, signature):
         return None
+
     return {"user_id": user_id, "timestamp": ts}
 
 
@@ -140,6 +148,7 @@ async def broadcast_event(
 
     delivered = 0
     to_close: Set[Client] = set()
+
     for client in list(CLIENTS):
         if event not in client.channels:
             continue
@@ -147,22 +156,25 @@ async def broadcast_event(
             continue
         if room_id is not None and client.room_id not in (None, room_id):
             continue
+
         try:
             await client.send(message)
             delivered += 1
         except Exception as exc:  # pragma: no cover - network errors
             LOGGER.debug("Failed to deliver to user %s: %s", client.user_id, exc)
             to_close.add(client)
+
     for client in to_close:
         CLIENTS.discard(client)
         try:
             await client.websocket.close(code=1011)
         except Exception:  # pragma: no cover
             pass
+
     return delivered
 
 
-async def _handle_client(websocket: WebSocketServerProtocol, query: Dict[str, str]) -> None:
+async def _handle_client(websocket: ServerConnection, query: Dict[str, str]) -> None:
     if not WS_SHARED_SECRET:
         await websocket.close(code=1013, reason="WS disabled")
         return
@@ -198,6 +210,7 @@ async def _handle_client(websocket: WebSocketServerProtocol, query: Dict[str, st
         user_id=token_info.get("user_id"),
     )
     CLIENTS.add(client)
+
     LOGGER.info(
         "Client connected user=%s channels=%s course=%s room=%s",
         client.user_id,
@@ -208,6 +221,7 @@ async def _handle_client(websocket: WebSocketServerProtocol, query: Dict[str, st
 
     try:
         async for _ in websocket:
+            # we don't expect messages from browser clients, just keep connection alive
             pass
     except ConnectionClosedOK:
         pass
@@ -218,11 +232,12 @@ async def _handle_client(websocket: WebSocketServerProtocol, query: Dict[str, st
         LOGGER.info("Client disconnected user=%s", client.user_id)
 
 
-async def _handle_emit(websocket: WebSocketServerProtocol, query: Dict[str, str]) -> None:
+async def _handle_emit(websocket: ServerConnection, query: Dict[str, str]) -> None:
     secret = query.get("secret", "")
     if not secret or not WS_SHARED_SECRET:
         await websocket.close(code=4401, reason="Missing secret")
         return
+
     import hmac
 
     if not hmac.compare_digest(secret, WS_SHARED_SECRET):
@@ -241,6 +256,7 @@ async def _handle_emit(websocket: WebSocketServerProtocol, query: Dict[str, str]
             if event not in ALLOWED_EVENTS:
                 await websocket.send(json.dumps({"ok": False, "error": "unsupported_event"}))
                 continue
+
             course_id = _parse_int(data.get("course_id"))
             room_id = _parse_int(data.get("room_id"))
             ref_id = _parse_int(data.get("ref_id"))
@@ -249,15 +265,35 @@ async def _handle_emit(websocket: WebSocketServerProtocol, query: Dict[str, str]
             delivered = await broadcast_event(event, payload, course_id, room_id, ref_id)
             await websocket.send(json.dumps({"ok": True, "delivered": delivered}))
     except ConnectionClosed:
+        # normal close from emitter side
         pass
 
 
-async def _dispatch(websocket: WebSocketServerProtocol) -> None:
-    parsed = urlparse(websocket.path)
-    query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
+async def _dispatch(websocket: ServerConnection) -> None:
+    """
+    Entry point for each connection in the modern websockets server API.
+
+    We inspect websocket.request.path (full path including query string)
+    and dispatch to either the client handler or the emit handler.
+    """
+    # In the modern API, `websocket` is a ServerConnection and has a `request`
+    request = getattr(websocket, "request", None)
+    raw_path = "/"
+    if request is not None:
+        # Request.path contains path + optional query string
+        raw_path = request.path or "/"
+
+    parsed = urlparse(raw_path)
+    query: Dict[str, str] = {
+        key: values[-1]
+        for key, values in parse_qs(parsed.query).items()
+        if values
+    }
+
     if parsed.path == "/emit":
         await _handle_emit(websocket, query)
     else:
+        # Default endpoint (including "/ws" or just "/")
         await _handle_client(websocket, query)
 
 
@@ -265,6 +301,7 @@ def _build_ssl_context() -> Optional[ssl.SSLContext]:
     if not WS_SSL_CERT or not WS_SSL_KEY:
         LOGGER.warning("WS_SSL_CERT/WS_SSL_KEY not configured – running without TLS")
         return None
+
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(certfile=WS_SSL_CERT, keyfile=WS_SSL_KEY)
     return ctx
@@ -272,6 +309,7 @@ def _build_ssl_context() -> Optional[ssl.SSLContext]:
 
 async def main() -> None:
     ssl_context = _build_ssl_context()
+
     server = await websockets.serve(
         _dispatch,
         host=WS_HOST,
