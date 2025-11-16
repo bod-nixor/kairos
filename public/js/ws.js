@@ -216,45 +216,46 @@
     return null;
   }
 
-  function resolveWsPath(rawValue) {
-    const DEFAULT_PATH = '/signoff/ws';
-    let path = DEFAULT_PATH;
-    if (typeof rawValue === 'string') {
-      const trimmed = rawValue.trim();
-      if (trimmed) {
-        path = trimmed;
+  function buildWsBaseUrl() {
+    const wsInfo = state.me?.ws || {};
+    const rawUrl = typeof wsInfo.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
+    const providedPort = (() => {
+      const candidate = Number(wsInfo.port);
+      if (Number.isFinite(candidate) && candidate > 0) {
+        return String(Math.trunc(candidate));
       }
-    }
-    if (/^wss?:\/\//i.test(path)) {
+      return '';
+    })();
+    const fallbackPort = providedPort || '8090';
+
+    if (rawUrl) {
       try {
-        const parsed = new URL(path);
-        path = parsed.pathname || DEFAULT_PATH;
-        if (parsed.search) {
-          path += parsed.search;
+        const base = new URL(rawUrl, window.location.origin);
+        if (!base.port && providedPort) {
+          base.port = providedPort;
         }
+        const currentPath = (base.pathname || '').toLowerCase();
+        if (!currentPath.endsWith('/ws')) {
+          base.pathname = '/ws';
+        }
+        base.protocol = 'wss:';
+        return base;
       } catch (err) {
-        path = DEFAULT_PATH;
+        console.debug('WS invalid ws_url, falling back to default', err);
       }
     }
-    if (!path.startsWith('/')) {
-      path = '/' + path.replace(/^\/+/, '');
+
+    const url = new URL(window.location.origin);
+    url.protocol = 'wss:';
+    const overrideHost = typeof wsInfo.host === 'string' ? wsInfo.host.trim() : '';
+    if (overrideHost) {
+      url.hostname = overrideHost;
     }
-    const lower = path.toLowerCase();
-    if (!lower.startsWith('/signoff')) {
-      const withoutLeading = path.replace(/^\/+/, '');
-      if (withoutLeading.toLowerCase().startsWith('signoff')) {
-        path = '/' + withoutLeading;
-      } else {
-        path = DEFAULT_PATH;
-      }
-    }
-    if (!path.includes('?')) {
-      path = path.replace(/\/+$/, '');
-      if (!path.toLowerCase().endsWith('/ws')) {
-        path += '/ws';
-      }
-    }
-    return path;
+    url.port = fallbackPort;
+    url.pathname = '/ws';
+    url.search = '';
+    url.hash = '';
+    return url;
   }
 
   function computeEndpoint() {
@@ -262,8 +263,9 @@
     if (!wsInfo?.token) {
       return null;
     }
-    const path = resolveWsPath(wsInfo?.ws_url);
-    const params = new URLSearchParams();
+
+    const baseUrl = buildWsBaseUrl();
+    const params = new URLSearchParams(baseUrl.search ? baseUrl.search.replace(/^\?/, '') : '');
     const channels = Array.from(state.channels);
     if (channels.length) {
       params.set('channels', channels.join(','));
@@ -277,17 +279,11 @@
     }
     params.set('token', wsInfo.token);
 
-    const origin = window.location.origin;
-    const baseUrl = new URL(path, origin);
-    baseUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-
     const query = params.toString();
-    if (query) {
-      if (baseUrl.search) {
-        baseUrl.search += '&' + query;
-      } else {
-        baseUrl.search = '?' + query;
-      }
+    baseUrl.search = query ? `?${query}` : '';
+    baseUrl.protocol = 'wss:';
+    if (!baseUrl.port) {
+      baseUrl.port = '8090';
     }
     return baseUrl.toString();
   }
