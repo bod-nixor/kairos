@@ -15,7 +15,12 @@ from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import parse_qs, urlparse
 
 import websockets
-from websockets.asyncio.server import ServerConnection
+
+try:  # websockets >= 10
+    from websockets.asyncio.server import ServerConnection
+except ImportError:  # pragma: no cover - legacy fallback
+    from websockets.server import WebSocketServerProtocol as ServerConnection  # type: ignore
+
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(message)s")
@@ -90,6 +95,52 @@ def _sanitize_payload(payload: Any) -> Optional[Any]:
     if len(dumped.encode("utf-8")) > PAYLOAD_MAX_BYTES:
         return None
     return json.loads(dumped)
+
+
+def _extract_request_context(connection: ServerConnection) -> Tuple[str, Dict[str, str], str, str]:
+    """Return (path, query, origin, target) for a websocket connection."""
+
+    origin = ""
+    target = ""
+
+    request = getattr(connection, "request", None)
+    headers = None
+    if request is not None:
+        headers = getattr(request, "headers", None)
+    if headers is None:
+        headers = getattr(connection, "request_headers", None)
+
+    if headers:
+        try:
+            origin = (headers.get("Origin") or "").rstrip("/")
+        except Exception:  # pragma: no cover - very defensive
+            origin = ""
+
+    if request is not None:
+        target = getattr(request, "target", None) or ""
+        if not target:
+            req_path = getattr(request, "path", None) or ""
+            req_query = (
+                getattr(request, "query", None)
+                or getattr(request, "query_string", None)
+                or ""
+            )
+            if req_query:
+                target = f"{req_path or '/'}?{req_query}"
+            else:
+                target = req_path or ""
+
+    if not target:
+        target = getattr(connection, "path", "") or ""
+
+    if not target:
+        target = "/"
+
+    parsed = urlparse(target)
+    path = parsed.path or "/"
+    query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
+
+    return path, query, origin, target
 
 
 def _validate_token(token: str) -> Optional[Dict[str, Any]]:
@@ -175,21 +226,39 @@ async def broadcast_event(
     return delivered
 
 
-async def _handle_client(websocket: ServerConnection, query: Dict[str, str]) -> None:
+async def _handle_client(
+    websocket: ServerConnection,
+    query: Dict[str, str],
+    origin: str,
+    request_target: str,
+) -> None:
+    client: Optional[Client] = None
+
     if not WS_SHARED_SECRET:
+        LOGGER.error("WS: shared secret missing – rejecting client from %s", origin or "<unknown>")
         await websocket.close(code=1013, reason="WS disabled")
         return
 
-    origin = (websocket.request_headers.get("Origin") or "").rstrip("/")
+    origin = origin.rstrip("/") if origin else ""
     if ALLOWED_ORIGINS and origin and origin not in ALLOWED_ORIGINS:
-        LOGGER.warning("WS: rejected origin %s (allowed=%s)", origin, ",".join(sorted(ALLOWED_ORIGINS)))
+        LOGGER.warning(
+            "WS: rejected origin %s for target=%s (allowed=%s)",
+            origin,
+            request_target,
+            ",".join(sorted(ALLOWED_ORIGINS)),
+        )
         await websocket.close(code=4403, reason="Origin not allowed")
         return
 
     raw_token = query.get("token", "")
     token_info = _validate_token(raw_token)
     if not token_info:
-        LOGGER.warning("WS: invalid token (len=%d) for origin=%s", len(raw_token or ""), origin)
+        LOGGER.warning(
+            "WS: invalid token (len=%d) for origin=%s target=%s",
+            len(raw_token or ""),
+            origin or "<none>",
+            request_target,
+        )
         await websocket.close(code=4401, reason="Invalid token")
         return
 
@@ -215,11 +284,14 @@ async def _handle_client(websocket: ServerConnection, query: Dict[str, str]) -> 
     CLIENTS.add(client)
 
     LOGGER.info(
-        "Client connected user=%s channels=%s course=%s room=%s",
+        "WS: client accepted user=%s origin=%s target=%s channels=%s course=%s room=%s token_len=%d",
         client.user_id,
+        origin or "<none>",
+        request_target,
         ",".join(sorted(client.channels)),
         client.course_id,
         client.room_id,
+        len(raw_token or ""),
     )
 
     try:
@@ -227,27 +299,61 @@ async def _handle_client(websocket: ServerConnection, query: Dict[str, str]) -> 
             # we don't expect messages from browser clients, just keep connection alive
             pass
     except ConnectionClosedOK:
-        pass
+        LOGGER.info(
+            "WS: graceful close user=%s code=%s", client.user_id, websocket.close_code
+        )
     except ConnectionClosedError:
-        pass
+        LOGGER.info(
+            "WS: connection error user=%s code=%s", client.user_id, websocket.close_code
+        )
+    except Exception:
+        LOGGER.exception("WS: unhandled error while streaming to user=%s", client.user_id)
+        try:
+            await websocket.close(code=1011, reason="Internal error")
+        except Exception:  # pragma: no cover
+            pass
     finally:
-        CLIENTS.discard(client)
-        LOGGER.info("Client disconnected user=%s", client.user_id)
+        if client:
+            CLIENTS.discard(client)
+            LOGGER.info(
+                "WS: client disconnected user=%s code=%s reason=%s",
+                client.user_id,
+                websocket.close_code,
+                websocket.close_reason,
+            )
 
 
-async def _handle_emit(websocket: ServerConnection, query: Dict[str, str]) -> None:
+async def _handle_emit(
+    websocket: ServerConnection,
+    query: Dict[str, str],
+    origin: str,
+    request_target: str,
+) -> None:
     secret = query.get("secret", "")
     if not secret or not WS_SHARED_SECRET:
+        LOGGER.warning(
+            "WS: emitter rejected (missing secret) origin=%s target=%s",
+            origin or "<none>",
+            request_target,
+        )
         await websocket.close(code=4401, reason="Missing secret")
         return
 
     import hmac
 
     if not hmac.compare_digest(secret, WS_SHARED_SECRET):
+        LOGGER.warning(
+            "WS: emitter rejected (invalid secret) origin=%s target=%s",
+            origin or "<none>",
+            request_target,
+        )
         await websocket.close(code=4401, reason="Invalid secret")
         return
 
     try:
+        LOGGER.info(
+            "WS: emitter connected origin=%s target=%s", origin or "<none>", request_target
+        )
         async for message in websocket:
             try:
                 data = json.loads(message)
@@ -269,117 +375,89 @@ async def _handle_emit(websocket: ServerConnection, query: Dict[str, str]) -> No
             await websocket.send(json.dumps({"ok": True, "delivered": delivered}))
     except ConnectionClosed:
         # normal close from emitter side
-        pass
+        LOGGER.info(
+            "WS: emitter disconnected code=%s reason=%s",
+            websocket.close_code,
+            websocket.close_reason,
+        )
+    except Exception:
+        LOGGER.exception(
+            "WS: emitter error origin=%s target=%s", origin or "<none>", request_target
+        )
+        try:
+            await websocket.close(code=1011, reason="Internal error")
+        except Exception:  # pragma: no cover
+            pass
 
 
-async def _dispatch(connection: WebSocketServerProtocol) -> None:
-    """
-    Main dispatcher for incoming websocket connections.
+async def _dispatch(connection: ServerConnection) -> None:
+    """Route an upgraded websocket connection to the appropriate handler."""
 
-    For websockets >= 13, the handler receives a 'ServerConnection' object
-    (not the old (websocket, path) signature). The HTTP request is available
-    via connection.request.
-    """
-    # Try to get the HTTP request object that initiated the WS upgrade
-    req = getattr(connection, "request", None)
-    if req is None:
-        LOGGER.error("WS: connection.request is missing – cannot route")
-        await connection.close(code=1011, reason="No request info")
-        return
+    origin = ""
+    target = ""
+    try:
+        path, query, origin, target = _extract_request_context(connection)
+        LOGGER.info(
+            "WS: incoming connection target=%s origin=%s query=%s remote=%s",
+            target,
+            origin or "<none>",
+            query,
+            connection.remote_address,
+        )
 
-    # On recent websockets, Request usually has a 'target' like "/ws?foo=bar"
-    target = getattr(req, "target", None)
-    if not target:
-        # Fallback: build a target from path + query if they exist
-        path = getattr(req, "path", "/")
-        query = getattr(req, "query", "") or getattr(req, "query_string", "")
-        if query:
-            target = f"{path}?{query}"
+        if path == "/emit":
+            await _handle_emit(connection, query, origin, target)
         else:
-            target = path
-
-    parsed = urlparse(target)
-    query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
-
-    LOGGER.info("WS dispatch path=%s query=%s", parsed.path, query)
-
-    if parsed.path == "/emit":
-        await _handle_emit(connection, query)
-    else:
-        await _handle_client(connection, query)
-
-
-def _candidate_cert_paths() -> Tuple[Optional[str], Optional[str]]:
-    """Return the first pair of certificate/key files that exist on disk."""
-
-    if WS_SSL_CERT:
-        cert_path = Path(WS_SSL_CERT).expanduser()
-        key_path = Path(WS_SSL_KEY).expanduser() if WS_SSL_KEY else None
-        missing = []
-        if not cert_path.is_file():
-            missing.append(f"certificate file '{cert_path}'")
-        if key_path and not key_path.is_file():
-            missing.append(f"key file '{key_path}'")
-        if missing:
-            missing_list = ", ".join(missing)
-            raise FileNotFoundError(
-                f"Configured TLS {missing_list} not found – refusing to start"
-            )
-        return str(cert_path), str(key_path) if key_path else None
-
-    project_root = Path(__file__).resolve().parent
-    default_dirs = [
-        project_root / "config" / "ssl",
-        project_root / "config",
-        project_root,
-    ]
-    file_pairs = [
-        ("ws.crt", "ws.key"),
-        ("ws_cert.pem", "ws_key.pem"),
-        ("server.crt", "server.key"),
-        ("server.pem", "server.key"),
-        ("cert.pem", "key.pem"),
-        ("fullchain.pem", "privkey.pem"),
-        ("ws.pem", None),
-    ]
-
-    for base in default_dirs:
-        for cert_name, key_name in file_pairs:
-            cert_path = base / cert_name
-            if not cert_path.is_file():
-                continue
-            if key_name:
-                key_path = base / key_name
-                if not key_path.is_file():
-                    continue
-                return str(cert_path), str(key_path)
-            return str(cert_path), None
-
-    return None, None
+            await _handle_client(connection, query, origin, target)
+    except Exception:
+        LOGGER.exception(
+            "WS: dispatcher failure origin=%s target=%s", origin or "<none>", target or "<unknown>"
+        )
+        try:
+            await connection.close(code=1011, reason="Dispatch error")
+        except Exception:  # pragma: no cover
+            pass
 
 
 def _build_ssl_context() -> Optional[ssl.SSLContext]:
-    cert_path, key_path = _candidate_cert_paths()
-    if not cert_path:
-        LOGGER.warning("TLS certificates not found – running websocket relay without TLS")
+    if not WS_SSL_CERT or not WS_SSL_KEY:
+        LOGGER.warning(
+            "WS_SSL_CERT/WS_SSL_KEY not configured – running websocket relay without TLS"
+        )
         return None
+
+    cert_path = Path(WS_SSL_CERT).expanduser()
+    key_path = Path(WS_SSL_KEY).expanduser()
+
+    if not cert_path.is_file():
+        raise FileNotFoundError(f"TLS certificate file not found: {cert_path}")
+    if not key_path.is_file():
+        raise FileNotFoundError(f"TLS key file not found: {key_path}")
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     try:
-        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
-    except FileNotFoundError:
-        LOGGER.error("TLS certificate/key files missing (cert=%s key=%s)", cert_path, key_path)
-        return None
+        ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
     except ssl.SSLError as exc:
         LOGGER.error("Failed to load TLS cert chain (%s)", exc)
-        return None
+        raise
 
     LOGGER.info("Loaded TLS certificate from %s", cert_path)
     return ctx
 
 
 async def main() -> None:
-    ssl_context = _build_ssl_context()
+    try:
+        ssl_context = _build_ssl_context()
+    except FileNotFoundError as exc:
+        LOGGER.error("%s", exc)
+        raise
+
+    if ssl_context is None:
+        LOGGER.warning(
+            "WS: starting without TLS on %s:%s – this should only happen in development",
+            WS_HOST,
+            WS_PORT,
+        )
 
     server = await websockets.serve(
         _dispatch,
