@@ -315,9 +315,17 @@ def _candidate_cert_paths() -> Tuple[Optional[str], Optional[str]]:
     if WS_SSL_CERT:
         cert_path = Path(WS_SSL_CERT).expanduser()
         key_path = Path(WS_SSL_KEY).expanduser() if WS_SSL_KEY else None
-        if cert_path.is_file():
-            if key_path is None or key_path.is_file():
-                return str(cert_path), str(key_path) if key_path else None
+        missing = []
+        if not cert_path.is_file():
+            missing.append(f"certificate file '{cert_path}'")
+        if key_path and not key_path.is_file():
+            missing.append(f"key file '{key_path}'")
+        if missing:
+            missing_list = ", ".join(missing)
+            raise FileNotFoundError(
+                f"Configured TLS {missing_list} not found – refusing to start"
+            )
+        return str(cert_path), str(key_path) if key_path else None
 
     project_root = Path(__file__).resolve().parent
     default_dirs = [
