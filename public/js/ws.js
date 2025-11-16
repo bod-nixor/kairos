@@ -216,47 +216,17 @@
     return null;
   }
 
-  function buildWsBaseUrl() {
-    const wsInfo = state.me?.ws || {};
-    const rawUrl = typeof wsInfo.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
-    const providedPort = (() => {
-      const candidate = Number(wsInfo.port);
-      if (Number.isFinite(candidate) && candidate > 0) {
-        return String(Math.trunc(candidate));
+    function buildWsBaseUrl() {
+        // This function is now hardcoded to use the cPanel proxy URL.
+        // It ignores any host/port info from the /api/me.php response.
+        const url = new URL(window.location.origin);
+        url.protocol = 'wss:';
+        url.port = ''; // Use the browser's default port for wss:// (443)
+        url.pathname = '/websocket/ws'; // This is your cPanel App URL + your server's path
+        url.search = '';
+        url.hash = '';
+        return url;
       }
-      return '';
-    })();
-    const fallbackPort = providedPort || '8090';
-
-    if (rawUrl) {
-      try {
-        const base = new URL(rawUrl, window.location.origin);
-        if (!base.port && providedPort) {
-          base.port = providedPort;
-        }
-        const currentPath = (base.pathname || '').toLowerCase();
-        if (!currentPath.endsWith('/ws')) {
-          base.pathname = '/ws';
-        }
-        base.protocol = 'wss:';
-        return base;
-      } catch (err) {
-        console.debug('WS invalid ws_url, falling back to default', err);
-      }
-    }
-
-    const url = new URL(window.location.origin);
-    url.protocol = 'wss:';
-    const overrideHost = typeof wsInfo.host === 'string' ? wsInfo.host.trim() : '';
-    if (overrideHost) {
-      url.hostname = overrideHost;
-    }
-    url.port = fallbackPort;
-    url.pathname = '/ws';
-    url.search = '';
-    url.hash = '';
-    return url;
-  }
 
   function computeEndpoint() {
     const wsInfo = state.me?.ws;
@@ -282,9 +252,6 @@
     const query = params.toString();
     baseUrl.search = query ? `?${query}` : '';
     baseUrl.protocol = 'wss:';
-    if (!baseUrl.port) {
-      baseUrl.port = '8090';
-    }
     return baseUrl.toString();
   }
 
