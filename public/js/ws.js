@@ -216,17 +216,34 @@
     return null;
   }
 
-    function buildWsBaseUrl() {
-        // This function is now hardcoded to use the cPanel proxy URL.
-        // It ignores any host/port info from the /api/me.php response.
-        const url = new URL(window.location.origin);
-        url.protocol = 'wss:';
-        url.port = ''; // Use the browser's default port for wss:// (443)
-        url.pathname = '/websocket/ws'; // This is your cPanel App URL + your server's path
-        url.search = '';
-        url.hash = '';
-        return url;
+  function buildWsBaseUrl() {
+    const wsInfo = state.me?.ws;
+    const rawUrl = typeof wsInfo?.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
+    const securePage = typeof window !== 'undefined' && window.location?.protocol === 'https:';
+
+    if (rawUrl) {
+      try {
+        const parsed = new URL(rawUrl, window.location.origin);
+        if (parsed.protocol === 'http:') {
+          parsed.protocol = 'ws:';
+        } else if (parsed.protocol === 'https:') {
+          parsed.protocol = 'wss:';
+        } else if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+          parsed.protocol = securePage ? 'wss:' : 'ws:';
+        }
+        if (parsed.protocol === 'ws:' && securePage) {
+          parsed.protocol = 'wss:';
+        }
+        return parsed;
+      } catch (err) {
+        console.warn('WS invalid ws_url – falling back to window.origin', rawUrl, err);
       }
+    }
+
+    const fallback = new URL(window.location.origin);
+    fallback.protocol = securePage ? 'wss:' : 'ws:';
+    return fallback;
+  }
 
   function computeEndpoint() {
     const wsInfo = state.me?.ws;
@@ -251,7 +268,6 @@
 
     const query = params.toString();
     baseUrl.search = query ? `?${query}` : '';
-    baseUrl.protocol = 'wss:';
     return baseUrl.toString();
   }
 
