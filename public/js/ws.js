@@ -6,6 +6,8 @@
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000; // 9 minutes; server rejects tokens after ~10 minutes
 
+  const DEFAULT_WS_PATH = '/websocket/ws';
+
   const state = {
     me: null,
     meLoaded: false,
@@ -240,7 +242,7 @@
       }
     }
 
-    const fallback = new URL(window.location.origin);
+    const fallback = new URL(DEFAULT_WS_PATH, window.location.origin);
     fallback.protocol = securePage ? 'wss:' : 'ws:';
     return fallback;
   }
