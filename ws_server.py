@@ -10,7 +10,8 @@ import signal
 import ssl
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Set
+from pathlib import Path
+from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import parse_qs, urlparse
 
 import websockets
@@ -308,13 +309,64 @@ async def _dispatch(connection: WebSocketServerProtocol) -> None:
         await _handle_client(connection, query)
 
 
+def _candidate_cert_paths() -> Tuple[Optional[str], Optional[str]]:
+    """Return the first pair of certificate/key files that exist on disk."""
+
+    if WS_SSL_CERT:
+        cert_path = Path(WS_SSL_CERT).expanduser()
+        key_path = Path(WS_SSL_KEY).expanduser() if WS_SSL_KEY else None
+        if cert_path.is_file():
+            if key_path is None or key_path.is_file():
+                return str(cert_path), str(key_path) if key_path else None
+
+    project_root = Path(__file__).resolve().parent
+    default_dirs = [
+        project_root / "config" / "ssl",
+        project_root / "config",
+        project_root,
+    ]
+    file_pairs = [
+        ("ws.crt", "ws.key"),
+        ("ws_cert.pem", "ws_key.pem"),
+        ("server.crt", "server.key"),
+        ("server.pem", "server.key"),
+        ("cert.pem", "key.pem"),
+        ("fullchain.pem", "privkey.pem"),
+        ("ws.pem", None),
+    ]
+
+    for base in default_dirs:
+        for cert_name, key_name in file_pairs:
+            cert_path = base / cert_name
+            if not cert_path.is_file():
+                continue
+            if key_name:
+                key_path = base / key_name
+                if not key_path.is_file():
+                    continue
+                return str(cert_path), str(key_path)
+            return str(cert_path), None
+
+    return None, None
+
+
 def _build_ssl_context() -> Optional[ssl.SSLContext]:
-    if not WS_SSL_CERT or not WS_SSL_KEY:
-        LOGGER.warning("WS_SSL_CERT/WS_SSL_KEY not configured – running without TLS")
+    cert_path, key_path = _candidate_cert_paths()
+    if not cert_path:
+        LOGGER.warning("TLS certificates not found – running websocket relay without TLS")
         return None
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(certfile=WS_SSL_CERT, keyfile=WS_SSL_KEY)
+    try:
+        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+    except FileNotFoundError:
+        LOGGER.error("TLS certificate/key files missing (cert=%s key=%s)", cert_path, key_path)
+        return None
+    except ssl.SSLError as exc:
+        LOGGER.error("Failed to load TLS cert chain (%s)", exc)
+        return None
+
+    LOGGER.info("Loaded TLS certificate from %s", cert_path)
     return ctx
 
 
