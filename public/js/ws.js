@@ -219,19 +219,20 @@
   function buildWsBaseUrl() {
     const wsInfo = state.me?.ws || {};
     const rawUrl = typeof wsInfo.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
-    const normalizedPort = (() => {
+    const providedPort = (() => {
       const candidate = Number(wsInfo.port);
       if (Number.isFinite(candidate) && candidate > 0) {
         return String(Math.trunc(candidate));
       }
-      return '8090';
+      return '';
     })();
+    const fallbackPort = providedPort || '8090';
 
     if (rawUrl) {
       try {
         const base = new URL(rawUrl, window.location.origin);
-        if (!base.port) {
-          base.port = normalizedPort;
+        if (!base.port && providedPort) {
+          base.port = providedPort;
         }
         const currentPath = (base.pathname || '').toLowerCase();
         if (!currentPath.endsWith('/ws')) {
@@ -250,7 +251,7 @@
     if (overrideHost) {
       url.hostname = overrideHost;
     }
-    url.port = normalizedPort;
+    url.port = fallbackPort;
     url.pathname = '/ws';
     url.search = '';
     url.hash = '';
