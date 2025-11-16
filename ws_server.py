@@ -181,12 +181,14 @@ async def _handle_client(websocket: ServerConnection, query: Dict[str, str]) -> 
 
     origin = (websocket.request_headers.get("Origin") or "").rstrip("/")
     if ALLOWED_ORIGINS and origin and origin not in ALLOWED_ORIGINS:
-        LOGGER.warning("Rejected WS origin %s", origin)
+        LOGGER.warning("WS: rejected origin %s (allowed=%s)", origin, ",".join(sorted(ALLOWED_ORIGINS)))
         await websocket.close(code=4403, reason="Origin not allowed")
         return
 
-    token_info = _validate_token(query.get("token", ""))
+    raw_token = query.get("token", "")
+    token_info = _validate_token(raw_token)
     if not token_info:
+        LOGGER.warning("WS: invalid token (len=%d) for origin=%s", len(raw_token or ""), origin)
         await websocket.close(code=4401, reason="Invalid token")
         return
 
@@ -269,32 +271,41 @@ async def _handle_emit(websocket: ServerConnection, query: Dict[str, str]) -> No
         pass
 
 
-async def _dispatch(websocket: ServerConnection) -> None:
+async def _dispatch(connection: WebSocketServerProtocol) -> None:
     """
-    Entry point for each connection in the modern websockets server API.
+    Main dispatcher for incoming websocket connections.
 
-    We inspect websocket.request.path (full path including query string)
-    and dispatch to either the client handler or the emit handler.
+    For websockets >= 13, the handler receives a 'ServerConnection' object
+    (not the old (websocket, path) signature). The HTTP request is available
+    via connection.request.
     """
-    # In the modern API, `websocket` is a ServerConnection and has a `request`
-    request = getattr(websocket, "request", None)
-    raw_path = "/"
-    if request is not None:
-        # Request.path contains path + optional query string
-        raw_path = request.path or "/"
+    # Try to get the HTTP request object that initiated the WS upgrade
+    req = getattr(connection, "request", None)
+    if req is None:
+        LOGGER.error("WS: connection.request is missing – cannot route")
+        await connection.close(code=1011, reason="No request info")
+        return
 
-    parsed = urlparse(raw_path)
-    query: Dict[str, str] = {
-        key: values[-1]
-        for key, values in parse_qs(parsed.query).items()
-        if values
-    }
+    # On recent websockets, Request usually has a 'target' like "/ws?foo=bar"
+    target = getattr(req, "target", None)
+    if not target:
+        # Fallback: build a target from path + query if they exist
+        path = getattr(req, "path", "/")
+        query = getattr(req, "query", "") or getattr(req, "query_string", "")
+        if query:
+            target = f"{path}?{query}"
+        else:
+            target = path
+
+    parsed = urlparse(target)
+    query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
+
+    LOGGER.info("WS dispatch path=%s query=%s", parsed.path, query)
 
     if parsed.path == "/emit":
-        await _handle_emit(websocket, query)
+        await _handle_emit(connection, query)
     else:
-        # Default endpoint (including "/ws" or just "/")
-        await _handle_client(websocket, query)
+        await _handle_client(connection, query)
 
 
 def _build_ssl_context() -> Optional[ssl.SSLContext]:
