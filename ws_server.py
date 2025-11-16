@@ -252,8 +252,8 @@ async def _handle_emit(websocket: WebSocketServerProtocol, query: Dict[str, str]
         pass
 
 
-async def _dispatch(websocket: WebSocketServerProtocol, path: str) -> None:
-    parsed = urlparse(path)
+async def _dispatch(websocket: WebSocketServerProtocol) -> None:
+    parsed = urlparse(websocket.path)
     query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
     if parsed.path == "/emit":
         await _handle_emit(websocket, query)
