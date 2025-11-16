@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Set, Tuple
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlsplit
 
 import websockets
 
@@ -74,6 +74,8 @@ class Client:
 
 
 CLIENTS: Set[Client] = set()
+
+_SENSITIVE_QUERY_KEYS = {"token", "secret"}
 
 
 def _parse_int(value: Any) -> Optional[int]:
@@ -141,6 +143,41 @@ def _extract_request_context(connection: ServerConnection) -> Tuple[str, Dict[st
     query = {key: values[-1] for key, values in parse_qs(parsed.query).items() if values}
 
     return path, query, origin, target
+
+
+def _scrub_request_target(target: str) -> str:
+    """Return the request target without sensitive query parameters."""
+
+    if not target:
+        return "/"
+
+    try:
+        parsed = urlsplit(target)
+    except ValueError:
+        return target
+
+    filtered = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.lower() not in _SENSITIVE_QUERY_KEYS
+    ]
+    safe_query = urlencode(filtered, doseq=True)
+    safe_path = parsed.path or "/"
+    if safe_query:
+        return f"{safe_path}?{safe_query}"
+    return safe_path
+
+
+def _scrub_query(query: Dict[str, str]) -> Dict[str, str]:
+    """Return a shallow copy of `query` with sensitive values redacted."""
+
+    safe = {}
+    for key, value in query.items():
+        if key.lower() in _SENSITIVE_QUERY_KEYS:
+            safe[key] = "<redacted>"
+        else:
+            safe[key] = value
+    return safe
 
 
 def _validate_token(token: str) -> Optional[Dict[str, Any]]:
@@ -233,6 +270,7 @@ async def _handle_client(
     request_target: str,
 ) -> None:
     client: Optional[Client] = None
+    safe_target = _scrub_request_target(request_target)
 
     if not WS_SHARED_SECRET:
         LOGGER.error("WS: shared secret missing – rejecting client from %s", origin or "<unknown>")
@@ -244,7 +282,7 @@ async def _handle_client(
         LOGGER.warning(
             "WS: rejected origin %s for target=%s (allowed=%s)",
             origin,
-            request_target,
+            safe_target,
             ",".join(sorted(ALLOWED_ORIGINS)),
         )
         await websocket.close(code=4403, reason="Origin not allowed")
@@ -257,7 +295,7 @@ async def _handle_client(
             "WS: invalid token (len=%d) for origin=%s target=%s",
             len(raw_token or ""),
             origin or "<none>",
-            request_target,
+            safe_target,
         )
         await websocket.close(code=4401, reason="Invalid token")
         return
@@ -287,7 +325,7 @@ async def _handle_client(
         "WS: client accepted user=%s origin=%s target=%s channels=%s course=%s room=%s token_len=%d",
         client.user_id,
         origin or "<none>",
-        request_target,
+        safe_target,
         ",".join(sorted(client.channels)),
         client.course_id,
         client.room_id,
@@ -329,12 +367,13 @@ async def _handle_emit(
     origin: str,
     request_target: str,
 ) -> None:
+    safe_target = _scrub_request_target(request_target)
     secret = query.get("secret", "")
     if not secret or not WS_SHARED_SECRET:
         LOGGER.warning(
             "WS: emitter rejected (missing secret) origin=%s target=%s",
             origin or "<none>",
-            request_target,
+            safe_target,
         )
         await websocket.close(code=4401, reason="Missing secret")
         return
@@ -345,14 +384,14 @@ async def _handle_emit(
         LOGGER.warning(
             "WS: emitter rejected (invalid secret) origin=%s target=%s",
             origin or "<none>",
-            request_target,
+            safe_target,
         )
         await websocket.close(code=4401, reason="Invalid secret")
         return
 
     try:
         LOGGER.info(
-            "WS: emitter connected origin=%s target=%s", origin or "<none>", request_target
+            "WS: emitter connected origin=%s target=%s", origin or "<none>", safe_target
         )
         async for message in websocket:
             try:
@@ -382,7 +421,7 @@ async def _handle_emit(
         )
     except Exception:
         LOGGER.exception(
-            "WS: emitter error origin=%s target=%s", origin or "<none>", request_target
+            "WS: emitter error origin=%s target=%s", origin or "<none>", safe_target
         )
         try:
             await websocket.close(code=1011, reason="Internal error")
@@ -395,13 +434,16 @@ async def _dispatch(connection: ServerConnection) -> None:
 
     origin = ""
     target = ""
+    safe_target = ""
     try:
         path, query, origin, target = _extract_request_context(connection)
+        safe_target = _scrub_request_target(target)
+        safe_query = _scrub_query(query)
         LOGGER.info(
             "WS: incoming connection target=%s origin=%s query=%s remote=%s",
-            target,
+            safe_target,
             origin or "<none>",
-            query,
+            safe_query,
             connection.remote_address,
         )
 
@@ -411,7 +453,9 @@ async def _dispatch(connection: ServerConnection) -> None:
             await _handle_client(connection, query, origin, target)
     except Exception:
         LOGGER.exception(
-            "WS: dispatcher failure origin=%s target=%s", origin or "<none>", target or "<unknown>"
+            "WS: dispatcher failure origin=%s target=%s",
+            origin or "<none>",
+            safe_target or target or "<unknown>",
         )
         try:
             await connection.close(code=1011, reason="Dispatch error")
