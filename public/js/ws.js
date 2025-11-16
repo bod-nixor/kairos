@@ -6,6 +6,8 @@
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000; // 9 minutes; server rejects tokens after ~10 minutes
 
+  const FORCED_WS_BASE = 'wss://regatta.nixorcorporate.com/websocket/ws';
+
   const state = {
     me: null,
     meLoaded: false,
@@ -217,6 +219,17 @@
   }
 
   function buildWsBaseUrl() {
+    if (FORCED_WS_BASE) {
+      try {
+        const forced = new URL(FORCED_WS_BASE, window.location.origin);
+        forced.protocol = 'wss:';
+        forced.port = '';
+        return forced;
+      } catch (err) {
+        console.warn('WS forced base invalid – falling back to me.php', FORCED_WS_BASE, err);
+      }
+    }
+
     const wsInfo = state.me?.ws;
     const rawUrl = typeof wsInfo?.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
     const securePage = typeof window !== 'undefined' && window.location?.protocol === 'https:';

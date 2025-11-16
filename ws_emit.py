@@ -15,6 +15,7 @@ import websockets
 
 PAYLOAD_MAX_BYTES = 32 * 1024
 DEFAULT_PORT = 8090
+DEFAULT_SCHEME = "ws"
 
 
 def _env(name: str, default: Optional[str] = None) -> Optional[str]:
@@ -34,7 +35,10 @@ def _bool_env(name: str, default: bool = False) -> bool:
 def _default_url() -> str:
     port = int(_env("WS_PORT", str(DEFAULT_PORT)) or DEFAULT_PORT)
     host = _env("WS_EMIT_HOST", "127.0.0.1") or "127.0.0.1"
-    return f"wss://{host}:{port}/emit"
+    scheme = _env("WS_EMIT_SCHEME", DEFAULT_SCHEME) or DEFAULT_SCHEME
+    if scheme not in {"ws", "wss"}:
+        scheme = DEFAULT_SCHEME
+    return f"{scheme}://{host}:{port}/emit"
 
 
 def _append_query(url: str, params: dict[str, str]) -> str:
@@ -78,7 +82,10 @@ async def _send_event(args: argparse.Namespace) -> None:
     }
 
     verify_cert = args.verify or _bool_env("WS_EMIT_VERIFY_CERT", False)
-    ssl_context = _build_ssl_context(verify_cert)
+
+    parsed_url = urlparse(url)
+    use_ssl = (parsed_url.scheme or "ws").lower() == "wss"
+    ssl_context = _build_ssl_context(verify_cert) if use_ssl else None
 
     target = _append_query(url, {"secret": secret})
 
