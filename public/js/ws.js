@@ -268,7 +268,6 @@
 
     const query = params.toString();
     baseUrl.search = query ? `?${query}` : '';
-    baseUrl.protocol = 'wss:';
     return baseUrl.toString();
   }
 
