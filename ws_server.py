@@ -9,12 +9,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Set
 
-import eventlet
 from flask import Flask, abort, jsonify, request
 from flask_socketio import SocketIO, join_room
-
-
-eventlet.monkey_patch()
 
 DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept"}
 TOKEN_TTL_SECONDS = int(os.getenv("WS_TOKEN_TTL", "600") or 600)
@@ -207,9 +203,6 @@ def handle_emit():
 
     recipients = _emit_to_matching_clients(outbound)
     return jsonify({"ok": True, "sent": recipients})
-
-
-application = socketio.wsgi_app
 
 
 __all__ = ["app", "socketio", "application"]

@@ -422,7 +422,7 @@
       const origin = buildSocketOrigin();
       const socket = global.io(origin, {
         path: SOCKET_IO_PATH,
-        transports: ['websocket', 'polling'],
+        transports: ['polling'],
         timeout: 10000,
         reconnection: false,
         forceNew: true,
