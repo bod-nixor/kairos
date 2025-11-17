@@ -1,18 +1,23 @@
 (function (global) {
   'use strict';
 
+  /*
+   * Include the Socket.IO client bundle before this file:
+   * <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+   */
+
   const DEFAULT_CHANNELS = ['rooms', 'queue', 'progress', 'ta_accept'];
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
-  const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000; // 9 minutes; server rejects tokens after ~10 minutes
-
-  const DEFAULT_WS_PATH = '/websocket/ws';
+  const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
+  const SOCKET_IO_PATH = '/websocket/socket.io/';
+  const DEFAULT_APP_BASE = '/websocket/';
 
   const state = {
     me: null,
     meLoaded: false,
     disabled: false,
-    ws: null,
+    socket: null,
     manualClose: false,
     reconnectDelay: INITIAL_BACKOFF,
     reconnectTimer: null,
@@ -218,43 +223,33 @@
     return null;
   }
 
-  function buildWsBaseUrl() {
+  function buildSocketOrigin() {
     const wsInfo = state.me?.ws;
     const rawUrl = typeof wsInfo?.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
-    const securePage = typeof window !== 'undefined' && window.location?.protocol === 'https:';
-
-    if (rawUrl) {
-      try {
-        const parsed = new URL(rawUrl, window.location.origin);
-        if (parsed.protocol === 'http:') {
-          parsed.protocol = 'ws:';
-        } else if (parsed.protocol === 'https:') {
-          parsed.protocol = 'wss:';
-        } else if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
-          parsed.protocol = securePage ? 'wss:' : 'ws:';
-        }
-        if (parsed.protocol === 'ws:' && securePage) {
-          parsed.protocol = 'wss:';
-        }
-        return parsed;
-      } catch (err) {
-        console.warn('WS invalid ws_url – falling back to window.origin', rawUrl, err);
-      }
+    const fallback = new URL(DEFAULT_APP_BASE, window.location.origin);
+    if (!rawUrl) {
+      return fallback.origin;
     }
-
-    const fallback = new URL(DEFAULT_WS_PATH, window.location.origin);
-    fallback.protocol = securePage ? 'wss:' : 'ws:';
-    return fallback;
+    try {
+      const parsed = new URL(rawUrl, window.location.origin);
+      if (parsed.protocol === 'ws:') {
+        parsed.protocol = 'http:';
+      } else if (parsed.protocol === 'wss:') {
+        parsed.protocol = 'https:';
+      }
+      return parsed.origin;
+    } catch (err) {
+      console.warn('WS invalid ws_url – falling back to window.origin', rawUrl, err);
+      return fallback.origin;
+    }
   }
 
-  function computeEndpoint() {
+  function buildConnectionQuery() {
     const wsInfo = state.me?.ws;
     if (!wsInfo?.token) {
       return null;
     }
-
-    const baseUrl = buildWsBaseUrl();
-    const params = new URLSearchParams(baseUrl.search ? baseUrl.search.replace(/^\?/, '') : '');
+    const params = new URLSearchParams();
     const channels = Array.from(state.channels);
     if (channels.length) {
       params.set('channels', channels.join(','));
@@ -267,10 +262,11 @@
       params.set('room_id', String(filters.roomId));
     }
     params.set('token', wsInfo.token);
-
-    const query = params.toString();
-    baseUrl.search = query ? `?${query}` : '';
-    return baseUrl.toString();
+    const query = {};
+    params.forEach((value, key) => {
+      query[key] = value;
+    });
+    return query;
   }
 
   function clearReconnectTimer() {
@@ -300,74 +296,48 @@
   }
 
   function closeCurrent(code, reason, manual) {
-    if (!state.ws) {
+    if (!state.socket) {
       return;
     }
     try {
       state.manualClose = !!manual;
-      state.ws.close(code || 1000, reason || 'closing');
+      state.socket.disconnect();
     } catch (err) {
-      console.debug('WS close error', err);
+      console.debug('Socket.IO disconnect error', err);
+    } finally {
+      state.socket = null;
     }
   }
 
-  function handleMessage(event) {
-    if (!event || typeof event.data !== 'string') {
-      return;
-    }
-    if (event.data.length > 65536) {
-      return;
-    }
-    let payload;
-    try {
-      payload = JSON.parse(event.data);
-    } catch (err) {
-      console.warn('WS invalid JSON payload', err);
-      return;
-    }
-    if (!payload || payload.type !== 'event') {
-      return;
-    }
-    const eventName = payload.event;
-    const handler = state.handlers;
-
-    if (eventName === 'queue' && typeof handler.onQueue === 'function') {
-      try { handler.onQueue(payload); } catch (err) { console.error('WS onQueue handler error', err); }
-      return;
-    }
-    if (eventName === 'rooms' && typeof handler.onRooms === 'function') {
-      try { handler.onRooms(payload); } catch (err) { console.error('WS onRooms handler error', err); }
-      return;
-    }
-    if (eventName === 'progress' && typeof handler.onProgress === 'function') {
-      try { handler.onProgress(payload); } catch (err) { console.error('WS onProgress handler error', err); }
-      return;
-    }
-    if (eventName === 'ta_accept' && typeof handler.onTaAccept === 'function') {
-      const targetId = payload?.payload?.student_user_id ?? payload?.payload?.user_id;
-      const selfId = getSelfUserId();
-      if (selfId === null || targetId == null || normalizeId(targetId) === selfId) {
-        try { handler.onTaAccept(payload); } catch (err) { console.error('WS onTaAccept handler error', err); }
-      }
-    }
-  }
-
-  function bindSocketEvents(ws) {
-    ws.onopen = () => {
+  function bindSocketEvents(socket) {
+    socket.on('connect', () => {
       resetBackoff();
       if (typeof state.handlers.onOpen === 'function') {
         try { state.handlers.onOpen(); } catch (err) { console.error('WS onOpen handler error', err); }
       }
-    };
-    ws.onmessage = handleMessage;
-    ws.onerror = (err) => {
-      console.debug('WS error event', err);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.debug('Socket.IO connect_error', err);
       state.forceRefresh = true;
-    };
-    ws.onclose = () => {
+      try {
+        socket.disconnect();
+      } catch (disconnectErr) {
+        console.debug('Socket.IO disconnect after connect_error failed', disconnectErr);
+      } finally {
+        if (state.socket === socket) {
+          state.socket = null;
+        }
+      }
+      if (!state.manualClose) {
+        scheduleReconnect();
+      }
+    });
+
+    socket.on('disconnect', () => {
       const manual = state.manualClose;
       state.manualClose = false;
-      state.ws = null;
+      state.socket = null;
       if (typeof state.handlers.onClose === 'function') {
         try { state.handlers.onClose(); } catch (err) { console.error('WS onClose handler error', err); }
       }
@@ -378,33 +348,98 @@
         state.forceRefresh = true;
         scheduleReconnect();
       }
+    });
+
+    const handlerMap = {
+      queue: 'onQueue',
+      rooms: 'onRooms',
+      progress: 'onProgress',
+      ta_accept: 'onTaAccept',
     };
+
+    Object.entries(handlerMap).forEach(([eventName, handlerName]) => {
+      socket.on(eventName, (payload) => {
+        if (eventName === 'ta_accept') {
+          const targetId = extractTaAcceptUserId(payload);
+          const selfId = getSelfUserId();
+          if (targetId !== null && selfId !== null && targetId !== selfId) {
+            return;
+          }
+        }
+
+        const handler = state.handlers[handlerName];
+        if (typeof handler === 'function') {
+          try {
+            handler(payload);
+          } catch (err) {
+            console.error('WS handler error for', eventName, err);
+          }
+        }
+      });
+    });
+  }
+
+  function extractTaAcceptUserId(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const direct = normalizeId(payload.student_user_id ?? payload.user_id);
+    if (direct !== null) {
+      return direct;
+    }
+
+    if (payload.payload && typeof payload.payload === 'object') {
+      const nested = normalizeId(
+        payload.payload.student_user_id ?? payload.payload.user_id,
+      );
+      if (nested !== null) {
+        return nested;
+      }
+    }
+
+    return null;
   }
 
   function connectSocket() {
-    if (state.disabled || state.ws) {
+    if (state.disabled || state.socket) {
       return;
     }
-    const endpoint = computeEndpoint();
-    if (!endpoint) {
+    if (typeof global.io !== 'function') {
+      console.error('socket.io-client is missing. Include the CDN script before ws.js.');
+      state.disabled = true;
+      return;
+    }
+
+    const query = buildConnectionQuery();
+    if (!query || !query.token) {
       state.disabled = true;
       console.info('WS disabled: endpoint unavailable');
       return;
     }
+
     try {
-      const ws = new WebSocket(endpoint);
-      state.ws = ws;
-      bindSocketEvents(ws);
+      const origin = buildSocketOrigin();
+      const socket = global.io(origin, {
+        path: SOCKET_IO_PATH,
+        transports: ['websocket', 'polling'],
+        timeout: 10000,
+        reconnection: false,
+        forceNew: true,
+        query,
+      });
+      state.socket = socket;
+      bindSocketEvents(socket);
     } catch (err) {
-      console.warn('WS connection failed', err);
-      state.ws = null;
+      console.warn('Socket.IO connection failed', err);
+      state.socket = null;
       state.forceRefresh = true;
       scheduleReconnect();
     }
   }
 
   async function ensureConnection() {
-    if (state.disabled || state.ws || state.connecting) {
+    if (state.disabled || state.socket || state.connecting) {
       return;
     }
     try {
@@ -413,7 +448,7 @@
       scheduleReconnect();
       return;
     }
-    if (state.disabled || state.ws) {
+    if (state.disabled || state.socket) {
       return;
     }
     connectSocket();
@@ -422,33 +457,11 @@
   function restartConnection() {
     resetBackoff();
     clearReconnectTimer();
-    if (state.ws) {
+    if (state.socket) {
       closeCurrent(1000, 'filters updated', true);
     } else {
       ensureConnection();
     }
-  }
-
-  function init(options) {
-    const opts = options || {};
-    if (opts.channels) {
-      setChannels(opts.channels);
-    }
-    if (typeof opts.getFilters === 'function') {
-      state.getFilters = opts.getFilters;
-    }
-    if (typeof opts.getSelfUserId === 'function') {
-      state.getSelfUserId = opts.getSelfUserId;
-    }
-    if (Object.prototype.hasOwnProperty.call(opts, 'selfUserId')) {
-      setSelfUserId(opts.selfUserId);
-    }
-    assignHandlers(opts);
-    updateFilters({
-      courseId: Object.prototype.hasOwnProperty.call(opts, 'courseId') ? opts.courseId : undefined,
-      roomId: Object.prototype.hasOwnProperty.call(opts, 'roomId') ? opts.roomId : undefined,
-    }, true);
-    ensureConnection();
   }
 
   function updateFilters(filters, silent) {
@@ -472,7 +485,6 @@
       restartConnection();
     }
     if (changed && silent === true) {
-      // when invoked during init we don't want to immediately reconnect twice
       resetBackoff();
       ensureConnection();
     }
@@ -489,7 +501,7 @@
 
   function getState() {
     return {
-      connected: !!state.ws,
+      connected: !!state.socket,
       disabled: state.disabled,
       filters: getCurrentFilters(),
       channels: Array.from(state.channels),
@@ -500,7 +512,27 @@
   applyDefaultHandlers();
 
   global.SignoffWS = {
-    init,
+    init(options) {
+      const opts = options || {};
+      if (opts.channels) {
+        setChannels(opts.channels);
+      }
+      if (typeof opts.getFilters === 'function') {
+        state.getFilters = opts.getFilters;
+      }
+      if (typeof opts.getSelfUserId === 'function') {
+        state.getSelfUserId = opts.getSelfUserId;
+      }
+      if (Object.prototype.hasOwnProperty.call(opts, 'selfUserId')) {
+        setSelfUserId(opts.selfUserId);
+      }
+      assignHandlers(opts);
+      updateFilters({
+        courseId: Object.prototype.hasOwnProperty.call(opts, 'courseId') ? opts.courseId : undefined,
+        roomId: Object.prototype.hasOwnProperty.call(opts, 'roomId') ? opts.roomId : undefined,
+      }, true);
+      ensureConnection();
+    },
     updateFilters(filters) {
       updateFilters(filters, false);
     },
