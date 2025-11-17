@@ -320,6 +320,15 @@
     socket.on('connect_error', (err) => {
       console.debug('Socket.IO connect_error', err);
       state.forceRefresh = true;
+      try {
+        socket.disconnect();
+      } catch (disconnectErr) {
+        console.debug('Socket.IO disconnect after connect_error failed', disconnectErr);
+      } finally {
+        if (state.socket === socket) {
+          state.socket = null;
+        }
+      }
       if (!state.manualClose) {
         scheduleReconnect();
       }
@@ -350,6 +359,14 @@
 
     Object.entries(handlerMap).forEach(([eventName, handlerName]) => {
       socket.on(eventName, (payload) => {
+        if (eventName === 'ta_accept') {
+          const targetId = extractTaAcceptUserId(payload);
+          const selfId = getSelfUserId();
+          if (targetId !== null && selfId !== null && targetId !== selfId) {
+            return;
+          }
+        }
+
         const handler = state.handlers[handlerName];
         if (typeof handler === 'function') {
           try {
@@ -360,6 +377,28 @@
         }
       });
     });
+  }
+
+  function extractTaAcceptUserId(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const direct = normalizeId(payload.student_user_id ?? payload.user_id);
+    if (direct !== null) {
+      return direct;
+    }
+
+    if (payload.payload && typeof payload.payload === 'object') {
+      const nested = normalizeId(
+        payload.payload.student_user_id ?? payload.payload.user_id,
+      );
+      if (nested !== null) {
+        return nested;
+      }
+    }
+
+    return null;
   }
 
   function connectSocket() {
