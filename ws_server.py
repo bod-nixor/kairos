@@ -275,15 +275,16 @@ def main() -> None:
     ssl_context = _build_ssl_context()
 
     async def _run() -> None:
-        relay = SignoffRelay()
-        stop: asyncio.Future[None] = asyncio.Future()
-        loop = asyncio.get_running_loop()
-        for signame in {signal.SIGINT, signal.SIGTERM}:
-            loop.add_signal_handler(signame, stop.set_result, None)
-
-        async with serve(relay.dispatch, host, port, ssl=ssl_context, ping_interval=30, ping_timeout=30):
-            logging.info("WebSocket relay listening on %s:%s", host, port)
-            await stop
+            relay = SignoffRelay()
+    
+            serve_settings = {
+                "max_size": 32 * 1024,  # 32 KiB
+                "ping_interval": 20,
+                "ping_timeout": 20,
+            }
+    
+            async with serve(relay.dispatch, host, port, ssl=ssl_context, **serve_settings):
+                await asyncio.Future()  # Wait forever
 
     try:
         asyncio.run(_run())
