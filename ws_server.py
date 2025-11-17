@@ -47,8 +47,26 @@ def _load_env_file(path: str) -> None:
 
 _load_env_file(os.path.join(os.path.dirname(__file__), ".env"))
 
+
+def _normalize_socket_path(raw: str) -> str:
+    """Return a Socket.IO path that matches the JS client expectations.
+
+    ``flask_socketio.SocketIO`` expects the ``path`` parameter without a leading
+    slash.  The browser client, however, requests ``/<path>`` and often includes a
+    trailing slash.  To keep both sides happy we ensure the public path always
+    begins with a single slash and omit that slash when handing the value to the
+    Socket.IO server.
+    """
+
+    value = (raw or "").strip() or "/websocket/socket.io"
+    if not value.startswith("/"):
+        value = f"/{value}"
+    return value.rstrip("/") or "/socket.io"
+
+
 DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept"}
 TOKEN_TTL_SECONDS = int(os.getenv("WS_TOKEN_TTL", "600") or 600)
+WS_SOCKET_PATH = _normalize_socket_path(os.getenv("WS_SOCKET_PATH", "/websocket/socket.io/"))
 WS_SHARED_SECRET = os.getenv("WS_SHARED_SECRET", "").strip()
 if not WS_SHARED_SECRET:
     raise RuntimeError("WS_SHARED_SECRET must be configured")
@@ -118,7 +136,13 @@ class ClientState:
 
 
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode="eventlet", cors_allowed_origins="*")
+_socketio_internal_path = WS_SOCKET_PATH.lstrip("/") or "socket.io"
+socketio = SocketIO(
+    app,
+    async_mode="eventlet",
+    cors_allowed_origins="*",
+    path=_socketio_internal_path,
+)
 
 _connections: Dict[str, ClientState] = {}
 _connections_lock = threading.Lock()
