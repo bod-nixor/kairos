@@ -15,6 +15,7 @@ import logging
 import os
 import signal
 import ssl
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -289,6 +290,26 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
 
+# --- WSGI HACK FOR CPANEL ---
 
-if __name__ == "__main__":
-    main()
+# We need to run our server, but cPanel's Passenger/WSGI
+# runner wants to import this file and find an 'application'
+# object. It doesn't know how to "run" the file.
+#
+# So, we do two things:
+# 1. Start our `main()` server function in a new, background
+#    thread. This lets the server run while Passenger
+#    continues to load the rest of this file.
+threading.Thread(target=main, daemon=True).start()
+
+
+# 2. We provide the dummy 'application' object that
+#    Passenger requires. This code will never be called
+#    because the proxy routes traffic to our server thread,
+#    but its presence stops Passenger from crashing.
+def application(env, start_response):
+    """A dummy WSGI app to satisfy Passenger."""
+    start_response('200 OK', [('Content-Type','text/plain')])
+    return [b'WebSocket server is running in a background thread.']
+
+# --- END WSGI HACK ---
