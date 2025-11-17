@@ -12,6 +12,41 @@ from typing import Any, Dict, Optional, Set
 from flask import Flask, abort, jsonify, request
 from flask_socketio import SocketIO, join_room
 
+
+def _load_env_file(path: str) -> None:
+    """Load KEY=VALUE pairs from a .env file for parity with the PHP app."""
+
+    if not os.path.isfile(path):
+        return
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key.lower().startswith("export "):
+            key = key[7:].strip()
+        if not key:
+            continue
+        value = value.strip()
+        if value and value[0] in {'"', "'"} and value[-1:] == value[0]:
+            quote = value[0]
+            value = value[1:-1]
+            value = value.replace(f"\\{quote}", quote)
+        os.environ.setdefault(key, value)
+
+
+_load_env_file(os.path.join(os.path.dirname(__file__), ".env"))
+
 DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept"}
 TOKEN_TTL_SECONDS = int(os.getenv("WS_TOKEN_TTL", "600") or 600)
 WS_SHARED_SECRET = os.getenv("WS_SHARED_SECRET", "").strip()
