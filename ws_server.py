@@ -273,9 +273,9 @@ def main() -> None:
     host = _env("WS_HOST", "127.0.0.1")
     port = int(_env("WS_PORT", "8090"))
     ssl_context = _build_ssl_context()
-    relay = SignoffRelay()
 
     async def _run() -> None:
+        relay = SignoffRelay()
         stop: asyncio.Future[None] = asyncio.Future()
         loop = asyncio.get_running_loop()
         for signame in {signal.SIGINT, signal.SIGTERM}:
