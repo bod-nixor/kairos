@@ -123,6 +123,12 @@ socketio = SocketIO(app, async_mode="eventlet", cors_allowed_origins="*")
 _connections: Dict[str, ClientState] = {}
 _connections_lock = threading.Lock()
 
+# Expose a conventional WSGI entrypoint for hosting environments that expect an
+# ``application`` object (e.g., ``gunicorn ws_server:application``). Without
+# this alias, importing the module would raise ``AttributeError: module has no
+# attribute 'application'`` and prevent the websocket relay from starting.
+application = app
+
 
 def _should_deliver(state: ClientState, payload: Dict[str, Any]) -> bool:
     event_name = payload.get("event")
