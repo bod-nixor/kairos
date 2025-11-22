@@ -4,7 +4,7 @@
   const DEFAULT_CONFIG = Object.freeze({
     googleClientId: null,
     allowedDomain: '',
-    wsBaseUrl: 'wss://regatta.nixorcorporate.com',
+    wsBaseUrl: '',
     wsSocketPath: '/websocket/socket.io',
   });
 
@@ -18,11 +18,16 @@
 
     cfg.wsBaseUrl = typeof cfg.wsBaseUrl === 'string'
       ? cfg.wsBaseUrl.replace(/\/+$/, '')
-      : DEFAULT_CONFIG.wsBaseUrl;
+      : '';
 
     cfg.wsSocketPath = typeof cfg.wsSocketPath === 'string' && cfg.wsSocketPath !== ''
       ? '/' + cfg.wsSocketPath.replace(/^\/+/, '')
       : DEFAULT_CONFIG.wsSocketPath;
+
+    if (!cfg.wsBaseUrl && typeof window !== 'undefined' && window.location?.host) {
+      const scheme = window.location.protocol === 'http:' ? 'ws:' : 'wss:';
+      cfg.wsBaseUrl = `${scheme}//${window.location.host}`;
+    }
 
     return Object.freeze(cfg);
   }

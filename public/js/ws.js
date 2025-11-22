@@ -5,7 +5,7 @@
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
-  const DEFAULT_WS_BASE_URL = 'wss://regatta.nixorcorporate.com';
+  const DEFAULT_WS_BASE_URL = '';
   const DEFAULT_WS_PATH = '/websocket/socket.io';
   let WS_BASE_URL = DEFAULT_WS_BASE_URL;
   let WS_PATH = DEFAULT_WS_PATH;
@@ -245,11 +245,28 @@
     return null;
   }
 
+  function resolveBaseUrl(wsInfo) {
+    if (wsInfo?.ws_url) {
+      return wsInfo.ws_url;
+    }
+    if (WS_BASE_URL) {
+      return WS_BASE_URL;
+    }
+    if (typeof window !== 'undefined' && window.location?.host) {
+      const scheme = window.location.protocol === 'http:' ? 'ws:' : 'wss:';
+      return `${scheme}//${window.location.host}`;
+    }
+    return null;
+  }
+
   function computeEndpoint() {
     const wsInfo = state.me?.ws;
     if (!wsInfo?.token) return null;
 
-    const baseUrl = new URL(WS_BASE_URL);
+    const baseUrlRaw = resolveBaseUrl(wsInfo);
+    if (!baseUrlRaw) return null;
+
+    const baseUrl = new URL(baseUrlRaw);
 
     const params = new URLSearchParams();
     const channels = Array.from(state.channels);
@@ -267,7 +284,8 @@
 
     params.set('token', wsInfo.token);
 
-    baseUrl.pathname = WS_PATH;
+    const socketPath = wsInfo.socket_path || WS_PATH || DEFAULT_WS_PATH;
+    baseUrl.pathname = `/${String(socketPath || '').replace(/^\/+/, '')}`;
     baseUrl.search = '';
     baseUrl.hash = '';
 
@@ -292,7 +310,8 @@
     if (state.reconnectTimer) {
       return;
     }
-    const delay = state.reconnectDelay;
+    const jitter = Math.random() * 0.25 * state.reconnectDelay;
+    const delay = state.reconnectDelay + jitter;
     state.reconnectTimer = setTimeout(() => {
       state.reconnectTimer = null;
       ensureConnection();
@@ -331,20 +350,28 @@
       state.forceRefresh = true;
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       const manual = state.manualClose;
       state.manualClose = false;
       state.socket = null;
       if (typeof state.handlers.onClose === 'function') {
         try { state.handlers.onClose(); } catch (err) { console.error('WS onClose handler error', err); }
       }
-      if (manual) {
+      if (manual || reason === 'io client disconnect') {
         resetBackoff();
         ensureConnection();
       } else {
         state.forceRefresh = true;
         scheduleReconnect();
       }
+    });
+
+    socket.io.on('reconnect_attempt', () => {
+      state.forceRefresh = true;
+    });
+
+    socket.io.on('reconnect_failed', () => {
+      scheduleReconnect();
     });
 
     const eventMap = {
@@ -453,8 +480,11 @@
       const socket = io(endpoint.origin, {
         path: endpoint.path,
         query: endpoint.query,
-        transports: ['websocket', 'polling'],
+        transports: ['websocket'],
         upgrade: true,
+        forceNew: true,
+        withCredentials: true,
+        reconnection: false,
       });
       state.socket = socket;
       bindSocketEvents(socket);
