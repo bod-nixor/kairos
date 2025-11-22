@@ -56,16 +56,25 @@ async function fetchQueues(roomId) {
   return res.json();
 }
 
+function normalizeQueueStudent(raw) {
+  const id = Number(raw?.id ?? raw?.user_id ?? 0);
+  const status = raw?.status || 'waiting';
+  if (!id || status === 'done') return null;
+  return {
+    id,
+    name: raw?.name || '',
+    status,
+  };
+}
+
 function normalizeQueue(raw) {
   const queueId = Number(raw?.queue_id ?? 0);
   const name = raw?.name || `Queue #${queueId}`;
   const description = raw?.description || '';
   const studentsRaw = Array.isArray(raw?.students) ? raw.students : [];
-  const students = studentsRaw.map((student) => ({
-    id: Number(student?.id ?? student?.user_id ?? 0),
-    name: student?.name || '',
-    status: student?.status || 'waiting',
-  }));
+  const students = studentsRaw
+    .map(normalizeQueueStudent)
+    .filter(Boolean);
   let serving = null;
   const servingRaw = raw?.serving;
   if (servingRaw && typeof servingRaw === 'object') {
@@ -170,11 +179,9 @@ function applyQueuePayload(payload) {
   const queue = projectorState.queues.get(queueId);
   if (!queue) return;
   if (payload.snapshot && Array.isArray(payload.snapshot.students)) {
-    queue.students = payload.snapshot.students.map((student) => ({
-      id: Number(student?.id ?? student?.user_id ?? 0),
-      name: student?.name || '',
-      status: student?.status || 'waiting',
-    }));
+    queue.students = payload.snapshot.students
+      .map(normalizeQueueStudent)
+      .filter(Boolean);
   }
   if (payload.servingStudentId) {
     queue.serving = {
