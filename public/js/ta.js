@@ -274,6 +274,7 @@ async function loadRooms(courseId) {
 function renderRooms(rooms) {
   const select = document.getElementById('taRoomSelect');
   if (!select) return;
+  const previousRoom = taState.selectedRoom;
   select.innerHTML = '<option value="">Select a room…</option>';
   rooms.forEach((room) => {
     const opt = document.createElement('option');
@@ -282,6 +283,23 @@ function renderRooms(rooms) {
     select.appendChild(opt);
   });
   select.disabled = !rooms.length;
+
+  const hasPreviousSelection = previousRoom
+    && rooms.some((room) => `${room.room_id}` === `${previousRoom}`);
+
+  if (hasPreviousSelection) {
+    select.value = previousRoom;
+  } else if (rooms.length === 1 && !previousRoom) {
+    const onlyRoomId = `${rooms[0].room_id}`;
+    taState.selectedRoom = onlyRoomId;
+    select.value = onlyRoomId;
+    select.dispatchEvent(new Event('change'));
+    return;
+  } else {
+    taState.selectedRoom = '';
+  }
+
+  updateProjectorButton();
 }
 
 function updateProjectorButton() {
