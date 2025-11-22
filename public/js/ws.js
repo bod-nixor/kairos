@@ -348,6 +348,13 @@
     socket.on('connect_error', (err) => {
       console.debug('WebSocket error', err);
       state.forceRefresh = true;
+      if (socket?.io?.opts?.reconnection === false) {
+        try { socket.close(); } catch (closeErr) { console.debug('WS close error', closeErr); }
+        if (state.socket === socket) {
+          state.socket = null;
+        }
+        scheduleReconnect();
+      }
     });
 
     socket.on('disconnect', (reason) => {
