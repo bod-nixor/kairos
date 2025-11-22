@@ -1,17 +1,11 @@
 (function (global) {
   'use strict';
 
-  /*
-   * Include the Socket.IO client bundle before this file:
-   * <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
-   */
-
   const DEFAULT_CHANNELS = ['rooms', 'queue', 'progress', 'ta_accept'];
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
-  const SOCKET_IO_PATH = '/websocket/socket.io/';
-  const DEFAULT_APP_BASE = '/websocket/';
+  const WS_BASE_URL = 'wss://regatta.nixorcorporate.com/websocket/';
 
   const state = {
     me: null,
@@ -223,37 +217,18 @@
     return null;
   }
 
-  function buildSocketOrigin() {
+  function computeEndpoint() {
     const wsInfo = state.me?.ws;
-    const rawUrl = typeof wsInfo?.ws_url === 'string' ? wsInfo.ws_url.trim() : '';
-    const fallback = new URL(DEFAULT_APP_BASE, window.location.origin);
-    if (!rawUrl) {
-      return fallback.origin;
-    }
-    try {
-      const parsed = new URL(rawUrl, window.location.origin);
-      if (parsed.protocol === 'ws:') {
-        parsed.protocol = 'http:';
-      } else if (parsed.protocol === 'wss:') {
-        parsed.protocol = 'https:';
-      }
-      return parsed.origin;
-    } catch (err) {
-      console.warn('WS invalid ws_url – falling back to window.origin', rawUrl, err);
-      return fallback.origin;
-    }
-  }
+    if (!wsInfo?.token) return null;
 
-  function buildConnectionQuery() {
-    const wsInfo = state.me?.ws;
-    if (!wsInfo?.token) {
-      return null;
-    }
+    const baseUrl = new URL(WS_BASE_URL);
+
     const params = new URLSearchParams();
     const channels = Array.from(state.channels);
     if (channels.length) {
       params.set('channels', channels.join(','));
     }
+
     const filters = getCurrentFilters();
     if (filters.courseId !== null) {
       params.set('course_id', String(filters.courseId));
@@ -261,12 +236,18 @@
     if (filters.roomId !== null) {
       params.set('room_id', String(filters.roomId));
     }
+
     params.set('token', wsInfo.token);
-    const query = {};
-    params.forEach((value, key) => {
-      query[key] = value;
-    });
-    return query;
+
+    baseUrl.pathname = '/websocket/socket.io';
+    baseUrl.search = '';
+    baseUrl.hash = '';
+
+    return {
+      origin: `${baseUrl.protocol}//${baseUrl.host}`,
+      path: baseUrl.pathname,
+      query: Object.fromEntries(params),
+    };
   }
 
   function clearReconnectTimer() {
@@ -303,7 +284,7 @@
       state.manualClose = !!manual;
       state.socket.disconnect();
     } catch (err) {
-      console.debug('Socket.IO disconnect error', err);
+      console.debug('WebSocket disconnect error', err);
     } finally {
       state.socket = null;
     }
@@ -318,20 +299,8 @@
     });
 
     socket.on('connect_error', (err) => {
-      console.debug('Socket.IO connect_error', err);
+      console.debug('WebSocket error', err);
       state.forceRefresh = true;
-      try {
-        socket.disconnect();
-      } catch (disconnectErr) {
-        console.debug('Socket.IO disconnect after connect_error failed', disconnectErr);
-      } finally {
-        if (state.socket === socket) {
-          state.socket = null;
-        }
-      }
-      if (!state.manualClose) {
-        scheduleReconnect();
-      }
     });
 
     socket.on('disconnect', () => {
@@ -350,6 +319,42 @@
       }
     });
 
+    const eventMap = {
+      queue: 'onQueue',
+      rooms: 'onRooms',
+      progress: 'onProgress',
+      ta_accept: 'onTaAccept',
+    };
+
+    Object.keys(eventMap).forEach((eventName) => {
+      socket.on(eventName, (payload) => {
+        handleIncomingMessage({ event: eventName, payload });
+      });
+    });
+  }
+
+  function handleIncomingMessage(data) {
+    if (!data) {
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    } catch (err) {
+      console.debug('WS message parse error', err, data);
+      return;
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      return;
+    }
+
+    const eventName = parsed.event || parsed.type || parsed.channel;
+    if (!eventName) {
+      return;
+    }
+
     const handlerMap = {
       queue: 'onQueue',
       rooms: 'onRooms',
@@ -357,26 +362,29 @@
       ta_accept: 'onTaAccept',
     };
 
-    Object.entries(handlerMap).forEach(([eventName, handlerName]) => {
-      socket.on(eventName, (payload) => {
-        if (eventName === 'ta_accept') {
-          const targetId = extractTaAcceptUserId(payload);
-          const selfId = getSelfUserId();
-          if (targetId !== null && selfId !== null && targetId !== selfId) {
-            return;
-          }
-        }
+    const handlerName = handlerMap[eventName];
+    if (!handlerName) {
+      return;
+    }
 
-        const handler = state.handlers[handlerName];
-        if (typeof handler === 'function') {
-          try {
-            handler(payload);
-          } catch (err) {
-            console.error('WS handler error for', eventName, err);
-          }
-        }
-      });
-    });
+    const payload = parsed.payload !== undefined ? parsed.payload : parsed;
+
+    if (eventName === 'ta_accept') {
+      const targetId = extractTaAcceptUserId(payload);
+      const selfId = getSelfUserId();
+      if (targetId !== null && selfId !== null && targetId !== selfId) {
+        return;
+      }
+    }
+
+    const handler = state.handlers[handlerName];
+    if (typeof handler === 'function') {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.error('WS handler error for', eventName, err);
+      }
+    }
   }
 
   function extractTaAcceptUserId(payload) {
@@ -405,33 +413,24 @@
     if (state.disabled || state.socket) {
       return;
     }
-    if (typeof global.io !== 'function') {
-      console.error('socket.io-client is missing. Include the CDN script before ws.js.');
-      state.disabled = true;
-      return;
-    }
 
-    const query = buildConnectionQuery();
-    if (!query || !query.token) {
+    const endpoint = computeEndpoint();
+    if (!endpoint) {
       state.disabled = true;
       console.info('WS disabled: endpoint unavailable');
       return;
     }
 
     try {
-      const origin = buildSocketOrigin();
-      const socket = global.io(origin, {
-        path: SOCKET_IO_PATH,
-        transports: ['polling'],
-        timeout: 10000,
-        reconnection: false,
-        forceNew: true,
-        query,
+      const socket = io(endpoint.origin, {
+        path: endpoint.path,
+        query: endpoint.query,
+        transports: ['websocket'],
       });
       state.socket = socket;
       bindSocketEvents(socket);
     } catch (err) {
-      console.warn('Socket.IO connection failed', err);
+      console.warn('WebSocket connection failed', err);
       state.socket = null;
       state.forceRefresh = true;
       scheduleReconnect();
