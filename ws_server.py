@@ -155,34 +155,6 @@ _connections_lock = threading.Lock()
 # this alias, importing the module would raise ``AttributeError: module has no
 # attribute 'application'`` and prevent the websocket relay from starting.
 application = app
-
-
-def _should_deliver(state: ClientState, payload: Dict[str, Any]) -> bool:
-    event_name = payload.get("event")
-    if event_name not in state.channels:
-        return False
-
-    event_course = _parse_int(payload.get("course_id"))
-    if state.course_id is not None and event_course != state.course_id:
-        payload_course = None
-        inner = payload.get("payload")
-        if isinstance(inner, dict):
-            payload_course = _parse_int(inner.get("courseId"))
-        if payload_course != state.course_id:
-            return False
-
-    event_room = _parse_int(payload.get("room_id"))
-    if state.room_id is not None and event_room != state.room_id:
-        payload_room = None
-        inner = payload.get("payload")
-        if isinstance(inner, dict):
-            payload_room = _parse_int(inner.get("roomId"))
-        if payload_room != state.room_id:
-            return False
-
-    return True
-
-
 def _record_connection(sid: str, state: ClientState) -> None:
     with _connections_lock:
         _connections[sid] = state
@@ -209,14 +181,15 @@ def _room_names(state: ClientState) -> Set[str]:
     return rooms
 
 
-def _emit_to_matching_clients(payload: Dict[str, Any]) -> int:
-    targets: list[str] = []
+def _emit_to_all_clients(payload: Dict[str, Any]) -> int:
+    """Broadcast the payload to every connected client."""
+
     with _connections_lock:
-        for sid, state in list(_connections.items()):
-            if _should_deliver(state, payload):
-                targets.append(sid)
+        targets = list(_connections.keys())
+
     for sid in targets:
         socketio.emit(payload["event"], payload, room=sid)
+
     return len(targets)
 
 
@@ -279,7 +252,7 @@ def handle_emit():
     outbound = _build_payload(message)
     outbound["event"] = event_name
 
-    recipients = _emit_to_matching_clients(outbound)
+    recipients = _emit_to_all_clients(outbound)
     return jsonify({"ok": True, "sent": recipients})
 
 
