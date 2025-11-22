@@ -1,4 +1,4 @@
-const APP_CONFIG = window.SIGNOFF_CONFIG || {};
+const APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
 const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
 
 const state = {

@@ -5,8 +5,19 @@
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
-  const WS_BASE_URL = 'wss://regatta.nixorcorporate.com';
-  const WS_PATH = '/websocket/socket.io';
+  const APP_CONFIG = global.SignoffConfig || global.SIGNOFF_CONFIG || {};
+  const WS_BASE_URL = (() => {
+    const raw = typeof APP_CONFIG.wsBaseUrl === 'string' ? APP_CONFIG.wsBaseUrl.trim() : '';
+    if (raw) {
+      return raw;
+    }
+    return 'wss://regatta.nixorcorporate.com';
+  })();
+  const WS_PATH = (() => {
+    const raw = typeof APP_CONFIG.wsSocketPath === 'string' ? APP_CONFIG.wsSocketPath.trim() : '';
+    const normalized = raw ? `/${raw.replace(/^\/+/, '')}` : '/websocket/socket.io';
+    return normalized;
+  })();
 
   const state = {
     me: null,
