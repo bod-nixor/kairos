@@ -204,12 +204,32 @@ function handleQueueBroadcast(message) {
   applyQueuePayload(payload);
 }
 
-function showOverlay({ taName, studentName, type }) {
+function resolveOverlayNames({ taName, studentName, queueId }) {
+  let ta = (taName || '').trim();
+  let student = (studentName || '').trim();
+
+  if ((!ta || !student) && queueId && projectorState.queues.has(queueId)) {
+    const queue = projectorState.queues.get(queueId);
+    if (queue?.serving) {
+      if (!ta) ta = queue.serving.ta_name || '';
+      if (!student) student = queue.serving.student_name || '';
+    }
+  }
+
+  return {
+    ta: ta || 'A TA',
+    student: student || 'a student',
+  };
+}
+
+function showOverlay({ taName, studentName, type, queueId }) {
   if (!overlayEl || !overlayNames || !overlaySubtitle || !overlayTitle) return;
-  const ta = taName || 'A TA';
-  const student = studentName || 'a student';
+  const { ta, student } = resolveOverlayNames({ taName, studentName, queueId });
   overlayTitle.textContent = type === 'call_again' ? 'Calling Again' : 'Now Serving';
-  overlayNames.textContent = `${ta} is now serving ${student}.`;
+  overlayNames.textContent =
+    type === 'call_again'
+      ? `${ta} is calling ${student} again.`
+      : `${ta} is now serving ${student}.`;
   overlaySubtitle.textContent = 'Please raise your hand.';
   overlayEl.classList.add('active');
   if (projectorState.overlayTimer) {
@@ -229,7 +249,8 @@ function handleProjectorEvent(payload) {
   const type = payload.type || 'serve';
   const taName = payload.ta_name || '';
   const studentName = payload.student_name || '';
-  showOverlay({ taName, studentName, type });
+  const queueId = payload.queue_id != null ? Number(payload.queue_id) : null;
+  showOverlay({ taName, studentName, type, queueId });
 }
 
 async function reloadQueues() {
