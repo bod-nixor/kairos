@@ -394,7 +394,7 @@
     Object.keys(eventMap).forEach((eventName) => {
       socket.on(eventName, (payload) => {
         const message =
-          payload && typeof payload === 'object' && payload.event
+          payload && typeof payload === 'object' && 'event' in payload && 'payload' in payload
             ? payload
             : { event: eventName, payload };
         handleIncomingMessage(message);
