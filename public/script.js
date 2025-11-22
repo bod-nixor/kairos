@@ -256,9 +256,14 @@ const changeStreamSubscriptions = {
   progress: null,
 };
 let notifyQueueSubscription = null;
-const APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
-const CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
-const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+let APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
+let CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
+let ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+function setAppConfig(config) {
+  APP_CONFIG = config || {};
+  CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
+  ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+}
 let selectedCourse = null;
 let selectedRoomId = null;
 let selfUserId = null;
@@ -520,9 +525,23 @@ async function bootstrap() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  updateAllowedDomainCopy();
-  renderGoogleButton();
-  bootstrap();
+  const startApp = () => {
+    updateAllowedDomainCopy();
+    renderGoogleButton();
+    bootstrap();
+  };
+
+  if (typeof window.waitForAppConfig === 'function') {
+    window.waitForAppConfig()
+      .then((cfg) => { setAppConfig(cfg); startApp(); })
+      .catch(() => {
+        setAppConfig(typeof window.getAppConfig === 'function' ? window.getAppConfig() : APP_CONFIG);
+        startApp();
+      });
+  } else {
+    startApp();
+  }
+
   const mainNav = document.getElementById('mainNav');
   if (mainNav) {
     mainNav.addEventListener('click', (event) => {
