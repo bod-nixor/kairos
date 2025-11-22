@@ -294,7 +294,7 @@ function updateProjectorButton() {
 
 function openProjectorView() {
   if (!taState.selectedRoom) return;
-  const url = new URL('./projector.html', window.location.origin);
+  const url = new URL('./projector.html', window.location.href);
   url.searchParams.set('room_id', taState.selectedRoom);
   if (taState.selectedCourse) {
     url.searchParams.set('course_id', taState.selectedCourse);
