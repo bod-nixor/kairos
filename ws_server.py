@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Set
 
 from flask import Flask, abort, jsonify, request
 from flask_socketio import SocketIO, join_room
+from werkzeug.exceptions import HTTPException
 
 
 def _load_env_file(path: str) -> None:
@@ -140,8 +141,10 @@ _socketio_internal_path = WS_SOCKET_PATH.lstrip("/") or "socket.io"
 socketio = SocketIO(
     app,
     async_mode="eventlet",
-    cors_allowed_origins="*",
+    cors_allowed_origins="https://regatta.nixorcorporate.com",
     path=_socketio_internal_path,
+    logger=True,
+    engineio_logger=True,
 )
 
 _connections: Dict[str, ClientState] = {}
@@ -268,6 +271,25 @@ def handle_emit():
 
     recipients = _emit_to_matching_clients(outbound)
     return jsonify({"ok": True, "sent": recipients})
+
+
+@app.errorhandler(Exception)
+def handle_exception(exc: Exception):
+    if isinstance(exc, HTTPException):
+        if exc.code >= 500:
+            app.logger.exception("HTTP exception: %s", exc)
+        return exc
+
+    app.logger.exception("Uncaught exception: %s", exc)
+    return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+if __name__ == "__main__":
+    socketio.run(
+        app,
+        host="127.0.0.1",
+        port=8090,
+    )
 
 
 __all__ = ["app", "socketio", "application"]
