@@ -256,7 +256,7 @@ const changeStreamSubscriptions = {
   progress: null,
 };
 let notifyQueueSubscription = null;
-const APP_CONFIG = window.SIGNOFF_CONFIG || {};
+const APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
 const CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
 const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
 let selectedCourse = null;
