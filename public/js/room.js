@@ -445,7 +445,7 @@ function updateQueueNote(queue, refs) {
 }
 
 function handleQueueBroadcast(message) {
-  const payload = message?.payload;
+  const payload = message?.payload !== undefined ? message.payload : message;
   if (!payload || payload.queueId == null) {
     return;
   }

@@ -690,7 +690,7 @@ function updateServingNotice() {
 }
 
 function handleQueueBroadcast(message) {
-  const payload = message?.payload;
+  const payload = message?.payload !== undefined ? message.payload : message;
   if (!payload || payload.queueId == null) {
     return;
   }
@@ -843,9 +843,15 @@ async function handleStopServing(queueId, button) {
 
 async function handleCallAgain(queueId, button) {
   if (!queueId) return;
+  const queue = taState.queues.find((q) => q.queue_id === queueId);
+  const serving = queue?.serving;
   startButtonLoading(button, 'Calling…');
   try {
-    const res = await apiPost('./api/ta/call_again.php', { queue_id: queueId });
+    const res = await apiPost('./api/ta/call_again.php', {
+      queue_id: queueId,
+      ta_name: taState.me?.name || '',
+      student_name: serving?.student_name || '',
+    });
     if (res?.success) {
       showToast('Call sent to projector.');
     } else {

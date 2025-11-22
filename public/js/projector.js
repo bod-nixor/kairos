@@ -191,7 +191,7 @@ function applyQueuePayload(payload) {
 }
 
 function handleQueueBroadcast(message) {
-  const payload = message?.payload;
+  const payload = message?.payload !== undefined ? message.payload : message;
   if (!payload || payload.queueId == null) return;
   const roomId = payload.roomId != null ? Number(payload.roomId) : null;
   if (projectorState.roomId && roomId && Number(projectorState.roomId) !== roomId) {
