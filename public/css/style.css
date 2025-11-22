@@ -795,6 +795,13 @@ body {
   align-items: flex-end;
 }
 
+.ta-serving-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ta-queue-title {
   margin: 0;
   font-size: 18px;

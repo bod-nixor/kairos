@@ -65,7 +65,7 @@ def _normalize_socket_path(raw: str) -> str:
     return value.rstrip("/") or "/socket.io"
 
 
-DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept"}
+DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept", "projector"}
 TOKEN_TTL_SECONDS = int(os.getenv("WS_TOKEN_TTL", "600") or 600)
 WS_SOCKET_PATH = _normalize_socket_path(os.getenv("WS_SOCKET_PATH", "/websocket/socket.io/"))
 WS_SHARED_SECRET = os.getenv("WS_SHARED_SECRET", "").strip()

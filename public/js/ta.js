@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderRooms([]);
       renderQueues();
       clearStudentPanel();
+      updateProjectorButton();
       if (window.SignoffWS) {
         window.SignoffWS.updateFilters({
           courseId: val ? Number(val) : null,
@@ -80,12 +81,20 @@ document.addEventListener('DOMContentLoaded', () => {
       taState.selectedStudent = null;
       renderQueues();
       clearStudentPanel();
+      updateProjectorButton();
       if (window.SignoffWS) {
         window.SignoffWS.updateFilters({ roomId: val ? Number(val) : null });
       }
       if (val) {
         loadQueues(val);
       }
+    });
+  }
+  const projectorBtn = document.getElementById('taProjectorBtn');
+  if (projectorBtn) {
+    projectorBtn.addEventListener('click', () => {
+      if (projectorBtn.disabled) return;
+      openProjectorView();
     });
   }
   const progressArea = document.getElementById('taProgressArea');
@@ -146,6 +155,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (action === 'stop-serving') {
         handleStopServing(queueId, actionBtn);
       }
+      if (action === 'call-again') {
+        handleCallAgain(queueId, actionBtn);
+      }
     });
   }
 });
@@ -197,6 +209,7 @@ async function bootstrapTA() {
   taState.courses = courses;
   renderCourses(courses);
   setTaView('dashboard');
+  updateProjectorButton();
   if (courses.length === 1) {
     taState.selectedCourse = `${courses[0].course_id}`;
     const select = document.getElementById('taCourseSelect');
@@ -271,6 +284,24 @@ function renderRooms(rooms) {
   select.disabled = !rooms.length;
 }
 
+function updateProjectorButton() {
+  const btn = document.getElementById('taProjectorBtn');
+  if (!btn) return;
+  const enabled = !!taState.selectedRoom;
+  btn.disabled = !enabled;
+  btn.title = enabled ? 'Open Projector View' : 'Select a room to open Projector View';
+}
+
+function openProjectorView() {
+  if (!taState.selectedRoom) return;
+  const url = new URL('./projector.html', window.location.href);
+  url.searchParams.set('room_id', taState.selectedRoom);
+  if (taState.selectedCourse) {
+    url.searchParams.set('course_id', taState.selectedCourse);
+  }
+  window.open(url.toString(), '_blank', 'noopener');
+}
+
 async function loadQueues(roomId) {
   try {
     const data = await apiGet(`./api/ta/queues.php?room_id=${encodeURIComponent(roomId)}`);
@@ -288,6 +319,7 @@ function renderQueues() {
   const list = document.getElementById('taQueueList');
   const notice = document.getElementById('taServingNotice');
   if (!list) return;
+  updateProjectorButton();
   list.innerHTML = '';
   taState.queueRefs = new Map();
   taState.studentDirectory = {};
@@ -598,13 +630,23 @@ function updateTaServingStatus(queue) {
   if (stopSlot) {
     stopSlot.innerHTML = '';
     if (queue.serving && queue.serving.ta_user_id && taState.me && queue.serving.ta_user_id === taState.me.user_id) {
+      const actions = document.createElement('div');
+      actions.className = 'ta-serving-actions';
+      const callBtn = document.createElement('button');
+      callBtn.type = 'button';
+      callBtn.className = 'btn btn-secondary btn-sm';
+      callBtn.dataset.action = 'call-again';
+      callBtn.dataset.queueId = queue.queue_id;
+      callBtn.textContent = 'Call Again';
+      actions.appendChild(callBtn);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn btn-danger btn-sm';
       btn.dataset.action = 'stop-serving';
       btn.dataset.queueId = queue.queue_id;
       btn.textContent = 'Stop Serving';
-      stopSlot.appendChild(btn);
+      actions.appendChild(btn);
+      stopSlot.appendChild(actions);
     }
   }
 
@@ -778,6 +820,26 @@ async function handleStopServing(queueId, button) {
     stopButtonLoading(button);
     const message = err?.message || 'Failed to stop serving.';
     showToast(message, { tone: 'error' });
+  }
+}
+
+async function handleCallAgain(queueId, button) {
+  if (!queueId) return;
+  startButtonLoading(button, 'Calling…');
+  try {
+    const res = await apiPost('./api/ta/call_again.php', { queue_id: queueId });
+    if (res?.success) {
+      showToast('Call sent to projector.');
+    } else {
+      const message = res?.message || res?.error;
+      throw new Error(message || 'Failed to notify projector.');
+    }
+  } catch (err) {
+    console.error('call again failed', err);
+    const message = err?.message || 'Failed to notify projector.';
+    showToast(message);
+  } finally {
+    stopButtonLoading(button);
   }
 }
 

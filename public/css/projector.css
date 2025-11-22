@@ -1,0 +1,146 @@
+:root {
+  --projector-bg: #0b0f1a;
+  --projector-panel: #151b2f;
+  --projector-border: #24304f;
+  --projector-text: #e8efff;
+  --projector-accent: #4ecdc4;
+  --projector-muted: #8fa2d2;
+}
+
+body.projector {
+  margin: 0;
+  padding: 24px;
+  background: var(--projector-bg);
+  color: var(--projector-text);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.projector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.projector-title {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.5px;
+}
+
+.projector-meta {
+  color: var(--projector-muted);
+  font-size: 16px;
+}
+
+.projector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.projector-card {
+  background: var(--projector-panel);
+  border: 1px solid var(--projector-border);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  min-height: 180px;
+}
+
+.projector-card h2 {
+  margin: 0 0 10px 0;
+  font-size: 22px;
+  color: var(--projector-accent);
+}
+
+.projector-card .queue-description {
+  margin: 0 0 12px;
+  color: var(--projector-muted);
+  font-size: 15px;
+}
+
+.projector-students {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.projector-student {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.projector-student.serving {
+  background: rgba(78, 205, 196, 0.14);
+  border-color: rgba(78, 205, 196, 0.5);
+  color: #f9feff;
+}
+
+.projector-student .status {
+  font-size: 14px;
+  color: var(--projector-muted);
+  margin-left: 10px;
+}
+
+.projector-empty {
+  color: var(--projector-muted);
+  font-size: 16px;
+}
+
+.projector-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 13, 26, 0.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.projector-overlay.active {
+  display: flex;
+}
+
+.projector-overlay .overlay-card {
+  text-align: center;
+  color: #fff;
+  max-width: 900px;
+  padding: 40px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #132040, #0a1227);
+  border: 2px solid rgba(78, 205, 196, 0.6);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.projector-overlay h1 {
+  margin: 0 0 12px;
+  font-size: 42px;
+}
+
+.projector-overlay p {
+  margin: 0;
+  font-size: 24px;
+  color: var(--projector-muted);
+}
+
+.projector-overlay .names {
+  font-size: 30px;
+  margin: 16px 0 10px;
+  font-weight: 700;
+  color: #eaf6ff;
+}
+
+.projector-overlay .subtitle {
+  color: var(--projector-muted);
+  font-size: 18px;
+}
