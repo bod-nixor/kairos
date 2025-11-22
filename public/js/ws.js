@@ -5,7 +5,8 @@
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
-  const WS_BASE_URL = 'wss://regatta.nixorcorporate.com/websocket/';
+  const WS_BASE_URL = 'wss://regatta.nixorcorporate.com';
+  const WS_PATH = '/websocket/socket.io';
 
   const state = {
     me: null,
@@ -239,7 +240,7 @@
 
     params.set('token', wsInfo.token);
 
-    baseUrl.pathname = '/websocket/socket.io';
+    baseUrl.pathname = WS_PATH;
     baseUrl.search = '';
     baseUrl.hash = '';
 
@@ -425,7 +426,8 @@
       const socket = io(endpoint.origin, {
         path: endpoint.path,
         query: endpoint.query,
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
+        upgrade: true,
       });
       state.socket = socket;
       bindSocketEvents(socket);
