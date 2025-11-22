@@ -5,6 +5,10 @@ const roomMetaEl = document.getElementById('roomMeta');
 const roomMain = document.getElementById('roomMain');
 const roomCard = document.getElementById('roomCard');
 const toastStack = document.getElementById('toastStack');
+let serveAudio;
+
+const AVERAGE_SERVICE_MINUTES = 5;
+const SERVED_SOUND_SRC = '/signoff/public/sounds/served-notification.mp3';
 
 const state = {
   roomId: null,
@@ -15,6 +19,7 @@ const state = {
   queueRefs: new Map(),
   me: null,
   initialized: false,
+  currentQueueIdInRoom: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -50,6 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.SignoffWS.init({
       getFilters: () => ({ roomId: state.roomId ? Number(state.roomId) : null }),
       onQueue: handleQueueBroadcast,
+      onTaAccept: handleTaAcceptPayload,
     });
     window.SignoffWS.updateFilters({ roomId: Number(state.roomId) });
   }
@@ -114,6 +120,7 @@ async function fetchQueues(roomId) {
 function applyInitialQueues(list) {
   state.queues.clear();
   state.queueRefs.clear();
+  state.currentQueueIdInRoom = null;
   if (queuesContainer) {
     queuesContainer.innerHTML = '';
   }
@@ -129,6 +136,44 @@ function applyInitialQueues(list) {
     state.queues.set(queue.queueId, queue);
     createQueueCard(queue);
   });
+
+  refreshCurrentQueueMembership({ forceUpdateButtons: true });
+}
+
+function detectCurrentQueueIdInRoom() {
+  if (state.userId == null) return null;
+  for (const queue of state.queues.values()) {
+    const hasMembership = queue.students.some(
+      (student) => student.id === state.userId && (student.status === 'waiting' || student.status === 'serving'),
+    );
+    if (hasMembership) {
+      return queue.queueId;
+    }
+  }
+  return null;
+}
+
+function refreshCurrentQueueMembership({ forceUpdateButtons = false } = {}) {
+  const detected = detectCurrentQueueIdInRoom();
+  const changed = state.currentQueueIdInRoom !== detected;
+  state.currentQueueIdInRoom = detected;
+
+  if (changed || forceUpdateButtons) {
+    state.queueRefs.forEach((refs, queueId) => {
+      const queue = state.queues.get(queueId);
+      if (queue) {
+        updateQueueButtons(queue, refs);
+        updateQueueNote(queue, refs);
+      }
+    });
+  }
+}
+
+function getCurrentQueueIdInRoom() {
+  if (state.currentQueueIdInRoom == null) {
+    state.currentQueueIdInRoom = detectCurrentQueueIdInRoom();
+  }
+  return state.currentQueueIdInRoom;
 }
 
 function normalizeQueue(raw) {
@@ -222,6 +267,11 @@ function createQueueCard(queue) {
     titleWrap.appendChild(desc);
   }
 
+  const waitEstimate = document.createElement('div');
+  waitEstimate.className = 'muted small';
+  waitEstimate.dataset.role = 'wait-estimate';
+  titleWrap.appendChild(waitEstimate);
+
   const actions = document.createElement('div');
   actions.className = 'queue-actions';
 
@@ -247,6 +297,11 @@ function createQueueCard(queue) {
   header.appendChild(titleWrap);
   header.appendChild(actions);
 
+  const queueNote = document.createElement('div');
+  queueNote.className = 'muted small';
+  queueNote.dataset.role = 'queue-note';
+  queueNote.hidden = true;
+
   const occupantsWrap = document.createElement('div');
   occupantsWrap.className = 'queue-occupants';
   occupantsWrap.dataset.role = 'occupants';
@@ -262,6 +317,7 @@ function createQueueCard(queue) {
   occupantsWrap.appendChild(pills);
 
   card.appendChild(header);
+  card.appendChild(queueNote);
   card.appendChild(occupantsWrap);
 
   queuesContainer.appendChild(card);
@@ -273,6 +329,8 @@ function createQueueCard(queue) {
     label,
     pills,
     occupantsWrap,
+    waitEstimate,
+    queueNote,
   });
 
   updateQueueCard(queue);
@@ -287,6 +345,8 @@ function removeQueue(queueId) {
   state.queueRefs.delete(queueId);
   state.queues.delete(queueId);
 
+  refreshCurrentQueueMembership({ forceUpdateButtons: true });
+
   if (state.queues.size === 0) {
     showEmptyMessage();
   }
@@ -298,6 +358,8 @@ function updateQueueCard(queue) {
 
   updateQueueStudents(queue, refs);
   updateQueueButtons(queue, refs);
+  updateQueueWaitEstimate(queue, refs);
+  updateQueueNote(queue, refs);
 }
 
 function updateQueueStudents(queue, refs) {
@@ -335,11 +397,13 @@ function updateQueueButtons(queue, refs) {
   const waitingIds = new Set(queue.occupants.map((occ) => occ.user_id));
   const isWaiting = selfId != null && waitingIds.has(selfId);
   const isServing = selfId != null && queue.students.some((student) => student.id === selfId && student.status === 'serving');
+  const activeQueueId = getCurrentQueueIdInRoom();
+  const inAnotherQueue = activeQueueId != null && activeQueueId !== queue.queueId;
 
   if (joinBtn.dataset.loading === '1') {
     joinBtn.disabled = true;
   } else {
-    joinBtn.disabled = isWaiting || isServing;
+    joinBtn.disabled = isWaiting || isServing || inAnotherQueue;
   }
 
   const leaveDisabled = !isWaiting;
@@ -348,6 +412,36 @@ function updateQueueButtons(queue, refs) {
   } else {
     leaveBtn.disabled = leaveDisabled;
   }
+
+  if (inAnotherQueue) {
+    joinBtn.title = 'You are already in a queue in this room.';
+  } else {
+    joinBtn.removeAttribute('title');
+  }
+}
+
+function updateQueueWaitEstimate(queue, refs) {
+  if (!refs.waitEstimate) return;
+  const label = formatEstimatedWait(queue, state.userId);
+  refs.waitEstimate.textContent = label;
+}
+
+function updateQueueNote(queue, refs) {
+  if (!refs.queueNote) return;
+  const activeQueueId = getCurrentQueueIdInRoom();
+  const isServingMe = queue.serving?.student_user_id != null && state.userId != null
+    ? Number(queue.serving.student_user_id) === Number(state.userId)
+    : false;
+
+  let note = '';
+  if (isServingMe) {
+    note = 'You are currently being served in this queue.';
+  } else if (activeQueueId && activeQueueId !== queue.queueId) {
+    note = 'You are already in a queue in this room. Please leave that queue before joining another.';
+  }
+
+  refs.queueNote.textContent = note;
+  refs.queueNote.hidden = !note;
 }
 
 function handleQueueBroadcast(message) {
@@ -411,6 +505,8 @@ function syncQueuesWithServer(list) {
       removeQueue(queueId);
     }
   });
+
+  refreshCurrentQueueMembership({ forceUpdateButtons: true });
 }
 
 function applyQueuePayload(queueId, payload) {
@@ -467,6 +563,7 @@ function applyQueuePayload(queueId, payload) {
 
   state.queues.set(queueId, queue);
   updateQueueCard(queue);
+  refreshCurrentQueueMembership();
 }
 
 function applyIncrementalQueueChange(queue, payload) {
@@ -492,6 +589,44 @@ function applyIncrementalQueueChange(queue, payload) {
   }
 }
 
+function getWaitingCount(queue) {
+  if (!queue) return 0;
+  const waiting = queue.students.filter((student) => student.status === 'waiting');
+  const waitingCount = waiting.length;
+  if (Number.isFinite(queue.occupantCount)) {
+    return Math.max(waitingCount, Number(queue.occupantCount));
+  }
+  return waitingCount;
+}
+
+function getStudentQueuePosition(queue, studentId) {
+  if (!queue || studentId == null) return null;
+  const waiting = queue.students.filter((student) => student.status === 'waiting');
+  const index = waiting.findIndex((student) => student.id === studentId);
+  return index >= 0 ? index + 1 : null;
+}
+
+function getEstimatedWaitMinutes(queue, studentId) {
+  if (!queue) return null;
+  const waitingCount = getWaitingCount(queue);
+  const position = getStudentQueuePosition(queue, studentId);
+  if (position != null) {
+    return position * AVERAGE_SERVICE_MINUTES;
+  }
+  if (waitingCount <= 0) {
+    return 0;
+  }
+  return (waitingCount + 1) * AVERAGE_SERVICE_MINUTES;
+}
+
+function formatEstimatedWait(queue, studentId) {
+  const minutes = getEstimatedWaitMinutes(queue, studentId);
+  if (minutes == null) return '';
+  if (minutes <= 0) return 'Estimated wait: ~0–5 minutes';
+  const rounded = Math.max(1, Math.round(minutes));
+  return `Estimated wait: ~${rounded} minute${rounded === 1 ? '' : 's'}`;
+}
+
 queuesContainer?.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button) return;
@@ -506,6 +641,13 @@ queuesContainer?.addEventListener('click', async (event) => {
   const queue = state.queues.get(queueId);
   if (!queue) {
     showToast('Queue unavailable.');
+    return;
+  }
+
+  refreshCurrentQueueMembership();
+  const activeQueueId = state.currentQueueIdInRoom;
+  if (action === 'join' && activeQueueId && activeQueueId !== queueId) {
+    showToast('You are already in a queue in this room. Please leave that queue before joining another.');
     return;
   }
 
@@ -667,6 +809,98 @@ function showErrorCard(message) {
       <p><a class="btn btn-primary" href="/signoff/">Return to dashboard</a></p>
     </section>
   `;
+}
+
+function handleTaAcceptPayload(payload) {
+  const info = normalizeTaAcceptPayload(payload);
+  if (!info) return;
+
+  const matchesStudent = state.userId != null && info.studentId != null
+    && Number(info.studentId) === Number(state.userId);
+  if (!matchesStudent) return;
+
+  if (state.roomId && info.roomId && Number(state.roomId) !== Number(info.roomId)) {
+    return;
+  }
+
+  const taName = info.taName || 'A TA';
+  playServeNotificationSound();
+  showServeNotification(taName);
+
+  if (info.queueId) {
+    state.currentQueueIdInRoom = info.queueId;
+  }
+  refreshCurrentQueueMembership({ forceUpdateButtons: true });
+}
+
+function normalizeTaAcceptPayload(raw) {
+  const source = raw && typeof raw === 'object' && raw.payload && typeof raw.payload === 'object'
+    ? raw.payload
+    : raw || {};
+
+  const studentIdRaw = source.student_user_id ?? source.user_id ?? source.studentId ?? source.student_id;
+  const roomIdRaw = source.room_id ?? source.roomId ?? null;
+  const queueIdRaw = source.queue_id ?? source.queueId ?? source.ref_id ?? source.refId ?? raw?.ref_id ?? null;
+  const taName = source.ta_name ?? source.taName ?? '';
+
+  const studentId = Number(studentIdRaw);
+  const roomId = roomIdRaw != null ? Number(roomIdRaw) : null;
+  const queueId = queueIdRaw != null ? Number(queueIdRaw) : null;
+
+  return {
+    studentId: Number.isFinite(studentId) ? studentId : null,
+    roomId: Number.isFinite(roomId) ? roomId : null,
+    queueId: Number.isFinite(queueId) ? queueId : null,
+    taName: taName || '',
+  };
+}
+
+function playServeNotificationSound() {
+  if (typeof Audio === 'undefined') return;
+  try {
+    if (!serveAudio) {
+      serveAudio = new Audio(SERVED_SOUND_SRC);
+      serveAudio.preload = 'auto';
+    }
+    serveAudio.currentTime = 0;
+    const playPromise = serveAudio.play();
+    if (playPromise?.catch) {
+      playPromise.catch((err) => { console.debug('serve notification sound blocked', err); });
+    }
+  } catch (err) {
+    console.debug('serve notification sound failed', err);
+  }
+}
+
+function showServeNotification(taName) {
+  const container = toastStack || document.body;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+
+  const message = document.createElement('div');
+  message.innerHTML = `<strong>${escapeHtml(taName)}</strong> is serving you now, please raise your hand.`;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', 'Dismiss notification');
+  closeBtn.textContent = '×';
+  closeBtn.style.marginLeft = '12px';
+  closeBtn.style.background = 'transparent';
+  closeBtn.style.border = 'none';
+  closeBtn.style.color = 'inherit';
+  closeBtn.style.fontSize = '16px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.addEventListener('click', () => toast.remove());
+
+  toast.appendChild(message);
+  toast.appendChild(closeBtn);
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => { toast.classList.add('show'); });
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 250);
+  }, 10000);
 }
 
 function showToast(message) {
