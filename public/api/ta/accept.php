@@ -126,11 +126,36 @@ if (!empty($queue['room_id'])) {
 $taNameStmt = $pdo->prepare('SELECT name FROM users WHERE user_id = :uid');
 $taNameStmt->execute([':uid' => $ta['user_id']]);
 $taName = $taNameStmt->fetchColumn() ?: '';
+$studentName = queue_student_name($pdo, $studentId);
 
 $wsEvent['payload']['ta_name'] = $taName;
+if ($studentName !== '') {
+    $wsEvent['payload']['student_name'] = $studentName;
+}
 ws_notify($wsEvent);
 
-$studentName = queue_student_name($pdo, $studentId);
+$projectorPayload = [
+    'event'   => 'projector_serve',
+    'ref_id'  => $assignmentId,
+    'payload' => [
+        'type'             => 'serve',
+        'queue_id'         => $queueId,
+        'room_id'          => $queue['room_id'] ?? null,
+        'course_id'        => $meta['course_id'] ?? null,
+        'student_user_id'  => $studentId,
+        'student_name'     => $studentName,
+        'ta_user_id'       => $ta['user_id'] ?? null,
+        'ta_name'          => $taName,
+    ],
+];
+if (!empty($meta['course_id'])) {
+    $projectorPayload['course_id'] = (int)$meta['course_id'];
+}
+if (!empty($queue['room_id'])) {
+    $projectorPayload['room_id'] = (int)$queue['room_id'];
+}
+ws_notify($projectorPayload);
+
 queue_ws_notify($pdo, $queueId, 'serve', [
     'student_id'           => $studentId,
     'student_name'         => $studentName,

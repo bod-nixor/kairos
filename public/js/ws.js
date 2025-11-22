@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  const DEFAULT_CHANNELS = ['rooms', 'queue', 'progress', 'ta_accept'];
+  const DEFAULT_CHANNELS = ['rooms', 'queue', 'progress', 'ta_accept', 'projector'];
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
@@ -50,6 +50,7 @@
       onRooms: null,
       onProgress: null,
       onTaAccept: null,
+      onProjector: null,
       onOpen: null,
       onClose: null,
     },
@@ -109,7 +110,7 @@
   }
 
   function assignHandlers(options) {
-    ['onQueue', 'onRooms', 'onProgress', 'onTaAccept', 'onOpen', 'onClose'].forEach((key) => {
+    ['onQueue', 'onRooms', 'onProgress', 'onTaAccept', 'onProjector', 'onOpen', 'onClose'].forEach((key) => {
       if (typeof options[key] === 'function') {
         state.handlers[key] = options[key];
       }
@@ -386,6 +387,8 @@
       rooms: 'onRooms',
       progress: 'onProgress',
       ta_accept: 'onTaAccept',
+      projector_serve: 'onProjector',
+      projector_call_again: 'onProjector',
     };
 
     Object.keys(eventMap).forEach((eventName) => {
@@ -422,6 +425,8 @@
       rooms: 'onRooms',
       progress: 'onProgress',
       ta_accept: 'onTaAccept',
+      projector_serve: 'onProjector',
+      projector_call_again: 'onProjector',
     };
 
     const handlerName = handlerMap[eventName];

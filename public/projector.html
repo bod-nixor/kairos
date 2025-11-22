@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Projector View · Kairos</title>
+  <link rel="icon" type="image/png" href="./images/logo.png" />
+  <link rel="stylesheet" href="./css/projector.css" />
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="./js/config.js"></script>
+</head>
+<body class="projector">
+  <header class="projector-header">
+    <div>
+      <div class="projector-meta" id="projectorCourse"></div>
+      <h1 class="projector-title" id="projectorRoom">Projector View</h1>
+      <div class="projector-meta" id="projectorHelper">Live room queues</div>
+    </div>
+    <img src="./images/logo-full.png" alt="Kairos" height="42" />
+  </header>
+
+  <main>
+    <div id="projectorGrid" class="projector-grid"></div>
+    <div id="projectorEmpty" class="projector-empty" style="display:none">No open queues for this room.</div>
+  </main>
+
+  <div id="projectorOverlay" class="projector-overlay" aria-live="polite" aria-atomic="true">
+    <div class="overlay-card">
+      <h1 id="overlayTitle">Now Serving</h1>
+      <div class="names" id="overlayNames"></div>
+      <p class="subtitle" id="overlaySubtitle">Please raise your hand.</p>
+    </div>
+  </div>
+
+  <script src="./js/ws.js"></script>
+  <script type="module" src="./js/projector.js"></script>
+</body>
+</html>
