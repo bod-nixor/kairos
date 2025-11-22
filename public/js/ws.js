@@ -5,19 +5,35 @@
   const MAX_BACKOFF = 10000;
   const INITIAL_BACKOFF = 1000;
   const TOKEN_REFRESH_THRESHOLD_MS = 9 * 60 * 1000;
-  const APP_CONFIG = global.SignoffConfig || global.SIGNOFF_CONFIG || {};
-  const WS_BASE_URL = (() => {
-    const raw = typeof APP_CONFIG.wsBaseUrl === 'string' ? APP_CONFIG.wsBaseUrl.trim() : '';
-    if (raw) {
-      return raw;
+  const DEFAULT_WS_BASE_URL = 'wss://regatta.nixorcorporate.com';
+  const DEFAULT_WS_PATH = '/websocket/socket.io';
+  let WS_BASE_URL = DEFAULT_WS_BASE_URL;
+  let WS_PATH = DEFAULT_WS_PATH;
+  let configReady = false;
+  let pendingEnsure = false;
+
+  function applyConfig(config) {
+    const cfg = config || {};
+    WS_BASE_URL = typeof cfg.wsBaseUrl === 'string' && cfg.wsBaseUrl.trim() !== ''
+      ? cfg.wsBaseUrl.trim()
+      : DEFAULT_WS_BASE_URL;
+    WS_PATH = typeof cfg.wsSocketPath === 'string' && cfg.wsSocketPath.trim() !== ''
+      ? `/${cfg.wsSocketPath.replace(/^\/+/, '')}`
+      : DEFAULT_WS_PATH;
+    configReady = true;
+    if (pendingEnsure) {
+      pendingEnsure = false;
+      ensureConnection(true);
     }
-    return 'wss://regatta.nixorcorporate.com';
-  })();
-  const WS_PATH = (() => {
-    const raw = typeof APP_CONFIG.wsSocketPath === 'string' ? APP_CONFIG.wsSocketPath.trim() : '';
-    const normalized = raw ? `/${raw.replace(/^\/+/, '')}` : '/websocket/socket.io';
-    return normalized;
-  })();
+  }
+
+  const configPromise = typeof global.waitForAppConfig === 'function'
+    ? global.waitForAppConfig()
+    : Promise.resolve(global.SignoffConfig || global.SIGNOFF_CONFIG || {});
+
+  configPromise
+    .then(applyConfig)
+    .catch(() => { applyConfig(global.SignoffConfig || global.SIGNOFF_CONFIG || {}); });
 
   const state = {
     me: null,
@@ -450,8 +466,12 @@
     }
   }
 
-  async function ensureConnection() {
-    if (state.disabled || state.socket || state.connecting) {
+  async function ensureConnection(force = false) {
+    if (!configReady) {
+      pendingEnsure = true;
+      return;
+    }
+    if (!force && (state.disabled || state.socket || state.connecting)) {
       return;
     }
     try {

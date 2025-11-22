@@ -1,5 +1,9 @@
-const APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
-const ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+let APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
+let ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+function setAppConfig(config) {
+  APP_CONFIG = config || {};
+  ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
+}
 
 const state = {
   courses: [],
@@ -27,9 +31,22 @@ const els = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  updateAllowedDomainCopy();
-  bootstrap();
-  bindEvents();
+  const startApp = () => {
+    updateAllowedDomainCopy();
+    bootstrap();
+    bindEvents();
+  };
+
+  if (typeof window.waitForAppConfig === 'function') {
+    window.waitForAppConfig()
+      .then((cfg) => { setAppConfig(cfg); startApp(); })
+      .catch(() => {
+        setAppConfig(typeof window.getAppConfig === 'function' ? window.getAppConfig() : APP_CONFIG);
+        startApp();
+      });
+  } else {
+    startApp();
+  }
 });
 
 function updateAllowedDomainCopy() {
