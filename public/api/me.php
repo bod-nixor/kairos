@@ -15,12 +15,17 @@ $wsInfo = [
   'ts' => null,
 ];
 
-$publicUrl = getenv('WS_PUBLIC_URL') ?: '';
+$publicUrl = env('WS_PUBLIC_URL', '');
 if ($publicUrl !== '') {
   $publicUrl = rtrim($publicUrl, '/');
 }
 
-$secret = getenv('WS_SHARED_SECRET') ?: '';
+$socketPath = env('WS_SOCKET_PATH', '/websocket/socket.io');
+if (!is_string($socketPath) || $socketPath === '') {
+  $socketPath = '/websocket/socket.io';
+}
+
+$secret = env('WS_SHARED_SECRET', '');
 if ($secret !== '' && $publicUrl !== '' && !empty($user['user_id'])) {
   $ts = time();
   $uid = (int)$user['user_id'];
@@ -29,6 +34,7 @@ if ($secret !== '' && $publicUrl !== '' && !empty($user['user_id'])) {
   $wsInfo['ws_url'] = $publicUrl;
   $wsInfo['token'] = $token . '.' . $ts . '.' . $uid;
   $wsInfo['ts'] = $ts;
+  $wsInfo['socket_path'] = '/' . ltrim($socketPath, '/');
 } else {
   $wsInfo['ws_url'] = $publicUrl !== '' ? $publicUrl : null;
 }

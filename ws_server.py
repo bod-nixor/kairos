@@ -193,6 +193,22 @@ def _drop_connection(sid: str) -> None:
         _connections.pop(sid, None)
 
 
+def _room_names(state: ClientState) -> Set[str]:
+    rooms: Set[str] = set()
+    for channel in state.channels:
+        rooms.add(f"channel::{channel}")
+        if state.course_id is not None:
+            rooms.add(f"channel::{channel}::course::{state.course_id}")
+        if state.room_id is not None:
+            rooms.add(f"channel::{channel}::room::{state.room_id}")
+        if state.course_id is not None and state.room_id is not None:
+            rooms.add(
+                f"channel::{channel}::course::{state.course_id}::room::{state.room_id}"
+            )
+    rooms.add(f"user::{state.user_id}")
+    return rooms
+
+
 def _emit_to_matching_clients(payload: Dict[str, Any]) -> int:
     targets: list[str] = []
     with _connections_lock:
@@ -225,14 +241,8 @@ def handle_connect():
     )
     _record_connection(sid, state)
 
-    for channel in channels:
-        join_room(f"channel::{channel}")
-        if course_id is not None:
-            join_room(f"channel::{channel}::course::{course_id}")
-        if room_id is not None:
-            join_room(f"channel::{channel}::room::{room_id}")
-        if course_id is not None and room_id is not None:
-            join_room(f"channel::{channel}::course::{course_id}::room::{room_id}")
+    for room_name in sorted(_room_names(state)):
+        join_room(room_name)
 
     app.logger.info(
         "client connected user=%s channels=%s course_id=%s room_id=%s",
