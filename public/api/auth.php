@@ -123,7 +123,7 @@ try {
 
   // Domain check
   $hd = $payload['hd'] ?? '';
-  if (strcasecmp($hd, ALLOWED_DOMAIN) !== 0) {
+  if (ALLOWED_DOMAIN !== '' && strcasecmp($hd, ALLOWED_DOMAIN) !== 0) {
     throw new Exception('Unauthorized domain');
   }
 

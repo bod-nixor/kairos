@@ -141,13 +141,11 @@ if (!defined('DEFAULT_ROLE_NAME')) {
 
 if (!defined('ALLOWED_DOMAIN')) {
     $allowedDomain = env('ALLOWED_DOMAIN');
-    if (!is_string($allowedDomain) || $allowedDomain === '') {
-        throw new RuntimeException('ALLOWED_DOMAIN environment variable must be configured.');
+    if (!is_string($allowedDomain)) {
+        $allowedDomain = '';
     }
+
     $allowedDomain = ltrim($allowedDomain, '@');
-    if ($allowedDomain === '') {
-        throw new RuntimeException('ALLOWED_DOMAIN environment variable must specify a valid domain.');
-    }
     define('ALLOWED_DOMAIN', $allowedDomain);
 }
 
