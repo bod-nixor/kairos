@@ -393,7 +393,11 @@
 
     Object.keys(eventMap).forEach((eventName) => {
       socket.on(eventName, (payload) => {
-        handleIncomingMessage({ event: eventName, payload });
+        const message =
+          payload && typeof payload === 'object' && payload.event
+            ? payload
+            : { event: eventName, payload };
+        handleIncomingMessage(message);
       });
     });
   }

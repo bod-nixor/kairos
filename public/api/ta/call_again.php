@@ -13,6 +13,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 $queueId = isset($input['queue_id']) ? (int)$input['queue_id'] : 0;
+$providedStudentName = isset($input['student_name']) ? trim((string)$input['student_name']) : '';
+$providedTaName = isset($input['ta_name']) ? trim((string)$input['ta_name']) : '';
 
 if ($queueId <= 0) {
     json_out(['error' => 'queue_id required'], 400);
@@ -49,6 +51,13 @@ if (($assignment['ta_user_id'] ?? null) !== (int)$ta['user_id'] && $taRank < rol
 $studentId = isset($assignment['student_user_id']) ? (int)$assignment['student_user_id'] : 0;
 $studentName = $assignment['student_name'] ?? queue_student_name($pdo, $studentId);
 $taName = $assignment['ta_name'] ?? ($ta['name'] ?? '');
+
+if ($studentName === '' && $providedStudentName !== '') {
+    $studentName = $providedStudentName;
+}
+if ($taName === '' && $providedTaName !== '') {
+    $taName = $providedTaName;
+}
 
 $payload = [
     'type'            => 'call_again',
