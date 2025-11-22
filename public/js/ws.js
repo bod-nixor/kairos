@@ -239,11 +239,15 @@
 
     params.set('token', wsInfo.token);
 
-    baseUrl.pathname = '/websocket/';
-    baseUrl.search = `?${params.toString()}`;
+    baseUrl.pathname = '/websocket/socket.io';
+    baseUrl.search = '';
     baseUrl.hash = '';
 
-    return baseUrl.toString();
+    return {
+      origin: `${baseUrl.protocol}//${baseUrl.host}`,
+      path: baseUrl.pathname,
+      query: Object.fromEntries(params),
+    };
   }
 
   function clearReconnectTimer() {
@@ -278,7 +282,7 @@
     }
     try {
       state.manualClose = !!manual;
-      state.socket.close(code || 1000, reason || 'closing');
+      state.socket.disconnect();
     } catch (err) {
       console.debug('WebSocket disconnect error', err);
     } finally {
@@ -287,19 +291,19 @@
   }
 
   function bindSocketEvents(socket) {
-    socket.addEventListener('open', () => {
+    socket.on('connect', () => {
       resetBackoff();
       if (typeof state.handlers.onOpen === 'function') {
         try { state.handlers.onOpen(); } catch (err) { console.error('WS onOpen handler error', err); }
       }
     });
 
-    socket.addEventListener('error', (err) => {
+    socket.on('connect_error', (err) => {
       console.debug('WebSocket error', err);
       state.forceRefresh = true;
     });
 
-    socket.addEventListener('close', () => {
+    socket.on('disconnect', () => {
       const manual = state.manualClose;
       state.manualClose = false;
       state.socket = null;
@@ -315,8 +319,17 @@
       }
     });
 
-    socket.addEventListener('message', (event) => {
-      handleIncomingMessage(event?.data);
+    const eventMap = {
+      queue: 'onQueue',
+      rooms: 'onRooms',
+      progress: 'onProgress',
+      ta_accept: 'onTaAccept',
+    };
+
+    Object.keys(eventMap).forEach((eventName) => {
+      socket.on(eventName, (payload) => {
+        handleIncomingMessage({ event: eventName, payload });
+      });
     });
   }
 
@@ -409,7 +422,11 @@
     }
 
     try {
-      const socket = new WebSocket(endpoint);
+      const socket = io(endpoint.origin, {
+        path: endpoint.path,
+        query: endpoint.query,
+        transports: ['websocket'],
+      });
       state.socket = socket;
       bindSocketEvents(socket);
     } catch (err) {
