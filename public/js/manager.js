@@ -468,8 +468,13 @@ async function searchUsers() {
   if (!activeCourseId) return;
   const input = document.getElementById('userSearchInput');
   const term = (input.value || '').trim();
-  if (term.length < 2) {
-    alert('Enter at least 2 characters to search.');
+  const isEmailSearch = term.includes('@');
+  if (!isEmailSearch && term.length < 2) {
+    alert('Enter at least 2 characters to search by name.');
+    return;
+  }
+  if (isEmailSearch && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(term)) {
+    alert('Enter a full email address to search by email.');
     return;
   }
   lastSearchTerm = term;
@@ -484,7 +489,6 @@ async function searchUsers() {
     }
     resultsEl.innerHTML = '';
     results.forEach(user => {
-      const enrolled = Boolean(user.enrolled);
       const row = document.createElement('div');
       row.className = 'list-row';
       row.innerHTML = `
@@ -492,7 +496,7 @@ async function searchUsers() {
           <span>${escapeHtml(user.name || 'User #' + user.user_id)}</span>
           <span>${escapeHtml(user.email || '')}</span>
         </div>
-        <button class="btn ${enrolled ? 'btn-danger' : 'btn-primary'}" data-search-action="${enrolled ? 'unenroll' : 'enroll'}" data-user-id="${user.user_id}">${enrolled ? 'Unenroll' : 'Enroll'}</button>
+        <button class="btn btn-primary" data-search-action="enroll" data-user-id="${user.user_id}">Enroll</button>
       `;
       resultsEl.appendChild(row);
     });
@@ -504,8 +508,6 @@ async function searchUsers() {
       try {
         if (action === 'enroll') {
           await apiPost('./api/manager/enroll.php', { user_id: uid, course_id: activeCourseId });
-        } else {
-          await apiPost('./api/manager/unenroll.php', { user_id: uid, course_id: activeCourseId });
         }
         await Promise.all([loadRoster(), rerunLastSearch()]);
       } catch (err) {
