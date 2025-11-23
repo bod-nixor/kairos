@@ -10,7 +10,7 @@ header('Pragma: no-cache');
 $googleClientId = env('GOOGLE_CLIENT_ID');
 $allowedDomain = env('ALLOWED_DOMAIN', '');
 $wsSocketPath = env('WS_SOCKET_PATH', '/websocket/socket.io');
-$wsBaseUrl = env('WS_PUBLIC_URL', 'wss://regatta.nixorcorporate.com');
+$wsBaseUrl = env('WS_PUBLIC_URL', 'wss://kairos.nixorcorporate.com');
 
 $config = [
     'googleClientId' => is_string($googleClientId) && $googleClientId !== '' ? $googleClientId : null,
@@ -22,7 +22,7 @@ $config = [
 ];
 
 if ($config['wsBaseUrl'] === '') {
-    $config['wsBaseUrl'] = 'wss://regatta.nixorcorporate.com';
+    $config['wsBaseUrl'] = 'wss://kairos.nixorcorporate.com';
 }
 
 try {
