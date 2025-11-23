@@ -118,6 +118,20 @@ CREATE TABLE IF NOT EXISTS ta_audit_log (
   CONSTRAINT fk_ta_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ta_comments (
+  comment_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  course_id BIGINT UNSIGNED NOT NULL,
+  ta_user_id BIGINT UNSIGNED NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (comment_id),
+  KEY idx_ta_comments_user_course (user_id, course_id),
+  CONSTRAINT fk_ta_comments_user FOREIGN KEY (user_id) REFERENCES users (user_id),
+  CONSTRAINT fk_ta_comments_course FOREIGN KEY (course_id) REFERENCES courses (course_id),
+  CONSTRAINT fk_ta_comments_ta FOREIGN KEY (ta_user_id) REFERENCES users (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Optional change feed for SSE/WebSocket payload persistence
 CREATE TABLE IF NOT EXISTS change_log (
   change_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -226,6 +240,56 @@ CREATE TABLE IF NOT EXISTS course_roles (
   CONSTRAINT fk_course_roles_course FOREIGN KEY (course_id) REFERENCES courses (course_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Student progress tracking
+CREATE TABLE IF NOT EXISTS progress_category (
+  category_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  course_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (category_id),
+  KEY idx_progress_category_course (course_id),
+  CONSTRAINT fk_progress_category_course FOREIGN KEY (course_id) REFERENCES courses (course_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS progress_details (
+  detail_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  category_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (detail_id),
+  KEY idx_progress_details_category (category_id),
+  CONSTRAINT fk_progress_details_category FOREIGN KEY (category_id) REFERENCES progress_category (category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS progress_status (
+  progress_status_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(64) NOT NULL,
+  display_order INT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (progress_status_id),
+  UNIQUE KEY uk_progress_status_name (name),
+  KEY idx_progress_status_order (display_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS progress (
+  user_id BIGINT UNSIGNED NOT NULL,
+  detail_id BIGINT UNSIGNED NOT NULL,
+  status_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, detail_id),
+  KEY idx_progress_detail (detail_id),
+  KEY idx_progress_status (status_id),
+  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES users (user_id),
+  CONSTRAINT fk_progress_detail FOREIGN KEY (detail_id) REFERENCES progress_details (detail_id),
+  CONSTRAINT fk_progress_status FOREIGN KEY (status_id) REFERENCES progress_status (progress_status_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Seed base roles to simplify initial setup
 INSERT INTO roles (name) VALUES ('student'), ('ta'), ('manager'), ('admin')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- Seed default progress statuses used by APIs/UI
+INSERT INTO progress_status (name, display_order)
+VALUES ('Pending', 1), ('Completed', 2), ('Review', 3)
+ON DUPLICATE KEY UPDATE name = VALUES(name), display_order = VALUES(display_order);
