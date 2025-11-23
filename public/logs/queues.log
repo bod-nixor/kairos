@@ -1,13 +1,13 @@
 [2025-10-22 10:44:12][uid=2] POST action="join" queue_id=1
-[2025-10-22 10:44:12][uid=2] Caught PDOException: SQLSTATE[HY093]: Invalid parameter number TRACE=#0 /home/nixorc5/regatta.nixorcorporate.com/signoff/public/api/queues.php(112): PDOStatement->execute(Array)
+[2025-10-22 10:44:12][uid=2] Caught PDOException: SQLSTATE[HY093]: Invalid parameter number TRACE=#0 /home/nixorc5/kairos.nixorcorporate.com/signoff/public/api/queues.php(112): PDOStatement->execute(Array)
 #1 {main}
 [2025-10-22 10:44:40][uid=2] GET queues room_id_raw=null parsed=null SQL=SELECT CAST(queue_id AS UNSIGNED) AS queue_id, CAST(room_id AS UNSIGNED) AS room_id, name, description FROM queues_info ORDER BY name ARGS=[]
 [2025-10-22 10:44:40][uid=2] GET result ok=1 rows=1
 [2025-10-22 10:44:58][uid=2] POST action="join" queue_id=1
-[2025-10-22 10:44:58][uid=2] Caught PDOException: SQLSTATE[HY093]: Invalid parameter number TRACE=#0 /home/nixorc5/regatta.nixorcorporate.com/signoff/public/api/queues.php(112): PDOStatement->execute(Array)
+[2025-10-22 10:44:58][uid=2] Caught PDOException: SQLSTATE[HY093]: Invalid parameter number TRACE=#0 /home/nixorc5/kairos.nixorcorporate.com/signoff/public/api/queues.php(112): PDOStatement->execute(Array)
 #1 {main}
 [2025-10-22 10:45:52][uid=2] POST action="join" queue_id=1
-[2025-10-22 10:45:52][uid=2] Caught PDOException: SQLSTATE[HY093]: Invalid parameter number TRACE=#0 /home/nixorc5/regatta.nixorcorporate.com/signoff/public/api/queues.php(112): PDOStatement->execute(Array)
+[2025-10-22 10:45:52][uid=2] Caught PDOException: SQLSTATE[HY093]: Invalid parameter number TRACE=#0 /home/nixorc5/kairos.nixorcorporate.com/signoff/public/api/queues.php(112): PDOStatement->execute(Array)
 #1 {main}
 [2025-10-22 10:49:21][uid=2] POST action="join" queue_id=1
 [2025-10-22 10:49:21][uid=2] POST join success qid=1

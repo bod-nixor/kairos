@@ -141,7 +141,7 @@ _socketio_internal_path = WS_SOCKET_PATH.lstrip("/") or "socket.io"
 socketio = SocketIO(
     app,
     async_mode="eventlet",
-    cors_allowed_origins="https://regatta.nixorcorporate.com",
+    cors_allowed_origins="https://kairos.nixorcorporate.com",
     path=_socketio_internal_path,
     logger=True,
     engineio_logger=True,
