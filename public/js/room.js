@@ -8,7 +8,7 @@ const toastStack = document.getElementById('toastStack');
 let serveAudio;
 
 const AVERAGE_SERVICE_MINUTES = 5;
-const SERVED_SOUND_SRC = '/signoff/sounds/served-notification.mp3';
+const SERVED_SOUND_SRC = 'https://kairos.nixorcorporate.com/signoff/sounds/served-notification.mp3';
 
 const state = {
   roomId: null,
