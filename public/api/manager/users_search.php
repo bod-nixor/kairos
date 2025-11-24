@@ -19,7 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_out(['error' => 'method_not_allowed'], 405);
 }
 
-if (!table_exists($pdo, 'users') || !table_has_columns($pdo, 'users', ['user_id', 'name', 'email'])) {
+if (
+    !table_exists($pdo, 'users') ||
+    !table_has_columns($pdo, 'users', ['user_id', 'name', 'email', 'role_id']) ||
+    !table_exists($pdo, 'roles') ||
+    !table_has_columns($pdo, 'roles', ['role_id', 'name'])
+) {
     json_out(['error' => 'unsupported', 'message' => 'users table not available'], 500);
 }
 
@@ -45,18 +50,58 @@ if ($roster && $courseId > 0) {
     json_out($out);
 }
 
-if ($q === '' || strlen($q) < 2) {
+if ($q === '') {
     json_out([]);
 }
 
-$term = '%' . strtolower($q) . '%';
-$sql = 'SELECT user_id, name, email FROM users WHERE LOWER(name) LIKE :term OR LOWER(email) LIKE :term ORDER BY name LIMIT 25';
-$st  = $pdo->prepare($sql);
-$st->execute([':term' => $term]);
+$isEmail        = filter_var($q, FILTER_VALIDATE_EMAIL) !== false;
+$params         = [':role' => 'student'];
+$enrollmentMap  = $courseId > 0 ? resolve_enrollment_mapping($pdo) : null;
+$hasEnrollment  = $courseId > 0 && $enrollmentMap;
+$enrollmentJoin = '';
+$enrollmentWhere = '';
+$limit          = 25;
+
+if ($hasEnrollment) {
+    $enrollmentJoin = " LEFT JOIN `{$enrollmentMap['table']}` e ON e.`{$enrollmentMap['user_col']}` = u.user_id AND e.`{$enrollmentMap['course_col']}` = :cid";
+    $enrollmentWhere = ' AND e.`' . $enrollmentMap['user_col'] . '` IS NULL';
+    $params[':cid'] = $courseId;
+} elseif ($courseId > 0) {
+    $limit = 100;
+}
+
+if ($isEmail) {
+    $sql          = 'SELECT u.user_id, u.name, u.email
+                     FROM users u
+                     JOIN roles r ON r.role_id = u.role_id'
+                    . $enrollmentJoin .
+                    ' WHERE LOWER(u.email) = LOWER(:email) AND LOWER(r.name) = LOWER(:role)'
+                    . $enrollmentWhere .
+                    ' LIMIT ' . (int)$limit;
+    $params[':email'] = $q;
+} else {
+    if (strlen($q) < 2) {
+        json_out([]);
+    }
+
+    $term            = '%' . strtolower($q) . '%';
+    $sql             = 'SELECT u.user_id, u.name, u.email
+                        FROM users u
+                        JOIN roles r ON r.role_id = u.role_id'
+                        . $enrollmentJoin .
+                        ' WHERE LOWER(r.name) = LOWER(:role) AND LOWER(u.name) LIKE :term'
+                        . $enrollmentWhere .
+                        ' ORDER BY u.name
+                        LIMIT ' . (int)$limit;
+    $params[':term'] = $term;
+}
+
+$st = $pdo->prepare($sql);
+$st->execute($params);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $enrolled = [];
-if ($courseId > 0) {
+if ($courseId > 0 && !$hasEnrollment) {
     foreach (course_enrollment_user_ids($pdo, $courseId) as $uid) {
         $enrolled[$uid] = true;
     }
@@ -65,11 +110,15 @@ if ($courseId > 0) {
 $out = [];
 foreach ($rows as $row) {
     $uid = isset($row['user_id']) ? (int)$row['user_id'] : 0;
+    if ($courseId > 0 && !$hasEnrollment && !empty($enrolled[$uid])) {
+        continue;
+    }
+    $isEnrolled = $courseId > 0 && ($hasEnrollment ? false : !empty($enrolled[$uid]));
     $out[] = [
         'user_id'  => $uid,
         'name'     => $row['name'] ?? '',
         'email'    => $row['email'] ?? '',
-        'enrolled' => $courseId > 0 ? !empty($enrolled[$uid]) : null,
+        'enrolled' => $courseId > 0 ? $isEnrolled : null,
     ];
 }
 
