@@ -19,6 +19,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_out(['error' => 'method_not_allowed'], 405);
 }
 
+if (!function_exists('placeholders')) {
+    function placeholders(string $prefix, int $count): string {
+        if ($count <= 0) {
+            return '';
+        }
+
+        $parts = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $parts[] = ':' . $prefix . $i;
+        }
+
+        return implode(',', $parts);
+    }
+}
+
 if (
     !table_exists($pdo, 'users') ||
     !table_has_columns($pdo, 'users', ['user_id', 'name', 'email', 'role_id']) ||
@@ -94,6 +109,10 @@ if ($isEmail) {
                         ' ORDER BY u.name
                         LIMIT ' . (int)$limit;
     $params[':term'] = $term;
+}
+
+foreach ($roleNames as $idx => $roleName) {
+    $params[':role' . ($idx + 1)] = strtolower($roleName);
 }
 
 $st = $pdo->prepare($sql);
