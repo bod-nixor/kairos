@@ -101,7 +101,7 @@ $st->execute($params);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $enrolled = [];
-if ($courseId > 0) {
+if ($courseId > 0 && !$hasEnrollment) {
     foreach (course_enrollment_user_ids($pdo, $courseId) as $uid) {
         $enrolled[$uid] = true;
     }
@@ -110,14 +110,15 @@ if ($courseId > 0) {
 $out = [];
 foreach ($rows as $row) {
     $uid = isset($row['user_id']) ? (int)$row['user_id'] : 0;
-    if ($courseId > 0 && !empty($enrolled[$uid])) {
+    if ($courseId > 0 && !$hasEnrollment && !empty($enrolled[$uid])) {
         continue;
     }
+    $isEnrolled = $courseId > 0 && ($hasEnrollment ? false : !empty($enrolled[$uid]));
     $out[] = [
         'user_id'  => $uid,
         'name'     => $row['name'] ?? '',
         'email'    => $row['email'] ?? '',
-        'enrolled' => $courseId > 0 ? !empty($enrolled[$uid]) : null,
+        'enrolled' => $courseId > 0 ? $isEnrolled : null,
     ];
 }
 
