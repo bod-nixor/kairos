@@ -26,6 +26,9 @@ const els = {
   saveCourseBtn: document.getElementById('saveCourseBtn'),
   deleteCourseBtn: document.getElementById('deleteCourseBtn'),
   assignForm: document.getElementById('assignForm'),
+  assignSearchInput: document.getElementById('assignSearchInput'),
+  assignSearchBtn: document.getElementById('assignSearchBtn'),
+  assignSearchResults: document.getElementById('assignSearchResults'),
   assignments: document.getElementById('assignments'),
   assignmentTitle: document.getElementById('assignmentTitle'),
 };
@@ -186,6 +189,20 @@ function bindEvents() {
       await loadAssignments(courseId);
     } catch (err) {
       reportError(err, 'Failed to assign role');
+    }
+  });
+
+  const handleAssignSearch = () => {
+    searchEnrolledUsers().catch((err) => {
+      reportError(err, 'Failed to search enrolled users');
+    });
+  };
+
+  els.assignSearchBtn?.addEventListener('click', handleAssignSearch);
+  els.assignSearchInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleAssignSearch();
     }
   });
 
@@ -373,9 +390,76 @@ function toggleAssignForm(enabled) {
   inputs?.forEach((el) => {
     el.disabled = !enabled;
   });
+  if (els.assignSearchInput) {
+    els.assignSearchInput.disabled = !enabled;
+    if (!enabled) {
+      els.assignSearchInput.value = '';
+    }
+  }
+  if (els.assignSearchBtn) {
+    els.assignSearchBtn.disabled = !enabled;
+  }
+  if (els.assignSearchResults && !enabled) {
+    els.assignSearchResults.innerHTML = '';
+  }
   if (!enabled) {
     els.assignForm?.reset();
   }
+}
+
+async function searchEnrolledUsers() {
+  if (!state.selectedId || !els.assignSearchInput || !els.assignSearchResults) return;
+
+  const assignInput = els.assignForm?.querySelector('input[name="user"]');
+  const term = (els.assignSearchInput.value || '').trim();
+  const resultsEl = els.assignSearchResults;
+
+  if (!term) {
+    resultsEl.innerHTML = '<div class="muted">Enter a name or email to search.</div>';
+    return;
+  }
+
+  const isEmailSearch = term.includes('@');
+  if (!isEmailSearch && term.length < 2) {
+    showStatus('Enter at least 2 characters to search by name.', 'error');
+    return;
+  }
+  if (isEmailSearch && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(term)) {
+    showStatus('Enter a full email address to search by email.', 'error');
+    return;
+  }
+
+  resultsEl.innerHTML = '<div class="muted">Searching…</div>';
+  resultsEl.onclick = null;
+
+  const results = await fetchJSON(`./api/admin/users_search.php?course_id=${encodeURIComponent(state.selectedId)}&q=${encodeURIComponent(term)}`);
+  if (!Array.isArray(results) || !results.length) {
+    resultsEl.innerHTML = '<div class="muted">No matching enrolled users.</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = '';
+  results.forEach((user) => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `
+      <div class="meta">
+        <span>${escapeHtml(user.name || 'User #' + user.user_id)}</span>
+        <span>${escapeHtml(user.email || '')}</span>
+      </div>
+      <button type="button" class="btn" data-fill-user="${Number(user.user_id)}">Use</button>
+    `;
+    resultsEl.appendChild(row);
+  });
+
+  resultsEl.onclick = (event) => {
+    const btn = event.target.closest('button[data-fill-user]');
+    if (!btn || !assignInput) return;
+    const uid = Number(btn.getAttribute('data-fill-user'));
+    if (!uid) return;
+    assignInput.value = String(uid);
+    assignInput.focus();
+  };
 }
 
 async function loadAssignments(courseId) {

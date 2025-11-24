@@ -82,6 +82,16 @@
         <h2>Course staff</h2>
         <span class="muted" id="assignmentTitle">Select a course to view staff</span>
       </div>
+      <div class="grid-two align-end">
+        <div>
+          <label class="muted">Search enrolled users</label>
+          <input type="text" id="assignSearchInput" placeholder="Search by name or email" disabled />
+        </div>
+        <div>
+          <button type="button" id="assignSearchBtn" disabled>Search</button>
+        </div>
+      </div>
+      <div id="assignSearchResults" class="list-stack"></div>
       <form id="assignForm" class="grid-two align-end">
         <div>
           <label class="muted">User ID or email</label>
