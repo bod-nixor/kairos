@@ -19,6 +19,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_out(['error' => 'method_not_allowed'], 405);
 }
 
+if (!function_exists('placeholders')) {
+    function placeholders(string $prefix, int $count): string {
+        if ($count <= 0) {
+            return '';
+        }
+
+        $parts = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $parts[] = ':' . $prefix . $i;
+        }
+
+        return implode(',', $parts);
+    }
+}
+
 if (
     !table_exists($pdo, 'users') ||
     !table_has_columns($pdo, 'users', ['user_id', 'name', 'email', 'role_id']) ||
@@ -54,15 +69,31 @@ if ($q === '') {
     json_out([]);
 }
 
-$isEmail = filter_var($q, FILTER_VALIDATE_EMAIL) !== false;
-$params  = [':role' => 'student'];
+$isEmail        = filter_var($q, FILTER_VALIDATE_EMAIL) !== false;
+$roleNames      = ['student', 'admin'];
+$params         = [];
+$enrollmentMap  = $courseId > 0 ? resolve_enrollment_mapping($pdo) : null;
+$hasEnrollment  = $courseId > 0 && $enrollmentMap;
+$enrollmentJoin = '';
+$enrollmentWhere = '';
+$limit          = 25;
+
+if ($hasEnrollment) {
+    $enrollmentJoin = " LEFT JOIN `{$enrollmentMap['table']}` e ON e.`{$enrollmentMap['user_col']}` = u.user_id AND e.`{$enrollmentMap['course_col']}` = :cid";
+    $enrollmentWhere = ' AND e.`' . $enrollmentMap['user_col'] . '` IS NULL';
+    $params[':cid'] = $courseId;
+} elseif ($courseId > 0) {
+    $limit = 100;
+}
 
 if ($isEmail) {
     $sql          = 'SELECT u.user_id, u.name, u.email
                      FROM users u
-                     JOIN roles r ON r.role_id = u.role_id
-                     WHERE LOWER(u.email) = LOWER(:email) AND LOWER(r.name) = LOWER(:role)
-                     LIMIT 25';
+                     JOIN roles r ON r.role_id = u.role_id'
+                    . $enrollmentJoin .
+                    ' WHERE LOWER(u.email) = LOWER(:email) AND LOWER(r.name) IN (' . placeholders('role', count($roleNames)) . ')'
+                    . $enrollmentWhere .
+                    ' LIMIT ' . (int)$limit;
     $params[':email'] = $q;
 } else {
     if (strlen($q) < 2) {
@@ -72,11 +103,17 @@ if ($isEmail) {
     $term            = '%' . strtolower($q) . '%';
     $sql             = 'SELECT u.user_id, u.name, u.email
                         FROM users u
-                        JOIN roles r ON r.role_id = u.role_id
-                        WHERE LOWER(r.name) = LOWER(:role) AND LOWER(u.name) LIKE :term
-                        ORDER BY u.name
-                        LIMIT 25';
+                        JOIN roles r ON r.role_id = u.role_id'
+                        . $enrollmentJoin .
+                        ' WHERE LOWER(r.name) IN (' . placeholders('role', count($roleNames)) . ') AND LOWER(u.name) LIKE :term'
+                        . $enrollmentWhere .
+                        ' ORDER BY u.name
+                        LIMIT ' . (int)$limit;
     $params[':term'] = $term;
+}
+
+foreach ($roleNames as $idx => $roleName) {
+    $params[':role' . ($idx + 1)] = strtolower($roleName);
 }
 
 $st = $pdo->prepare($sql);
@@ -84,7 +121,7 @@ $st->execute($params);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $enrolled = [];
-if ($courseId > 0) {
+if ($courseId > 0 && !$hasEnrollment) {
     foreach (course_enrollment_user_ids($pdo, $courseId) as $uid) {
         $enrolled[$uid] = true;
     }
@@ -93,14 +130,15 @@ if ($courseId > 0) {
 $out = [];
 foreach ($rows as $row) {
     $uid = isset($row['user_id']) ? (int)$row['user_id'] : 0;
-    if ($courseId > 0 && !empty($enrolled[$uid])) {
+    if ($courseId > 0 && !$hasEnrollment && !empty($enrolled[$uid])) {
         continue;
     }
+    $isEnrolled = $courseId > 0 && ($hasEnrollment ? false : !empty($enrolled[$uid]));
     $out[] = [
         'user_id'  => $uid,
         'name'     => $row['name'] ?? '',
         'email'    => $row['email'] ?? '',
-        'enrolled' => $courseId > 0 ? !empty($enrolled[$uid]) : null,
+        'enrolled' => $courseId > 0 ? $isEnrolled : null,
     ];
 }
 
