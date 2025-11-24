@@ -55,7 +55,7 @@ if ($q === '') {
 }
 
 $isEmail        = filter_var($q, FILTER_VALIDATE_EMAIL) !== false;
-$params         = [':role' => 'student'];
+$params         = [];
 $enrollmentMap  = $courseId > 0 ? resolve_enrollment_mapping($pdo) : null;
 $hasEnrollment  = $courseId > 0 && $enrollmentMap;
 $enrollmentJoin = '';
@@ -72,10 +72,9 @@ if ($hasEnrollment) {
 
 if ($isEmail) {
     $sql          = 'SELECT u.user_id, u.name, u.email
-                     FROM users u
-                     JOIN roles r ON r.role_id = u.role_id'
+                     FROM users u'
                     . $enrollmentJoin .
-                    ' WHERE LOWER(u.email) = LOWER(:email) AND LOWER(r.name) = LOWER(:role)'
+                    ' WHERE LOWER(u.email) = LOWER(:email)'
                     . $enrollmentWhere .
                     ' LIMIT ' . (int)$limit;
     $params[':email'] = $q;
@@ -86,10 +85,9 @@ if ($isEmail) {
 
     $term            = '%' . strtolower($q) . '%';
     $sql             = 'SELECT u.user_id, u.name, u.email
-                        FROM users u
-                        JOIN roles r ON r.role_id = u.role_id'
+                        FROM users u'
                         . $enrollmentJoin .
-                        ' WHERE LOWER(r.name) = LOWER(:role) AND LOWER(u.name) LIKE :term'
+                        ' WHERE LOWER(u.name) LIKE :term'
                         . $enrollmentWhere .
                         ' ORDER BY u.name
                         LIMIT ' . (int)$limit;
