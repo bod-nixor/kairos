@@ -100,10 +100,18 @@ try {
             json_out(['error' => 'not_found'], 404);
         }
         assert_manager_controls_course($pdo, $userId, (int)$info['course_id']);
-        $stmt = $pdo->prepare('DELETE FROM queues WHERE queue_id = :qid LIMIT 1');
-        $stmt->execute([':qid' => $queueId]);
+        $pdo->beginTransaction();
+        try {
+            $deleted = delete_queue_and_dependents($pdo, $queueId);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
         ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
-        json_out(['success' => true, 'deleted' => $stmt->rowCount() > 0]);
+        json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {
     json_out(['error' => 'server', 'message' => $e->getMessage()], 500);

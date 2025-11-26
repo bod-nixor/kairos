@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS queues (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (queue_id),
   KEY idx_queues_room (room_id),
-  CONSTRAINT fk_queues_room FOREIGN KEY (room_id) REFERENCES rooms (room_id)
+  CONSTRAINT fk_queues_room FOREIGN KEY (room_id) REFERENCES rooms (room_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS queue_entries (
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS queue_entries (
   `timestamp` DATETIME NOT NULL,
   PRIMARY KEY (queue_id, user_id),
   KEY idx_queue_entries_queue_user (queue_id, user_id),
-  CONSTRAINT fk_queue_entries_queue FOREIGN KEY (queue_id) REFERENCES queues (queue_id),
+  CONSTRAINT fk_queue_entries_queue FOREIGN KEY (queue_id) REFERENCES queues (queue_id) ON DELETE CASCADE,
   CONSTRAINT fk_queue_entries_user FOREIGN KEY (user_id) REFERENCES users (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS ta_assignments (
   KEY idx_ta_assignments_student (student_user_id),
   CONSTRAINT fk_ta_assignments_ta FOREIGN KEY (ta_user_id) REFERENCES users (user_id),
   CONSTRAINT fk_ta_assignments_student FOREIGN KEY (student_user_id) REFERENCES users (user_id),
-  CONSTRAINT fk_ta_assignments_queue FOREIGN KEY (queue_id) REFERENCES queues (queue_id)
+  CONSTRAINT fk_ta_assignments_queue FOREIGN KEY (queue_id) REFERENCES queues (queue_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ta_audit_log (
