@@ -80,10 +80,18 @@ try {
             json_out(['error' => 'not_found'], 404);
         }
         assert_manager_controls_course($pdo, $userId, $courseFromRoom);
-        $stmt = $pdo->prepare('DELETE FROM rooms WHERE room_id = :rid LIMIT 1');
-        $stmt->execute([':rid' => $roomId]);
+        $pdo->beginTransaction();
+        try {
+            $deleted = delete_room_and_dependents($pdo, $roomId);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
         ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
-        json_out(['success' => true, 'deleted' => $stmt->rowCount() > 0]);
+        json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {
     json_out(['error' => 'server', 'message' => $e->getMessage()], 500);

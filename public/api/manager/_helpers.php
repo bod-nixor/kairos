@@ -209,6 +209,79 @@ function queue_room_course(PDO $pdo, int $queueId): ?array {
     ];
 }
 
+/**
+ * Delete a queue and any related records that reference it.
+ */
+function delete_queue_and_dependents(PDO $pdo, int $queueId): bool {
+    if ($queueId <= 0) {
+        return false;
+    }
+
+    $cascadeTables = [
+        ['queue_entries', 'queue_id'],
+        ['ta_assignments', 'queue_id'],
+        ['queue_staff', 'queue_id'],
+        ['queue_tas', 'queue_id'],
+        ['queue_permissions', 'queue_id'],
+        ['queue_users', 'queue_id'],
+        ['queue_members', 'queue_id'],
+    ];
+
+    foreach ($cascadeTables as [$table, $col]) {
+        if (!table_exists($pdo, $table) || !table_has_columns($pdo, $table, [$col])) {
+            continue;
+        }
+        $st = $pdo->prepare("DELETE FROM `{$table}` WHERE `{$col}` = :qid");
+        $st->execute([':qid' => $queueId]);
+    }
+
+    if (!table_exists($pdo, 'queues') || !table_has_columns($pdo, 'queues', ['queue_id'])) {
+        return false;
+    }
+
+    $st = $pdo->prepare('DELETE FROM queues WHERE queue_id = :qid LIMIT 1');
+    $st->execute([':qid' => $queueId]);
+    return $st->rowCount() > 0;
+}
+
+/**
+ * Delete a room, its queues, and any related queue/room records.
+ */
+function delete_room_and_dependents(PDO $pdo, int $roomId): bool {
+    if ($roomId <= 0) {
+        return false;
+    }
+
+    if (!table_exists($pdo, 'rooms') || !table_has_columns($pdo, 'rooms', ['room_id'])) {
+        return false;
+    }
+
+    if (table_exists($pdo, 'queues') && table_has_columns($pdo, 'queues', ['queue_id', 'room_id'])) {
+        $queues = $pdo->prepare('SELECT queue_id FROM queues WHERE room_id = :rid');
+        $queues->execute([':rid' => $roomId]);
+        foreach ($queues->fetchAll(PDO::FETCH_COLUMN) as $queueId) {
+            delete_queue_and_dependents($pdo, (int)$queueId);
+        }
+    }
+
+    $roomTables = [
+        ['room_staff', 'room_id'],
+        ['room_tas', 'room_id'],
+        ['room_users', 'room_id'],
+    ];
+    foreach ($roomTables as [$table, $col]) {
+        if (!table_exists($pdo, $table) || !table_has_columns($pdo, $table, [$col])) {
+            continue;
+        }
+        $st = $pdo->prepare("DELETE FROM `{$table}` WHERE `{$col}` = :rid");
+        $st->execute([':rid' => $roomId]);
+    }
+
+    $st = $pdo->prepare('DELETE FROM rooms WHERE room_id = :rid LIMIT 1');
+    $st->execute([':rid' => $roomId]);
+    return $st->rowCount() > 0;
+}
+
 function users_for_course(PDO $pdo, int $courseId): array {
     $ids = course_enrollment_user_ids($pdo, $courseId);
     if (!$ids) {
