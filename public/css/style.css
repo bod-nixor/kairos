@@ -1,18 +1,98 @@
 :root {
+  color-scheme: light;
   --bg: #f7f8fb;
-  --panel: #fff;
+  --panel: #ffffff;
+  --surface-subtle: #f6f7f8;
   --text: #0f172a;
+  --text-contrast: #ffffff;
   --muted: #64748b;
   --primary: #1769ff;
   --primary-ghost: rgba(23, 105, 255, 0.12);
   --ok: #16a34a;
   --warn: #f59e0b;
+  --danger: #dc2626;
   --border: #e6e8ef;
   --shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
   --radius: 16px;
   --sidebar: #0b1225;
   --sidebar-text: #e5edff;
   --sidebar-muted: #8ea1c9;
+  --nav-hover: #121a33;
+  --nav-active: #19244a;
+  --status-none-bg: #f6f7f8;
+  --status-none-text: #666666;
+  --status-pending-bg: #f7e3a1;
+  --status-pending-text: #6a5400;
+  --status-completed-bg: #dff3e3;
+  --status-completed-text: #1e6a3b;
+  --status-review-bg: #f7d3d6;
+  --status-review-text: #7b1d25;
+  --pill-bg: #eef2ff;
+  --pill-text: #3730a3;
+  --pill-you-bg: #dcfce7;
+  --pill-you-text: #166534;
+  --pill-me-bg: #dbeafe;
+  --pill-me-text: #1d4ed8;
+  --message-error-bg: #fee2e2;
+  --message-error-text: #b91c1c;
+  --message-success-bg: #dcfce7;
+  --message-success-text: #15803d;
+  --skeleton-bg: #eef0f5;
+  --skeleton-sheen: rgba(255, 255, 255, 0.6);
+  --list-surface: #f8f9fc;
+  --panel-soft: #f6f8ff;
+  --input-bg: #ffffff;
+  --toast-bg: rgba(15, 23, 42, 0.92);
+  --toast-error: #dc2626;
+  --modal-backdrop: rgba(11, 18, 37, 0.65);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #11151f;
+  --panel: #1b202c;
+  --surface-subtle: #1f2533;
+  --text: #e5e9f5;
+  --text-contrast: #f8fbff;
+  --muted: #a8b3cf;
+  --primary: #7ba5ff;
+  --primary-ghost: rgba(123, 165, 255, 0.2);
+  --ok: #46c07f;
+  --warn: #f8b84a;
+  --danger: #f36464;
+  --border: #2c3242;
+  --shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+  --sidebar: #0d131f;
+  --sidebar-text: #dde7ff;
+  --sidebar-muted: #9fb2dd;
+  --nav-hover: #161d2b;
+  --nav-active: #1f2938;
+  --status-none-bg: #222c3c;
+  --status-none-text: #cfd7e6;
+  --status-pending-bg: #3a2e12;
+  --status-pending-text: #ffd16c;
+  --status-completed-bg: #163323;
+  --status-completed-text: #8ef1b4;
+  --status-review-bg: #3a1f26;
+  --status-review-text: #f7b4c0;
+  --pill-bg: #1f2a3f;
+  --pill-text: #c5d5ff;
+  --pill-you-bg: #1c3a2a;
+  --pill-you-text: #93e5b5;
+  --pill-me-bg: #122844;
+  --pill-me-text: #a7c8ff;
+  --message-error-bg: #3b1c1f;
+  --message-error-text: #f0a8ad;
+  --message-success-bg: #153125;
+  --message-success-text: #98e9bc;
+  --skeleton-bg: #1b2232;
+  --skeleton-sheen: rgba(255, 255, 255, 0.12);
+  --list-surface: #1e2634;
+  --panel-soft: #222c3a;
+  --input-bg: #161b26;
+  --toast-bg: rgba(15, 23, 42, 0.92);
+  --toast-error: #f36464;
+  --modal-backdrop: rgba(7, 10, 17, 0.7);
 }
 
 * {
@@ -226,12 +306,12 @@ body {
 }
 
 .nav-item:hover {
-  background: #121a33;
+  background: var(--nav-hover);
 }
 
 .nav-item.active,
 .nav-item[aria-current="page"] {
-  background: #19244a;
+  background: var(--nav-active);
 }
 
 .app-header {
@@ -386,7 +466,7 @@ body {
 
 .btn-primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--text-contrast);
 }
 
 .btn-primary:hover {
@@ -399,8 +479,8 @@ body {
 }
 
 .btn-danger {
-  background: #dc2626;
-  color: #fff;
+  background: var(--danger);
+  color: var(--text-contrast);
 }
 
 .btn-secondary {
@@ -435,6 +515,59 @@ body {
 
 .btn-label {
   line-height: 1;
+}
+
+.theme-toggle {
+  position: relative;
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.theme-toggle__thumb {
+  position: absolute;
+  inset: 4px;
+  width: 22px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transform: translateX(0);
+  transition: transform 0.18s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-toggle.is-dark .theme-toggle__thumb {
+  transform: translateX(24px);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.theme-toggle__icon {
+  font-size: 14px;
+  line-height: 1;
+  position: absolute;
+  opacity: 0.75;
+}
+
+.theme-toggle__icon--sun {
+  left: 10px;
+}
+
+.theme-toggle__icon--moon {
+  right: 10px;
 }
 
 @keyframes btn-spin {
@@ -512,7 +645,7 @@ body {
 }
 
 .progress-cell {
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 14px;
@@ -539,23 +672,23 @@ body {
 }
 
 .status-none {
-  background: #f6f7f8;
-  color: #666;
+  background: var(--status-none-bg);
+  color: var(--status-none-text);
 }
 
 .status-pending {
-  background: #f7e3a1;
-  color: #6a5400;
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
 }
 
 .status-completed {
-  background: #dff3e3;
-  color: #1e6a3b;
+  background: var(--status-completed-bg);
+  color: var(--status-completed-text);
 }
 
 .status-review {
-  background: #f7d3d6;
-  color: #7b1d25;
+  background: var(--status-review-bg);
+  color: var(--status-review-text);
 }
 
 /* Queues inside each room */
@@ -639,7 +772,7 @@ body {
 
 .queue-feedback {
   margin-top: 6px;
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .occupant-label {
@@ -659,19 +792,19 @@ body {
 .pill {
   padding: 4px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #3730a3;
+  background: var(--pill-bg);
+  color: var(--pill-text);
   font-size: 12px;
 }
 
 .pill.you {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--pill-you-bg);
+  color: var(--pill-you-text);
 }
 
 .pill.me {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--pill-me-bg);
+  color: var(--pill-me-text);
   font-weight: 600;
 }
 
@@ -685,20 +818,20 @@ body {
 }
 
 .room-message.error {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--message-error-bg);
+  color: var(--message-error-text);
 }
 
 .room-message.success {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--message-success-bg);
+  color: var(--message-success-text);
 }
 
 /* Skeletons */
 .sk {
   position: relative;
   overflow: hidden;
-  background: #eef0f5;
+  background: var(--skeleton-bg);
   border-radius: 12px;
   height: var(--sk-height, 120px);
 }
@@ -707,7 +840,7 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
   transform: translateX(-100%);
   animation: sh 1.2s infinite;
 }
@@ -754,7 +887,8 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--input-bg);
+  color: var(--text);
   font-size: 14px;
 }
 
@@ -835,12 +969,12 @@ body {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #f8f9fc;
+  background: var(--list-surface);
 }
 
 .ta-student-item.active {
   border-color: var(--primary);
-  background: rgba(23, 105, 255, 0.08);
+  background: var(--primary-ghost);
 }
 
 .ta-student-name {
@@ -901,7 +1035,7 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--panel);
 }
 
 .ta-progress-item .detail-name {
@@ -913,7 +1047,7 @@ body {
   padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--input-bg);
   font-size: 13px;
 }
 
@@ -933,7 +1067,7 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #f6f8ff;
+  background: var(--panel-soft);
 }
 
 .ta-comment-meta {
@@ -979,7 +1113,7 @@ body {
 .modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(11, 18, 37, 0.65);
+  background: var(--modal-backdrop);
 }
 
 .modal-card {
@@ -1023,8 +1157,8 @@ body {
 }
 
 .toast {
-  background: rgba(15, 23, 42, 0.92);
-  color: #fff;
+  background: var(--toast-bg);
+  color: var(--text-contrast);
   padding: 12px 16px;
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
@@ -1040,7 +1174,7 @@ body {
 }
 
 .toast.toast-error {
-  background: #dc2626;
+  background: var(--toast-error);
 }
 
 @media (max-width: 1100px) {
