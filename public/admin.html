@@ -5,6 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kairos – Admin</title>
   <link rel="icon" type="image/png" href="./images/logo.png" />
+  <script>
+    (() => {
+      if (window.location.pathname.toLowerCase().includes('projector')) return;
+      try {
+        const stored = localStorage.getItem('kairos-theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
+        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
+      } catch (err) {
+        document.documentElement.dataset.theme = 'light';
+        document.documentElement.classList.add('theme-light');
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/admin.css" />
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -16,6 +32,11 @@
     <h1>Admin Dashboard</h1>
     <span class="muted" id="userInfo"></span>
     <div class="spacer"></div>
+    <button type="button" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
+      <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
+      <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
+      <span class="theme-toggle__thumb"></span>
+    </button>
     <button id="logoutBtn" type="button">Logout</button>
   </header>
   <main class="admin-main">
@@ -111,6 +132,7 @@
       <div id="assignments" class="assignments"></div>
     </section>
   </main>
+  <script src="./js/theme.js"></script>
   <script src="./js/admin.js" type="module"></script>
 </body>
 </html>
