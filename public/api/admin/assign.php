@@ -60,6 +60,10 @@ try {
             try {
                 delete_assignment($pdo, $schema, $courseId, $userId, null);
                 insert_assignment($pdo, $schema, $courseId, $userId, $roleName);
+                if ($roleName === 'ta') {
+                    // Keep global role aligned with course-level TA assignments.
+                    ensure_user_role_at_least($pdo, $userId, 'ta');
+                }
                 $pdo->commit();
             } catch (Throwable $e) {
                 $pdo->rollBack();
@@ -268,4 +272,35 @@ function lookup_user_id_by_email(PDO $pdo, string $email): int
     $stmt->execute([':email' => $email]);
     $row = $stmt->fetchColumn();
     return $row === false ? 0 : (int)$row;
+}
+
+function ensure_user_role_at_least(PDO $pdo, int $userId, string $roleName): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    if (!table_has_columns($pdo, 'users', ['user_id', 'role_id']) || !table_has_columns($pdo, 'roles', ['role_id', 'name'])) {
+        throw new RuntimeException('roles table not available');
+    }
+
+    $stmt = $pdo->prepare('SELECT u.role_id, LOWER(r.name) AS role_name
+                           FROM users u
+                           LEFT JOIN roles r ON r.role_id = u.role_id
+                           WHERE u.user_id = :uid
+                           LIMIT 1');
+    $stmt->execute([':uid' => $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        throw new RuntimeException('user not found');
+    }
+
+    $currentRank = role_rank((string)($row['role_name'] ?? ''));
+    $targetRank = role_rank($roleName);
+    if ($currentRank >= $targetRank) {
+        return;
+    }
+
+    $roleId = ensure_role_id($pdo, $roleName);
+    $update = $pdo->prepare('UPDATE users SET role_id = :rid WHERE user_id = :uid');
+    $update->execute([':rid' => $roleId, ':uid' => $userId]);
 }

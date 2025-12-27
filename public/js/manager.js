@@ -10,6 +10,7 @@ let currentUser = null;
 let activeCourseId = null;
 let activeCourseName = '';
 let lastSearchTerm = '';
+let sessionRoles = {};
 
 function updateAllowedDomainCopy() {
   const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
@@ -110,6 +111,13 @@ async function bootstrap() {
     document.getElementById('name').textContent = me.name || '';
     document.getElementById('email').textContent = me.email || '';
     showApp();
+    try {
+      const caps = await apiGet('./api/session_capabilities.php');
+      sessionRoles = caps?.roles || {};
+    } catch (err) {
+      sessionRoles = {};
+    }
+    updateNavAvailability();
     if (window.SignoffWS) {
       if (me.user_id != null) {
         window.SignoffWS.setSelfUserId(Number(me.user_id));
@@ -127,6 +135,188 @@ async function bootstrap() {
   }
 }
 
+function updateNavAvailability() {
+  const rosterBtn = document.getElementById('navRoster');
+  const progressBtn = document.getElementById('navProgress');
+  const assignmentLink = document.getElementById('navAssignments');
+  const hasCourse = Boolean(activeCourseId);
+
+  if (rosterBtn) {
+    rosterBtn.disabled = !hasCourse;
+    rosterBtn.setAttribute('aria-disabled', String(!hasCourse));
+  }
+  if (progressBtn) {
+    progressBtn.disabled = !hasCourse;
+    progressBtn.setAttribute('aria-disabled', String(!hasCourse));
+  }
+  if (assignmentLink) {
+    assignmentLink.classList.toggle('hidden', !sessionRoles?.admin);
+  }
+}
+
+function openRosterView() {
+  if (!activeCourseId) {
+    loadCourses();
+    return;
+  }
+  setBreadcrumbs(`Course #${activeCourseId}`);
+  showView('viewCourseDetail');
+}
+
+async function openProgressView() {
+  if (!activeCourseId) {
+    loadCourses();
+    return;
+  }
+  setBreadcrumbs(`Course #${activeCourseId} · Progress`);
+  showView('viewProgress');
+  await loadProgressSummary();
+}
+
+async function loadProgressSummary() {
+  if (!activeCourseId) return;
+  const tbody = document.querySelector('#progressTable tbody');
+  const meta = document.getElementById('progressCourseMeta');
+  const title = document.getElementById('progressTitle');
+  if (title) {
+    title.textContent = `${activeCourseName || 'Course'} progress`;
+  }
+  if (meta) {
+    meta.textContent = `Course #${activeCourseId}`;
+  }
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading progress…</td></tr>';
+  }
+  try {
+    const data = await apiGet(`./api/manager/progress.php?course_id=${encodeURIComponent(activeCourseId)}`);
+    const roster = Array.isArray(data?.students) ? data.students : [];
+    if (!tbody) return;
+    if (!roster.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">No enrolled students.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = roster.map((student) => {
+      const name = escapeHtml(student.name || 'User #' + student.user_id);
+      const email = escapeHtml(student.email || '');
+      const progress = escapeHtml(student.progress_summary || 'No progress yet');
+      const updated = student.last_updated ? formatTimestamp(student.last_updated) : '—';
+      return `
+        <tr>
+          <td>${name}</td>
+          <td>${email}</td>
+          <td>${progress}</td>
+          <td>${escapeHtml(updated)}</td>
+          <td><button class="btn btn-secondary btn-sm" data-progress-user="${student.user_id}">View</button></td>
+        </tr>
+      `;
+    }).join('');
+    tbody.onclick = async (event) => {
+      const btn = event.target.closest('button[data-progress-user]');
+      if (!btn) return;
+      const uid = Number(btn.getAttribute('data-progress-user'));
+      if (!uid) return;
+      await openProgressModal(uid);
+    };
+  } catch (err) {
+    if (!tbody) return;
+    if (err?.status === 403) {
+      return;
+    }
+    tbody.innerHTML = `<tr><td colspan="5" class="muted">Failed to load progress: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function openProgressModal(userId) {
+  if (!activeCourseId || !userId) return;
+  const modal = document.getElementById('progressModal');
+  const title = document.getElementById('progressModalTitle');
+  const meta = document.getElementById('progressModalMeta');
+  const body = document.getElementById('progressModalBody');
+  if (!modal || !title || !meta || !body) return;
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  body.innerHTML = '<div class="muted">Loading progress details…</div>';
+
+  try {
+    const data = await apiGet(`./api/manager/progress.php?course_id=${encodeURIComponent(activeCourseId)}&user_id=${encodeURIComponent(userId)}`);
+    title.textContent = data?.student?.name
+      ? `${data.student.name} — progress`
+      : 'Student progress';
+    meta.textContent = data?.student?.email
+      ? `${data.student.email} · Course #${activeCourseId}`
+      : `Course #${activeCourseId}`;
+
+    const categories = Array.isArray(data?.categories) ? data.categories : [];
+    const detailsByCategory = data?.detailsByCategory || {};
+    const statuses = data?.userStatuses || {};
+    const comments = Array.isArray(data?.comments) ? data.comments : [];
+
+    if (!categories.length) {
+      body.innerHTML = '<div class="muted">No progress categories configured for this course.</div>';
+      return;
+    }
+
+    const categoryHtml = categories.map((cat) => {
+      const details = Array.isArray(detailsByCategory?.[cat.category_id]) ? detailsByCategory[cat.category_id] : [];
+      const detailHtml = details.length
+        ? details.map((detail) => {
+          const status = statuses?.[detail.detail_id] || 'None';
+          return `
+            <div class="progress-detail">
+              <div>${escapeHtml(detail.name || '')}</div>
+              <div class="progress-status">${escapeHtml(status)}</div>
+            </div>
+          `;
+        }).join('')
+        : '<div class="muted">No details yet.</div>';
+      return `
+        <div class="progress-category">
+          <h4>${escapeHtml(cat.name || '')}</h4>
+          <div class="progress-detail-list">${detailHtml}</div>
+        </div>
+      `;
+    }).join('');
+
+    const commentHtml = comments.length
+      ? `
+        <div class="progress-comments">
+          ${comments.map((comment) => `
+            <div class="progress-comment">
+              <div>${escapeHtml(comment.text || '')}</div>
+              <div class="muted small">${escapeHtml(comment.ta_name || 'TA')} · ${escapeHtml(formatTimestamp(comment.created_at || ''))}</div>
+            </div>
+          `).join('')}
+        </div>
+      `
+      : '<div class="muted">No comments yet.</div>';
+
+    body.innerHTML = `
+      ${categoryHtml}
+      <div>
+        <h4 class="title-reset">TA comments</h4>
+        ${commentHtml}
+      </div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div class="muted">Failed to load progress details: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function closeProgressModal() {
+  const modal = document.getElementById('progressModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString();
+}
+
 function setBreadcrumbs(text) {
   document.getElementById('breadcrumbs').textContent = text;
 }
@@ -134,6 +324,8 @@ function setBreadcrumbs(text) {
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== id));
   document.getElementById('navCourses').classList.toggle('active', id === 'viewCourses');
+  document.getElementById('navRoster').classList.toggle('active', id === 'viewCourseDetail');
+  document.getElementById('navProgress').classList.toggle('active', id === 'viewProgress');
 }
 
 async function apiGet(url) {
@@ -198,6 +390,7 @@ async function loadCourses() {
   }
   setBreadcrumbs('Courses');
   showView('viewCourses');
+  updateNavAvailability();
   const grid = document.getElementById('coursesGrid');
   grid.innerHTML = '<div class="card">Loading…</div>';
   try {
@@ -245,7 +438,12 @@ async function openCourse(courseId, courseName) {
   setBreadcrumbs(`Course #${activeCourseId}`);
   document.getElementById('courseTitle').textContent = `${courseName || 'Course'} (#${activeCourseId})`;
   showView('viewCourseDetail');
+  updateNavAvailability();
   await Promise.all([loadRooms(), loadRoster()]);
+  const hash = (window.location.hash || '').toLowerCase();
+  if (hash.includes('progress')) {
+    await openProgressView();
+  }
 }
 
 async function loadRooms() {
@@ -438,23 +636,34 @@ async function loadRoster() {
           <span>${escapeHtml(user.name || 'User #' + user.user_id)}</span>
           <span>${escapeHtml(user.email || '')}</span>
         </div>
-        <button class="btn btn-danger" data-roster-remove="${user.user_id}">Remove</button>
+        <div class="list-row-actions">
+          <button class="btn btn-secondary" data-roster-progress="${user.user_id}">View progress</button>
+          <button class="btn btn-danger" data-roster-remove="${user.user_id}">Remove</button>
+        </div>
       `;
       rosterEl.appendChild(row);
     });
     rosterEl.onclick = async (event) => {
       const btn = event.target.closest('button[data-roster-remove]');
-      if (!btn) return;
-      const uid = Number(btn.getAttribute('data-roster-remove'));
-      if (!confirm('Unenroll this user?')) return;
-      try {
-        await apiPost('./api/manager/unenroll.php', { user_id: uid, course_id: activeCourseId });
-        await Promise.all([loadRoster(), rerunLastSearch()]);
-      } catch (err) {
-        if (err?.status !== 403) {
-          alert(err.message);
+      if (btn) {
+        const uid = Number(btn.getAttribute('data-roster-remove'));
+        if (!confirm('Unenroll this user?')) return;
+        try {
+          await apiPost('./api/manager/unenroll.php', { user_id: uid, course_id: activeCourseId });
+          await Promise.all([loadRoster(), rerunLastSearch()]);
+        } catch (err) {
+          if (err?.status !== 403) {
+            alert(err.message);
+          }
         }
+        return;
       }
+
+      const progressBtn = event.target.closest('button[data-roster-progress]');
+      if (!progressBtn) return;
+      const uid = Number(progressBtn.getAttribute('data-roster-progress'));
+      if (!uid) return;
+      await openProgressModal(uid);
     };
   } catch (err) {
     if (err?.status === 403) {
@@ -548,7 +757,10 @@ function setupEvents() {
     renderGoogleButton();
   });
   document.getElementById('navCourses').addEventListener('click', () => loadCourses());
+  document.getElementById('navRoster').addEventListener('click', () => openRosterView());
+  document.getElementById('navProgress').addEventListener('click', () => openProgressView());
   document.getElementById('backToCourses').addEventListener('click', () => loadCourses());
+  document.getElementById('backToCourseDetail').addEventListener('click', () => openRosterView());
   document.getElementById('addRoomBtn').addEventListener('click', async () => {
     try {
       await createRoom();
@@ -561,6 +773,13 @@ function setupEvents() {
     if (event.key === 'Enter') {
       event.preventDefault();
       searchUsers();
+    }
+  });
+
+  const modal = document.getElementById('progressModal');
+  modal?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-modal-close]')) {
+      closeProgressModal();
     }
   });
 }
