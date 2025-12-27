@@ -30,6 +30,12 @@
   <header class="admin-header">
     <img src="https://kairos.nixorcorporate.com/signoff/images/logo-full.png" alt="Kairos" class="admin-brand" />
     <h1>Admin Dashboard</h1>
+    <nav class="admin-nav" aria-label="Admin navigation">
+      <a class="admin-nav-link" href="./admin.html" data-admin-nav="courses">Courses</a>
+      <a class="admin-nav-link" href="./admin.html#assignCard" data-admin-nav="assignments">TA assignment</a>
+      <a class="admin-nav-link" href="./manager.html" data-admin-nav="roster" data-role="manager">Course roster</a>
+      <a class="admin-nav-link" href="./manager.html#progress" data-admin-nav="progress" data-role="manager">Student progress</a>
+    </nav>
     <span class="muted" id="userInfo"></span>
     <div class="spacer"></div>
     <button type="button" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>

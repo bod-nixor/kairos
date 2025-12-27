@@ -31,6 +31,7 @@ const els = {
   assignSearchResults: document.getElementById('assignSearchResults'),
   assignments: document.getElementById('assignments'),
   assignmentTitle: document.getElementById('assignmentTitle'),
+  adminNavLinks: document.querySelectorAll('.admin-nav-link'),
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -224,6 +225,10 @@ function bindEvents() {
       reportError(err, 'Failed to remove assignment');
     }
   });
+
+  window.addEventListener('hashchange', () => {
+    updateAdminNavActive();
+  });
 }
 
 async function bootstrap() {
@@ -239,6 +244,10 @@ async function bootstrap() {
     els.coursesCard?.classList.remove('hidden');
     els.formsCard?.classList.remove('hidden');
     els.assignCard?.classList.remove('hidden');
+
+    const capabilities = await fetchJSON('./api/session_capabilities.php');
+    applyAdminNavRoles(capabilities?.roles || {});
+    updateAdminNavActive();
   } catch (err) {
     reportError(err, 'Unable to verify session.');
     disableInterface();
@@ -255,6 +264,24 @@ async function bootstrap() {
       disableInterface();
     }
   }
+}
+
+function applyAdminNavRoles(roles) {
+  els.adminNavLinks?.forEach((link) => {
+    const required = link.getAttribute('data-role');
+    if (!required) return;
+    const allowed = Boolean(roles?.[required]);
+    link.classList.toggle('hidden', !allowed);
+  });
+}
+
+function updateAdminNavActive() {
+  const hash = (window.location.hash || '').toLowerCase();
+  const activeKey = hash.includes('assign') ? 'assignments' : 'courses';
+  els.adminNavLinks?.forEach((link) => {
+    const key = link.getAttribute('data-admin-nav');
+    link.classList.toggle('active', key === activeKey && link.getAttribute('href')?.includes('admin.html'));
+  });
 }
 
 function disableInterface() {

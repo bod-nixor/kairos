@@ -12,12 +12,38 @@ header.admin-header {
   display: flex;
   align-items: center;
   gap: 18px;
+  flex-wrap: wrap;
 }
 
 header.admin-header h1 {
   margin: 0;
   font-size: 1.3rem;
   font-weight: 600;
+}
+
+.admin-nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-nav-link {
+  color: var(--sidebar-text);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.admin-nav-link:hover,
+.admin-nav-link:focus {
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.admin-nav-link.active {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 header.admin-header .spacer {
@@ -220,6 +246,15 @@ td.actions button {
 
   header.admin-header button {
     width: 100%;
+  }
+
+  .admin-nav {
+    width: 100%;
+  }
+
+  .admin-nav-link {
+    width: 100%;
+    text-align: center;
   }
 
   .assignment-row {

@@ -316,6 +316,12 @@ body {
   background: var(--nav-active);
 }
 
+.nav-item:disabled,
+.nav-item[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .app-header {
   position: fixed;
   left: 240px;
@@ -636,6 +642,11 @@ body {
 .list-row .meta span:last-child {
   color: var(--muted);
   font-size: 12px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Centered login card */
@@ -1235,5 +1246,46 @@ body {
   .queue-meta {
     align-items: flex-start;
     min-width: 0;
+  }
+
+  .list-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    position: static;
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px 8px;
+  }
+
+  .brand {
+    flex-shrink: 0;
+  }
+
+  .nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+
+  .nav-bottom {
+    margin-top: 0;
+    margin-left: auto;
+  }
+
+  .app-header {
+    position: static;
+    left: 0;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .app-main {
+    padding: 20px;
   }
 }
