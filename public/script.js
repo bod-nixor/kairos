@@ -752,7 +752,7 @@ async function renderCourseCards() {
 
     const lmsLink = document.createElement('a');
     lmsLink.className = 'btn btn-primary';
-    lmsLink.href = './course.html?course_id=' + encodeURIComponent(c.course_id);
+    lmsLink.href = './course.html?course_id=' + encodeURIComponent(String(c.course_id ?? ''));
     lmsLink.textContent = 'Course Page';
 
     const btn = document.createElement('button');
