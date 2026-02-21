@@ -537,15 +537,12 @@ async function bootstrap() {
     if (avatarEl) avatarEl.src = me.picture_url || '';
     const nameEl = document.getElementById('name');
     if (nameEl) nameEl.textContent = me.name || '';
-    const emailEl = document.getElementById('email');
-    if (emailEl) emailEl.textContent = me.email || '';
     // Also fill the new sidebar user bar
     const sidebarAvatar = document.getElementById('kSidebarAvatar');
     if (sidebarAvatar) sidebarAvatar.src = me.picture_url || '';
     const sidebarName = document.getElementById('kSidebarName');
     if (sidebarName) sidebarName.textContent = me.name || me.email || '';
-    const sidebarRole = document.getElementById('kSidebarRole');
-    if (sidebarRole) sidebarRole.textContent = me.roles || 'Student';
+    // Note: kSidebarRole is set by applySessionCapabilities() below
 
     selfUserId = me.user_id || null;
     currentUserId = (typeof me.user_id === 'number' && Number.isFinite(me.user_id))
@@ -616,30 +613,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Legacy logout button
+async function performLogout() {
+  await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
+  stopSSE();
+  stopNotifySSE();
+  selfUserId = null;
+  showSignin();
+  renderGoogleButton();
+}
 const _logoutBtn = document.getElementById('logoutBtn');
-if (_logoutBtn) {
-  _logoutBtn.addEventListener('click', async () => {
-    await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
-    stopSSE();
-    stopNotifySSE();
-    selfUserId = null;
-    showSignin();
-    renderGoogleButton();
-  });
-}
-// New sidebar logout button
+if (_logoutBtn) _logoutBtn.addEventListener('click', performLogout);
 const _kLogoutBtn = document.getElementById('kLogoutBtn');
-if (_kLogoutBtn) {
-  _kLogoutBtn.addEventListener('click', async () => {
-    await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
-    stopSSE();
-    stopNotifySSE();
-    selfUserId = null;
-    showSignin();
-    renderGoogleButton();
-  });
-}
+if (_kLogoutBtn) _kLogoutBtn.addEventListener('click', performLogout);
 
 // ---------- API helpers ----------
 async function apiGet(url) {
@@ -652,9 +637,15 @@ async function apiGet(url) {
 function setCrumbs(text) {
   const el = document.getElementById('breadcrumbs');
   if (el) el.textContent = text;
-  // Also update the new breadcrumb
+  // Also update the new breadcrumb (use textContent to avoid injection)
   const kb = document.getElementById('kBreadcrumb');
-  if (kb) kb.innerHTML = '<span class="k-breadcrumb__item is-current">' + (text || 'Dashboard') + '</span>';
+  if (kb) {
+    kb.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'k-breadcrumb__item is-current';
+    span.textContent = text || 'Dashboard';
+    kb.appendChild(span);
+  }
 }
 function showView(id) {
   for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
@@ -680,41 +671,51 @@ async function renderCourseCards() {
     window.SignoffWS.updateFilters({ courseId: null, roomId: null });
   }
   setCrumbs('Courses');
-  showView('viewCourses');
+  // Show the dashboard view (coursesGrid lives inside viewDashboard)
+  showView('viewDashboard');
   const progressSection = document.getElementById('progressSection');
   if (progressSection) progressSection.classList.add('hidden');
+  // Populate both grids (dashboard + standalone courses view)
   const grid = document.getElementById('coursesGrid');
-  grid.innerHTML = skeletonCards(3);
+  const gridFull = document.getElementById('coursesGridFull');
+  if (grid) grid.innerHTML = skeletonCards(3);
+  if (gridFull) gridFull.innerHTML = skeletonCards(3);
 
   let courses = [];
   try { courses = await apiGet('./api/my_courses.php'); } catch { }
   if (!Array.isArray(courses)) courses = [];
 
+  const emptyHtml = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You're not enrolled in any courses.</div></div>`;
   if (!courses.length) {
-    grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You’re not enrolled in any courses.</div></div>`;
+    if (grid) grid.innerHTML = emptyHtml;
+    if (gridFull) gridFull.innerHTML = emptyHtml;
     return;
   }
 
-  grid.innerHTML = '';
-  courses.forEach(c => {
-    const card = document.createElement('div');
-    card.className = 'course-card';
-    card.innerHTML = `
-      <span class="badge">Course #${c.course_id}</span>
-      <h3 class="course-title">${escapeHtml(c.name)}</h3>
-      <div class="mt-8">
-        <button class="btn btn-primary" data-course="${c.course_id}">Open</button>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-
-  grid.onclick = async (e) => {
-    const btn = e.target.closest('button[data-course]');
-    if (!btn) return;
-    const id = btn.getAttribute('data-course');
-    await showCourse(id);
+  const buildCards = (target) => {
+    if (!target) return;
+    target.innerHTML = '';
+    courses.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'course-card';
+      card.innerHTML = `
+        <span class="badge">Course #${c.course_id}</span>
+        <h3 class="course-title">${escapeHtml(c.name)}</h3>
+        <div class="mt-8">
+          <button class="btn btn-primary" data-course="${c.course_id}">Open</button>
+        </div>
+      `;
+      target.appendChild(card);
+    });
+    target.onclick = async (e) => {
+      const btn = e.target.closest('button[data-course]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-course');
+      await showCourse(id);
+    };
   };
+  buildCards(grid);
+  buildCards(gridFull);
 }
 
 // ROOMS (cards) + PROGRESS (bottom)
@@ -730,9 +731,11 @@ async function showCourse(courseId) {
   }
   setCrumbs(`Course #${selectedCourse}`);
   showView('viewRooms');
-  document.getElementById('roomsTitle').textContent = `Rooms for Course #${selectedCourse}`;
+  const roomsTitleEl = document.getElementById('roomsTitle');
+  if (roomsTitleEl) roomsTitleEl.textContent = `Rooms for Course #${selectedCourse}`;
 
   const grid = document.getElementById('roomsGrid');
+  if (!grid) return;
   grid.innerHTML = skeletonCards(3);
 
   let rooms = [];
@@ -810,11 +813,14 @@ async function showCourse(courseId) {
   if (progressSection) progressSection.classList.remove('hidden');
   await renderProgress(selectedCourse);
 
-  document.getElementById('backToCourses').onclick = () => {
-    const progressSection = document.getElementById('progressSection');
-    if (progressSection) progressSection.classList.add('hidden');
-    renderCourseCards();
-  };
+  const backBtn = document.getElementById('backToCourses');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      const progressSection = document.getElementById('progressSection');
+      if (progressSection) progressSection.classList.add('hidden');
+      renderCourseCards();
+    };
+  }
   const _nr = document.getElementById('navRooms');
   if (_nr) _nr.classList.add('active');
   const _nc = document.getElementById('navCourses');
@@ -967,11 +973,19 @@ function statusClass(s) {
 // progress rendered as horizontal “tables”
 async function renderProgress(courseId) {
   const container = document.getElementById('progressContainer');
+  if (!container) return;
   container.innerHTML = '<p>Loading progress...</p>'; // Simple loading state
-  const data = await apiGet('./api/progress.php?course_id=' + encodeURIComponent(courseId || ''));
-  const cats = data.categories || [];
-  const byCat = data.detailsByCategory || {};
-  const status = data.userStatuses || {}; // { detail_id: "None" | "Pending" | "Completed" | "Review" }
+  let data;
+  try {
+    data = await apiGet('./api/progress.php?course_id=' + encodeURIComponent(courseId || ''));
+  } catch (err) {
+    container.innerHTML = '<p class="muted small">Unable to load progress.</p>';
+    console.warn('renderProgress failed', err);
+    return;
+  }
+  const cats = (data && data.categories) || [];
+  const byCat = (data && data.detailsByCategory) || {};
+  const status = (data && data.userStatuses) || {}; // { detail_id: "None" | "Pending" | "Completed" | "Review" }
 
   container.innerHTML = ''; // Clear the "Loading..." text
 

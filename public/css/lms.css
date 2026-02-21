@@ -2583,8 +2583,3 @@
     height: auto;
     margin-bottom: var(--space-4);
 }
-
-/* Ensure the login card shows properly (not hidden by .view logic) */
-.k-pre-auth #signin.centerbox {
-    display: flex !important;
-}

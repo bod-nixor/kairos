@@ -202,21 +202,20 @@
     Compatibility shim: old script.js references these IDs.
     They are hidden but keep script.js from crashing.
   -->
-  <div id="userbar" class="hidden" style="display:none">
+  <div id="userbar" class="hidden">
     <span id="name"></span>
-    <span id="email"></span>
   </div>
-  <nav id="mainNav" class="hidden" style="display:none">
+  <nav id="mainNav" class="hidden">
     <a id="navHomeLink" class="top-nav-link" data-view="home" href="#"></a>
     <a id="navCoursesLink" class="top-nav-link" data-view="courses" href="#"></a>
     <a id="navTaLink" class="top-nav-link" data-view="ta" href="#"></a>
     <a id="navManagerLink" class="top-nav-link" data-view="manager" href="#"></a>
     <a id="navAdminLink" class="top-nav-link" data-view="admin" href="#"></a>
   </nav>
-  <span id="breadcrumbs" class="hidden" style="display:none"></span>
-  <span id="navCourses" class="hidden" style="display:none"></span>
-  <span id="navRooms" class="hidden" style="display:none"></span>
-  <button id="logoutBtn" class="hidden" style="display:none"></button>
+  <span id="breadcrumbs" class="hidden"></span>
+  <span id="navCourses" class="hidden"></span>
+  <span id="navRooms" class="hidden"></span>
+  <button id="logoutBtn" class="hidden"></button>
 
   <script src="./js/theme.js"></script>
   <script src="./js/ws.js"></script>
@@ -226,20 +225,9 @@
   <script>
     /* Sidebar nav view switching — bridge to script.js */
     document.addEventListener('DOMContentLoaded', function () {
-      const VIEW_MAP = {
-        dashboard: 'viewDashboard',
-        courses: 'viewCourses',
-        rooms: 'viewRooms',
-      };
-
       window.showKairosView = function (view) {
-        if (view === 'dashboard') {
-          // Dashboard is just the courses + stats overview
-          if (typeof renderCourseCards === 'function') renderCourseCards();
-          if (typeof showView === 'function') showView('viewDashboard');
-          return;
-        }
-        if (view === 'courses') {
+        if (view === 'dashboard' || view === 'courses') {
+          // Both dashboard and courses render into viewDashboard
           if (typeof renderCourseCards === 'function') renderCourseCards();
           return;
         }
@@ -247,8 +235,8 @@
           if (typeof showView === 'function') showView('viewRooms');
           return;
         }
-        // Fallback
-        const mapped = VIEW_MAP[view] || ('view' + view.charAt(0).toUpperCase() + view.slice(1));
+        // Fallback for unknown views
+        var mapped = 'view' + view.charAt(0).toUpperCase() + view.slice(1);
         if (typeof showView === 'function') showView(mapped);
       };
 
