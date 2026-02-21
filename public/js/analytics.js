@@ -74,7 +74,7 @@
         if (!assignId) return;
         const res = await LMS.api('GET', `./api/lms/analytics_grades.php?assignment_id=${encodeURIComponent(assignId)}&course_id=${encodeURIComponent(COURSE_ID)}`);
         if (!res.ok) return;
-        const buckets = res.data || [];
+        const buckets = (res.ok ? (res.data?.data || res.data) : null) || [];
         renderBarChart('gradeChart', buckets.map(b => ({
             label: b.range,
             value: b.count,
@@ -153,7 +153,7 @@
         const period = ($('periodSelect') && $('periodSelect').value) || '30';
 
         const [courseRes, metricsRes, completionRes, engRes, studentsRes, assignmentsRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/courses.php?id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/analytics_metrics.php?course_id=${encodeURIComponent(COURSE_ID)}&period=${period}`),
             LMS.api('GET', `./api/lms/analytics_completion.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/analytics_engagement.php?course_id=${encodeURIComponent(COURSE_ID)}&period=${period}`),
@@ -163,7 +163,7 @@
 
         hideEl('analyticsSkeleton');
 
-        const course = courseRes.ok ? courseRes.data : null;
+        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             document.title = `Analytics — ${course.name || 'Course'} — Kairos`;
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
@@ -175,33 +175,35 @@
         }
 
         // Metrics
-        const metrics = metricsRes.ok ? metricsRes.data : {};
+        const metrics = metricsRes.ok ? (metricsRes.data?.data || metricsRes.data || {}) : {};
         $('metricStudents') && ($('metricStudents').textContent = metrics.total_students || '—');
         $('metricCompletion') && ($('metricCompletion').textContent = (metrics.avg_completion || 0) + '%');
         $('metricGrade') && ($('metricGrade').textContent = metrics.avg_grade ? metrics.avg_grade.toFixed(1) + '%' : '—');
         $('metricPending') && ($('metricPending').textContent = metrics.pending_reviews || '—');
 
         // Charts
-        const completion = completionRes.ok ? completionRes.data : [];
-        renderBarChart('completionChart', (completion || []).map(m => ({
+        const completion = completionRes.ok ? (completionRes.data?.data || completionRes.data || []) : [];
+        renderBarChart('completionChart', (Array.isArray(completion) ? completion : []).map(m => ({
             label: m.module_name,
             value: m.completion_pct,
             displayValue: m.completion_pct + '%',
         })), { maxVal: 100 });
 
-        const engagement = engRes.ok ? engRes.data : [];
-        renderBarChart('engagementChart', (engagement || []).map(e => ({
+        const engagement = engRes.ok ? (engRes.data?.data || engRes.data || []) : [];
+        renderBarChart('engagementChart', (Array.isArray(engagement) ? engagement : []).map(e => ({
             label: e.student_name,
             value: e.activity_count,
             displayValue: e.activity_count,
         })));
 
         // Grade distribution with assignment selector
-        const assignments = assignmentsRes.ok ? (assignmentsRes.data || []) : [];
+        const assignPayload = assignmentsRes.ok ? (assignmentsRes.data?.data || assignmentsRes.data || []) : [];
+        const assignments = Array.isArray(assignPayload) ? assignPayload : (assignPayload.items || []);
         renderGradeChart(assignments);
 
         // Student table
-        let allStudents = studentsRes.ok ? (studentsRes.data || []) : [];
+        let allStudents = studentsRes.ok ? (studentsRes.data?.data || studentsRes.data || []) : [];
+        if (!Array.isArray(allStudents)) allStudents = [];
         renderStudentTable(allStudents);
 
         let searchTimer;

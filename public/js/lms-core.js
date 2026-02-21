@@ -437,7 +437,6 @@
       global.location.href = '/';
       return;
     }
-    KairosNav.updateUserBar(me);
     // Logout button
     const logoutBtn = document.getElementById('kLogoutBtn');
     if (logoutBtn) {

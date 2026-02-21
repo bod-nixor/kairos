@@ -149,7 +149,7 @@
         }
 
         const [courseRes, modulesRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/courses.php?id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/modules.php?course_id=${encodeURIComponent(COURSE_ID)}`),
         ]);
 
@@ -161,7 +161,7 @@
             return;
         }
 
-        const course = courseRes.ok ? courseRes.data : null;
+        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             document.title = `Modules — ${course.name || 'Course'} — Kairos`;
             const bc = $('kBreadCourse');
@@ -173,7 +173,8 @@
             });
         }
 
-        const modules = modulesRes.ok ? (modulesRes.data || []) : [];
+        const modPayload = modulesRes.ok ? (modulesRes.data?.data || modulesRes.data || []) : [];
+        const modules = Array.isArray(modPayload) ? modPayload : [];
 
         // Compute overall progress
         let doneAll = 0, totalAll = 0;

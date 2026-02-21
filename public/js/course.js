@@ -135,8 +135,10 @@
         const course = courseRes.data?.data || courseRes.data || {};
         const stats = statsRes.ok ? (statsRes.data?.data || statsRes.data || {}) : {};
         const modules = modulesRes.ok ? (modulesRes.data?.data || modulesRes.data || []) : [];
-        const announcements = annRes.ok ? (annRes.data?.data || annRes.data || []) : [];
-        const activity = actRes.ok ? (actRes.data?.data || actRes.data || []) : [];
+        const annPayload = annRes.ok ? (annRes.data?.data || annRes.data || {}) : {};
+        const announcements = Array.isArray(annPayload) ? annPayload : (annPayload.items || []);
+        const actPayload = actRes.ok ? (actRes.data?.data || actRes.data || []) : [];
+        const activity = Array.isArray(actPayload) ? actPayload : [];
 
         // Apply course accent
         const accent = LMS.courseAccent(course.id || COURSE_ID);
@@ -174,7 +176,7 @@
         });
 
         // Show role-specific nav items (TA/Manager/Admin see grading + analytics)
-        const role = course.my_role || '';
+        const role = String(course.my_role || '').toLowerCase();
         if (role === 'ta' || role === 'manager' || role === 'admin') {
             $('kNavGrading') && $('kNavGrading').classList.remove('hidden');
         }

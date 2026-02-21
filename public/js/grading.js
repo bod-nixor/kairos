@@ -143,7 +143,7 @@
 
         // Fetch full submission detail (lazy load)
         const res = await LMS.api('GET', `./api/lms/submission.php?id=${encodeURIComponent(sub.id)}`);
-        const detail = res.ok ? res.data : sub;
+        const detail = res.ok ? (res.data?.data || res.data || sub) : sub;
 
         // Render submission view
         ['submissionFileView', 'submissionTextView', 'submissionUrlView', 'submissionAttachments'].forEach(hideEl);
@@ -222,7 +222,7 @@
         if (!aid) return;
         const res = await LMS.api('GET', `./api/lms/grading_queue.php?assignment_id=${encodeURIComponent(aid)}&course_id=${encodeURIComponent(COURSE_ID)}`);
         if (!res.ok) { LMS.toast('Failed to load submissions.', 'error'); return; }
-        submissions = res.data || [];
+        submissions = res.ok ? (Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : [])) : [];
         filterQueue();
         hideEl('workspaceEmpty');
         if (submissions.length === 0) {
@@ -239,7 +239,7 @@
 
         const [capsRes, courseRes, assignRes] = await Promise.all([
             LMS.loadCaps(),
-            LMS.api('GET', `./api/lms/courses.php?id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/assignments.php?course_id=${encodeURIComponent(COURSE_ID)}`),
         ]);
 
@@ -255,7 +255,7 @@
         }
 
         gradingRole = (caps.roles && caps.roles.manager) ? 'manager' : 'ta';
-        const course = courseRes.ok ? courseRes.data : null;
+        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
             $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
@@ -265,7 +265,8 @@
         }
 
         // Assignment selector (manager sees all; TA sees assigned only)
-        const assignments = assignRes.ok ? (assignRes.data || []) : [];
+        const assignPayload = assignRes.ok ? (assignRes.data?.data || assignRes.data || []) : [];
+        const assignments = Array.isArray(assignPayload) ? assignPayload : (assignPayload.items || []);
         const sel = $('assignmentSelector');
         if (sel && assignments.length) {
             sel.style.display = '';
