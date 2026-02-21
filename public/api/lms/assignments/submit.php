@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 require_once dirname(__DIR__) . '/drive_client.php';
 
+lms_require_feature(['assignments', 'lms_assignments']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $assignmentId = (int)($_POST['assignment_id'] ?? 0);
 if ($assignmentId <= 0) {
@@ -11,7 +12,7 @@ if ($assignmentId <= 0) {
 }
 
 $pdo = db();
-$aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
+$aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at, status, late_allowed FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
 $aSt->execute([':id' => $assignmentId]);
 $assignment = $aSt->fetch();
 if (!$assignment) {
@@ -19,7 +20,14 @@ if (!$assignment) {
 }
 
 lms_course_access($user, (int)$assignment['course_id']);
+if ((string)$assignment['status'] !== 'published') {
+    lms_error('not_allowed', 'Submissions are only allowed for published assignments', 403);
+}
+
 $late = !empty($assignment['due_at']) && strtotime((string)$assignment['due_at']) < time();
+if ($late && (int)$assignment['late_allowed'] === 0) {
+    lms_error('late_not_allowed', 'Late submissions are not allowed for this assignment', 422);
+}
 
 $pdo->beginTransaction();
 try {
@@ -73,11 +81,10 @@ try {
     lms_emit_event($pdo, 'assignment.submission.created', $event);
 
     $pdo->commit();
+    lms_ok(['submission_id' => $submissionId, 'version' => $version, 'is_late' => $late]);
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
     lms_error('submission_failed', 'Failed to submit assignment', 500);
 }
-
-lms_ok(['submission_id' => $submissionId, 'version' => $version, 'is_late' => $late]);

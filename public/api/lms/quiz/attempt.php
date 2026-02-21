@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
+lms_require_feature(['quizzes', 'lms_quizzes']);
 $in = lms_json_input();
 $assessmentId = (int)($in['assessment_id'] ?? 0);
 if ($assessmentId <= 0) {

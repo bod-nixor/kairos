@@ -48,6 +48,33 @@ function lms_require_roles(array $roles): array
     return $user;
 }
 
+function lms_feature_enabled(string $flagKey, ?int $courseId = null): bool
+{
+    $pdo = db();
+    $stmt = $pdo->prepare(
+        'SELECT enabled FROM lms_feature_flags WHERE flag_key = :flag_key AND (course_id = :course_id OR course_id IS NULL) ORDER BY course_id IS NULL ASC LIMIT 1'
+    );
+    $stmt->execute([
+        ':flag_key' => $flagKey,
+        ':course_id' => $courseId,
+    ]);
+    $value = $stmt->fetchColumn();
+    if ($value === false) {
+        return false;
+    }
+    return ((int)$value) === 1;
+}
+
+function lms_require_feature(array $flags, ?int $courseId = null): void
+{
+    foreach ($flags as $flag) {
+        if (lms_feature_enabled((string)$flag, $courseId)) {
+            return;
+        }
+    }
+    lms_error('feature_disabled', 'This module is currently disabled.', 404);
+}
+
 function lms_course_access(array $user, int $courseId, bool $allowStaff = true): void
 {
     $role = $user['role_name'] ?? lms_user_role($user);

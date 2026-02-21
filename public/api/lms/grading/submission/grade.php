@@ -35,7 +35,7 @@ if ($user['role_name'] === 'ta') {
     }
 }
 
-$pdo->prepare('INSERT INTO lms_grades (course_id,student_user_id,assignment_id,submission_id,status,score,max_score,feedback,graded_by) VALUES (:c,:stu,:a,:s,\'draft\',:score,:max,:f,:u) ON DUPLICATE KEY UPDATE score=VALUES(score), max_score=VALUES(max_score), feedback=VALUES(feedback), graded_by=VALUES(graded_by), status=\'draft\', updated_at=CURRENT_TIMESTAMP')->execute([
+$params = [
     ':c' => (int)$s['course_id'],
     ':stu' => (int)$s['student_user_id'],
     ':a' => (int)$s['assignment_id'],
@@ -44,6 +44,40 @@ $pdo->prepare('INSERT INTO lms_grades (course_id,student_user_id,assignment_id,s
     ':max' => $max,
     ':f' => $in['feedback'] ?? null,
     ':u' => (int)$user['user_id'],
-]);
+];
+
+$pdo->beginTransaction();
+try {
+    $existingStmt = $pdo->prepare('SELECT grade_id, status FROM lms_grades WHERE course_id=:c AND student_user_id=:stu AND assignment_id=:a AND submission_id=:s LIMIT 1 FOR UPDATE');
+    $existingStmt->execute([
+        ':c' => $params[':c'],
+        ':stu' => $params[':stu'],
+        ':a' => $params[':a'],
+        ':s' => $params[':s'],
+    ]);
+    $existing = $existingStmt->fetch();
+    if ($existing && (string)$existing['status'] === 'released') {
+        $pdo->rollBack();
+        lms_error('conflict', 'Released grades cannot be modified', 409);
+    }
+
+    $pdo->prepare('INSERT INTO lms_grades (course_id,student_user_id,assignment_id,submission_id,status,score,max_score,feedback,graded_by) VALUES (:c,:stu,:a,:s,\'draft\',:score,:max,:f,:u) ON DUPLICATE KEY UPDATE score=VALUES(score), max_score=VALUES(max_score), feedback=VALUES(feedback), status=IF(lms_grades.status=\'released\', lms_grades.status, VALUES(status)), graded_by=IF(lms_grades.status=\'released\', lms_grades.graded_by, VALUES(graded_by)), updated_at=CURRENT_TIMESTAMP')->execute($params);
+
+    $pdo->prepare('INSERT INTO lms_grade_audit (submission_id, graded_by, score, max_score, feedback, action, created_at) VALUES (:submission_id, :graded_by, :score, :max_score, :feedback, :action, NOW())')->execute([
+        ':submission_id' => $submissionId,
+        ':graded_by' => (int)$user['user_id'],
+        ':score' => $score,
+        ':max_score' => $max,
+        ':feedback' => $in['feedback'] ?? null,
+        ':action' => 'draft_saved',
+    ]);
+
+    $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    lms_error('grade_save_failed', 'Failed to save grade draft', 500);
+}
 
 lms_ok(['saved' => true]);

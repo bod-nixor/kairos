@@ -19,7 +19,9 @@ if (!$existing) {
 }
 
 $prompt = array_key_exists('prompt', $in) ? trim((string)$in['prompt']) : (string)$existing['prompt'];
-$questionType = array_key_exists('question_type', $in) ? (string)$in['question_type'] : (string)$existing['question_type'];
+$questionType = array_key_exists('question_type', $in)
+    ? trim((string)$in['question_type'])
+    : trim((string)$existing['question_type']);
 $points = array_key_exists('points', $in) ? (float)$in['points'] : (float)$existing['points'];
 $answerKeyJson = array_key_exists('answer_key', $in)
     ? json_encode($in['answer_key'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
@@ -32,15 +34,20 @@ if ($prompt === '' || $questionType === '') {
     lms_error('validation_error', 'prompt and question_type must be non-empty', 422);
 }
 
-if (array_key_exists('answer_key', $in) && $answerKeyJson !== $existing['answer_key_json']) {
-    $attemptCountStmt = $pdo->prepare('SELECT COUNT(*) FROM lms_assessment_attempts WHERE assessment_id=:assessment_id AND submitted_at IS NOT NULL');
-    $attemptCountStmt->execute([':assessment_id' => (int)$existing['assessment_id']]);
-    if ((int)$attemptCountStmt->fetchColumn() > 0) {
-        lms_error('conflict', 'Cannot change answer key after submitted attempts exist', 409);
+if (array_key_exists('answer_key', $in)) {
+    $newAnswer = json_decode((string)$answerKeyJson, true);
+    $oldAnswer = json_decode((string)$existing['answer_key_json'], true);
+    if ($newAnswer !== $oldAnswer) {
+        $attemptCountStmt = $pdo->prepare('SELECT COUNT(*) FROM lms_assessment_attempts WHERE assessment_id=:assessment_id AND submitted_at IS NOT NULL');
+        $attemptCountStmt->execute([':assessment_id' => (int)$existing['assessment_id']]);
+        if ((int)$attemptCountStmt->fetchColumn() > 0) {
+            lms_error('conflict', 'Cannot change answer key after submitted attempts exist', 409);
+        }
     }
 }
 
-$pdo->prepare('UPDATE lms_questions SET prompt=:p, question_type=:t, points=:pts, answer_key_json=:ans, settings_json=:set, updated_at=CURRENT_TIMESTAMP WHERE question_id=:id')->execute([
+$updateStmt = $pdo->prepare('UPDATE lms_questions SET prompt=:p, question_type=:t, points=:pts, answer_key_json=:ans, settings_json=:set, updated_at=CURRENT_TIMESTAMP WHERE question_id=:id AND deleted_at IS NULL');
+$updateStmt->execute([
     ':p' => $prompt,
     ':t' => $questionType,
     ':pts' => $points,
@@ -48,5 +55,9 @@ $pdo->prepare('UPDATE lms_questions SET prompt=:p, question_type=:t, points=:pts
     ':set' => $settingsJson,
     ':id' => $id,
 ]);
+
+if ($updateStmt->rowCount() === 0) {
+    lms_error('conflict', 'Question was not updated', 409);
+}
 
 lms_ok(['updated' => true]);
