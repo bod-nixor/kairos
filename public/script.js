@@ -555,9 +555,7 @@ async function bootstrap() {
     await refreshSessionCapabilities();
     showApp();
 
-    // Show dashboard view and load courses into it
-    const vd = document.getElementById('viewDashboard');
-    if (vd) vd.classList.remove('hidden');
+    // Load courses (renderCourseCards handles showing viewDashboard)
     await renderCourseCards();
 
     // Start SSE (optional; comment out if you haven't added change_log)
@@ -614,12 +612,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function performLogout() {
-  await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
-  stopSSE();
-  stopNotifySSE();
-  selfUserId = null;
-  showSignin();
-  renderGoogleButton();
+  try {
+    await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
+  } catch (err) {
+    console.warn('Logout request failed', err);
+  } finally {
+    stopSSE();
+    stopNotifySSE();
+    selfUserId = null;
+    currentUserId = null;
+    selectedCourse = null;
+    selectedRoomId = null;
+    showSignin();
+    renderGoogleButton();
+  }
 }
 const _logoutBtn = document.getElementById('logoutBtn');
 if (_logoutBtn) _logoutBtn.addEventListener('click', performLogout);
@@ -677,45 +683,61 @@ async function renderCourseCards() {
   if (progressSection) progressSection.classList.add('hidden');
   // Populate both grids (dashboard + standalone courses view)
   const grid = document.getElementById('coursesGrid');
-  const gridFull = document.getElementById('coursesGridFull');
   if (grid) grid.innerHTML = skeletonCards(3);
-  if (gridFull) gridFull.innerHTML = skeletonCards(3);
 
   let courses = [];
-  try { courses = await apiGet('./api/my_courses.php'); } catch { }
+  let coursesError = false;
+  try {
+    courses = await apiGet('./api/my_courses.php');
+  } catch (err) {
+    console.error('Failed to load courses', err);
+    coursesError = true;
+  }
   if (!Array.isArray(courses)) courses = [];
 
-  const emptyHtml = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You're not enrolled in any courses.</div></div>`;
+  if (coursesError && !courses.length) {
+    if (grid) grid.innerHTML = `<div class="card"><strong>Unable to load courses.</strong><div class="muted small">Please check your connection and try again.</div></div>`;
+    return;
+  }
   if (!courses.length) {
-    if (grid) grid.innerHTML = emptyHtml;
-    if (gridFull) gridFull.innerHTML = emptyHtml;
+    if (grid) grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You're not enrolled in any courses.</div></div>`;
     return;
   }
 
-  const buildCards = (target) => {
-    if (!target) return;
-    target.innerHTML = '';
-    courses.forEach(c => {
-      const card = document.createElement('div');
-      card.className = 'course-card';
-      card.innerHTML = `
-        <span class="badge">Course #${c.course_id}</span>
-        <h3 class="course-title">${escapeHtml(c.name)}</h3>
-        <div class="mt-8">
-          <button class="btn btn-primary" data-course="${c.course_id}">Open</button>
-        </div>
-      `;
-      target.appendChild(card);
-    });
-    target.onclick = async (e) => {
-      const btn = e.target.closest('button[data-course]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-course');
-      await showCourse(id);
-    };
+  if (!grid) return;
+  grid.innerHTML = '';
+  courses.forEach(c => {
+    const safeId = escapeHtml(String(c.course_id ?? ''));
+    const card = document.createElement('div');
+    card.className = 'course-card';
+
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = 'Course #' + (c.course_id ?? '');
+
+    const title = document.createElement('h3');
+    title.className = 'course-title';
+    title.textContent = c.name || '';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'mt-8';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.setAttribute('data-course', String(c.course_id ?? ''));
+    btn.textContent = 'Open';
+    wrap.appendChild(btn);
+
+    card.appendChild(badge);
+    card.appendChild(title);
+    card.appendChild(wrap);
+    grid.appendChild(card);
+  });
+  grid.onclick = async (e) => {
+    const btn = e.target.closest('button[data-course]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-course');
+    await showCourse(id);
   };
-  buildCards(grid);
-  buildCards(gridFull);
 }
 
 // ROOMS (cards) + PROGRESS (bottom)
@@ -753,16 +775,30 @@ async function showCourse(courseId) {
     for (const room of rooms) {
       const card = document.createElement('div');
       card.className = 'room-card';
-      const url = `/signoff/room?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(room.room_id)}`;
-      card.innerHTML = `
-        <div class="flex align-center gap-10">
-          <span class="badge">Room #${room.room_id}</span>
-          <h3 class="room-title title-reset">${escapeHtml(room.name)}</h3>
-        </div>
-        <div class="room-actions mt-8 flex gap-8 flex-wrap">
-          <a class="btn btn-primary" href="${url}">Open room</a>
-        </div>
-      `;
+      const safeRoomId = String(room.room_id ?? '');
+      const url = `/signoff/room?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(safeRoomId)}`;
+
+      const header = document.createElement('div');
+      header.className = 'flex align-center gap-10';
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = 'Room #' + safeRoomId;
+      const h3 = document.createElement('h3');
+      h3.className = 'room-title title-reset';
+      h3.textContent = room.name || '';
+      header.appendChild(badge);
+      header.appendChild(h3);
+
+      const actions = document.createElement('div');
+      actions.className = 'room-actions mt-8 flex gap-8 flex-wrap';
+      const link = document.createElement('a');
+      link.className = 'btn btn-primary';
+      link.href = url;
+      link.textContent = 'Open room';
+      actions.appendChild(link);
+
+      card.appendChild(header);
+      card.appendChild(actions);
       grid.appendChild(card);
     }
   }
@@ -837,13 +873,17 @@ async function loadQueuesForRoom(roomId) {
   try {
     const queues = await apiGet('./api/queues.php?room_id=' + encodeURIComponent(roomId));
     if (String(selectedRoomId || '') !== String(roomId)) return;
-    if (!queues.length) { wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`; return; }
+    if (!Array.isArray(queues) || !queues.length) {
+      wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`;
+      return;
+    }
     wrap.innerHTML = '';
     const queueIds = [];
     queues.forEach(q => {
+      const safeQid = String(q.queue_id ?? '');
       const row = document.createElement('div');
       row.className = 'queue-row';
-      row.dataset.queueId = String(q.queue_id ?? '');
+      row.dataset.queueId = safeQid;
       row.innerHTML = `
         <div class="queue-header">
           <div class="queue-header-text">
@@ -854,18 +894,27 @@ async function loadQueuesForRoom(roomId) {
             <div class="queue-count" data-role="queue-count">Loading…</div>
             <div class="queue-eta" data-role="queue-eta"></div>
           </div>
-          <div class="queue-actions">
-            <button class="btn btn-ghost" data-join="${q.queue_id}">Join</button>
-            <button class="btn" data-leave="${q.queue_id}">Leave</button>
-          </div>
+          <div class="queue-actions"></div>
         </div>
         <div class="queue-occupants empty" data-role="queue-occupants">
           <span class="muted small">Loading participants…</span>
         </div>
         <div class="queue-feedback small" data-role="queue-error" aria-live="polite"></div>
       `;
+      // Build buttons programmatically to avoid attribute injection
+      const actionsEl = row.querySelector('.queue-actions');
+      const joinBtn = document.createElement('button');
+      joinBtn.className = 'btn btn-ghost';
+      joinBtn.dataset.join = safeQid;
+      joinBtn.textContent = 'Join';
+      const leaveBtn = document.createElement('button');
+      leaveBtn.className = 'btn';
+      leaveBtn.dataset.leave = safeQid;
+      leaveBtn.textContent = 'Leave';
+      actionsEl.appendChild(joinBtn);
+      actionsEl.appendChild(leaveBtn);
       wrap.appendChild(row);
-      queueIds.push(String(q.queue_id ?? ''));
+      queueIds.push(safeQid);
     });
     initQueueLiveUpdates(roomId, queueIds);
     wrap.onclick = async (e) => {
