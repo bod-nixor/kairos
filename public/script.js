@@ -557,6 +557,9 @@ async function bootstrap() {
 
     // Load courses (renderCourseCards handles showing viewDashboard)
     await renderCourseCards();
+    // Clear stats skeletons (no stats API yet)
+    const dashStats = document.getElementById('dashStats');
+    if (dashStats) dashStats.innerHTML = '';
 
     // Start SSE (optional; comment out if you haven't added change_log)
     // startSSE();
