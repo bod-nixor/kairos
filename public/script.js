@@ -174,7 +174,7 @@ function subscribeToChannel(channel, handler) {
     throw new Error(`Unsupported SSE channel: ${channel}`);
   }
   if (typeof handler !== 'function') {
-    return () => {};
+    return () => { };
   }
   const listeners = eventStreamState.handlers[channel];
   listeners.add(handler);
@@ -187,7 +187,7 @@ function subscribeToChannel(channel, handler) {
 
 function onEventStreamOpen(handler) {
   if (typeof handler !== 'function') {
-    return () => {};
+    return () => { };
   }
   eventStreamState.openHandlers.add(handler);
   return () => {
@@ -312,35 +312,57 @@ function applySessionCapabilities(caps) {
   };
   sessionCapabilities = next;
 
+  // Old top nav (compatibility shim)
   const nav = document.getElementById('mainNav');
-  if (!nav) {
-    return;
+  if (nav) {
+    const isLogged = !!next.is_logged_in;
+    nav.classList.toggle('hidden', !isLogged);
+
+    ['navHomeLink', 'navCoursesLink'].forEach((id) => {
+      const link = document.getElementById(id);
+      if (link) link.classList.toggle('hidden', !isLogged);
+    });
+
+    const roleLinks = [
+      ['navTaLink', 'ta'],
+      ['navManagerLink', 'manager'],
+      ['navAdminLink', 'admin'],
+    ];
+    roleLinks.forEach(([id, role]) => {
+      const link = document.getElementById(id);
+      if (!link) return;
+      const allowed = isLogged && !!next.roles[role];
+      link.classList.toggle('hidden', !allowed);
+    });
+
+    if (!isLogged) setTopNavActive(null);
   }
 
+  // New sidebar role nav
   const isLogged = !!next.is_logged_in;
-  nav.classList.toggle('hidden', !isLogged);
-
-  ['navHomeLink', 'navCoursesLink'].forEach((id) => {
-    const link = document.getElementById(id);
-    if (link) {
-      link.classList.toggle('hidden', !isLogged);
-    }
-  });
-
-  const roleLinks = [
-    ['navTaLink', 'ta'],
-    ['navManagerLink', 'manager'],
-    ['navAdminLink', 'admin'],
+  const kNavRoles = document.getElementById('kNavRoles');
+  if (kNavRoles) {
+    const hasAnyRole = isLogged && (next.roles.ta || next.roles.manager || next.roles.admin);
+    kNavRoles.classList.toggle('hidden', !hasAnyRole);
+  }
+  const sidebarRoleMap = [
+    ['navTA', 'ta'],
+    ['navManager', 'manager'],
+    ['navAdmin', 'admin'],
   ];
-  roleLinks.forEach(([id, role]) => {
-    const link = document.getElementById(id);
-    if (!link) return;
-    const allowed = isLogged && !!next.roles[role];
-    link.classList.toggle('hidden', !allowed);
+  sidebarRoleMap.forEach(([id, role]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('hidden', !(isLogged && next.roles[role]));
   });
 
-  if (!isLogged) {
-    setTopNavActive(null);
+  // Update sidebar role text
+  const sidebarRole = document.getElementById('kSidebarRole');
+  if (sidebarRole && isLogged) {
+    const roleDisplay = next.roles.admin ? 'Admin' :
+      next.roles.manager ? 'Manager' :
+        next.roles.ta ? 'TA' : 'Student';
+    sidebarRole.textContent = roleDisplay;
   }
 }
 
@@ -420,8 +442,16 @@ function handleTaAcceptEvent(message) {
 
 function showSignin() {
   applySessionCapabilities(null);
-  document.getElementById('signin').classList.remove('hidden');  // show login card
-  document.getElementById('userbar').classList.add('hidden');    // hide user info
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.remove('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.add('hidden');
+  // Hide the new LMS shell pre-login
+  const sidebar = document.getElementById('kSidebar');
+  if (sidebar) sidebar.classList.add('hidden');
+  const topbar = document.getElementById('kTopbar');
+  if (topbar) topbar.classList.add('hidden');
+  document.body.classList.add('k-pre-auth');
   // hide app views while logged out
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   // ensure the button renders (fresh container)
@@ -431,15 +461,23 @@ function showSignin() {
 }
 
 function showApp() {
-  document.getElementById('signin').classList.add('hidden');     // hide login card
-  document.getElementById('userbar').classList.remove('hidden'); // show user info
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.add('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.remove('hidden');
+  // Show the new LMS shell post-login
+  const sidebar = document.getElementById('kSidebar');
+  if (sidebar) sidebar.classList.remove('hidden');
+  const topbar = document.getElementById('kTopbar');
+  if (topbar) topbar.classList.remove('hidden');
+  document.body.classList.remove('k-pre-auth');
 }
 
 async function handleCredentialResponse(resp) {
   try {
     const r = await fetch('./api/auth.php', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify({ credential: resp.credential })
     });
@@ -494,10 +532,20 @@ async function bootstrap() {
     const me = await r.json();
     if (!me?.email) { selfUserId = null; stopNotifySSE(); showSignin(); return; }
 
-    // Fill userbar
-    document.getElementById('avatar').src = me.picture_url || '';
-    document.getElementById('name').textContent = me.name || '';
-    document.getElementById('email').textContent = me.email || '';
+    // Fill userbar (old + new selectors)
+    const avatarEl = document.getElementById('avatar');
+    if (avatarEl) avatarEl.src = me.picture_url || '';
+    const nameEl = document.getElementById('name');
+    if (nameEl) nameEl.textContent = me.name || '';
+    const emailEl = document.getElementById('email');
+    if (emailEl) emailEl.textContent = me.email || '';
+    // Also fill the new sidebar user bar
+    const sidebarAvatar = document.getElementById('kSidebarAvatar');
+    if (sidebarAvatar) sidebarAvatar.src = me.picture_url || '';
+    const sidebarName = document.getElementById('kSidebarName');
+    if (sidebarName) sidebarName.textContent = me.name || me.email || '';
+    const sidebarRole = document.getElementById('kSidebarRole');
+    if (sidebarRole) sidebarRole.textContent = me.roles || 'Student';
 
     selfUserId = me.user_id || null;
     currentUserId = (typeof me.user_id === 'number' && Number.isFinite(me.user_id))
@@ -510,7 +558,9 @@ async function bootstrap() {
     await refreshSessionCapabilities();
     showApp();
 
-    // Step 1: show only the user's enrolled courses as cards
+    // Show dashboard view and load courses into it
+    const vd = document.getElementById('viewDashboard');
+    if (vd) vd.classList.remove('hidden');
     await renderCourseCards();
 
     // Start SSE (optional; comment out if you haven't added change_log)
@@ -566,14 +616,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
-  stopSSE();
-  stopNotifySSE();
-  selfUserId = null;
-  showSignin();
-  renderGoogleButton();
-});
+// Legacy logout button
+const _logoutBtn = document.getElementById('logoutBtn');
+if (_logoutBtn) {
+  _logoutBtn.addEventListener('click', async () => {
+    await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
+    stopSSE();
+    stopNotifySSE();
+    selfUserId = null;
+    showSignin();
+    renderGoogleButton();
+  });
+}
+// New sidebar logout button
+const _kLogoutBtn = document.getElementById('kLogoutBtn');
+if (_kLogoutBtn) {
+  _kLogoutBtn.addEventListener('click', async () => {
+    await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
+    stopSSE();
+    stopNotifySSE();
+    selfUserId = null;
+    showSignin();
+    renderGoogleButton();
+  });
+}
 
 // ---------- API helpers ----------
 async function apiGet(url) {
@@ -583,12 +649,21 @@ async function apiGet(url) {
 }
 
 // nav state
-function setCrumbs(text){ document.getElementById('breadcrumbs').textContent = text; }
-function showView(id){
+function setCrumbs(text) {
+  const el = document.getElementById('breadcrumbs');
+  if (el) el.textContent = text;
+  // Also update the new breadcrumb
+  const kb = document.getElementById('kBreadcrumb');
+  if (kb) kb.innerHTML = '<span class="k-breadcrumb__item is-current">' + (text || 'Dashboard') + '</span>';
+}
+function showView(id) {
   for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
-  document.getElementById(id).classList.remove('hidden');
-  document.getElementById('navCourses').classList.toggle('active', id==='viewCourses');
-  document.getElementById('navRooms').classList.toggle('active', id==='viewRooms');
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
+  const navCourses = document.getElementById('navCourses');
+  if (navCourses) navCourses.classList.toggle('active', id === 'viewCourses');
+  const navRooms = document.getElementById('navRooms');
+  if (navRooms) navRooms.classList.toggle('active', id === 'viewRooms');
   if (id === 'viewCourses') {
     setTopNavActive('courses');
   } else {
@@ -597,7 +672,7 @@ function showView(id){
 }
 
 // COURSES (cards: enrolled only)
-async function renderCourseCards(){
+async function renderCourseCards() {
   selectedCourse = null;
   selectedRoomId = null;                                 // reset room selection when leaving rooms view
   stopQueueLiveUpdates();
@@ -612,16 +687,16 @@ async function renderCourseCards(){
   grid.innerHTML = skeletonCards(3);
 
   let courses = [];
-  try { courses = await apiGet('./api/my_courses.php'); } catch {}
+  try { courses = await apiGet('./api/my_courses.php'); } catch { }
   if (!Array.isArray(courses)) courses = [];
 
-  if (!courses.length){
+  if (!courses.length) {
     grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You’re not enrolled in any courses.</div></div>`;
     return;
   }
 
   grid.innerHTML = '';
-  courses.forEach(c=>{
+  courses.forEach(c => {
     const card = document.createElement('div');
     card.className = 'course-card';
     card.innerHTML = `
@@ -634,16 +709,16 @@ async function renderCourseCards(){
     grid.appendChild(card);
   });
 
-  grid.onclick = async (e)=>{
+  grid.onclick = async (e) => {
     const btn = e.target.closest('button[data-course]');
-    if(!btn) return;
+    if (!btn) return;
     const id = btn.getAttribute('data-course');
     await showCourse(id);
   };
 }
 
 // ROOMS (cards) + PROGRESS (bottom)
-async function showCourse(courseId){
+async function showCourse(courseId) {
   selectedCourse = String(courseId);
   try {
     sessionStorage.setItem('signoff:lastCourseId', selectedCourse);
@@ -740,32 +815,34 @@ async function showCourse(courseId){
     if (progressSection) progressSection.classList.add('hidden');
     renderCourseCards();
   };
-  document.getElementById('navRooms').classList.add('active');
-  document.getElementById('navCourses').classList.remove('active');
+  const _nr = document.getElementById('navRooms');
+  if (_nr) _nr.classList.add('active');
+  const _nc = document.getElementById('navCourses');
+  if (_nc) _nc.classList.remove('active');
 }
 
 // queues per room (unchanged logic, prettier buttons)
-async function loadQueuesForRoom(roomId){
+async function loadQueuesForRoom(roomId) {
   const wrap = document.getElementById(`queues-for-${roomId}`);
   if (!wrap) return;
   if (String(selectedRoomId || '') !== String(roomId)) return;
   wrap.innerHTML = '<div class="sk"></div>';
   stopQueueLiveUpdates();
-  try{
-    const queues = await apiGet('./api/queues.php?room_id='+encodeURIComponent(roomId));
+  try {
+    const queues = await apiGet('./api/queues.php?room_id=' + encodeURIComponent(roomId));
     if (String(selectedRoomId || '') !== String(roomId)) return;
-    if(!queues.length){ wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`; return; }
+    if (!queues.length) { wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`; return; }
     wrap.innerHTML = '';
     const queueIds = [];
-    queues.forEach(q=>{
+    queues.forEach(q => {
       const row = document.createElement('div');
-      row.className='queue-row';
+      row.className = 'queue-row';
       row.dataset.queueId = String(q.queue_id ?? '');
       row.innerHTML = `
         <div class="queue-header">
           <div class="queue-header-text">
             <div class="q-name">${escapeHtml(q.name)}</div>
-            <div class="q-desc">${escapeHtml(q.description||'')}</div>
+            <div class="q-desc">${escapeHtml(q.description || '')}</div>
           </div>
           <div class="queue-meta">
             <div class="queue-count" data-role="queue-count">Loading…</div>
@@ -785,7 +862,7 @@ async function loadQueuesForRoom(roomId){
       queueIds.push(String(q.queue_id ?? ''));
     });
     initQueueLiveUpdates(roomId, queueIds);
-    wrap.onclick = async (e)=>{
+    wrap.onclick = async (e) => {
       const button = e.target.closest('button[data-join], button[data-leave]');
       if (!button) return;
       e.preventDefault();
@@ -847,14 +924,14 @@ async function loadQueuesForRoom(roomId){
         });
       }
     };
-  }catch{
+  } catch {
     if (String(selectedRoomId || '') === String(roomId)) {
       wrap.innerHTML = `<div class="muted">Failed to load queues.</div>`;
     }
   }
 }
 
-function updateRoomSelectionUI(){
+function updateRoomSelectionUI() {
   document.querySelectorAll('#roomsGrid .room-card').forEach(card => {
     const roomId = card.dataset.roomId;
     const isActive = selectedRoomId && String(selectedRoomId) === String(roomId);
@@ -877,11 +954,11 @@ function updateRoomSelectionUI(){
 
 // Map status string to CSS class (from your code)
 function statusClass(s) {
-    const key = String(s || 'None').toLowerCase();
-    if (key === 'pending')   return 'status-pending';
-    if (key === 'completed') return 'status-completed';
-    if (key === 'review')    return 'status-review';
-    return 'status-none';
+  const key = String(s || 'None').toLowerCase();
+  if (key === 'pending') return 'status-pending';
+  if (key === 'completed') return 'status-completed';
+  if (key === 'review') return 'status-review';
+  return 'status-none';
 }
 
 
@@ -889,66 +966,68 @@ function statusClass(s) {
 
 // progress rendered as horizontal “tables”
 async function renderProgress(courseId) {
-    const container = document.getElementById('progressContainer');
-    container.innerHTML = '<p>Loading progress...</p>'; // Simple loading state
-    const data = await apiGet('./api/progress.php?course_id=' + encodeURIComponent(courseId || ''));
-    const cats   = data.categories || [];
-    const byCat  = data.detailsByCategory || {};
-    const status = data.userStatuses || {}; // { detail_id: "None" | "Pending" | "Completed" | "Review" }
+  const container = document.getElementById('progressContainer');
+  container.innerHTML = '<p>Loading progress...</p>'; // Simple loading state
+  const data = await apiGet('./api/progress.php?course_id=' + encodeURIComponent(courseId || ''));
+  const cats = data.categories || [];
+  const byCat = data.detailsByCategory || {};
+  const status = data.userStatuses || {}; // { detail_id: "None" | "Pending" | "Completed" | "Review" }
 
-    container.innerHTML = ''; // Clear the "Loading..." text
+  container.innerHTML = ''; // Clear the "Loading..." text
 
-    for (const cat of cats) {
-        const details = byCat[cat.category_id] || [];
-        if (!details.length) continue;
+  for (const cat of cats) {
+    const details = byCat[cat.category_id] || [];
+    if (!details.length) continue;
 
-        const section = document.createElement('div');
-        section.className = 'progress-section-row'; // Use a different class to avoid nesting .progress-section
+    const section = document.createElement('div');
+    section.className = 'progress-section-row'; // Use a different class to avoid nesting .progress-section
 
-        const title = document.createElement('h4');
-        title.className = 'progress-title';
-        title.textContent = cat.name;
-        section.appendChild(title);
+    const title = document.createElement('h4');
+    title.className = 'progress-title';
+    title.textContent = cat.name;
+    section.appendChild(title);
 
-        const row = document.createElement('div');
-        row.className = 'progress-row';
+    const row = document.createElement('div');
+    row.className = 'progress-row';
 
-        for (const d of details) {
-            const sName = (status[d.detail_id] || 'None'); // default
-            const cls = statusClass(sName);
+    for (const d of details) {
+      const sName = (status[d.detail_id] || 'None'); // default
+      const cls = statusClass(sName);
 
-            const cell = document.createElement('div');
-            cell.className = 'progress-cell';
-            cell.innerHTML = `
+      const cell = document.createElement('div');
+      cell.className = 'progress-cell';
+      cell.innerHTML = `
                 <div class="detail-name">${escapeHtml(d.name)}</div>
                 <div class="status ${cls}">${escapeHtml(sName)}</div>
             `;
-            row.appendChild(cell);
-        }
-
-        section.appendChild(row);
-        container.appendChild(section);
+      row.appendChild(cell);
     }
+
+    section.appendChild(row);
+    container.appendChild(section);
+  }
 }
 
-// sidebar nav (Courses/Rooms)
-document.getElementById('navCourses').onclick = ()=> renderCourseCards();
-document.getElementById('navRooms').onclick = ()=> showView('viewRooms');
+// sidebar nav (Courses/Rooms) — null-safe
+const _navCourses = document.getElementById('navCourses');
+if (_navCourses) _navCourses.onclick = () => renderCourseCards();
+const _navRooms = document.getElementById('navRooms');
+if (_navRooms) _navRooms.onclick = () => showView('viewRooms');
 
 // helpers
-function escapeHtml(s){
+function escapeHtml(s) {
   return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", "&#039;");
 }
-function skeletonCards(n=3){
-  return Array.from({length:n}).map(()=>'<div class="sk"></div>').join('');
+function skeletonCards(n = 3) {
+  return Array.from({ length: n }).map(() => '<div class="sk"></div>').join('');
 }
 
-async function refreshQueueMeta(queueId){
+async function refreshQueueMeta(queueId) {
   const id = String(queueId ?? '');
   if (!id || !queueLiveState.queueIds.has(id)) return;
   const safeId = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') ? CSS.escape(id) : id.replace(/"/g, '\\"');
@@ -1030,7 +1109,7 @@ async function refreshQueueMeta(queueId){
   return promise;
 }
 
-function initQueueLiveUpdates(roomId, queueIds){
+function initQueueLiveUpdates(roomId, queueIds) {
   const ids = (Array.isArray(queueIds) ? queueIds : [])
     .map((id) => String(id))
     .filter((id) => /^\d+$/.test(id));
@@ -1043,7 +1122,7 @@ function initQueueLiveUpdates(roomId, queueIds){
   ids.forEach((id) => { refreshQueueMeta(id); });
 }
 
-function stopQueueLiveUpdates(){
+function stopQueueLiveUpdates() {
   queueLiveState.queueIds = new Set();
   queueLiveState.roomId = null;
   queuePendingFetches.clear();
@@ -1114,15 +1193,15 @@ function handleTaAcceptPayload(payload) {
   if ('Notification' in window) {
     const notifyBody = `${taName} is ready for queue ${queueLabel}.`;
     if (Notification.permission === 'granted') {
-      try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) {}
+      try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) { }
     } else if (Notification.permission === 'default') {
       try {
         Notification.requestPermission().then((perm) => {
           if (perm === 'granted') {
-            try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) {}
+            try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) { }
           }
-        }).catch(() => {});
-      } catch (_) {}
+        }).catch(() => { });
+      } catch (_) { }
     }
   }
 }
@@ -1148,7 +1227,7 @@ function playTaAcceptSound() {
     if (!Ctx) return;
     if (!taAudioCtx) taAudioCtx = new Ctx();
     if (taAudioCtx.state === 'suspended') {
-      taAudioCtx.resume().catch(() => {});
+      taAudioCtx.resume().catch(() => { });
     }
     const ctx = taAudioCtx;
     const osc = ctx.createOscillator();
