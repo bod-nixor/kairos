@@ -396,11 +396,16 @@
       if (!me) return;
       const avatar = document.getElementById('kSidebarAvatar');
       const name = document.getElementById('kSidebarName');
-      const role = document.getElementById('kSidebarRole');
+      const roleEl = document.getElementById('kSidebarRole');
       if (avatar) avatar.src = me.picture_url || '';
       if (name) name.textContent = me.name || me.email || '';
-      const roles = (me.roles || []).join(', ') || 'Student';
-      if (role) role.textContent = roles;
+      // Derive display role from session capabilities
+      const r = _caps && _caps.roles ? _caps.roles : {};
+      let roleLabel = 'Student';
+      if (r.admin) roleLabel = 'Admin';
+      else if (r.manager) roleLabel = 'Manager';
+      else if (r.ta) roleLabel = 'TA';
+      if (roleEl) roleEl.textContent = roleLabel;
     },
   };
 
@@ -411,7 +416,13 @@
     const key = `${courseId}:${flag}`;
     if (_featureCache.has(key)) return _featureCache.get(key);
     const r = await api('GET', `./api/lms/features.php?course_id=${encodeURIComponent(courseId)}&flag=${encodeURIComponent(flag)}`);
-    const val = r.ok && r.data && r.data.enabled === true;
+    let val = false;
+    if (r.ok && r.data) {
+      // r.data is {ok:true, data:{items:[...]}} from lms_ok()
+      const payload = r.data.data || r.data;
+      const items = Array.isArray(payload.items) ? payload.items : (Array.isArray(payload) ? payload : []);
+      val = items.some(item => item.flag_key === flag && (item.enabled === 1 || item.enabled === true));
+    }
     _featureCache.set(key, val);
     return val;
   }
@@ -426,7 +437,6 @@
       global.location.href = '/';
       return;
     }
-    KairosNav.updateUserBar(me);
     // Logout button
     const logoutBtn = document.getElementById('kLogoutBtn');
     if (logoutBtn) {
