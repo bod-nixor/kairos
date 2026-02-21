@@ -112,7 +112,7 @@
         }
 
         const [courseRes, statsRes, modulesRes, annRes, actRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/courses.php?id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/course_stats.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/modules.php?course_id=${encodeURIComponent(COURSE_ID)}&preview=1`),
             LMS.api('GET', `./api/lms/announcements.php?course_id=${encodeURIComponent(COURSE_ID)}&limit=6`),
@@ -164,7 +164,7 @@
         // Stats
         $('statModules') && ($('statModules').textContent = stats.modules || '—');
         $('statCompleted') && ($('statCompleted').textContent = stats.completed_items || '—');
-        $('statAssignments') && ($('statAssignments').textContent = stats.assignments_due || '—');
+        $('statAssignments') && ($('statAssignments').textContent = stats.assignments || '—');
         $('statQuizzes') && ($('statQuizzes').textContent = stats.quizzes || '—');
 
         // Sidebar nav links
