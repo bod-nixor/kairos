@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Assignment — Kairos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="View assignment details, rubric, and submit your work." />
+    <link rel="icon" type="image/png" href="./images/logo.png" />
+    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/lms.css" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="./js/config.js"></script>
+</head>
+
+<body class="k-page-body">
+
+    <aside class="k-sidebar" role="navigation" aria-label="Course navigation">
+        <a class="k-sidebar__brand" href="/">
+            <div class="k-sidebar__logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+            </div><span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+        </a>
+        <div class="k-sidebar__scroll">
+            <div class="k-nav-group"><a class="k-nav-item" href="/"><span class="k-nav-item__icon">←</span><span
+                        class="k-nav-item__text">All Courses</span></a></div>
+            <div class="k-sidebar__course-header">
+                <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
+            </div>
+            <nav class="k-nav-group">
+                <a class="k-nav-item" data-course-href="./course.html" href="#"><span
+                        class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
+                <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
+                        class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
+                <a class="k-nav-item hidden" data-course-href="./quiz.html" href="#" id="kNavQuizzes"><span
+                        class="k-nav-item__icon">⚡</span><span class="k-nav-item__text">Quizzes</span></a>
+                <a class="k-nav-item is-active" data-course-href="./assignment.html" href="#" aria-current="page"><span
+                        class="k-nav-item__icon">📤</span><span class="k-nav-item__text">Assignments</span></a>
+                <a class="k-nav-item hidden" data-course-href="./grading.html" href="#" id="kNavGrading"><span
+                        class="k-nav-item__icon">🧑‍🏫</span><span class="k-nav-item__text">Grading</span></a>
+                <a class="k-nav-item hidden" data-course-href="./analytics.html" href="#" id="kNavAnalytics"><span
+                        class="k-nav-item__icon">📊</span><span class="k-nav-item__text">Analytics</span></a>
+            </nav>
+        </div>
+        <div class="k-sidebar__user">
+            <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="" />
+            <div class="k-sidebar__user-info">
+                <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+                <div class="k-sidebar__user-role" id="kSidebarRole">Student</div>
+            </div>
+            <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout">↩</button>
+        </div>
+    </aside>
+
+    <div class="k-layout">
+        <header class="k-topbar">
+            <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+                <a class="k-breadcrumb__item" href="/">Courses</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <span class="k-breadcrumb__item is-current" id="kBreadAssign">Assignment</span>
+            </nav>
+            <div class="k-topbar__actions">
+                <button class="k-topbar__icon-btn" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                    <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
+                    <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
+                </button>
+                <button class="k-avatar-btn" id="kAvatarBtn"><img id="avatar" src="" alt="" /></button>
+            </div>
+        </header>
+
+        <main class="k-main">
+            <div class="k-page">
+
+                <!-- Skeleton -->
+                <div id="assignSkeleton">
+                    <div class="k-skeleton k-skeleton--title" style="width:60%;margin-bottom:12px"></div>
+                    <div class="k-skeleton k-skeleton--text" style="width:35%;margin-bottom:24px"></div>
+                    <div style="display:grid;grid-template-columns:1fr 380px;gap:24px">
+                        <div class="k-skeleton k-skeleton--card" style="height:400px"></div>
+                        <div class="k-skeleton k-skeleton--card" style="height:320px"></div>
+                    </div>
+                </div>
+
+                <!-- Loaded content -->
+                <div id="assignLoaded" class="hidden">
+                    <!-- Header (outside two-col) -->
+                    <div class="k-assign-header">
+                        <h1 class="k-assign-header__title" id="assignTitle">Assignment</h1>
+                        <div class="k-assign-header__meta">
+                            <span class="k-assign-deadline" id="assignDeadline">
+                                <span aria-hidden="true">📅</span> Due: —
+                            </span>
+                            <span class="k-status k-status--neutral" id="assignStatus"
+                                aria-label="Submission status">Not Submitted</span>
+                            <span class="k-status hidden" id="assignGradeStatus" aria-label="Grade status"></span>
+                        </div>
+                    </div>
+
+                    <!-- Two-column: description/rubric + submission panel -->
+                    <div class="k-assign-layout">
+                        <!-- Left: Details -->
+                        <div>
+                            <!-- Description -->
+                            <div class="k-card" style="margin-bottom:20px">
+                                <div class="k-card__header">
+                                    <h2 class="k-card__title">Assignment Details</h2>
+                                </div>
+                                <div class="k-card__body">
+                                    <div class="k-assign-description" id="assignDescription">
+                                        <div class="k-empty" style="padding:32px 0">
+                                            <div class="k-empty__icon">📝</div>
+                                            <p class="k-empty__title">No description provided</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Rubric (collapsible) -->
+                            <div class="k-card" id="rubricCard" style="display:none">
+                                <details class="k-rubric-details" id="rubricDetails" open>
+                                    <summary>
+                                        <span>📋 Grading Rubric</span>
+                                        <span class="k-rubric-chevron" aria-hidden="true">▲</span>
+                                    </summary>
+                                    <div class="k-rubric-table-wrap">
+                                        <table class="k-rubric-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Criterion</th>
+                                                    <th>Description</th>
+                                                    <th>Max Points</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="rubricRows">
+                                                <!-- Populated by assignment.js -->
+                                            </tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <td colspan="2"><strong>Total</strong></td>
+                                                    <td id="rubricTotal">—</td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </details>
+                            </div>
+
+                            <!-- Grade feedback (shown after grading) -->
+                            <div class="k-card hidden" id="gradeFeedbackCard" style="margin-top:20px">
+                                <div class="k-card__header">
+                                    <h2 class="k-card__title">Grade Feedback</h2>
+                                    <span class="k-stat-card__value" id="gradeScoreDisplay"
+                                        style="color:var(--primary)">—</span>
+                                </div>
+                                <div class="k-card__body">
+                                    <div id="gradeFeedbackText" class="k-assign-description"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Submission panel -->
+                        <div class="k-submission-panel" id="submissionPanel">
+                            <div class="k-submission-panel__head">
+                                <h2 class="k-submission-panel__title" id="submissionPanelTitle">Submit Your Work</h2>
+                            </div>
+                            <div class="k-submission-panel__body">
+
+                                <!-- Submission type: file | text | url (set by JS) -->
+                                <div id="fileSubmission" class="hidden">
+                                    <label class="k-label" id="dropzoneLabel">Upload Files</label>
+                                    <div class="k-dropzone" id="dropzone" tabindex="0" role="button"
+                                        aria-label="Upload files">
+                                        <span class="k-dropzone__icon" aria-hidden="true">☁️</span>
+                                        <span class="k-dropzone__label">Drop files here or click to browse</span>
+                                        <span class="k-dropzone__hint" id="dropzoneHint">Any file type · Max 50MB per
+                                            file</span>
+                                        <input type="file" id="fileInput" multiple class="hidden" tabindex="-1" />
+                                    </div>
+                                    <div class="k-file-list" id="fileList"></div>
+                                </div>
+
+                                <div id="textSubmission" class="hidden">
+                                    <div class="k-field">
+                                        <label class="k-label" for="textInput">Your Answer</label>
+                                        <textarea class="k-textarea" id="textInput" rows="8"
+                                            placeholder="Type your answer here…"></textarea>
+                                    </div>
+                                </div>
+
+                                <div id="urlSubmission" class="hidden">
+                                    <div class="k-field">
+                                        <label class="k-label" for="urlInput">Submission URL</label>
+                                        <input class="k-input" type="url" id="urlInput" placeholder="https://…" />
+                                        <span class="k-field-hint">Link to your GitHub repo, Google Doc, etc.</span>
+                                    </div>
+                                </div>
+
+                                <!-- Actions -->
+                                <div id="submissionActions">
+                                    <button class="btn btn-primary" id="submitBtn" style="width:100%">Submit</button>
+                                    <p class="k-field-hint" id="submissionNote"
+                                        style="text-align:center;margin-top:8px"></p>
+                                </div>
+
+                                <!-- Already submitted state -->
+                                <div id="submittedState" class="hidden">
+                                    <div class="k-status k-status--success"
+                                        style="display:flex;justify-content:center;margin-bottom:16px">
+                                        <span class="k-status__dot"></span> Submitted
+                                    </div>
+                                    <button class="btn btn-ghost" id="resubmitBtn" style="width:100%">Submit New
+                                        Version</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!-- /k-assign-layout -->
+
+                    <!-- Submission history -->
+                    <div class="k-card" style="margin-top:24px" id="historyCard">
+                        <div class="k-card__header">
+                            <h2 class="k-card__title">Submission History</h2>
+                        </div>
+                        <div class="k-card__body">
+                            <div class="k-timeline" id="submissionTimeline">
+                                <div class="k-empty" style="padding:16px 0">
+                                    <div class="k-empty__icon">📋</div>
+                                    <p class="k-empty__title">No submissions yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /assignLoaded -->
+
+                <!-- Error state -->
+                <div id="assignError" class="hidden">
+                    <div class="k-empty">
+                        <div class="k-empty__icon">⚠️</div>
+                        <p class="k-empty__title">Failed to load assignment</p><button class="btn btn-primary"
+                            id="assignRetryBtn">Retry</button>
+                    </div>
+                </div>
+
+                <!-- Access denied state -->
+                <div id="assignAccessDenied" class="hidden"></div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/ws.js"></script>
+    <script src="./js/lms-core.js"></script>
+    <script src="./js/lms-ws.js"></script>
+    <script src="./js/assignment.js"></script>
+</body>
+
+</html>

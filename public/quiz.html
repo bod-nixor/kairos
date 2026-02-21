@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Quiz — Kairos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Take a quiz or review your attempt history." />
+    <link rel="icon" type="image/png" href="./images/logo.png" />
+    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/lms.css" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="./js/config.js"></script>
+</head>
+
+<body class="k-page-body">
+
+    <aside class="k-sidebar" role="navigation" aria-label="Course navigation">
+        <a class="k-sidebar__brand" href="/">
+            <div class="k-sidebar__logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+            </div><span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+        </a>
+        <div class="k-sidebar__scroll">
+            <div class="k-nav-group"><a class="k-nav-item" href="/"><span class="k-nav-item__icon">←</span><span
+                        class="k-nav-item__text">All Courses</span></a></div>
+            <div class="k-sidebar__course-header">
+                <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
+            </div>
+            <nav class="k-nav-group" id="kNavCourse">
+                <a class="k-nav-item" data-course-href="./course.html" href="#"><span
+                        class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
+                <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
+                        class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
+                <a class="k-nav-item is-active" data-nav-key="quizzes" data-course-href="./quiz.html" href="#"
+                    aria-current="page"><span class="k-nav-item__icon">⚡</span><span
+                        class="k-nav-item__text">Quizzes</span></a>
+                <a class="k-nav-item hidden" data-course-href="./assignment.html" href="#" id="kNavAssignments"><span
+                        class="k-nav-item__icon">📤</span><span class="k-nav-item__text">Assignments</span></a>
+                <a class="k-nav-item hidden" data-course-href="./grading.html" href="#" id="kNavGrading"><span
+                        class="k-nav-item__icon">🧑‍🏫</span><span class="k-nav-item__text">Grading</span></a>
+                <a class="k-nav-item hidden" data-course-href="./analytics.html" href="#" id="kNavAnalytics"><span
+                        class="k-nav-item__icon">📊</span><span class="k-nav-item__text">Analytics</span></a>
+            </nav>
+        </div>
+        <div class="k-sidebar__user">
+            <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="" />
+            <div class="k-sidebar__user-info">
+                <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+                <div class="k-sidebar__user-role" id="kSidebarRole">Student</div>
+            </div>
+            <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout">↩</button>
+        </div>
+    </aside>
+
+    <div class="k-layout">
+        <!-- Sticky quiz header (shown during attempt) -->
+        <div class="k-quiz-sticky-header hidden" id="quizStickyHeader" role="banner" aria-label="Quiz header">
+            <div class="k-quiz-sticky-header__inner">
+                <h1 class="k-quiz-title" id="quizStickyTitle">Quiz</h1>
+                <span class="k-quiz-progress-text" id="quizProgressText"></span>
+                <span class="k-quiz-timer hidden" id="quizTimer" aria-live="polite" aria-label="Time remaining">—</span>
+            </div>
+            <div class="k-quiz-progress-bar k-progress" role="progressbar" aria-label="Quiz progress" aria-valuenow="0"
+                aria-valuemin="0" aria-valuemax="100">
+                <div class="k-progress__fill" id="quizProgressFill" style="width:0%"></div>
+            </div>
+        </div>
+
+        <header class="k-topbar" id="quizTopbar">
+            <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+                <a class="k-breadcrumb__item" href="/">Courses</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <span class="k-breadcrumb__item is-current">Quiz</span>
+            </nav>
+            <div class="k-topbar__actions">
+                <button class="k-topbar__icon-btn" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                    <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
+                    <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
+                </button>
+                <button class="k-avatar-btn" id="kAvatarBtn"><img id="avatar" src="" alt="" /></button>
+            </div>
+        </header>
+
+        <main class="k-main" id="quizRoot">
+            <div class="k-page">
+                <div class="k-quiz-wrap">
+
+                    <!-- Skeleton -->
+                    <div id="quizSkeleton">
+                        <div class="k-skeleton" style="height:280px;border-radius:16px;margin-bottom:16px"></div>
+                        <div class="k-skeleton k-skeleton--text" style="width:60%"></div>
+                    </div>
+
+                    <!-- PHASE: Intro -->
+                    <div id="quizIntroPanel" class="k-quiz-panel hidden" aria-label="Quiz introduction">
+                        <span class="k-quiz-panel__icon" role="img" aria-label="Quiz">⚡</span>
+                        <h1 class="k-quiz-panel__title" id="quizIntroTitle">Quiz Title</h1>
+                        <p class="k-quiz-panel__desc" id="quizIntroDesc">Loading quiz details…</p>
+                        <div class="k-quiz-meta-row" id="quizIntroMeta">
+                            <div class="k-quiz-meta-item">
+                                <span class="k-quiz-meta-item__value" id="metaQuestions">—</span>
+                                <span class="k-quiz-meta-item__label">Questions</span>
+                            </div>
+                            <div class="k-quiz-meta-item">
+                                <span class="k-quiz-meta-item__value" id="metaTime">—</span>
+                                <span class="k-quiz-meta-item__label">Time limit</span>
+                            </div>
+                            <div class="k-quiz-meta-item">
+                                <span class="k-quiz-meta-item__value" id="metaAttempts">—</span>
+                                <span class="k-quiz-meta-item__label">Attempts used</span>
+                            </div>
+                            <div class="k-quiz-meta-item">
+                                <span class="k-quiz-meta-item__value" id="metaMax">—</span>
+                                <span class="k-quiz-meta-item__label">Max attempts</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="quizStartBtn" style="min-width:160px">Start Attempt</button>
+                        <div style="margin-top:20px">
+                            <button class="btn btn-ghost btn-sm" id="quizShowHistoryBtn">View Attempt History</button>
+                        </div>
+                    </div>
+
+                    <!-- PHASE: Active attempt (one question at a time) -->
+                    <div id="quizAttemptPanel" class="hidden" aria-label="Quiz attempt" role="form">
+                        <div id="questionCard" class="k-question-card">
+                            <div class="k-question-card__head">
+                                <div class="k-question-card__num" id="questionNum">Question 1 of 10</div>
+                                <p class="k-question-card__text" id="questionText">—</p>
+                            </div>
+                            <div class="k-question-card__body" id="answerArea">
+                                <!-- Rendered by quiz.js based on question type -->
+                            </div>
+                        </div>
+                        <!-- Quiz navigation -->
+                        <nav class="k-quiz-nav" aria-label="Question navigation">
+                            <button class="btn btn-ghost btn-sm" id="quizPrevBtn" disabled
+                                aria-label="Previous question">← Prev</button>
+                            <div class="k-quiz-dots" id="quizDots" role="list" aria-label="Questions"></div>
+                            <button class="btn btn-ghost btn-sm" id="quizNextBtn" aria-label="Next question">Next
+                                →</button>
+                            <button class="btn btn-primary" id="quizSubmitBtn" style="display:none"
+                                aria-label="Submit quiz">Submit Quiz</button>
+                        </nav>
+                    </div>
+
+                    <!-- PHASE: Result -->
+                    <div id="quizResultPanel" class="k-quiz-panel hidden" aria-label="Quiz result">
+                        <div class="k-score-ring" aria-hidden="true">
+                            <svg viewBox="0 0 120 120" width="140" height="140">
+                                <circle class="k-score-ring__track" cx="60" cy="60" r="55" />
+                                <circle class="k-score-ring__fill" id="scoreRingFill" cx="60" cy="60" r="55" />
+                            </svg>
+                            <div class="k-score-ring__text">
+                                <span class="k-score-ring__value" id="scoreValue">—</span>
+                                <span class="k-score-ring__label" id="scoreLabel">Score</span>
+                            </div>
+                        </div>
+                        <h2 class="k-quiz-panel__title" id="resultTitle">Quiz Complete</h2>
+                        <p class="k-quiz-panel__desc" id="resultDesc">—</p>
+
+                        <!-- Manual grading pending banner -->
+                        <div class="hidden" id="manualPendingBanner"
+                            style="background:var(--status-info-bg);color:var(--status-info-text);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;gap:12px;align-items:flex-start">
+                            <span style="font-size:20px">⏳</span>
+                            <div>
+                                <strong>Manual grading pending</strong>
+                                <p style="margin:4px 0 0;font-size:13px">Some of your answers require manual review.
+                                    Your final score will be updated once a grader reviews your submission.</p>
+                            </div>
+                        </div>
+
+                        <!-- Per-question feedback -->
+                        <div id="quizFeedbackList"
+                            style="text-align:left;margin:0 auto 24px;max-width:600px;width:100%"></div>
+
+                        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+                            <button class="btn btn-ghost" id="resultViewHistoryBtn">View History</button>
+                            <a href="#" class="btn btn-primary" id="resultBackBtn">Back to Course</a>
+                        </div>
+                    </div>
+
+                    <!-- PHASE: Attempt history -->
+                    <div id="quizHistoryPanel" class="k-card hidden" aria-label="Attempt history">
+                        <div class="k-card__header">
+                            <h2 class="k-card__title">Attempt History</h2>
+                            <button class="btn btn-ghost btn-sm" id="historyBackBtn">← Back</button>
+                        </div>
+                        <div class="k-attempt-history" id="attemptHistoryList">
+                            <div class="k-empty">
+                                <div class="k-empty__icon">📋</div>
+                                <p class="k-empty__title">No attempts yet</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Error / Access denied -->
+                    <div id="quizError" class="hidden">
+                        <div class="k-empty">
+                            <div class="k-empty__icon">⚠️</div>
+                            <p class="k-empty__title">Failed to load quiz</p><button class="btn btn-primary"
+                                id="quizRetryBtn">Retry</button>
+                        </div>
+                    </div>
+                    <div id="quizAccessDenied" class="hidden"></div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/ws.js"></script>
+    <script src="./js/lms-core.js"></script>
+    <script src="./js/lms-ws.js"></script>
+    <script src="./js/quiz.js"></script>
+</body>
+
+</html>

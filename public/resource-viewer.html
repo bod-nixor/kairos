@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Resource — Kairos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="View course resource." />
+    <link rel="icon" type="image/png" href="./images/logo.png" />
+    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/lms.css" />
+    <script src="./js/config.js"></script>
+</head>
+
+<body class="k-page-body">
+
+    <aside class="k-sidebar" role="navigation" aria-label="Course navigation">
+        <a class="k-sidebar__brand" href="/">
+            <div class="k-sidebar__logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+            </div><span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+        </a>
+        <div class="k-sidebar__scroll">
+            <div class="k-nav-group">
+                <a class="k-nav-item" id="backToModules" href="#"><span class="k-nav-item__icon">←</span><span
+                        class="k-nav-item__text">Back to Modules</span></a>
+            </div>
+        </div>
+        <div class="k-sidebar__user">
+            <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="" />
+            <div class="k-sidebar__user-info">
+                <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+                <div class="k-sidebar__user-role" id="kSidebarRole">Student</div>
+            </div>
+            <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout">↩</button>
+        </div>
+    </aside>
+
+    <div class="k-layout">
+        <header class="k-topbar">
+            <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+                <a class="k-breadcrumb__item" href="/">Courses</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadModules">Modules</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <span class="k-breadcrumb__item is-current" id="kBreadResource">Resource</span>
+            </nav>
+            <div class="k-topbar__actions">
+                <a class="btn btn-ghost btn-sm hidden" id="downloadBtn" href="#" download
+                    aria-label="Download resource">⬇ Download</a>
+                <button class="btn btn-ghost btn-sm hidden" id="openNewTabBtn" aria-label="Open in new tab">↗
+                    Open</button>
+                <button class="k-topbar__icon-btn" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                    <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
+                    <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="k-main">
+            <div class="k-page">
+
+                <!-- Resource header -->
+                <div class="k-resource-header">
+                    <span id="resourceTypeIcon" aria-hidden="true" style="font-size:20px">📄</span>
+                    <h1 class="k-resource-header__title" id="resourceTitle">Loading…</h1>
+                    <span class="k-status k-status--neutral" id="resourceType">File</span>
+                </div>
+
+                <!-- Loading skeleton -->
+                <div id="resourceSkeleton">
+                    <div class="k-skeleton" style="height:calc(100vh - 220px);border-radius:12px"></div>
+                </div>
+
+                <!-- Resource viewer -->
+                <div class="k-resource-viewer hidden" id="resourceViewer">
+
+                    <!-- PDF / file iframe -->
+                    <div class="k-resource-iframe hidden" id="iframeWrap">
+                        <iframe id="resourceIframe" title="Resource viewer"
+                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms" allowfullscreen></iframe>
+                    </div>
+
+                    <!-- Video player -->
+                    <div class="hidden" id="videoWrap"
+                        style="border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+                        <video id="resourceVideo" controls
+                            style="width:100%;max-height:calc(100vh - 240px);display:block;background:#000">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+
+                    <!-- External link -->
+                    <div class="hidden" id="externalWrap">
+                        <div class="k-empty" style="padding:60px 20px">
+                            <div class="k-empty__icon">🔗</div>
+                            <p class="k-empty__title">External Resource</p>
+                            <p class="k-empty__desc" id="externalDesc">This resource links to an external source.</p>
+                            <a href="#" id="externalLink" target="_blank" rel="noopener noreferrer"
+                                class="btn btn-primary">Open Resource ↗</a>
+                        </div>
+                    </div>
+
+                    <!-- Text / markdown viewer -->
+                    <div class="hidden" id="textWrap">
+                        <div class="k-block k-block--text" id="textContent" style="min-height:400px"></div>
+                    </div>
+
+                    <!-- Unsupported type -->
+                    <div class="hidden" id="unsupportedWrap">
+                        <div class="k-empty">
+                            <div class="k-empty__icon" aria-hidden="true">📎</div>
+                            <p class="k-empty__title">Preview not available</p>
+                            <p class="k-empty__desc">This file type cannot be previewed in the browser.</p>
+                            <a href="#" id="downloadFallbackBtn" class="btn btn-primary">⬇ Download File</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Access denied -->
+                <div id="resourceAccessDenied" class="hidden"></div>
+
+                <!-- Error state -->
+                <div id="resourceError" class="hidden">
+                    <div class="k-empty">
+                        <div class="k-empty__icon">⚠️</div>
+                        <p class="k-empty__title">Resource not found</p>
+                        <p class="k-empty__desc">This resource could not be loaded.</p>
+                        <button class="btn btn-primary" id="resourceRetryBtn">Retry</button>
+                    </div>
+                </div>
+
+                <!-- Mark as complete button -->
+                <div id="completeFooter" class="hidden"
+                    style="margin-top:16px;display:flex;justify-content:flex-end;gap:12px">
+                    <button class="btn btn-primary" id="markCompleteBtn">✓ Mark as Complete</button>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/lms-core.js"></script>
+    <script src="./js/resource-viewer.js"></script>
+</body>
+
+</html>

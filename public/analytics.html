@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Analytics — Kairos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description"
+        content="Course analytics dashboard for managers — engagement, grades, and progress stats." />
+    <link rel="icon" type="image/png" href="./images/logo.png" />
+    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/lms.css" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="./js/config.js"></script>
+</head>
+
+<body class="k-page-body">
+
+    <aside class="k-sidebar" role="navigation" aria-label="Course navigation">
+        <a class="k-sidebar__brand" href="/">
+            <div class="k-sidebar__logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+            </div><span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+        </a>
+        <div class="k-sidebar__scroll">
+            <div class="k-nav-group"><a class="k-nav-item" href="/"><span class="k-nav-item__icon">←</span><span
+                        class="k-nav-item__text">All Courses</span></a></div>
+            <div class="k-sidebar__course-header">
+                <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
+            </div>
+            <nav class="k-nav-group">
+                <a class="k-nav-item" data-course-href="./course.html" href="#"><span
+                        class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
+                <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
+                        class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
+                <a class="k-nav-item" data-course-href="./assignment.html" href="#"><span
+                        class="k-nav-item__icon">📤</span><span class="k-nav-item__text">Assignments</span></a>
+                <a class="k-nav-item" data-course-href="./grading.html" href="#"><span
+                        class="k-nav-item__icon">🧑‍🏫</span><span class="k-nav-item__text">Grading</span></a>
+                <a class="k-nav-item is-active" data-course-href="./analytics.html" href="#" aria-current="page"><span
+                        class="k-nav-item__icon">📊</span><span class="k-nav-item__text">Analytics</span></a>
+            </nav>
+        </div>
+        <div class="k-sidebar__user">
+            <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="" />
+            <div class="k-sidebar__user-info">
+                <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+                <div class="k-sidebar__user-role" id="kSidebarRole">Manager</div>
+            </div>
+            <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout">↩</button>
+        </div>
+    </aside>
+
+    <div class="k-layout">
+        <header class="k-topbar">
+            <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+                <a class="k-breadcrumb__item" href="/">Courses</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <span class="k-breadcrumb__item is-current">Analytics</span>
+            </nav>
+            <div class="k-topbar__actions">
+                <button class="btn btn-ghost btn-sm" id="exportCsvBtn">Export CSV</button>
+                <button class="k-topbar__icon-btn" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                    <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
+                    <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="k-main">
+            <div class="k-page">
+
+                <div class="k-page-header">
+                    <div>
+                        <h1 class="k-page-header__title">Course Analytics</h1>
+                        <p class="k-page-header__subtitle" id="analyticsSubtitle">Manager view</p>
+                    </div>
+                    <div class="k-page-header__actions">
+                        <select class="k-select" id="periodSelect" aria-label="Time period" style="width:160px">
+                            <option value="all">All time</option>
+                            <option value="7">Last 7 days</option>
+                            <option value="30" selected>Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Skeleton -->
+                <div id="analyticsSkeleton">
+                    <div class="k-stats-row">
+                        <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+                        <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+                        <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+                        <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+                    </div>
+                    <div class="k-skeleton k-skeleton--card" style="height:240px;margin-bottom:16px"></div>
+                    <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
+                </div>
+
+                <!-- Analytics loaded content -->
+                <div id="analyticsLoaded" class="hidden">
+
+                    <!-- Top metrics -->
+                    <div class="k-metric-grid" id="metricGrid">
+                        <div class="k-metric-card" data-course-accent="1">
+                            <span class="k-metric-card__label">Total Students</span>
+                            <span class="k-metric-card__value" id="metricStudents">—</span>
+                            <span class="k-metric-card__sub" id="metricStudentsSub">enrolled</span>
+                        </div>
+                        <div class="k-metric-card" data-course-accent="3">
+                            <span class="k-metric-card__label">Avg Completion</span>
+                            <span class="k-metric-card__value" id="metricCompletion">—%</span>
+                            <span class="k-metric-card__sub" id="metricCompletionSub">of modules</span>
+                        </div>
+                        <div class="k-metric-card" data-course-accent="2">
+                            <span class="k-metric-card__label">Avg Grade</span>
+                            <span class="k-metric-card__value" id="metricGrade">—</span>
+                            <span class="k-metric-card__sub" id="metricGradeSub">across assignments</span>
+                        </div>
+                        <div class="k-metric-card" data-course-accent="4">
+                            <span class="k-metric-card__label">Pending Reviews</span>
+                            <span class="k-metric-card__value" id="metricPending">—</span>
+                            <span class="k-metric-card__sub">ungraded submissions</span>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="k-tabs" role="tablist" aria-label="Analytics sections">
+                        <button class="k-tab-btn" role="tab" aria-selected="true" aria-controls="tabCompletion"
+                            id="tabBtnCompletion">Module Completion</button>
+                        <button class="k-tab-btn" role="tab" aria-selected="false" aria-controls="tabGrades"
+                            id="tabBtnGrades">Grade Distribution</button>
+                        <button class="k-tab-btn" role="tab" aria-selected="false" aria-controls="tabEngagement"
+                            id="tabBtnEngagement">Engagement</button>
+                        <button class="k-tab-btn" role="tab" aria-selected="false" aria-controls="tabStudents"
+                            id="tabBtnStudents">Student Table</button>
+                    </div>
+
+                    <!-- Tab: Module Completion -->
+                    <div class="k-tab-panel" id="tabCompletion" role="tabpanel" aria-labelledby="tabBtnCompletion">
+                        <div class="k-card">
+                            <div class="k-card__header">
+                                <h2 class="k-card__title">Module Completion Rates</h2>
+                            </div>
+                            <div class="k-card__body">
+                                <div class="k-bar-chart" id="completionChart">
+                                    <div class="k-empty">
+                                        <div class="k-empty__icon">📊</div>
+                                        <p class="k-empty__title">Loading…</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Grade Distribution -->
+                    <div class="k-tab-panel" id="tabGrades" role="tabpanel" aria-labelledby="tabBtnGrades" hidden>
+                        <div class="k-card">
+                            <div class="k-card__header">
+                                <h2 class="k-card__title">Grade Distribution</h2>
+                                <select class="k-select" id="gradeAssignSelect" style="width:200px"
+                                    aria-label="Select assignment">
+                                    <option value="">All assignments</option>
+                                </select>
+                            </div>
+                            <div class="k-card__body">
+                                <!-- Grade buckets bar chart -->
+                                <div class="k-bar-chart" id="gradeChart">
+                                    <div class="k-empty">
+                                        <div class="k-empty__icon">📈</div>
+                                        <p class="k-empty__title">Loading…</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Engagement -->
+                    <div class="k-tab-panel" id="tabEngagement" role="tabpanel" aria-labelledby="tabBtnEngagement"
+                        hidden>
+                        <div class="k-card">
+                            <div class="k-card__header">
+                                <h2 class="k-card__title">Student Engagement (Last 30 Days)</h2>
+                            </div>
+                            <div class="k-card__body">
+                                <div class="k-bar-chart" id="engagementChart">
+                                    <div class="k-empty">
+                                        <div class="k-empty__icon">👥</div>
+                                        <p class="k-empty__title">Loading…</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Student Table -->
+                    <div class="k-tab-panel" id="tabStudents" role="tabpanel" aria-labelledby="tabBtnStudents" hidden>
+                        <div class="k-card">
+                            <div class="k-card__header">
+                                <h2 class="k-card__title">All Students</h2>
+                                <input class="k-input" type="search" id="studentSearch"
+                                    placeholder="Search by name or email…" style="max-width:220px"
+                                    aria-label="Search students" />
+                            </div>
+                            <div class="k-table-wrap">
+                                <table class="k-table" id="studentTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Student</th>
+                                            <th>Completion</th>
+                                            <th>Avg Grade</th>
+                                            <th>Submissions</th>
+                                            <th>Last Active</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="studentTableBody">
+                                        <tr>
+                                            <td colspan="6" style="text-align:center;color:var(--muted);padding:32px">
+                                                Loading…</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="k-card__footer">
+                                <span class="k-text-sm k-text-muted" id="studentTableCount">— students</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /analyticsLoaded -->
+
+                <!-- Access denied -->
+                <div id="analyticsAccessDenied" class="hidden"></div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/ws.js"></script>
+    <script src="./js/lms-core.js"></script>
+    <script src="./js/lms-ws.js"></script>
+    <script src="./js/analytics.js"></script>
+</body>
+
+</html>

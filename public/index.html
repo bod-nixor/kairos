@@ -1,115 +1,182 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <title>Kairos Portal</title>
+  <title>Kairos — Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Kairos academic platform — your courses, queues, and progress." />
   <link rel="icon" type="image/png" href="./images/logo.png" />
+  <!-- Theme flash prevention -->
   <script>
-    (() => {
-      if (window.location.pathname.toLowerCase().includes('projector')) return;
+    (function () {
       try {
-        const stored = localStorage.getItem('kairos-theme');
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
-        document.documentElement.dataset.theme = theme;
-        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
-      } catch (err) {
-        document.documentElement.dataset.theme = 'light';
-        document.documentElement.classList.add('theme-light');
-      }
+        var s = localStorage.getItem('kairos-theme');
+        var dark = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {}
     })();
   </script>
   <link rel="stylesheet" href="./css/style.css" />
-  <!-- Google Identity -->
+  <link rel="stylesheet" href="./css/lms.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
 </head>
-<body>
-  <!-- App Shell -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="Kairos" /></div>
-      <div class="brand-text">Kairos</div>
+<body class="k-page-body">
+
+  <!-- ── Sidebar ──────────────────────────────────────────── -->
+  <aside class="k-sidebar" role="navigation" aria-label="Main navigation">
+    <a class="k-sidebar__brand" href="/" aria-label="Kairos home">
+      <div class="k-sidebar__logo">
+        <img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+      </div>
+      <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+    </a>
+
+    <div class="k-sidebar__scroll">
+      <!-- Global nav (outside course) -->
+      <nav class="k-nav-group" id="kNavGlobal" aria-label="Global">
+        <button class="k-nav-item is-active" data-nav-key="dashboard" data-view="dashboard" aria-current="page">
+          <span class="k-nav-item__icon" aria-hidden="true">⊞</span>
+          <span class="k-nav-item__text">Dashboard</span>
+        </button>
+        <button class="k-nav-item" data-nav-key="courses" data-view="courses">
+          <span class="k-nav-item__icon" aria-hidden="true">📚</span>
+          <span class="k-nav-item__text">My Courses</span>
+        </button>
+        <!-- Rooms shortcut -->
+        <button class="k-nav-item" data-nav-key="rooms" data-view="rooms">
+          <span class="k-nav-item__icon" aria-hidden="true">🏫</span>
+          <span class="k-nav-item__text">Rooms</span>
+        </button>
+      </nav>
+
+      <!-- Role-specific nav items (hidden until caps loaded) -->
+      <nav class="k-nav-group hidden" id="kNavRoles" aria-label="Role tools">
+        <div class="k-nav-group__label">Tools</div>
+        <a class="k-nav-item hidden" id="navTA" href="/signoff/ta" data-nav-key="ta">
+          <span class="k-nav-item__icon" aria-hidden="true">🎓</span>
+          <span class="k-nav-item__text">TA Dashboard</span>
+        </a>
+        <a class="k-nav-item hidden" id="navManager" href="/signoff/manager" data-nav-key="manager">
+          <span class="k-nav-item__icon" aria-hidden="true">📋</span>
+          <span class="k-nav-item__text">Manager</span>
+        </a>
+        <a class="k-nav-item hidden" id="navAdmin" href="/signoff/admin" data-nav-key="admin">
+          <span class="k-nav-item__icon" aria-hidden="true">⚙️</span>
+          <span class="k-nav-item__text">Admin</span>
+        </a>
+      </nav>
     </div>
-    <nav class="nav">
-      <button class="nav-item active" data-view="courses" id="navCourses">
-        <span class="nav-ico">📚</span><span>Courses</span>
-      </button>
-      <button class="nav-item" data-view="rooms" id="navRooms">
-        <span class="nav-ico">🏫</span><span>Rooms</span>
-      </button>
-    </nav>
-    <div class="nav-bottom">
-      <button class="nav-item" id="logoutBtn">
-        <span class="nav-ico">↩️</span><span>Logout</span>
-      </button>
+
+    <!-- User footer -->
+    <div class="k-sidebar__user">
+      <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="Your avatar" />
+      <div class="k-sidebar__user-info">
+        <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+        <div class="k-sidebar__user-role" id="kSidebarRole">Student</div>
+      </div>
+      <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout" title="Logout">↩</button>
     </div>
   </aside>
 
-  <header class="app-header">
-    <a class="app-brand" href="/signoff/" aria-label="Kairos home">
-      <div class="app-brand-logo-wrapper">
-        <img src="https://kairos.nixorcorporate.com/signoff/images/logo-full.png" alt="Kairos" class="app-brand-logo" />
+  <!-- ── Main Layout ───────────────────────────────────────── -->
+  <div class="k-layout">
+
+    <!-- Topbar -->
+    <header class="k-topbar" role="banner">
+      <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+        <span class="k-breadcrumb__item is-current">Dashboard</span>
+      </nav>
+      <div class="k-topbar__actions">
+        <button class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+          <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
+          <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
+        </button>
+        <button class="k-avatar-btn" id="kAvatarBtn" aria-label="Profile">
+          <img id="avatar" src="" alt="" />
+        </button>
       </div>
-    </a>
-    <div class="crumbs" id="breadcrumbs">Courses</div>
-    <nav id="mainNav" class="top-nav hidden" aria-label="Primary">
-      <a href="/signoff/" data-view="home" class="top-nav-link" id="navHomeLink">Home</a>
-      <a href="/signoff/" data-view="courses" class="top-nav-link" id="navCoursesLink">My Courses</a>
-      <a href="/signoff/ta" data-role="ta" class="top-nav-link hidden" id="navTaLink">TA</a>
-      <a href="/signoff/manager" data-role="manager" class="top-nav-link hidden" id="navManagerLink">Manager</a>
-      <a href="/signoff/admin" data-role="admin" class="top-nav-link hidden" id="navAdminLink">Admin</a>
-    </nav>
-    <div class="spacer"></div>
-    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
-      <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
-      <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
-      <span class="theme-toggle__thumb"></span>
-    </button>
-    <div class="userbar hidden" id="userbar">
-      <img id="avatar" alt="" class="avatar"/>
-      <div class="user-meta">
-        <div id="name"></div>
-        <div id="email" class="muted"></div>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <main class="app-main" id="appRoot">
-    <!-- Sign in -->
-    <section id="signin" class="centerbox card">
-      <img src="https://kairos.nixorcorporate.com/signoff/images/logo-full.png" alt="Kairos" class="signin-logo" />
-      <h2 class="title">Kairos queue manager</h2>
-      <div id="googleBtn"></div>
-      <p class="muted small">Only <strong data-allowed-domain-text>@example.edu</strong> accounts are allowed.</p>
-    </section>
+    <!-- Main Content -->
+    <main class="k-main" id="appRoot">
+      <div class="k-page">
 
-    <!-- Courses view -->
-    <section id="viewCourses" class="view">
-      <h2 class="section-title">Your courses</h2>
-      <div id="coursesGrid" class="grid cards"></div>
-    </section>
+        <!-- Sign-in screen -->
+        <section id="signin" class="centerbox card" aria-label="Sign in">
+          <img src="https://kairos.nixorcorporate.com/signoff/images/logo-full.png" alt="Kairos" class="signin-logo" />
+          <h1 class="title" style="text-align:center;margin:0 0 16px">Welcome to Kairos</h1>
+          <p class="muted small" style="text-align:center;margin:0 0 20px">Your academic operating system</p>
+          <div id="googleBtn"></div>
+          <p class="muted small" style="text-align:center;margin-top:12px">
+            Only <strong data-allowed-domain-text>@nixorcollege.edu.pk</strong> accounts are allowed.
+          </p>
+        </section>
 
-    <!-- Rooms view -->
-    <section id="viewRooms" class="view hidden">
-      <div class="section-head">
-        <h2 class="section-title" id="roomsTitle">Rooms</h2>
-        <div class="spacer"></div>
-        <button id="backToCourses" class="btn btn-link">← Back</button>
-      </div>
-      <div id="roomsGrid" class="grid cards"></div>
-    </section>
-
-    <section id="progressSection" class="progress-section hidden">
-        <h2>Your Progress</h2>
-        <div id="progressContainer">
+        <!-- Dashboard view -->
+        <section id="viewDashboard" class="view hidden" aria-label="Dashboard">
+          <div class="k-page-header">
+            <div>
+              <h1 class="k-page-header__title" id="dashGreeting">Good morning!</h1>
+              <p class="k-page-header__subtitle">Here's what's happening across your courses.</p>
             </div>
-    </section>
+          </div>
 
-  </main>
+          <!-- Quick stats -->
+          <div class="k-stats-row" id="dashStats">
+            <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+            <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+            <div class="k-skeleton k-skeleton--card" style="height:100px"></div>
+          </div>
+
+          <!-- Course cards -->
+          <div class="k-card">
+            <div class="k-card__header">
+              <h2 class="k-card__title">My Courses</h2>
+            </div>
+            <div class="k-card__body">
+              <div id="coursesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+                <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
+                <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
+                <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Courses view (kept for nav compatibility) -->
+        <section id="viewCourses" class="view hidden" aria-label="Courses">
+          <div class="k-page-header">
+            <h1 class="k-page-header__title">My Courses</h1>
+          </div>
+          <div id="coursesGridFull" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+            <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
+          </div>
+        </section>
+
+        <!-- Rooms view -->
+        <section id="viewRooms" class="view hidden" aria-label="Rooms">
+          <div class="k-page-header">
+            <div>
+              <h1 class="k-page-header__title" id="roomsTitle">Rooms</h1>
+            </div>
+            <div class="k-page-header__actions">
+              <button id="backToCourses" class="btn btn-ghost">← Back to Courses</button>
+            </div>
+          </div>
+          <div id="roomsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+          <section id="progressSection" class="hidden" style="margin-top:32px">
+            <h2 style="font-size:22px;margin:0 0 16px">Your Progress</h2>
+            <div id="progressContainer"></div>
+          </section>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- TA accept modal (existing functionality preserved) -->
   <div id="taAcceptModal" class="modal hidden" role="alertdialog" aria-modal="true">
     <div class="modal-backdrop"></div>
     <div class="modal-card">
@@ -121,9 +188,36 @@
       </div>
     </div>
   </div>
+
+  <!-- Toast stack (legacy) -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
   <script src="./js/theme.js"></script>
-  <!-- App scripts -->
   <script src="./js/ws.js"></script>
+  <script src="./js/lms-core.js"></script>
+  <script src="./js/lms-ws.js"></script>
   <script src="./script.js"></script>
+  <script>
+    /* Sidebar nav view switching */
+    document.addEventListener('DOMContentLoaded', function () {
+      const navBtns = document.querySelectorAll('.k-nav-item[data-view]');
+      navBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const view = btn.dataset.view;
+          navBtns.forEach(b => { b.classList.remove('is-active'); b.removeAttribute('aria-current'); });
+          btn.classList.add('is-active');
+          btn.setAttribute('aria-current', 'page');
+          if (window.showKairosView) window.showKairosView(view);
+        });
+      });
+
+      // Greeting
+      const hour = new Date().getHours();
+      const greetEl = document.getElementById('dashGreeting');
+      if (greetEl) {
+        greetEl.textContent = hour < 12 ? 'Good morning!' : hour < 17 ? 'Good afternoon!' : 'Good evening!';
+      }
+    });
+  </script>
 </body>
 </html>

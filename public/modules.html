@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Modules — Kairos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Course modules — lessons, quizzes, and assignments organized by module." />
+    <link rel="icon" type="image/png" href="./images/logo.png" />
+    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/lms.css" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="./js/config.js"></script>
+</head>
+
+<body class="k-page-body">
+
+    <aside class="k-sidebar" role="navigation" aria-label="Course navigation">
+        <a class="k-sidebar__brand" href="/" aria-label="Kairos home">
+            <div class="k-sidebar__logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+            </div>
+            <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+        </a>
+        <div class="k-sidebar__scroll">
+            <div class="k-nav-group">
+                <a class="k-nav-item" href="/">
+                    <span class="k-nav-item__icon">←</span>
+                    <span class="k-nav-item__text">All Courses</span>
+                </a>
+            </div>
+            <div class="k-sidebar__course-header">
+                <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
+            </div>
+            <nav class="k-nav-group" id="kNavCourse">
+                <a class="k-nav-item" data-course-href="./course.html" href="#"><span
+                        class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
+                <a class="k-nav-item is-active" data-nav-key="modules" data-course-href="./modules.html" href="#"
+                    aria-current="page"><span class="k-nav-item__icon">📦</span><span
+                        class="k-nav-item__text">Modules</span></a>
+                <a class="k-nav-item hidden" data-course-href="./quiz.html" href="#" id="kNavQuizzes"><span
+                        class="k-nav-item__icon">⚡</span><span class="k-nav-item__text">Quizzes</span></a>
+                <a class="k-nav-item hidden" data-course-href="./assignment.html" href="#" id="kNavAssignments"><span
+                        class="k-nav-item__icon">📤</span><span class="k-nav-item__text">Assignments</span></a>
+                <a class="k-nav-item hidden" data-course-href="./grading.html" href="#" id="kNavGrading"><span
+                        class="k-nav-item__icon">🧑‍🏫</span><span class="k-nav-item__text">Grading</span></a>
+                <a class="k-nav-item hidden" data-course-href="./analytics.html" href="#" id="kNavAnalytics"><span
+                        class="k-nav-item__icon">📊</span><span class="k-nav-item__text">Analytics</span></a>
+            </nav>
+        </div>
+        <div class="k-sidebar__user">
+            <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="" />
+            <div class="k-sidebar__user-info">
+                <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+                <div class="k-sidebar__user-role" id="kSidebarRole">Student</div>
+            </div>
+            <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout">↩</button>
+        </div>
+    </aside>
+
+    <div class="k-layout">
+        <header class="k-topbar">
+            <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+                <a class="k-breadcrumb__item" href="/">Courses</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <span class="k-breadcrumb__item is-current">Modules</span>
+            </nav>
+            <div class="k-topbar__actions">
+                <button class="k-topbar__icon-btn" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                    <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
+                    <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
+                </button>
+                <button class="k-avatar-btn" id="kAvatarBtn"><img id="avatar" src="" alt="" /></button>
+            </div>
+        </header>
+
+        <main class="k-main">
+            <div class="k-page">
+
+                <div class="k-page-header">
+                    <div>
+                        <h1 class="k-page-header__title">Modules</h1>
+                        <p class="k-page-header__subtitle" id="modulesSubtitle">Loading…</p>
+                    </div>
+                    <div class="k-page-header__actions">
+                        <button class="btn btn-ghost btn-sm" id="collapseAllBtn">Collapse All</button>
+                    </div>
+                </div>
+
+                <!-- Progress bar -->
+                <div style="margin-bottom:24px;display:flex;align-items:center;gap:12px">
+                    <div class="k-progress" style="flex:1">
+                        <div class="k-progress__fill" id="modulesProgressFill" style="width:0%"></div>
+                    </div>
+                    <span class="k-text-sm k-text-muted" id="modulesProgressText">0% complete</span>
+                </div>
+
+                <!-- Skeleton -->
+                <div id="modulesSkeleton">
+                    <div class="k-skeleton k-skeleton--card" style="height:64px;margin-bottom:12px"></div>
+                    <div class="k-skeleton k-skeleton--card" style="height:64px;margin-bottom:12px"></div>
+                    <div class="k-skeleton k-skeleton--card" style="height:64px;margin-bottom:12px"></div>
+                </div>
+
+                <!-- Module list -->
+                <div id="moduleList" class="k-module-list hidden" role="list" aria-label="Course modules"></div>
+
+                <!-- Empty state -->
+                <div id="modulesEmpty" class="hidden">
+                    <div class="k-empty">
+                        <div class="k-empty__icon">📦</div>
+                        <p class="k-empty__title">No modules yet</p>
+                        <p class="k-empty__desc">Course modules haven't been published yet. Check back later.</p>
+                    </div>
+                </div>
+
+                <!-- Access denied -->
+                <div id="modulesAccessDenied" class="hidden"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/ws.js"></script>
+    <script src="./js/lms-core.js"></script>
+    <script src="./js/lms-ws.js"></script>
+    <script src="./js/modules.js"></script>
+</body>
+
+</html>

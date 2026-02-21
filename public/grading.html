@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Grading — Kairos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Assignment grading workspace for TAs and managers." />
+    <link rel="icon" type="image/png" href="./images/logo.png" />
+    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/lms.css" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="./js/config.js"></script>
+</head>
+
+<body class="k-page-body">
+
+    <aside class="k-sidebar" role="navigation" aria-label="Course navigation">
+        <a class="k-sidebar__brand" href="/">
+            <div class="k-sidebar__logo"><img src="https://kairos.nixorcorporate.com/signoff/images/logo.png" alt="" />
+            </div><span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+        </a>
+        <div class="k-sidebar__scroll">
+            <div class="k-nav-group"><a class="k-nav-item" href="/"><span class="k-nav-item__icon">←</span><span
+                        class="k-nav-item__text">All Courses</span></a></div>
+            <div class="k-sidebar__course-header">
+                <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
+            </div>
+            <nav class="k-nav-group">
+                <a class="k-nav-item" data-course-href="./course.html" href="#"><span
+                        class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
+                <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
+                        class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
+                <a class="k-nav-item" data-course-href="./assignment.html" href="#"><span
+                        class="k-nav-item__icon">📤</span><span class="k-nav-item__text">Assignments</span></a>
+                <a class="k-nav-item is-active" data-course-href="./grading.html" href="#" aria-current="page"><span
+                        class="k-nav-item__icon">🧑‍🏫</span><span class="k-nav-item__text">Grading</span></a>
+                <a class="k-nav-item hidden" data-course-href="./analytics.html" href="#" id="kNavAnalytics"><span
+                        class="k-nav-item__icon">📊</span><span class="k-nav-item__text">Analytics</span></a>
+            </nav>
+        </div>
+        <div class="k-sidebar__user">
+            <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="" />
+            <div class="k-sidebar__user-info">
+                <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+                <div class="k-sidebar__user-role" id="kSidebarRole">TA</div>
+            </div>
+            <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout">↩</button>
+        </div>
+    </aside>
+
+    <div class="k-layout">
+        <!-- Topbar (outside grading layout so it stays visible) -->
+        <header class="k-topbar" id="gradingTopbar">
+            <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
+                <a class="k-breadcrumb__item" href="/">Courses</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <span class="k-breadcrumb__sep">›</span>
+                <span class="k-breadcrumb__item is-current">Grading</span>
+            </nav>
+            <div class="k-topbar__actions">
+                <!-- Assignment selector (manager only) -->
+                <select class="k-select" id="assignmentSelector" style="width:220px;display:none"
+                    aria-label="Select assignment">
+                    <option value="">— Select Assignment —</option>
+                </select>
+                <span class="k-grade-state k-grade-state--draft" id="gradingModeLabel" style="display:none">
+                    <span class="k-status__dot"></span> Draft
+                </span>
+                <button class="btn btn-primary btn-sm hidden" id="releaseAllBtn">Release All</button>
+                <button class="k-topbar__icon-btn" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                    <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
+                    <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Access denied (shown instead of grading layout for students) -->
+        <div id="gradingAccessDenied" class="hidden k-main">
+            <div class="k-page"></div>
+        </div>
+
+        <!-- Loading skeleton -->
+        <div id="gradingSkeleton" class="k-main">
+            <div class="k-page">
+                <div style="display:grid;grid-template-columns:340px 1fr;gap:20px">
+                    <div class="k-skeleton k-skeleton--card" style="height:500px"></div>
+                    <div class="k-skeleton k-skeleton--card" style="height:500px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Full-bleed grading workspace -->
+        <div id="gradingLayout" class="k-grading-layout hidden">
+
+            <!-- Left: Submission queue -->
+            <div class="k-grading-queue" role="complementary" aria-label="Submissions queue">
+                <div class="k-grading-queue__head">
+                    <h2 class="k-grading-queue__title">Submissions</h2>
+                    <div class="k-grading-filters">
+                        <select class="k-select" id="filterStatus" aria-label="Filter by status">
+                            <option value="">All statuses</option>
+                            <option value="ungraded">Ungraded</option>
+                            <option value="draft">Draft grade</option>
+                            <option value="released">Released</option>
+                        </select>
+                        <input class="k-input" type="search" id="filterSearch" placeholder="Search student…"
+                            aria-label="Search student" />
+                    </div>
+                    <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+                        <span id="queueCount">0</span> submission(s)
+                    </div>
+                </div>
+                <div class="k-grading-queue__list" id="submissionQueue" role="list" aria-label="Student submissions">
+                    <div class="k-empty" style="padding:40px 16px">
+                        <div class="k-empty__icon">📋</div>
+                        <p class="k-empty__title">No submissions</p>
+                        <p class="k-empty__desc">Submissions will appear here once students submit their work.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Grading workspace -->
+            <div class="k-grading-workspace" id="gradingWorkspace">
+                <!-- Empty placeholder when no submission selected -->
+                <div id="workspaceEmpty"
+                    style="display:flex;align-items:center;justify-content:center;flex:1;height:100%">
+                    <div class="k-empty">
+                        <div class="k-empty__icon">🎯</div>
+                        <p class="k-empty__title">Select a submission</p>
+                        <p class="k-empty__desc">Choose a student from the queue to begin grading.</p>
+                    </div>
+                </div>
+
+                <!-- Active grading view (hidden until submission selected) -->
+                <div id="workspaceActive" class="hidden" style="display:flex;flex-direction:column;height:100%">
+                    <div class="k-grading-workspace__head">
+                        <h2 class="k-grading-workspace__student" id="workspaceStudentName">Student</h2>
+                        <div class="k-grade-state k-grade-state--draft" id="workspaceGradeState">
+                            <span class="k-status__dot"></span>
+                            <span id="workspaceGradeStateLabel">Draft</span>
+                        </div>
+                        <!-- Bulk navigation -->
+                        <nav class="k-grading-bulk-nav" aria-label="Navigate submissions">
+                            <button class="btn btn-ghost btn-sm" id="prevSubmissionBtn" disabled
+                                aria-label="Previous submission">← Prev</button>
+                            <span class="k-text-sm k-text-muted" id="submissionNavPos">1 / 1</span>
+                            <button class="btn btn-ghost btn-sm" id="nextSubmissionBtn"
+                                aria-label="Next submission">Next →</button>
+                        </nav>
+                    </div>
+
+                    <div class="k-grading-workspace__body">
+                        <!-- Submission content -->
+                        <div class="k-submission-view" id="submissionView">
+                            <div id="submissionFileView" class="hidden">
+                                <iframe class="k-submission-view__iframe" id="submissionPDFFrame" title="Submitted file"
+                                    sandbox="allow-same-origin"></iframe>
+                            </div>
+                            <div id="submissionTextView" class="hidden">
+                                <div class="k-submission-view__text" id="submissionTextContent"></div>
+                            </div>
+                            <div id="submissionUrlView" class="hidden">
+                                <div
+                                    style="padding:16px;display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+                                    <p class="k-text-sm k-text-muted">Submission link:</p>
+                                    <a id="submissionUrlLink" href="#" target="_blank" rel="noopener noreferrer"
+                                        class="btn btn-primary btn-sm">Open Submission ↗</a>
+                                </div>
+                            </div>
+                            <div id="submissionAttachments" class="hidden" style="padding:8px 0">
+                                <h3 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--muted)">Attachments
+                                </h3>
+                                <div id="attachmentList" class="k-file-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Grading form -->
+                        <div class="k-grading-form" id="gradingForm" role="form" aria-label="Grading form">
+                            <div>
+                                <h3
+                                    style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px">
+                                    Rubric</h3>
+                                <div id="rubricRows"></div>
+                            </div>
+
+                            <!-- Totals display -->
+                            <div class="k-grading-total">
+                                <span>Total Score</span>
+                                <span>
+                                    <span id="totalScore" style="font-size:22px">0</span>
+                                    <span class="k-text-muted" id="totalMax" style="font-size:15px"> / —</span>
+                                </span>
+                            </div>
+
+                            <!-- Final grade override (manager only) -->
+                            <div class="k-field hidden" id="overrideField">
+                                <label class="k-label" for="gradeOverride">Grade Override</label>
+                                <input class="k-input" type="number" id="gradeOverride" min="0"
+                                    placeholder="Override final grade…" aria-label="Grade override" />
+                                <span class="k-field-hint">Leave empty to use rubric total.</span>
+                            </div>
+
+                            <!-- Comments -->
+                            <div class="k-field">
+                                <label class="k-label" for="feedbackText">Feedback to Student</label>
+                                <textarea class="k-textarea" id="feedbackText" rows="4"
+                                    placeholder="Add feedback visible to the student…"></textarea>
+                            </div>
+
+                            <!-- Private TA note -->
+                            <div class="k-field">
+                                <label class="k-label" for="privateNote">Private Note <span
+                                        class="k-text-muted k-text-sm">(not shown to student)</span></label>
+                                <textarea class="k-textarea" id="privateNote" rows="2"
+                                    placeholder="Internal note…"></textarea>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="k-grading-actions">
+                                <button class="btn btn-ghost" id="saveDraftBtn">Save Draft</button>
+                                <button class="btn btn-primary" id="releaseGradeBtn">Release Grade</button>
+                            </div>
+
+                            <!-- Keyboard shortcut hint -->
+                            <p class="k-text-xs k-text-muted" style="text-align:center">
+                                <kbd
+                                    style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:4px;padding:1px 4px">S</kbd>
+                                Save draft ·
+                                <kbd
+                                    style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:4px;padding:1px 4px">R</kbd>
+                                Release ·
+                                <kbd
+                                    style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:4px;padding:1px 4px">J/K</kbd>
+                                Prev/Next
+                            </p>
+                        </div>
+                    </div><!-- /workspace body -->
+                </div><!-- /workspaceActive -->
+            </div><!-- /gradingWorkspace -->
+        </div><!-- /gradingLayout -->
+    </div><!-- /k-layout -->
+
+    <script src="./js/theme.js"></script>
+    <script src="./js/ws.js"></script>
+    <script src="./js/lms-core.js"></script>
+    <script src="./js/lms-ws.js"></script>
+    <script src="./js/grading.js"></script>
+</body>
+
+</html>
