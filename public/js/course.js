@@ -132,11 +132,11 @@
             return;
         }
 
-        const course = courseRes.data;
-        const stats = statsRes.ok ? statsRes.data : {};
-        const modules = modulesRes.ok ? (modulesRes.data || []) : [];
-        const announcements = annRes.ok ? (annRes.data || []) : [];
-        const activity = actRes.ok ? (actRes.data || []) : [];
+        const course = courseRes.data?.data || courseRes.data || {};
+        const stats = statsRes.ok ? (statsRes.data?.data || statsRes.data || {}) : {};
+        const modules = modulesRes.ok ? (modulesRes.data?.data || modulesRes.data || []) : [];
+        const announcements = annRes.ok ? (annRes.data?.data || annRes.data || []) : [];
+        const activity = actRes.ok ? (actRes.data?.data || actRes.data || []) : [];
 
         // Apply course accent
         const accent = LMS.courseAccent(course.id || COURSE_ID);
@@ -173,12 +173,12 @@
             el.href = `${base}?course_id=${encodeURIComponent(COURSE_ID)}`;
         });
 
-        // Show role-specific nav items (TA/Manager see grading + analytics)
+        // Show role-specific nav items (TA/Manager/Admin see grading + analytics)
         const role = course.my_role || '';
-        if (role === 'ta' || role === 'manager') {
+        if (role === 'ta' || role === 'manager' || role === 'admin') {
             $('kNavGrading') && $('kNavGrading').classList.remove('hidden');
         }
-        if (role === 'manager') {
+        if (role === 'manager' || role === 'admin') {
             $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden');
         }
 
