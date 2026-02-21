@@ -284,7 +284,23 @@
   async function loadCaps() {
     if (_caps) return _caps;
     const r = await api('GET', './api/session_capabilities.php');
-    _caps = r.ok ? r.data : { is_logged_in: false, roles: {} };
+    if (r.ok && r.data && r.data.ok === true && r.data.data && r.data.data.user) {
+      const role = String(r.data.data.user.role || 'student').toLowerCase();
+      _caps = {
+        is_logged_in: true,
+        roles: {
+          student: true,
+          ta: role === 'ta' || role === 'manager' || role === 'admin',
+          manager: role === 'manager' || role === 'admin',
+          admin: role === 'admin',
+        },
+      };
+    } else if (r.ok && r.data && r.data.roles) {
+      // Old format backwards compat
+      _caps = r.data;
+    } else {
+      _caps = { is_logged_in: false, roles: {} };
+    }
     return _caps;
   }
 

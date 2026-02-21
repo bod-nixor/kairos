@@ -12,6 +12,20 @@ let activeCourseName = '';
 let lastSearchTerm = '';
 let sessionRoles = {};
 
+function normalizeSessionRoles(raw) {
+  if (raw && raw.ok === true && raw.data && raw.data.user) {
+    const role = String(raw.data.user.role || 'student').toLowerCase();
+    return {
+      student: true,
+      ta: role === 'ta' || role === 'manager' || role === 'admin',
+      manager: role === 'manager' || role === 'admin',
+      admin: role === 'admin',
+    };
+  }
+  if (raw && raw.roles) return raw.roles;
+  return {};
+}
+
 function updateAllowedDomainCopy() {
   const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
     ? ALLOWED_DOMAIN.replace(/^@+/, '')
@@ -52,7 +66,7 @@ async function handleCredentialResponse(resp) {
   try {
     const r = await fetch('./api/auth.php', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify({ credential: resp.credential })
     });
@@ -112,8 +126,8 @@ async function bootstrap() {
     document.getElementById('email').textContent = me.email || '';
     showApp();
     try {
-      const caps = await apiGet('./api/session_capabilities.php');
-      sessionRoles = caps?.roles || {};
+      const rawCaps = await apiGet('./api/session_capabilities.php');
+      sessionRoles = normalizeSessionRoles(rawCaps);
     } catch (err) {
       sessionRoles = {};
     }
@@ -124,8 +138,8 @@ async function bootstrap() {
       }
       window.SignoffWS.init({
         getFilters: () => ({ courseId: activeCourseId ? Number(activeCourseId) : null }),
-        onRooms: () => { if (activeCourseId) loadRooms().catch(() => {}); },
-        onQueue: () => { if (activeCourseId) loadRooms().catch(() => {}); },
+        onRooms: () => { if (activeCourseId) loadRooms().catch(() => { }); },
+        onQueue: () => { if (activeCourseId) loadRooms().catch(() => { }); },
       });
     }
     await loadCourses();

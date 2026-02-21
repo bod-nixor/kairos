@@ -68,7 +68,7 @@ function buildEventStreamUrl(channels) {
   if (!channels.length) {
     return null;
   }
-  const url = new URL('./api/changes.php', window.location.origin);
+  const url = new URL('./api/changes.php', document.baseURI);
   url.searchParams.set('channels', channels.join(','));
 
   const courseId = computeCourseFilter();
@@ -381,8 +381,8 @@ async function refreshSessionCapabilities() {
     // Transform into the format applySessionCapabilities expects:
     // { is_logged_in: bool, roles: { student: bool, ta: bool, manager: bool, admin: bool } }
     let caps;
-    if (json && json.data && json.data.user) {
-      const role = (json.data.user.role || 'student').toLowerCase();
+    if (json && json.ok === true && json.data && json.data.user) {
+      const role = String(json.data.user.role || 'student').toLowerCase();
       // Role hierarchy: admin > manager > ta > student
       caps = {
         is_logged_in: true,
