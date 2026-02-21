@@ -32,7 +32,8 @@ async function ensureTaAccess() {
   });
   if (!res.ok) throw new Error('auth');
   const json = await res.json();
-  if (!json?.roles?.ta) {
+  const roles = window.normalizeSessionRoles(json);
+  if (!roles.ta) {
     throw new Error('forbidden');
   }
 }

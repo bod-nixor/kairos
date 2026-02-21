@@ -245,8 +245,9 @@ async function bootstrap() {
     els.formsCard?.classList.remove('hidden');
     els.assignCard?.classList.remove('hidden');
 
-    const capabilities = await fetchJSON('./api/session_capabilities.php');
-    applyAdminNavRoles(capabilities?.roles || {});
+    const rawCaps = await fetchJSON('./api/session_capabilities.php');
+    const capsRoles = window.normalizeSessionRoles(rawCaps);
+    applyAdminNavRoles(capsRoles);
     updateAdminNavActive();
   } catch (err) {
     reportError(err, 'Unable to verify session.');

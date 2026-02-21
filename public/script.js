@@ -68,7 +68,7 @@ function buildEventStreamUrl(channels) {
   if (!channels.length) {
     return null;
   }
-  const url = new URL('./api/changes.php', window.location.origin);
+  const url = new URL('./api/changes.php', document.baseURI);
   url.searchParams.set('channels', channels.join(','));
 
   const courseId = computeCourseFilter();
@@ -376,8 +376,32 @@ async function refreshSessionCapabilities() {
     const ctype = res.headers.get('content-type') || '';
     if (!ctype.includes('application/json')) throw new Error('session_capabilities not JSON');
     const json = await res.json();
-    applySessionCapabilities(json);
-    return json;
+
+    // The LMS API returns: { ok: true, data: { user: { role: 'admin' }, ... } }
+    // Transform into the format applySessionCapabilities expects:
+    // { is_logged_in: bool, roles: { student: bool, ta: bool, manager: bool, admin: bool } }
+    let caps;
+    if (json && json.ok === true && json.data && json.data.user) {
+      const role = String(json.data.user.role || 'student').toLowerCase();
+      // Role hierarchy: admin > manager > ta > student
+      caps = {
+        is_logged_in: true,
+        roles: {
+          student: true,
+          ta: role === 'ta' || role === 'manager' || role === 'admin',
+          manager: role === 'manager' || role === 'admin',
+          admin: role === 'admin',
+        },
+      };
+    } else if (json && json.is_logged_in !== undefined) {
+      // Already in the old format (backwards compat)
+      caps = json;
+    } else {
+      caps = { is_logged_in: false, roles: { student: false, ta: false, manager: false, admin: false } };
+    }
+
+    applySessionCapabilities(caps);
+    return caps;
   } catch (err) {
     console.warn('Failed to load session capabilities', err);
     applySessionCapabilities({ is_logged_in: false, roles: { student: false, ta: false, manager: false, admin: false } });

@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,6 +27,7 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
 </head>
+
 <body class="admin-page">
   <header class="admin-header">
     <img src="https://kairos.nixorcorporate.com/signoff/images/logo-full.png" alt="Kairos" class="admin-brand" />
@@ -34,7 +36,8 @@
       <a class="admin-nav-link" href="./admin.html" data-admin-nav="courses">Courses</a>
       <a class="admin-nav-link" href="./admin.html#assignCard" data-admin-nav="assignments">TA assignment</a>
       <a class="admin-nav-link" href="./manager.html" data-admin-nav="roster" data-role="manager">Course roster</a>
-      <a class="admin-nav-link" href="./manager.html#progress" data-admin-nav="progress" data-role="manager">Student progress</a>
+      <a class="admin-nav-link" href="./manager.html#progress" data-admin-nav="progress" data-role="manager">Student
+        progress</a>
     </nav>
     <span class="muted" id="userInfo"></span>
     <div class="spacer"></div>
@@ -122,7 +125,8 @@
       <form id="assignForm" class="grid-two align-end">
         <div>
           <label class="muted">User ID or email</label>
-          <input type="text" name="user" data-allowed-domain-placeholder="e.g. 42 or alex@{domain}" placeholder="e.g. 42 or alex@example.edu" disabled />
+          <input type="text" name="user" data-allowed-domain-placeholder="e.g. 42 or alex@{domain}"
+            placeholder="e.g. 42 or alex@example.edu" disabled />
         </div>
         <div>
           <label class="muted">Role</label>
@@ -139,6 +143,8 @@
     </section>
   </main>
   <script src="./js/theme.js"></script>
+  <script src="./js/session-roles.js"></script>
   <script src="./js/admin.js" type="module"></script>
 </body>
+
 </html>
