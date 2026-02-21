@@ -8,7 +8,7 @@ require_once __DIR__ . '/_common.php';
 
 $user = require_login();
 $courseId = isset($_GET['course_id']) ? (int) $_GET['course_id'] : 0;
-$limit = isset($_GET['limit']) ? min((int) $_GET['limit'], 50) : 8;
+$limit = isset($_GET['limit']) ? max(1, min((int) $_GET['limit'], 50)) : 8;
 
 if ($courseId <= 0) {
     lms_error('bad_request', 'Missing or invalid course_id.', 400);
@@ -42,7 +42,7 @@ try {
         ];
     }
 } catch (\PDOException $e) {
-    // Table may not exist
+    error_log('lms/activity.php: lesson completions query failed: ' . $e->getMessage());
 }
 
 // Recent submissions
@@ -67,6 +67,7 @@ try {
         ];
     }
 } catch (\PDOException $e) {
+    error_log('lms/activity.php: submissions query failed: ' . $e->getMessage());
 }
 
 // Sort by date descending and limit

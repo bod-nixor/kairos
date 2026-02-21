@@ -1,6 +1,6 @@
 <?php
 /**
- * GET /api/lms/modules.php?course_id=<id>[&preview=1]
+ * GET /api/lms/modules.php?course_id=<id>
  * Returns course modules (sections) with lesson counts.
  */
 declare(strict_types=1);
