@@ -1,0 +1,2 @@
+<?php
+declare(strict_types=1); require_once __DIR__ . '/_common.php'; $user=lms_require_roles(['student','ta','manager','admin']); $courseId=(int)($_GET['course_id']??0); if($courseId<=0){lms_error('validation_error','course_id required',422);} lms_course_access($user,$courseId); $st=db()->prepare('SELECT announcement_id, course_id, title, body, created_by, created_at FROM lms_announcements WHERE course_id=:c AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200'); $st->execute([':c'=>$courseId]); lms_ok(['items'=>$st->fetchAll()]);
