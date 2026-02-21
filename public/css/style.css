@@ -1297,70 +1297,70 @@ body {
 
 :root {
   /* Typography scale */
-  --font-xs:   11px;
-  --font-sm:   12px;
+  --font-xs: 11px;
+  --font-sm: 12px;
   --font-base: 14px;
-  --font-md:   15px;
-  --font-lg:   16px;
-  --font-xl:   18px;
-  --font-2xl:  22px;
-  --font-3xl:  28px;
-  --font-4xl:  36px;
-  --font-weight-normal:   400;
-  --font-weight-medium:   500;
+  --font-md: 15px;
+  --font-lg: 16px;
+  --font-xl: 18px;
+  --font-2xl: 22px;
+  --font-3xl: 28px;
+  --font-4xl: 36px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-bold:     700;
-  --line-height-tight:   1.25;
-  --line-height-normal:  1.5;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
   --line-height-relaxed: 1.7;
 
   /* Spacing scale (4px base) */
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  20px;
-  --space-6:  24px;
-  --space-8:  32px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
 
   /* Elevation (shadow levels) */
   --elev-0: none;
-  --elev-1: 0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.04);
-  --elev-2: 0 4px 12px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.04);
-  --elev-3: 0 8px 24px rgba(0,0,0,.09), 0 4px 8px rgba(0,0,0,.05);
-  --elev-4: 0 16px 40px rgba(0,0,0,.12), 0 6px 16px rgba(0,0,0,.07);
+  --elev-1: 0 1px 3px rgba(0, 0, 0, .05), 0 1px 2px rgba(0, 0, 0, .04);
+  --elev-2: 0 4px 12px rgba(0, 0, 0, .07), 0 2px 4px rgba(0, 0, 0, .04);
+  --elev-3: 0 8px 24px rgba(0, 0, 0, .09), 0 4px 8px rgba(0, 0, 0, .05);
+  --elev-4: 0 16px 40px rgba(0, 0, 0, .12), 0 6px 16px rgba(0, 0, 0, .07);
 
   /* Status semantic colors */
-  --status-success-bg:   #dcfce7;
+  --status-success-bg: #dcfce7;
   --status-success-text: #15803d;
-  --status-warning-bg:   #fef3c7;
+  --status-warning-bg: #fef3c7;
   --status-warning-text: #92400e;
-  --status-danger-bg:    #fee2e2;
-  --status-danger-text:  #b91c1c;
-  --status-info-bg:      #dbeafe;
-  --status-info-text:    #1d4ed8;
-  --status-neutral-bg:   #f1f5f9;
+  --status-danger-bg: #fee2e2;
+  --status-danger-text: #b91c1c;
+  --status-info-bg: #dbeafe;
+  --status-info-text: #1d4ed8;
+  --status-neutral-bg: #f1f5f9;
   --status-neutral-text: #475569;
 
   /* LMS Layout */
-  --k-sidebar-width:    240px;
+  --k-sidebar-width: 240px;
   --k-sidebar-collapsed: 64px;
-  --k-topbar-height:    56px;
-  --k-content-max:      1200px;
-  --k-content-gutter:   28px;
+  --k-topbar-height: 56px;
+  --k-content-max: 1200px;
+  --k-content-gutter: 28px;
 
   /* Sidebar accent colors (LMS) */
-  --k-sidebar-bg:        #0d1117;
-  --k-sidebar-text:      #c9d3e8;
-  --k-sidebar-muted:     #6b7fa3;
-  --k-sidebar-hover:     rgba(255,255,255,.06);
-  --k-sidebar-active:    rgba(255,255,255,.11);
+  --k-sidebar-bg: #0d1117;
+  --k-sidebar-text: #c9d3e8;
+  --k-sidebar-muted: #6b7fa3;
+  --k-sidebar-hover: rgba(255, 255, 255, .06);
+  --k-sidebar-active: rgba(255, 255, 255, .11);
   --k-sidebar-active-text: #fff;
-  --k-sidebar-border:    rgba(255,255,255,.07);
-  --k-sidebar-section:   rgba(255,255,255,.04);
+  --k-sidebar-border: rgba(255, 255, 255, .07);
+  --k-sidebar-section: rgba(255, 255, 255, .04);
 
   /* Course accent colors (deterministic per id) */
   --k-course-accent-1: #3b82f6;
@@ -1374,15 +1374,15 @@ body {
 }
 
 [data-theme="dark"] {
-  --status-success-bg:   #14532d;
+  --status-success-bg: #14532d;
   --status-success-text: #6ee7b7;
-  --status-warning-bg:   #451a03;
+  --status-warning-bg: #451a03;
   --status-warning-text: #fcd34d;
-  --status-danger-bg:    #450a0a;
-  --status-danger-text:  #fca5a5;
-  --status-info-bg:      #1e3a5f;
-  --status-info-text:    #93c5fd;
-  --status-neutral-bg:   #1e293b;
+  --status-danger-bg: #450a0a;
+  --status-danger-text: #fca5a5;
+  --status-info-bg: #1e3a5f;
+  --status-info-text: #93c5fd;
+  --status-neutral-bg: #1e293b;
   --status-neutral-text: #94a3b8;
 }
 
@@ -1390,9 +1390,6 @@ body {
 
 /* Present on every LMS page body */
 body.k-page-body {
-  display: grid;
-  grid-template-columns: var(--k-sidebar-width) 1fr;
-  grid-template-rows: 1fr;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -1408,7 +1405,7 @@ body.k-page-body {
   display: flex;
   flex-direction: column;
   z-index: 100;
-  transition: width 0.22s cubic-bezier(.4,0,.2,1);
+  transition: width 0.22s cubic-bezier(.4, 0, .2, 1);
   overflow: hidden;
 }
 
@@ -1428,7 +1425,7 @@ body.k-page-body {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(255,255,255,.08);
+  background: rgba(255, 255, 255, .08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1461,7 +1458,7 @@ body.k-page-body {
   overflow-x: hidden;
   padding: var(--space-3) var(--space-2);
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.12) transparent;
+  scrollbar-color: rgba(255, 255, 255, .12) transparent;
 }
 
 /* Nav group visibility */
@@ -1471,7 +1468,7 @@ body.k-page-body {
   gap: 2px;
 }
 
-.k-nav-group + .k-nav-group {
+.k-nav-group+.k-nav-group {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--k-sidebar-border);
@@ -1590,7 +1587,7 @@ body.k-page-body {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  background: rgba(255,255,255,.1);
+  background: rgba(255, 255, 255, .1);
 }
 
 .k-sidebar__user-info {
@@ -1628,7 +1625,7 @@ body.k-page-body {
 
 .k-sidebar__logout:hover {
   color: var(--danger);
-  background: rgba(239,68,68,.12);
+  background: rgba(239, 68, 68, .12);
 }
 
 /* ── K-Layout (main right column) ────────────────────────── */
@@ -1887,11 +1884,30 @@ body.k-page-body {
   font-weight: var(--font-weight-semibold);
 }
 
-.k-status--success  { background: var(--status-success-bg);  color: var(--status-success-text); }
-.k-status--warning  { background: var(--status-warning-bg);  color: var(--status-warning-text); }
-.k-status--danger   { background: var(--status-danger-bg);   color: var(--status-danger-text);  }
-.k-status--info     { background: var(--status-info-bg);     color: var(--status-info-text);    }
-.k-status--neutral  { background: var(--status-neutral-bg);  color: var(--status-neutral-text); }
+.k-status--success {
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
+}
+
+.k-status--warning {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
+}
+
+.k-status--danger {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
+}
+
+.k-status--info {
+  background: var(--status-info-bg);
+  color: var(--status-info-text);
+}
+
+.k-status--neutral {
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-text);
+}
 
 .k-status__dot {
   width: 6px;
@@ -1902,17 +1918,49 @@ body.k-page-body {
 }
 
 /* ── Typography Helpers ─────────────────────────────────────── */
-.k-text-xs     { font-size: var(--font-xs); }
-.k-text-sm     { font-size: var(--font-sm); }
-.k-text-base   { font-size: var(--font-base); }
-.k-text-md     { font-size: var(--font-md); }
-.k-text-lg     { font-size: var(--font-lg); }
-.k-text-xl     { font-size: var(--font-xl); }
-.k-text-2xl    { font-size: var(--font-2xl); }
-.k-text-bold   { font-weight: var(--font-weight-bold); }
-.k-text-semi   { font-weight: var(--font-weight-semibold); }
-.k-text-medium { font-weight: var(--font-weight-medium); }
-.k-text-muted  { color: var(--muted); }
+.k-text-xs {
+  font-size: var(--font-xs);
+}
+
+.k-text-sm {
+  font-size: var(--font-sm);
+}
+
+.k-text-base {
+  font-size: var(--font-base);
+}
+
+.k-text-md {
+  font-size: var(--font-md);
+}
+
+.k-text-lg {
+  font-size: var(--font-lg);
+}
+
+.k-text-xl {
+  font-size: var(--font-xl);
+}
+
+.k-text-2xl {
+  font-size: var(--font-2xl);
+}
+
+.k-text-bold {
+  font-weight: var(--font-weight-bold);
+}
+
+.k-text-semi {
+  font-weight: var(--font-weight-semibold);
+}
+
+.k-text-medium {
+  font-weight: var(--font-weight-medium);
+}
+
+.k-text-muted {
+  color: var(--muted);
+}
 
 /* ── Form Elements ──────────────────────────────────────────── */
 .k-field {
@@ -2105,13 +2153,31 @@ body.k-page-body {
 }
 
 @keyframes k-shimmer {
-  to { transform: translateX(100%); }
+  to {
+    transform: translateX(100%);
+  }
 }
 
-.k-skeleton--text  { height: 14px; border-radius: 4px; }
-.k-skeleton--title { height: 22px; border-radius: 6px; }
-.k-skeleton--card  { height: 120px; border-radius: var(--radius); }
-.k-skeleton--avatar { width: 36px; height: 36px; border-radius: 50%; }
+.k-skeleton--text {
+  height: 14px;
+  border-radius: 4px;
+}
+
+.k-skeleton--title {
+  height: 22px;
+  border-radius: 6px;
+}
+
+.k-skeleton--card {
+  height: 120px;
+  border-radius: var(--radius);
+}
+
+.k-skeleton--avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
 
 /* ── Tab Navigation ─────────────────────────────────────────── */
 .k-tabs {
@@ -2166,9 +2232,17 @@ body.k-page-body {
   transition: width 0.4s ease;
 }
 
-.k-progress--success .k-progress__fill { background: var(--ok); }
-.k-progress--warning .k-progress__fill { background: var(--warn); }
-.k-progress--danger  .k-progress__fill { background: var(--danger); }
+.k-progress--success .k-progress__fill {
+  background: var(--ok);
+}
+
+.k-progress--warning .k-progress__fill {
+  background: var(--warn);
+}
+
+.k-progress--danger .k-progress__fill {
+  background: var(--danger);
+}
 
 /* ── Toast System (LMS) ─────────────────────────────────────── */
 .k-toast-stack {
@@ -2243,10 +2317,21 @@ body.k-page-body {
   flex-shrink: 0;
 }
 
-.k-toast--success { border-left: 3px solid var(--ok); }
-.k-toast--error   { border-left: 3px solid var(--danger); }
-.k-toast--warning { border-left: 3px solid var(--warn); }
-.k-toast--info    { border-left: 3px solid var(--primary); }
+.k-toast--success {
+  border-left: 3px solid var(--ok);
+}
+
+.k-toast--error {
+  border-left: 3px solid var(--danger);
+}
+
+.k-toast--warning {
+  border-left: 3px solid var(--warn);
+}
+
+.k-toast--info {
+  border-left: 3px solid var(--primary);
+}
 
 /* ── Modal (redesigned) ─────────────────────────────────────── */
 .k-modal {
@@ -2284,15 +2369,20 @@ body.k-page-body {
   display: flex;
   flex-direction: column;
   transform: translateY(14px) scale(.98);
-  transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+  transition: transform .22s cubic-bezier(.34, 1.56, .64, 1);
 }
 
 .k-modal.is-open .k-modal__box {
   transform: translateY(0) scale(1);
 }
 
-.k-modal__box--wide { width: min(720px, 100%); }
-.k-modal__box--narrow { width: min(380px, 100%); }
+.k-modal__box--wide {
+  width: min(720px, 100%);
+}
+
+.k-modal__box--narrow {
+  width: min(380px, 100%);
+}
 
 .k-modal__head {
   padding: var(--space-5) var(--space-6) var(--space-4);
@@ -2342,34 +2432,81 @@ body.k-page-body {
 }
 
 /* ── Course Accent Color System ─────────────────────────────── */
-[data-course-accent="1"] { --k-accent: var(--k-course-accent-1); }
-[data-course-accent="2"] { --k-accent: var(--k-course-accent-2); }
-[data-course-accent="3"] { --k-accent: var(--k-course-accent-3); }
-[data-course-accent="4"] { --k-accent: var(--k-course-accent-4); }
-[data-course-accent="5"] { --k-accent: var(--k-course-accent-5); }
-[data-course-accent="6"] { --k-accent: var(--k-course-accent-6); }
-[data-course-accent="7"] { --k-accent: var(--k-course-accent-7); }
-[data-course-accent="8"] { --k-accent: var(--k-course-accent-8); }
+[data-course-accent="1"] {
+  --k-accent: var(--k-course-accent-1);
+}
+
+[data-course-accent="2"] {
+  --k-accent: var(--k-course-accent-2);
+}
+
+[data-course-accent="3"] {
+  --k-accent: var(--k-course-accent-3);
+}
+
+[data-course-accent="4"] {
+  --k-accent: var(--k-course-accent-4);
+}
+
+[data-course-accent="5"] {
+  --k-accent: var(--k-course-accent-5);
+}
+
+[data-course-accent="6"] {
+  --k-accent: var(--k-course-accent-6);
+}
+
+[data-course-accent="7"] {
+  --k-accent: var(--k-course-accent-7);
+}
+
+[data-course-accent="8"] {
+  --k-accent: var(--k-course-accent-8);
+}
 
 /* ── Responsive Breakpoints ─────────────────────────────────── */
 
 /* Sidebar collapse at ≤1024px */
 @media (max-width: 1024px) {
-  :root { --k-sidebar-width: var(--k-sidebar-collapsed); }
+  :root {
+    --k-sidebar-width: var(--k-sidebar-collapsed);
+  }
 
   .k-sidebar__wordmark,
   .k-sidebar__course-name,
   .k-nav-item__text,
   .k-nav-group__label,
   .k-sidebar__user-info,
-  .k-sidebar__course-header { display: none !important; }
+  .k-sidebar__course-header {
+    display: none !important;
+  }
 
-  .k-sidebar__brand { justify-content: center; padding: var(--space-3); }
-  .k-sidebar__user  { justify-content: center; padding: var(--space-3); }
-  .k-nav-item { justify-content: center; padding: 10px; }
-  .k-nav-item[aria-current="page"]::before { left: 0; top: 0; bottom: 0; width: 3px; height: auto; }
+  .k-sidebar__brand {
+    justify-content: center;
+    padding: var(--space-3);
+  }
 
-  .k-sidebar__logout { margin: 0; }
+  .k-sidebar__user {
+    justify-content: center;
+    padding: var(--space-3);
+  }
+
+  .k-nav-item {
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .k-nav-item[aria-current="page"]::before {
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    height: auto;
+  }
+
+  .k-sidebar__logout {
+    margin: 0;
+  }
 }
 
 /* Mobile: sidebar becomes bottom nav bar */
@@ -2393,7 +2530,9 @@ body.k-page-body {
 
   .k-sidebar__brand,
   .k-sidebar__course-header,
-  .k-sidebar__user { display: none !important; }
+  .k-sidebar__user {
+    display: none !important;
+  }
 
   .k-sidebar__scroll {
     flex: 1;
@@ -2407,7 +2546,7 @@ body.k-page-body {
     gap: 0;
   }
 
-  .k-nav-group + .k-nav-group {
+  .k-nav-group+.k-nav-group {
     margin-top: 0;
     padding-top: 0;
     border-top: 0;
@@ -2424,9 +2563,25 @@ body.k-page-body {
     font-size: 10px;
   }
 
-  .k-nav-item__text { display: block !important; font-size: 10px; }
-  .k-nav-item__icon { width: auto; height: auto; font-size: 20px; }
-  .k-nav-item[aria-current="page"]::before { left: 0; right: 0; top: 0; bottom: auto; width: auto; height: 2px; }
+  .k-nav-item__text {
+    display: block !important;
+    font-size: 10px;
+  }
+
+  .k-nav-item__icon {
+    width: auto;
+    height: auto;
+    font-size: 20px;
+  }
+
+  .k-nav-item[aria-current="page"]::before {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
 
   .k-layout {
     margin-left: 0;

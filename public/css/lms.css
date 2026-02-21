@@ -2550,6 +2550,12 @@
 /* ── Pre-auth (login page) layout ────────────────────────────── */
 /* When body has .k-pre-auth, the sidebar/topbar are hidden and
    the main content area becomes full-width and centered. */
+/* Post-auth: k-page fills available width */
+.k-page {
+    width: 100%;
+    max-width: none;
+}
+
 .k-pre-auth .k-layout {
     margin-left: 0;
 }
