@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
+lms_require_feature(['sections', 'lms_content']);
 $user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $id = (int)($in['section_id'] ?? 0);
@@ -27,6 +28,7 @@ $allowed = [
 
 $set = [];
 $params = [':id' => $id];
+$changes = [];
 foreach ($allowed as $inputKey => $column) {
     if (!array_key_exists($inputKey, $in)) {
         continue;
@@ -44,6 +46,7 @@ foreach ($allowed as $inputKey => $column) {
     } else {
         $params[$param] = trim((string)$in[$inputKey]);
     }
+    $changes[$inputKey] = $params[$param];
 }
 
 if ($set === []) {
@@ -54,5 +57,17 @@ $set[] = 'updated_at=CURRENT_TIMESTAMP';
 $sql = 'UPDATE lms_course_sections SET ' . implode(', ', $set) . ' WHERE section_id=:id AND deleted_at IS NULL';
 $st = $pdo->prepare($sql);
 $st->execute($params);
+
+if ($st->rowCount() > 0) {
+    lms_emit_event($pdo, 'section.updated', [
+        'event_id' => lms_uuid_v4(),
+        'occurred_at' => gmdate('c'),
+        'actor_id' => (int)$user['user_id'],
+        'entity_type' => 'section',
+        'entity_id' => $id,
+        'course_id' => (int)$section['course_id'],
+        'changes' => $changes,
+    ]);
+}
 
 lms_ok(['updated' => $st->rowCount() > 0]);

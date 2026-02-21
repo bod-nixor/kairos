@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
-$user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 lms_require_feature(['quizzes', 'lms_quizzes']);
+$user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $in = lms_json_input();
 $assessmentId = (int)($in['assessment_id'] ?? 0);
 if ($assessmentId <= 0) {
@@ -27,7 +27,7 @@ try {
     $countStmt->execute([':a' => $assessmentId, ':u' => (int)$user['user_id']]);
     $count = (int)$countStmt->fetchColumn();
 
-    if ($count >= (int)$a['max_attempts']) {
+    if ((int)$a['max_attempts'] > 0 && $count >= (int)$a['max_attempts']) {
         $pdo->rollBack();
         lms_error('attempt_limit', 'Attempt limit reached', 409);
     }

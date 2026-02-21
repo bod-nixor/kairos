@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/_common.php';
 
-lms_require_roles(['manager', 'admin']);
+lms_require_feature(['quiz', 'quizzes', 'lms_quizzes']);
+$user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $id = (int)($in['question_id'] ?? 0);
 if ($id <= 0) {
@@ -11,17 +12,25 @@ if ($id <= 0) {
 }
 
 $pdo = db();
-$existingStmt = $pdo->prepare('SELECT question_id, assessment_id, prompt, question_type, points, answer_key_json, settings_json FROM lms_questions WHERE question_id=:id AND deleted_at IS NULL LIMIT 1');
+$existingStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.prompt, q.question_type, q.points, q.answer_key_json, q.settings_json, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id WHERE q.question_id=:id AND q.deleted_at IS NULL LIMIT 1');
 $existingStmt->execute([':id' => $id]);
 $existing = $existingStmt->fetch();
 if (!$existing) {
     lms_error('not_found', 'Question not found', 404);
 }
 
+lms_course_access($user, (int)$existing['course_id']);
+
 $prompt = array_key_exists('prompt', $in) ? trim((string)$in['prompt']) : (string)$existing['prompt'];
 $questionType = array_key_exists('question_type', $in)
     ? trim((string)$in['question_type'])
     : trim((string)$existing['question_type']);
+
+$allowedQuestionTypes = ['mcq', 'multi_select', 'true_false', 'short_answer', 'long_answer', 'file_upload'];
+if (!in_array($questionType, $allowedQuestionTypes, true)) {
+    lms_error('validation_error', 'question_type is invalid', 422);
+}
+
 $points = array_key_exists('points', $in) ? (float)$in['points'] : (float)$existing['points'];
 $answerKeyJson = array_key_exists('answer_key', $in)
     ? json_encode($in['answer_key'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)

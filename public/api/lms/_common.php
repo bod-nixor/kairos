@@ -5,11 +5,26 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 
 function lms_user_role(array $user): string
 {
+    if (!empty($user['role_name']) && is_string($user['role_name'])) {
+        return strtolower($user['role_name']);
+    }
+
+    static $cache = [];
+    $userId = (int)($user['user_id'] ?? 0);
+    if ($userId > 0 && isset($cache[$userId])) {
+        return $cache[$userId];
+    }
+
     $pdo = db();
     $stmt = $pdo->prepare('SELECT r.name FROM roles r JOIN users u ON u.role_id = r.role_id WHERE u.user_id = :uid LIMIT 1');
-    $stmt->execute([':uid' => (int)$user['user_id']]);
-    $role = (string)($stmt->fetchColumn() ?: 'student');
-    return strtolower($role);
+    $stmt->execute([':uid' => $userId]);
+    $role = strtolower((string)($stmt->fetchColumn() ?: 'student'));
+
+    if ($userId > 0) {
+        $cache[$userId] = $role;
+    }
+
+    return $role;
 }
 
 function lms_json_input(): array
@@ -110,7 +125,7 @@ function lms_emit_event(PDO $pdo, string $eventName, array $event): void
         ':course_id' => $event['course_id'] ?? null,
         ':entity_type' => $event['entity_type'] ?? 'unknown',
         ':entity_id' => $event['entity_id'] ?? null,
-        ':payload_json' => json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ':payload_json' => json_encode($event, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ]);
 }
 

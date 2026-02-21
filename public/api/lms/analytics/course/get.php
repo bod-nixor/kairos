@@ -4,14 +4,25 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/_common.php';
 
 $user = lms_require_roles(['manager', 'admin']);
+lms_require_feature(['course_analytics', 'analytics']);
 $courseId = (int)($_GET['course_id'] ?? 0);
 if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
 
 lms_course_access($user, $courseId);
-
 $pdo = db();
+
+$cacheStmt = $pdo->prepare('SELECT payload_json FROM lms_course_analytics_cache WHERE course_id = :course_id AND expires_at > NOW() LIMIT 1');
+$cacheStmt->execute([':course_id' => $courseId]);
+$cachedPayload = $cacheStmt->fetchColumn();
+if (is_string($cachedPayload) && $cachedPayload !== '') {
+    $decoded = json_decode($cachedPayload, true);
+    if (is_array($decoded)) {
+        lms_ok($decoded);
+    }
+}
+
 $sections = $pdo->prepare(
     'SELECT s.section_id, s.title,
             ROUND((COUNT(DISTINCT c.completion_id)/NULLIF(COUNT(DISTINCT l.lesson_id)*NULLIF((SELECT COUNT(*) FROM student_courses WHERE course_id=:sub_course_id),0),0))*100,2) AS completion_percent
@@ -39,9 +50,22 @@ $ta->execute([':course_id' => $courseId]);
 $missing = $pdo->prepare('SELECT q.question_id, q.prompt, COUNT(*) AS misses FROM lms_assessment_responses r JOIN lms_questions q ON q.question_id=r.question_id WHERE q.assessment_id IN (SELECT assessment_id FROM lms_assessments WHERE course_id=:course_id) AND (r.max_score IS NULL OR r.score < r.max_score) GROUP BY q.question_id, q.prompt ORDER BY misses DESC LIMIT 5');
 $missing->execute([':course_id' => $courseId]);
 
-lms_ok([
+$result = [
     'section_completion' => $sections->fetchAll(),
     'quiz_stats' => ['avg_score' => $quiz->fetchColumn(), 'most_missed_questions' => $missing->fetchAll()],
     'assignment_stats' => $assignmentStats,
     'ta_workload' => $ta->fetchAll(),
+];
+
+$ttlSeconds = (int)env('LMS_ANALYTICS_CACHE_TTL_SECONDS', 120);
+if ($ttlSeconds < 60) {
+    $ttlSeconds = 60;
+}
+$saveCache = $pdo->prepare('INSERT INTO lms_course_analytics_cache (course_id, payload_json, refreshed_at, expires_at) VALUES (:course_id, :payload_json, NOW(), DATE_ADD(NOW(), INTERVAL :ttl SECOND)) ON DUPLICATE KEY UPDATE payload_json = VALUES(payload_json), refreshed_at = VALUES(refreshed_at), expires_at = VALUES(expires_at)');
+$saveCache->execute([
+    ':course_id' => $courseId,
+    ':payload_json' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ':ttl' => $ttlSeconds,
 ]);
+
+lms_ok($result);

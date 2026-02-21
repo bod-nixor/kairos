@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/_common.php';
 
+lms_require_feature(['assignments', 'lms_assignments']);
 $user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $assignmentId = (int)($in['assignment_id'] ?? 0);
@@ -21,6 +22,7 @@ foreach ($taIds as $taId) {
     }
     $validatedTaIds[] = (int)$taId;
 }
+$validatedTaIds = array_values(array_unique($validatedTaIds));
 
 $pdo = db();
 $assignmentStmt = $pdo->prepare('SELECT assignment_id, course_id FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1');
@@ -39,7 +41,18 @@ try {
     foreach ($validatedTaIds as $tid) {
         $ins->execute([':a' => $assignmentId, ':u' => $tid]);
     }
+
     $pdo->commit();
+
+    lms_emit_event($pdo, 'assignment.tas.updated', [
+        'event_id' => lms_uuid_v4(),
+        'occurred_at' => gmdate('c'),
+        'actor_id' => (int)$user['user_id'],
+        'entity_type' => 'assignment',
+        'entity_id' => $assignmentId,
+        'course_id' => (int)$assignment['course_id'],
+        'ta_user_ids' => $validatedTaIds,
+    ]);
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

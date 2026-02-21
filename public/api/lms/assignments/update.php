@@ -69,7 +69,6 @@ $pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, 
 ]);
 
 lms_emit_event($pdo, 'assignment.updated', [
-    'event_name' => 'assignment.updated',
     'event_id' => lms_uuid_v4(),
     'occurred_at' => gmdate('c'),
     'actor_id' => (int)$user['user_id'],

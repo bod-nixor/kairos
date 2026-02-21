@@ -11,6 +11,48 @@ if ($assignmentId <= 0) {
     lms_error('validation_error', 'assignment_id required', 422);
 }
 
+$uploadMeta = null;
+if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+    $file = $_FILES['file'];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
+        lms_error('validation_error', 'file upload failed', 422);
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    $maxBytes = (int)env('LMS_UPLOAD_MAX_BYTES', 10485760);
+    if ($size <= 0 || $size > $maxBytes) {
+        lms_error('validation_error', 'file exceeds maximum size', 422);
+    }
+
+    $filename = (string)($file['name'] ?? '');
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $blocked = ['php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'exe', 'js', 'sh'];
+    if ($ext !== '' && in_array($ext, $blocked, true)) {
+        lms_error('validation_error', 'file type is not allowed', 422);
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $detectedMime = (string)$finfo->file((string)$file['tmp_name']);
+    $allowedMimes = [
+        'application/pdf',
+        'image/png',
+        'image/jpeg',
+        'text/plain',
+        'application/zip',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+    ];
+    if (!in_array($detectedMime, $allowedMimes, true)) {
+        lms_error('validation_error', 'unsupported file content type', 422);
+    }
+
+    $uploadMeta = [
+        'name' => $filename,
+        'tmp_name' => (string)$file['tmp_name'],
+        'mime_type' => $detectedMime,
+    ];
+}
+
 $pdo = db();
 $aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at, status, late_allowed FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
 $aSt->execute([':id' => $assignmentId]);
@@ -35,22 +77,23 @@ try {
     $verStmt->execute([':a' => $assignmentId, ':u' => (int)$user['user_id']]);
     $version = (int)$verStmt->fetchColumn();
 
+    $status = $late ? 'late' : 'submitted';
     $pdo->prepare('INSERT INTO lms_submissions (assignment_id,course_id,student_user_id,version,text_submission,status,is_late) VALUES (:a,:c,:u,:v,:t,:s,:l)')->execute([
         ':a' => $assignmentId,
         ':c' => (int)$assignment['course_id'],
         ':u' => (int)$user['user_id'],
         ':v' => $version,
         ':t' => $_POST['text_submission'] ?? null,
-        ':s' => $late ? 'late' : 'submitted',
+        ':s' => $status,
         ':l' => $late ? 1 : 0,
     ]);
     $submissionId = (int)$pdo->lastInsertId();
 
-    if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-        $meta = lms_drive_upload_stub((string)$_FILES['file']['name'], (string)$_FILES['file']['tmp_name'], (string)($_FILES['file']['type'] ?? 'application/octet-stream'));
+    if ($uploadMeta !== null) {
+        $meta = lms_drive_upload_stub($uploadMeta['name'], $uploadMeta['tmp_name'], $uploadMeta['mime_type']);
         $pdo->prepare('INSERT INTO lms_resources (course_id,title,resource_type,drive_file_id,drive_preview_url,mime_type,file_size,checksum_sha256,access_scope,metadata_json,created_by) VALUES (:c,:t,\'file\',:fid,:url,:m,:size,:chk,\'assignment_submission\',:meta,:u)')->execute([
             ':c' => (int)$assignment['course_id'],
-            ':t' => (string)$_FILES['file']['name'],
+            ':t' => $uploadMeta['name'],
             ':fid' => $meta['file_id'],
             ':url' => $meta['preview_url'],
             ':m' => $meta['mime_type'],
@@ -67,8 +110,18 @@ try {
         ]);
     }
 
+    $pdo->prepare('INSERT INTO lms_submission_audit (submission_id, course_id, assignment_id, actor_id, new_status, occurred_at, version, metadata_json) VALUES (:submission_id, :course_id, :assignment_id, :actor_id, :new_status, :occurred_at, :version, :metadata_json)')->execute([
+        ':submission_id' => $submissionId,
+        ':course_id' => (int)$assignment['course_id'],
+        ':assignment_id' => $assignmentId,
+        ':actor_id' => (int)$user['user_id'],
+        ':new_status' => $status,
+        ':occurred_at' => gmdate('Y-m-d H:i:s'),
+        ':version' => $version,
+        ':metadata_json' => json_encode(['is_late' => $late, 'has_file' => $uploadMeta !== null], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
+
     $event = [
-        'event_name' => 'assignment.submission.created',
         'event_id' => lms_uuid_v4(),
         'occurred_at' => gmdate('c'),
         'actor_id' => (int)$user['user_id'],
@@ -86,5 +139,6 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log('assignment_submit_failed assignment_id=' . $assignmentId . ' user_id=' . (int)$user['user_id'] . ' message=' . $e->getMessage() . ' trace=' . $e->getTraceAsString());
     lms_error('submission_failed', 'Failed to submit assignment', 500);
 }

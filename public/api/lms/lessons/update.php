@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
+lms_require_feature(['lessons', 'lms_content']);
 $user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $id = (int)($in['lesson_id'] ?? 0);
@@ -44,7 +45,6 @@ if ($updateStmt->rowCount() === 0) {
 }
 
 lms_emit_event($pdo, 'lesson.updated', [
-    'event_name' => 'lesson.updated',
     'event_id' => lms_uuid_v4(),
     'occurred_at' => gmdate('c'),
     'actor_id' => (int)$user['user_id'],
