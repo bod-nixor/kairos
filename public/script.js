@@ -748,10 +748,19 @@ async function renderCourseCards() {
 
     const wrap = document.createElement('div');
     wrap.className = 'mt-8';
+    wrap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+
+    const lmsLink = document.createElement('a');
+    lmsLink.className = 'btn btn-primary';
+    lmsLink.href = './course.html?course_id=' + encodeURIComponent(c.course_id);
+    lmsLink.textContent = 'Course Page';
+
     const btn = document.createElement('button');
-    btn.className = 'btn btn-primary';
+    btn.className = 'btn btn-ghost';
     btn.setAttribute('data-course', String(c.course_id ?? ''));
-    btn.textContent = 'Open';
+    btn.textContent = 'Rooms & Queues';
+
+    wrap.appendChild(lmsLink);
     wrap.appendChild(btn);
 
     card.appendChild(badge);
