@@ -23,3 +23,8 @@ function lms_drive_upload_stub(string $originalName, string $tmpPath, string $mi
         'original_name' => $originalName,
     ];
 }
+
+function lms_drive_delete_stub(string $fileId): bool
+{
+    return $fileId !== '';
+}

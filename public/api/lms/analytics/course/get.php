@@ -57,14 +57,20 @@ $result = [
     'ta_workload' => $ta->fetchAll(),
 ];
 
+$encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if ($encodedResult === false) {
+    error_log('analytics_cache_encode_failed course_id=' . $courseId . ' json_error=' . json_last_error_msg());
+    lms_error('server_error', 'Failed to encode analytics payload', 500);
+}
+
 $ttlSeconds = (int)env('LMS_ANALYTICS_CACHE_TTL_SECONDS', 120);
 if ($ttlSeconds < 60) {
     $ttlSeconds = 60;
 }
-$saveCache = $pdo->prepare('INSERT INTO lms_course_analytics_cache (course_id, payload_json, refreshed_at, expires_at) VALUES (:course_id, :payload_json, NOW(), DATE_ADD(NOW(), INTERVAL :ttl SECOND)) ON DUPLICATE KEY UPDATE payload_json = VALUES(payload_json), refreshed_at = VALUES(refreshed_at), expires_at = VALUES(expires_at)');
+$saveCache = $pdo->prepare('INSERT INTO lms_course_analytics_cache (course_id, payload_json, refreshed_at, expires_at) VALUES (:course_id, :payload_json, NOW(), DATE_ADD(NOW(), INTERVAL :ttl SECOND)) AS new_row ON DUPLICATE KEY UPDATE payload_json = new_row.payload_json, refreshed_at = new_row.refreshed_at, expires_at = new_row.expires_at');
 $saveCache->execute([
     ':course_id' => $courseId,
-    ':payload_json' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ':payload_json' => $encodedResult,
     ':ttl' => $ttlSeconds,
 ]);
 

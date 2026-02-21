@@ -42,8 +42,6 @@ try {
         $ins->execute([':a' => $assignmentId, ':u' => $tid]);
     }
 
-    $pdo->commit();
-
     lms_emit_event($pdo, 'assignment.tas.updated', [
         'event_id' => lms_uuid_v4(),
         'occurred_at' => gmdate('c'),
@@ -53,6 +51,8 @@ try {
         'course_id' => (int)$assignment['course_id'],
         'ta_user_ids' => $validatedTaIds,
     ]);
+
+    $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

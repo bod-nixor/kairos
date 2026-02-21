@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS lms_grade_audit (
   feedback LONGTEXT DEFAULT NULL,
   action ENUM('draft','override','release') NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (grade_audit_id),
   KEY idx_lms_grade_audit_submission (submission_id, created_at),
   KEY idx_lms_grade_audit_graded_by (graded_by, created_at),

@@ -22,8 +22,20 @@ if (!$existing) {
 lms_course_access($user, (int)$existing['course_id']);
 
 $allowedStatus = ['draft', 'published', 'archived'];
-if (array_key_exists('status', $in) && !in_array((string)$in['status'], $allowedStatus, true)) {
-    lms_error('validation_error', 'status must be draft, published, or archived', 422);
+$allowedTransitions = [
+    'draft' => ['published', 'archived'],
+    'published' => ['archived'],
+    'archived' => [],
+];
+if (array_key_exists('status', $in)) {
+    $targetStatus = (string)$in['status'];
+    if (!in_array($targetStatus, $allowedStatus, true)) {
+        lms_error('validation_error', 'status must be draft, published, or archived', 422);
+    }
+    $currentStatus = (string)$existing['status'];
+    if ($targetStatus !== $currentStatus && !in_array($targetStatus, $allowedTransitions[$currentStatus] ?? [], true)) {
+        lms_error('validation_error', 'invalid status transition', 422);
+    }
 }
 
 $title = array_key_exists('title', $in) ? trim((string)$in['title']) : (string)$existing['title'];
@@ -31,7 +43,14 @@ if ($title === '') {
     lms_error('validation_error', 'title cannot be blank', 422);
 }
 
-$instructions = array_key_exists('instructions', $in) ? $in['instructions'] : $existing['instructions'];
+$instructionsRaw = array_key_exists('instructions', $in) ? $in['instructions'] : $existing['instructions'];
+if ($instructionsRaw === null) {
+    $instructions = null;
+} elseif (is_scalar($instructionsRaw)) {
+    $instructions = (string)$instructionsRaw;
+} else {
+    lms_error('validation_error', 'instructions must be a string', 422);
+}
 
 $dueAt = $existing['due_at'];
 if (array_key_exists('due_at', $in)) {
@@ -58,25 +77,35 @@ if (array_key_exists('max_points', $in)) {
 
 $status = array_key_exists('status', $in) ? (string)$in['status'] : (string)$existing['status'];
 
-$pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l, max_points=:m, status=:st, updated_at=CURRENT_TIMESTAMP WHERE assignment_id=:id')->execute([
-    ':t' => $title,
-    ':i' => $instructions,
-    ':d' => $dueAt,
-    ':l' => $lateAllowed,
-    ':m' => $maxPoints,
-    ':st' => $status,
-    ':id' => $id,
-]);
+$pdo->beginTransaction();
+try {
+    $pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l, max_points=:m, status=:st, updated_at=CURRENT_TIMESTAMP WHERE assignment_id=:id')->execute([
+        ':t' => $title,
+        ':i' => $instructions,
+        ':d' => $dueAt,
+        ':l' => $lateAllowed,
+        ':m' => $maxPoints,
+        ':st' => $status,
+        ':id' => $id,
+    ]);
 
-lms_emit_event($pdo, 'assignment.updated', [
-    'event_id' => lms_uuid_v4(),
-    'occurred_at' => gmdate('c'),
-    'actor_id' => (int)$user['user_id'],
-    'entity_type' => 'assignment',
-    'entity_id' => $id,
-    'course_id' => (int)$existing['course_id'],
-    'title' => $title,
-    'status' => $status,
-]);
+    lms_emit_event($pdo, 'assignment.updated', [
+        'event_id' => lms_uuid_v4(),
+        'occurred_at' => gmdate('c'),
+        'actor_id' => (int)$user['user_id'],
+        'entity_type' => 'assignment',
+        'entity_id' => $id,
+        'course_id' => (int)$existing['course_id'],
+        'title' => $title,
+        'status' => $status,
+    ]);
+
+    $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    lms_error('update_failed', 'Failed to update assignment', 500);
+}
 
 lms_ok(['updated' => true]);
