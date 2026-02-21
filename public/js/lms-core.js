@@ -299,7 +299,7 @@
       // Old format backwards compat
       _caps = r.data;
     } else {
-      _caps = { is_logged_in: false, roles: {} };
+      _caps = { is_logged_in: false, roles: { student: false, ta: false, manager: false, admin: false } };
     }
     return _caps;
   }

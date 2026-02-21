@@ -12,20 +12,6 @@ let activeCourseName = '';
 let lastSearchTerm = '';
 let sessionRoles = {};
 
-function normalizeSessionRoles(raw) {
-  if (raw && raw.ok === true && raw.data && raw.data.user) {
-    const role = String(raw.data.user.role || 'student').toLowerCase();
-    return {
-      student: true,
-      ta: role === 'ta' || role === 'manager' || role === 'admin',
-      manager: role === 'manager' || role === 'admin',
-      admin: role === 'admin',
-    };
-  }
-  if (raw && raw.roles) return raw.roles;
-  return {};
-}
-
 function updateAllowedDomainCopy() {
   const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
     ? ALLOWED_DOMAIN.replace(/^@+/, '')

@@ -5,22 +5,6 @@ function setAppConfig(config) {
   ALLOWED_DOMAIN = typeof APP_CONFIG.allowedDomain === 'string' ? APP_CONFIG.allowedDomain : '';
 }
 
-function normalizeSessionRoles(raw) {
-  // LMS format: { ok: true, data: { user: { role: 'admin' } } }
-  if (raw && raw.ok === true && raw.data && raw.data.user) {
-    const role = String(raw.data.user.role || 'student').toLowerCase();
-    return {
-      student: true,
-      ta: role === 'ta' || role === 'manager' || role === 'admin',
-      manager: role === 'manager' || role === 'admin',
-      admin: role === 'admin',
-    };
-  }
-  // Old format: { roles: { admin: true, ... } }
-  if (raw && raw.roles) return raw.roles;
-  return {};
-}
-
 const state = {
   courses: [],
   selectedId: null,
@@ -262,7 +246,7 @@ async function bootstrap() {
     els.assignCard?.classList.remove('hidden');
 
     const rawCaps = await fetchJSON('./api/session_capabilities.php');
-    const capsRoles = normalizeSessionRoles(rawCaps);
+    const capsRoles = window.normalizeSessionRoles(rawCaps);
     applyAdminNavRoles(capsRoles);
     updateAdminNavActive();
   } catch (err) {

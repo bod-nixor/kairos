@@ -15,20 +15,6 @@ const overlayNames = document.getElementById('overlayNames');
 const overlaySubtitle = document.getElementById('overlaySubtitle');
 const overlayTitle = document.getElementById('overlayTitle');
 
-function normalizeSessionRoles(raw) {
-  if (raw && raw.ok === true && raw.data && raw.data.user) {
-    const role = String(raw.data.user.role || 'student').toLowerCase();
-    return {
-      student: true,
-      ta: role === 'ta' || role === 'manager' || role === 'admin',
-      manager: role === 'manager' || role === 'admin',
-      admin: role === 'admin',
-    };
-  }
-  if (raw && raw.roles) return raw.roles;
-  return {};
-}
-
 function parseIds() {
   const params = new URLSearchParams(window.location.search);
   const roomRaw = params.get('room_id');
@@ -46,7 +32,7 @@ async function ensureTaAccess() {
   });
   if (!res.ok) throw new Error('auth');
   const json = await res.json();
-  const roles = normalizeSessionRoles(json);
+  const roles = window.normalizeSessionRoles(json);
   if (!roles.ta) {
     throw new Error('forbidden');
   }
