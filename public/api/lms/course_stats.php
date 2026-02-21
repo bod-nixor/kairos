@@ -69,6 +69,7 @@ lms_ok([
     'modules' => $modules,
     'completed_items' => $lessonDone,
     'assignments' => $assignments,
+    'assignments_due' => $assignments,
     'quizzes' => $quizzes,
     'completion_pct' => $completionPct,
 ]);

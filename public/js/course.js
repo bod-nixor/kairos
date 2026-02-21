@@ -162,10 +162,10 @@
         $('bannerProgressText') && ($('bannerProgressText').textContent = pct + '% complete');
 
         // Stats
-        $('statModules') && ($('statModules').textContent = stats.modules || '—');
-        $('statCompleted') && ($('statCompleted').textContent = stats.completed_items || '—');
-        $('statAssignments') && ($('statAssignments').textContent = stats.assignments || '—');
-        $('statQuizzes') && ($('statQuizzes').textContent = stats.quizzes || '—');
+        $('statModules') && ($('statModules').textContent = stats.modules ?? '—');
+        $('statCompleted') && ($('statCompleted').textContent = stats.completed_items ?? '—');
+        $('statAssignments') && ($('statAssignments').textContent = stats.assignments ?? '—');
+        $('statQuizzes') && ($('statQuizzes').textContent = stats.quizzes ?? '—');
 
         // Sidebar nav links
         document.querySelectorAll('[data-course-href]').forEach(el => {

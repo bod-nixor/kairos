@@ -28,9 +28,9 @@ try {
 
 // Fetch course basic info
 if ($hasDesc) {
-    $stmt = $pdo->prepare("SELECT CAST(course_id AS UNSIGNED) AS id, name, COALESCE(description, '') AS description FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
+    $stmt = $pdo->prepare("SELECT CAST(course_id AS UNSIGNED) AS id, name, COALESCE(code, '') AS code, COALESCE(description, '') AS description FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
 } else {
-    $stmt = $pdo->prepare("SELECT CAST(course_id AS UNSIGNED) AS id, name, '' AS description FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
+    $stmt = $pdo->prepare("SELECT CAST(course_id AS UNSIGNED) AS id, name, COALESCE(code, '') AS code, '' AS description FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
 }
 $stmt->execute([':cid' => $courseId]);
 $course = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -52,7 +52,7 @@ if ($role === 'ta' || $role === 'student') {
             $role = strtolower($staffRole);
         }
     } catch (\PDOException $e) {
-        // course_staff table may not exist
+        error_log('lms/courses.php: course_staff lookup failed: ' . $e->getMessage());
     }
 }
 
