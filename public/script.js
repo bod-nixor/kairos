@@ -174,7 +174,7 @@ function subscribeToChannel(channel, handler) {
     throw new Error(`Unsupported SSE channel: ${channel}`);
   }
   if (typeof handler !== 'function') {
-    return () => {};
+    return () => { };
   }
   const listeners = eventStreamState.handlers[channel];
   listeners.add(handler);
@@ -187,7 +187,7 @@ function subscribeToChannel(channel, handler) {
 
 function onEventStreamOpen(handler) {
   if (typeof handler !== 'function') {
-    return () => {};
+    return () => { };
   }
   eventStreamState.openHandlers.add(handler);
   return () => {
@@ -312,35 +312,57 @@ function applySessionCapabilities(caps) {
   };
   sessionCapabilities = next;
 
+  // Old top nav (compatibility shim)
   const nav = document.getElementById('mainNav');
-  if (!nav) {
-    return;
+  if (nav) {
+    const isLogged = !!next.is_logged_in;
+    nav.classList.toggle('hidden', !isLogged);
+
+    ['navHomeLink', 'navCoursesLink'].forEach((id) => {
+      const link = document.getElementById(id);
+      if (link) link.classList.toggle('hidden', !isLogged);
+    });
+
+    const roleLinks = [
+      ['navTaLink', 'ta'],
+      ['navManagerLink', 'manager'],
+      ['navAdminLink', 'admin'],
+    ];
+    roleLinks.forEach(([id, role]) => {
+      const link = document.getElementById(id);
+      if (!link) return;
+      const allowed = isLogged && !!next.roles[role];
+      link.classList.toggle('hidden', !allowed);
+    });
+
+    if (!isLogged) setTopNavActive(null);
   }
 
+  // New sidebar role nav
   const isLogged = !!next.is_logged_in;
-  nav.classList.toggle('hidden', !isLogged);
-
-  ['navHomeLink', 'navCoursesLink'].forEach((id) => {
-    const link = document.getElementById(id);
-    if (link) {
-      link.classList.toggle('hidden', !isLogged);
-    }
-  });
-
-  const roleLinks = [
-    ['navTaLink', 'ta'],
-    ['navManagerLink', 'manager'],
-    ['navAdminLink', 'admin'],
+  const kNavRoles = document.getElementById('kNavRoles');
+  if (kNavRoles) {
+    const hasAnyRole = isLogged && (next.roles.ta || next.roles.manager || next.roles.admin);
+    kNavRoles.classList.toggle('hidden', !hasAnyRole);
+  }
+  const sidebarRoleMap = [
+    ['navTA', 'ta'],
+    ['navManager', 'manager'],
+    ['navAdmin', 'admin'],
   ];
-  roleLinks.forEach(([id, role]) => {
-    const link = document.getElementById(id);
-    if (!link) return;
-    const allowed = isLogged && !!next.roles[role];
-    link.classList.toggle('hidden', !allowed);
+  sidebarRoleMap.forEach(([id, role]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('hidden', !(isLogged && next.roles[role]));
   });
 
-  if (!isLogged) {
-    setTopNavActive(null);
+  // Update sidebar role text
+  const sidebarRole = document.getElementById('kSidebarRole');
+  if (sidebarRole && isLogged) {
+    const roleDisplay = next.roles.admin ? 'Admin' :
+      next.roles.manager ? 'Manager' :
+        next.roles.ta ? 'TA' : 'Student';
+    sidebarRole.textContent = roleDisplay;
   }
 }
 
@@ -420,8 +442,16 @@ function handleTaAcceptEvent(message) {
 
 function showSignin() {
   applySessionCapabilities(null);
-  document.getElementById('signin').classList.remove('hidden');  // show login card
-  document.getElementById('userbar').classList.add('hidden');    // hide user info
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.remove('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.add('hidden');
+  // Hide the new LMS shell pre-login
+  const sidebar = document.getElementById('kSidebar');
+  if (sidebar) sidebar.classList.add('hidden');
+  const topbar = document.getElementById('kTopbar');
+  if (topbar) topbar.classList.add('hidden');
+  document.body.classList.add('k-pre-auth');
   // hide app views while logged out
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   // ensure the button renders (fresh container)
@@ -431,15 +461,23 @@ function showSignin() {
 }
 
 function showApp() {
-  document.getElementById('signin').classList.add('hidden');     // hide login card
-  document.getElementById('userbar').classList.remove('hidden'); // show user info
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.add('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.remove('hidden');
+  // Show the new LMS shell post-login
+  const sidebar = document.getElementById('kSidebar');
+  if (sidebar) sidebar.classList.remove('hidden');
+  const topbar = document.getElementById('kTopbar');
+  if (topbar) topbar.classList.remove('hidden');
+  document.body.classList.remove('k-pre-auth');
 }
 
 async function handleCredentialResponse(resp) {
   try {
     const r = await fetch('./api/auth.php', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify({ credential: resp.credential })
     });
@@ -494,10 +532,17 @@ async function bootstrap() {
     const me = await r.json();
     if (!me?.email) { selfUserId = null; stopNotifySSE(); showSignin(); return; }
 
-    // Fill userbar
-    document.getElementById('avatar').src = me.picture_url || '';
-    document.getElementById('name').textContent = me.name || '';
-    document.getElementById('email').textContent = me.email || '';
+    // Fill userbar (old + new selectors)
+    const avatarEl = document.getElementById('avatar');
+    if (avatarEl) avatarEl.src = me.picture_url || '';
+    const nameEl = document.getElementById('name');
+    if (nameEl) nameEl.textContent = me.name || '';
+    // Also fill the new sidebar user bar
+    const sidebarAvatar = document.getElementById('kSidebarAvatar');
+    if (sidebarAvatar) sidebarAvatar.src = me.picture_url || '';
+    const sidebarName = document.getElementById('kSidebarName');
+    if (sidebarName) sidebarName.textContent = me.name || me.email || '';
+    // Note: kSidebarRole is set by applySessionCapabilities() below
 
     selfUserId = me.user_id || null;
     currentUserId = (typeof me.user_id === 'number' && Number.isFinite(me.user_id))
@@ -510,7 +555,7 @@ async function bootstrap() {
     await refreshSessionCapabilities();
     showApp();
 
-    // Step 1: show only the user's enrolled courses as cards
+    // Load courses (renderCourseCards handles showing viewDashboard)
     await renderCourseCards();
 
     // Start SSE (optional; comment out if you haven't added change_log)
@@ -566,14 +611,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
-  stopSSE();
-  stopNotifySSE();
-  selfUserId = null;
-  showSignin();
-  renderGoogleButton();
-});
+async function performLogout() {
+  try {
+    await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
+  } catch (err) {
+    console.warn('Logout request failed', err);
+  } finally {
+    stopSSE();
+    stopNotifySSE();
+    selfUserId = null;
+    currentUserId = null;
+    selectedCourse = null;
+    selectedRoomId = null;
+    showSignin();
+    renderGoogleButton();
+  }
+}
+const _logoutBtn = document.getElementById('logoutBtn');
+if (_logoutBtn) _logoutBtn.addEventListener('click', performLogout);
+const _kLogoutBtn = document.getElementById('kLogoutBtn');
+if (_kLogoutBtn) _kLogoutBtn.addEventListener('click', performLogout);
 
 // ---------- API helpers ----------
 async function apiGet(url) {
@@ -583,12 +640,27 @@ async function apiGet(url) {
 }
 
 // nav state
-function setCrumbs(text){ document.getElementById('breadcrumbs').textContent = text; }
-function showView(id){
+function setCrumbs(text) {
+  const el = document.getElementById('breadcrumbs');
+  if (el) el.textContent = text;
+  // Also update the new breadcrumb (use textContent to avoid injection)
+  const kb = document.getElementById('kBreadcrumb');
+  if (kb) {
+    kb.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'k-breadcrumb__item is-current';
+    span.textContent = text || 'Dashboard';
+    kb.appendChild(span);
+  }
+}
+function showView(id) {
   for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
-  document.getElementById(id).classList.remove('hidden');
-  document.getElementById('navCourses').classList.toggle('active', id==='viewCourses');
-  document.getElementById('navRooms').classList.toggle('active', id==='viewRooms');
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
+  const navCourses = document.getElementById('navCourses');
+  if (navCourses) navCourses.classList.toggle('active', id === 'viewCourses');
+  const navRooms = document.getElementById('navRooms');
+  if (navRooms) navRooms.classList.toggle('active', id === 'viewRooms');
   if (id === 'viewCourses') {
     setTopNavActive('courses');
   } else {
@@ -597,7 +669,7 @@ function showView(id){
 }
 
 // COURSES (cards: enrolled only)
-async function renderCourseCards(){
+async function renderCourseCards() {
   selectedCourse = null;
   selectedRoomId = null;                                 // reset room selection when leaving rooms view
   stopQueueLiveUpdates();
@@ -605,45 +677,71 @@ async function renderCourseCards(){
     window.SignoffWS.updateFilters({ courseId: null, roomId: null });
   }
   setCrumbs('Courses');
-  showView('viewCourses');
+  // Show the dashboard view (coursesGrid lives inside viewDashboard)
+  showView('viewDashboard');
   const progressSection = document.getElementById('progressSection');
   if (progressSection) progressSection.classList.add('hidden');
+  // Populate both grids (dashboard + standalone courses view)
   const grid = document.getElementById('coursesGrid');
-  grid.innerHTML = skeletonCards(3);
+  if (grid) grid.innerHTML = skeletonCards(3);
 
   let courses = [];
-  try { courses = await apiGet('./api/my_courses.php'); } catch {}
+  let coursesError = false;
+  try {
+    courses = await apiGet('./api/my_courses.php');
+  } catch (err) {
+    console.error('Failed to load courses', err);
+    coursesError = true;
+  }
   if (!Array.isArray(courses)) courses = [];
 
-  if (!courses.length){
-    grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You’re not enrolled in any courses.</div></div>`;
+  if (coursesError && !courses.length) {
+    if (grid) grid.innerHTML = `<div class="card"><strong>Unable to load courses.</strong><div class="muted small">Please check your connection and try again.</div></div>`;
+    return;
+  }
+  if (!courses.length) {
+    if (grid) grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You're not enrolled in any courses.</div></div>`;
     return;
   }
 
+  if (!grid) return;
   grid.innerHTML = '';
-  courses.forEach(c=>{
+  courses.forEach(c => {
+    const safeId = escapeHtml(String(c.course_id ?? ''));
     const card = document.createElement('div');
     card.className = 'course-card';
-    card.innerHTML = `
-      <span class="badge">Course #${c.course_id}</span>
-      <h3 class="course-title">${escapeHtml(c.name)}</h3>
-      <div class="mt-8">
-        <button class="btn btn-primary" data-course="${c.course_id}">Open</button>
-      </div>
-    `;
+
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = 'Course #' + (c.course_id ?? '');
+
+    const title = document.createElement('h3');
+    title.className = 'course-title';
+    title.textContent = c.name || '';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'mt-8';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.setAttribute('data-course', String(c.course_id ?? ''));
+    btn.textContent = 'Open';
+    wrap.appendChild(btn);
+
+    card.appendChild(badge);
+    card.appendChild(title);
+    card.appendChild(wrap);
     grid.appendChild(card);
   });
-
-  grid.onclick = async (e)=>{
+  grid.onclick = async (e) => {
     const btn = e.target.closest('button[data-course]');
-    if(!btn) return;
+    if (!btn) return;
     const id = btn.getAttribute('data-course');
     await showCourse(id);
   };
 }
 
 // ROOMS (cards) + PROGRESS (bottom)
-async function showCourse(courseId){
+async function showCourse(courseId) {
   selectedCourse = String(courseId);
   try {
     sessionStorage.setItem('signoff:lastCourseId', selectedCourse);
@@ -655,9 +753,11 @@ async function showCourse(courseId){
   }
   setCrumbs(`Course #${selectedCourse}`);
   showView('viewRooms');
-  document.getElementById('roomsTitle').textContent = `Rooms for Course #${selectedCourse}`;
+  const roomsTitleEl = document.getElementById('roomsTitle');
+  if (roomsTitleEl) roomsTitleEl.textContent = `Rooms for Course #${selectedCourse}`;
 
   const grid = document.getElementById('roomsGrid');
+  if (!grid) return;
   grid.innerHTML = skeletonCards(3);
 
   let rooms = [];
@@ -675,16 +775,30 @@ async function showCourse(courseId){
     for (const room of rooms) {
       const card = document.createElement('div');
       card.className = 'room-card';
-      const url = `/signoff/room?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(room.room_id)}`;
-      card.innerHTML = `
-        <div class="flex align-center gap-10">
-          <span class="badge">Room #${room.room_id}</span>
-          <h3 class="room-title title-reset">${escapeHtml(room.name)}</h3>
-        </div>
-        <div class="room-actions mt-8 flex gap-8 flex-wrap">
-          <a class="btn btn-primary" href="${url}">Open room</a>
-        </div>
-      `;
+      const safeRoomId = String(room.room_id ?? '');
+      const url = `/signoff/room?course_id=${encodeURIComponent(selectedCourse)}&room_id=${encodeURIComponent(safeRoomId)}`;
+
+      const header = document.createElement('div');
+      header.className = 'flex align-center gap-10';
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = 'Room #' + safeRoomId;
+      const h3 = document.createElement('h3');
+      h3.className = 'room-title title-reset';
+      h3.textContent = room.name || '';
+      header.appendChild(badge);
+      header.appendChild(h3);
+
+      const actions = document.createElement('div');
+      actions.className = 'room-actions mt-8 flex gap-8 flex-wrap';
+      const link = document.createElement('a');
+      link.className = 'btn btn-primary';
+      link.href = url;
+      link.textContent = 'Open room';
+      actions.appendChild(link);
+
+      card.appendChild(header);
+      card.appendChild(actions);
       grid.appendChild(card);
     }
   }
@@ -735,57 +849,75 @@ async function showCourse(courseId){
   if (progressSection) progressSection.classList.remove('hidden');
   await renderProgress(selectedCourse);
 
-  document.getElementById('backToCourses').onclick = () => {
-    const progressSection = document.getElementById('progressSection');
-    if (progressSection) progressSection.classList.add('hidden');
-    renderCourseCards();
-  };
-  document.getElementById('navRooms').classList.add('active');
-  document.getElementById('navCourses').classList.remove('active');
+  const backBtn = document.getElementById('backToCourses');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      const progressSection = document.getElementById('progressSection');
+      if (progressSection) progressSection.classList.add('hidden');
+      renderCourseCards();
+    };
+  }
+  const _nr = document.getElementById('navRooms');
+  if (_nr) _nr.classList.add('active');
+  const _nc = document.getElementById('navCourses');
+  if (_nc) _nc.classList.remove('active');
 }
 
 // queues per room (unchanged logic, prettier buttons)
-async function loadQueuesForRoom(roomId){
+async function loadQueuesForRoom(roomId) {
   const wrap = document.getElementById(`queues-for-${roomId}`);
   if (!wrap) return;
   if (String(selectedRoomId || '') !== String(roomId)) return;
   wrap.innerHTML = '<div class="sk"></div>';
   stopQueueLiveUpdates();
-  try{
-    const queues = await apiGet('./api/queues.php?room_id='+encodeURIComponent(roomId));
+  try {
+    const queues = await apiGet('./api/queues.php?room_id=' + encodeURIComponent(roomId));
     if (String(selectedRoomId || '') !== String(roomId)) return;
-    if(!queues.length){ wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`; return; }
+    if (!Array.isArray(queues) || !queues.length) {
+      wrap.innerHTML = `<div class="muted">No open queues for this room.</div>`;
+      return;
+    }
     wrap.innerHTML = '';
     const queueIds = [];
-    queues.forEach(q=>{
+    queues.forEach(q => {
+      const safeQid = String(q.queue_id ?? '');
       const row = document.createElement('div');
-      row.className='queue-row';
-      row.dataset.queueId = String(q.queue_id ?? '');
+      row.className = 'queue-row';
+      row.dataset.queueId = safeQid;
       row.innerHTML = `
         <div class="queue-header">
           <div class="queue-header-text">
             <div class="q-name">${escapeHtml(q.name)}</div>
-            <div class="q-desc">${escapeHtml(q.description||'')}</div>
+            <div class="q-desc">${escapeHtml(q.description || '')}</div>
           </div>
           <div class="queue-meta">
             <div class="queue-count" data-role="queue-count">Loading…</div>
             <div class="queue-eta" data-role="queue-eta"></div>
           </div>
-          <div class="queue-actions">
-            <button class="btn btn-ghost" data-join="${q.queue_id}">Join</button>
-            <button class="btn" data-leave="${q.queue_id}">Leave</button>
-          </div>
+          <div class="queue-actions"></div>
         </div>
         <div class="queue-occupants empty" data-role="queue-occupants">
           <span class="muted small">Loading participants…</span>
         </div>
         <div class="queue-feedback small" data-role="queue-error" aria-live="polite"></div>
       `;
+      // Build buttons programmatically to avoid attribute injection
+      const actionsEl = row.querySelector('.queue-actions');
+      const joinBtn = document.createElement('button');
+      joinBtn.className = 'btn btn-ghost';
+      joinBtn.dataset.join = safeQid;
+      joinBtn.textContent = 'Join';
+      const leaveBtn = document.createElement('button');
+      leaveBtn.className = 'btn';
+      leaveBtn.dataset.leave = safeQid;
+      leaveBtn.textContent = 'Leave';
+      actionsEl.appendChild(joinBtn);
+      actionsEl.appendChild(leaveBtn);
       wrap.appendChild(row);
-      queueIds.push(String(q.queue_id ?? ''));
+      queueIds.push(safeQid);
     });
     initQueueLiveUpdates(roomId, queueIds);
-    wrap.onclick = async (e)=>{
+    wrap.onclick = async (e) => {
       const button = e.target.closest('button[data-join], button[data-leave]');
       if (!button) return;
       e.preventDefault();
@@ -847,14 +979,14 @@ async function loadQueuesForRoom(roomId){
         });
       }
     };
-  }catch{
+  } catch {
     if (String(selectedRoomId || '') === String(roomId)) {
       wrap.innerHTML = `<div class="muted">Failed to load queues.</div>`;
     }
   }
 }
 
-function updateRoomSelectionUI(){
+function updateRoomSelectionUI() {
   document.querySelectorAll('#roomsGrid .room-card').forEach(card => {
     const roomId = card.dataset.roomId;
     const isActive = selectedRoomId && String(selectedRoomId) === String(roomId);
@@ -877,11 +1009,11 @@ function updateRoomSelectionUI(){
 
 // Map status string to CSS class (from your code)
 function statusClass(s) {
-    const key = String(s || 'None').toLowerCase();
-    if (key === 'pending')   return 'status-pending';
-    if (key === 'completed') return 'status-completed';
-    if (key === 'review')    return 'status-review';
-    return 'status-none';
+  const key = String(s || 'None').toLowerCase();
+  if (key === 'pending') return 'status-pending';
+  if (key === 'completed') return 'status-completed';
+  if (key === 'review') return 'status-review';
+  return 'status-none';
 }
 
 
@@ -889,66 +1021,76 @@ function statusClass(s) {
 
 // progress rendered as horizontal “tables”
 async function renderProgress(courseId) {
-    const container = document.getElementById('progressContainer');
-    container.innerHTML = '<p>Loading progress...</p>'; // Simple loading state
-    const data = await apiGet('./api/progress.php?course_id=' + encodeURIComponent(courseId || ''));
-    const cats   = data.categories || [];
-    const byCat  = data.detailsByCategory || {};
-    const status = data.userStatuses || {}; // { detail_id: "None" | "Pending" | "Completed" | "Review" }
+  const container = document.getElementById('progressContainer');
+  if (!container) return;
+  container.innerHTML = '<p>Loading progress...</p>'; // Simple loading state
+  let data;
+  try {
+    data = await apiGet('./api/progress.php?course_id=' + encodeURIComponent(courseId || ''));
+  } catch (err) {
+    container.innerHTML = '<p class="muted small">Unable to load progress.</p>';
+    console.warn('renderProgress failed', err);
+    return;
+  }
+  const cats = (data && data.categories) || [];
+  const byCat = (data && data.detailsByCategory) || {};
+  const status = (data && data.userStatuses) || {}; // { detail_id: "None" | "Pending" | "Completed" | "Review" }
 
-    container.innerHTML = ''; // Clear the "Loading..." text
+  container.innerHTML = ''; // Clear the "Loading..." text
 
-    for (const cat of cats) {
-        const details = byCat[cat.category_id] || [];
-        if (!details.length) continue;
+  for (const cat of cats) {
+    const details = byCat[cat.category_id] || [];
+    if (!details.length) continue;
 
-        const section = document.createElement('div');
-        section.className = 'progress-section-row'; // Use a different class to avoid nesting .progress-section
+    const section = document.createElement('div');
+    section.className = 'progress-section-row'; // Use a different class to avoid nesting .progress-section
 
-        const title = document.createElement('h4');
-        title.className = 'progress-title';
-        title.textContent = cat.name;
-        section.appendChild(title);
+    const title = document.createElement('h4');
+    title.className = 'progress-title';
+    title.textContent = cat.name;
+    section.appendChild(title);
 
-        const row = document.createElement('div');
-        row.className = 'progress-row';
+    const row = document.createElement('div');
+    row.className = 'progress-row';
 
-        for (const d of details) {
-            const sName = (status[d.detail_id] || 'None'); // default
-            const cls = statusClass(sName);
+    for (const d of details) {
+      const sName = (status[d.detail_id] || 'None'); // default
+      const cls = statusClass(sName);
 
-            const cell = document.createElement('div');
-            cell.className = 'progress-cell';
-            cell.innerHTML = `
+      const cell = document.createElement('div');
+      cell.className = 'progress-cell';
+      cell.innerHTML = `
                 <div class="detail-name">${escapeHtml(d.name)}</div>
                 <div class="status ${cls}">${escapeHtml(sName)}</div>
             `;
-            row.appendChild(cell);
-        }
-
-        section.appendChild(row);
-        container.appendChild(section);
+      row.appendChild(cell);
     }
+
+    section.appendChild(row);
+    container.appendChild(section);
+  }
 }
 
-// sidebar nav (Courses/Rooms)
-document.getElementById('navCourses').onclick = ()=> renderCourseCards();
-document.getElementById('navRooms').onclick = ()=> showView('viewRooms');
+// sidebar nav (Courses/Rooms) — null-safe
+const _navCourses = document.getElementById('navCourses');
+if (_navCourses) _navCourses.onclick = () => renderCourseCards();
+const _navRooms = document.getElementById('navRooms');
+if (_navRooms) _navRooms.onclick = () => showView('viewRooms');
 
 // helpers
-function escapeHtml(s){
+function escapeHtml(s) {
   return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", "&#039;");
 }
-function skeletonCards(n=3){
-  return Array.from({length:n}).map(()=>'<div class="sk"></div>').join('');
+function skeletonCards(n = 3) {
+  return Array.from({ length: n }).map(() => '<div class="sk"></div>').join('');
 }
 
-async function refreshQueueMeta(queueId){
+async function refreshQueueMeta(queueId) {
   const id = String(queueId ?? '');
   if (!id || !queueLiveState.queueIds.has(id)) return;
   const safeId = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') ? CSS.escape(id) : id.replace(/"/g, '\\"');
@@ -1030,7 +1172,7 @@ async function refreshQueueMeta(queueId){
   return promise;
 }
 
-function initQueueLiveUpdates(roomId, queueIds){
+function initQueueLiveUpdates(roomId, queueIds) {
   const ids = (Array.isArray(queueIds) ? queueIds : [])
     .map((id) => String(id))
     .filter((id) => /^\d+$/.test(id));
@@ -1043,7 +1185,7 @@ function initQueueLiveUpdates(roomId, queueIds){
   ids.forEach((id) => { refreshQueueMeta(id); });
 }
 
-function stopQueueLiveUpdates(){
+function stopQueueLiveUpdates() {
   queueLiveState.queueIds = new Set();
   queueLiveState.roomId = null;
   queuePendingFetches.clear();
@@ -1114,15 +1256,15 @@ function handleTaAcceptPayload(payload) {
   if ('Notification' in window) {
     const notifyBody = `${taName} is ready for queue ${queueLabel}.`;
     if (Notification.permission === 'granted') {
-      try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) {}
+      try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) { }
     } else if (Notification.permission === 'default') {
       try {
         Notification.requestPermission().then((perm) => {
           if (perm === 'granted') {
-            try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) {}
+            try { new Notification('You have been accepted', { body: notifyBody }); } catch (_) { }
           }
-        }).catch(() => {});
-      } catch (_) {}
+        }).catch(() => { });
+      } catch (_) { }
     }
   }
 }
@@ -1148,7 +1290,7 @@ function playTaAcceptSound() {
     if (!Ctx) return;
     if (!taAudioCtx) taAudioCtx = new Ctx();
     if (taAudioCtx.state === 'suspended') {
-      taAudioCtx.resume().catch(() => {});
+      taAudioCtx.resume().catch(() => { });
     }
     const ctx = taAudioCtx;
     const osc = ctx.createOscillator();

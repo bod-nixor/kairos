@@ -2546,3 +2546,40 @@
         font-size: var(--font-xs);
     }
 }
+
+/* ── Pre-auth (login page) layout ────────────────────────────── */
+/* When body has .k-pre-auth, the sidebar/topbar are hidden and
+   the main content area becomes full-width and centered. */
+.k-pre-auth .k-layout {
+    margin-left: 0;
+}
+
+.k-pre-auth .k-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.k-pre-auth .k-page {
+    width: 100%;
+    max-width: 440px;
+    padding: var(--space-6);
+}
+
+.k-pre-auth #signin {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-8);
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    box-shadow: var(--elev-3);
+}
+
+.k-pre-auth #signin .signin-logo {
+    max-width: 64px;
+    height: auto;
+    margin-bottom: var(--space-4);
+}
