@@ -1,0 +1,3 @@
+<?php
+declare(strict_types=1); require_once dirname(__DIR__) . '/_common.php'; lms_require_roles(['manager','admin']); $in=lms_json_input(); $id=(int)($in['block_id']??0); if($id<=0){lms_error('validation_error','block_id required',422);} 
+$pdo=db(); $pdo->prepare('UPDATE lms_lesson_blocks SET position=:p, block_type=:t, content_json=:c, resource_id=:r, updated_at=CURRENT_TIMESTAMP WHERE block_id=:id')->execute([':p'=>(int)($in['position']??0),':t'=>$in['block_type']??'text',':c'=>json_encode($in['content']??new stdClass()),':r'=>isset($in['resource_id'])?(int)$in['resource_id']:null,':id'=>$id]); lms_ok(['updated'=>true]);

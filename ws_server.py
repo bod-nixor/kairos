@@ -6,6 +6,13 @@ import hmac
 import os
 import threading
 import time
+
+import json
+
+try:
+    import pymysql  # type: ignore
+except Exception:  # pragma: no cover
+    pymysql = None
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Set
 
@@ -69,6 +76,10 @@ DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept", "projector"}
 TOKEN_TTL_SECONDS = int(os.getenv("WS_TOKEN_TTL", "600") or 600)
 WS_SOCKET_PATH = _normalize_socket_path(os.getenv("WS_SOCKET_PATH", "/websocket/socket.io/"))
 WS_SHARED_SECRET = os.getenv("WS_SHARED_SECRET", "").strip()
+
+OUTBOX_POLL_SECONDS = float(os.getenv("LMS_OUTBOX_POLL_SECONDS", "1") or 1)
+LMS_OUTBOX_ENABLED = (os.getenv("LMS_OUTBOX_ENABLED", "1") or "1").strip() not in {"0", "false", "False"}
+
 if not WS_SHARED_SECRET:
     raise RuntimeError("WS_SHARED_SECRET must be configured")
 
@@ -193,6 +204,79 @@ def _emit_to_all_clients(payload: Dict[str, Any]) -> int:
     return len(targets)
 
 
+def _emit_course_scoped(payload: Dict[str, Any]) -> int:
+    course_id = _parse_int(payload.get("course_id"))
+    if course_id is None:
+        return _emit_to_all_clients(payload)
+
+    room_name = f"course:{course_id}"
+    socketio.emit(payload["event"], payload, room=room_name)
+    return 1
+
+
+def _outbox_worker() -> None:
+    if not LMS_OUTBOX_ENABLED or pymysql is None:
+        app.logger.info("LMS outbox worker disabled")
+        return
+
+    db_host = os.getenv("DB_HOST", "127.0.0.1")
+    db_port = int(os.getenv("DB_PORT", "3306") or 3306)
+    db_user = os.getenv("DB_USERNAME", "")
+    db_password = os.getenv("DB_PASSWORD", "")
+    db_name = os.getenv("DB_DATABASE", "kairos")
+
+    while True:
+        connection = None
+        try:
+            connection = pymysql.connect(
+                host=db_host,
+                port=db_port,
+                user=db_user,
+                password=db_password,
+                database=db_name,
+                cursorclass=pymysql.cursors.DictCursor,
+                autocommit=False,
+            )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT event_id, payload_json FROM lms_event_outbox WHERE delivered_at IS NULL ORDER BY occurred_at ASC LIMIT 50 FOR UPDATE"
+                )
+                rows = cursor.fetchall()
+                if not rows:
+                    connection.commit()
+                    time.sleep(OUTBOX_POLL_SECONDS)
+                    continue
+
+                delivered_ids = []
+                for row in rows:
+                    payload = row.get("payload_json")
+                    if isinstance(payload, str):
+                        payload = json.loads(payload)
+                    if not isinstance(payload, dict):
+                        payload = {"event": "lms.event", "payload": payload}
+                    payload.setdefault("event", payload.get("event_name", "lms.event"))
+                    _emit_course_scoped(payload)
+                    delivered_ids.append(row["event_id"])
+
+                update_sql = "UPDATE lms_event_outbox SET delivered_at = NOW() WHERE event_id IN (" + ",".join(["%s"] * len(delivered_ids)) + ")"
+                cursor.execute(update_sql, delivered_ids)
+                connection.commit()
+        except Exception as exc:  # pragma: no cover
+            app.logger.exception("LMS outbox worker error: %s", exc)
+            if connection is not None:
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+            time.sleep(max(OUTBOX_POLL_SECONDS, 1.0))
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+
 @socketio.on("connect")
 def handle_connect():
     token = request.args.get("token", "").strip()
@@ -216,6 +300,8 @@ def handle_connect():
 
     for room_name in sorted(_room_names(state)):
         join_room(room_name)
+    if course_id is not None:
+        join_room(f"course:{course_id}")
 
     app.logger.info(
         "client connected user=%s channels=%s course_id=%s room_id=%s",
@@ -266,6 +352,9 @@ def handle_exception(exc: Exception):
     app.logger.exception("Uncaught exception: %s", exc)
     return jsonify({"ok": False, "error": str(exc)}), 500
 
+
+if LMS_OUTBOX_ENABLED:
+    threading.Thread(target=_outbox_worker, daemon=True).start()
 
 if __name__ == "__main__":
     socketio.run(

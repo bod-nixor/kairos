@@ -1,0 +1,3 @@
+<?php
+declare(strict_types=1); require_once dirname(__DIR__) . '/_common.php'; lms_require_roles(['manager','admin']); $in=lms_json_input(); $id=(int)($in['assessment_id']??0); if($id<=0){lms_error('validation_error','assessment_id required',422);} 
+$pdo=db(); $pdo->prepare('UPDATE lms_assessments SET title=:t, instructions=:i, status=:st, max_attempts=:m, time_limit_minutes=:tl, available_from=:af, due_at=:d, updated_at=CURRENT_TIMESTAMP WHERE assessment_id=:id')->execute([':t'=>$in['title']??'',':i'=>$in['instructions']??null,':st'=>$in['status']??'draft',':m'=>(int)($in['max_attempts']??1),':tl'=>isset($in['time_limit_minutes'])?(int)$in['time_limit_minutes']:null,':af'=>$in['available_from']??null,':d'=>$in['due_at']??null,':id'=>$id]); lms_ok(['updated'=>true]);

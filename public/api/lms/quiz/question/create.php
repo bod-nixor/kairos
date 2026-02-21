@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1); require_once dirname(__DIR__,2) . '/_common.php'; lms_require_roles(['manager','admin']); $in=lms_json_input();
+$aid=(int)($in['assessment_id']??0); if($aid<=0||empty($in['prompt'])||empty($in['question_type'])){lms_error('validation_error','assessment_id, prompt, question_type required',422);} $pdo=db();
+$pdo->prepare('INSERT INTO lms_questions (assessment_id,prompt,question_type,points,position,answer_key_json,settings_json) VALUES (:a,:p,:t,:pts,:pos,:ans,:set)')->execute([':a'=>$aid,':p'=>$in['prompt'],':t'=>$in['question_type'],':pts'=>(float)($in['points']??1),':pos'=>(int)($in['position']??0),':ans'=>isset($in['answer_key'])?json_encode($in['answer_key']):null,':set'=>isset($in['settings'])?json_encode($in['settings']):null]); lms_ok(['question_id'=>(int)$pdo->lastInsertId()]);

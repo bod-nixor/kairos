@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1); require_once dirname(__DIR__) . '/_common.php'; $u=lms_require_roles(['manager','admin']); $in=lms_json_input();
+if(empty($in['course_id'])||empty($in['title'])){lms_error('validation_error','course_id and title required',422);} $pdo=db();
+$pdo->prepare('INSERT INTO lms_assignments (course_id,section_id,title,instructions,due_at,late_allowed,max_points,status,created_by) VALUES (:c,:s,:t,:i,:d,:l,:m,:st,:u)')->execute([':c'=>(int)$in['course_id'],':s'=>isset($in['section_id'])?(int)$in['section_id']:null,':t'=>$in['title'],':i'=>$in['instructions']??null,':d'=>$in['due_at']??null,':l'=>!empty($in['late_allowed'])?1:0,':m'=>(float)($in['max_points']??100),':st'=>$in['status']??'draft',':u'=>(int)$u['user_id']]); lms_ok(['assignment_id'=>(int)$pdo->lastInsertId()]);
