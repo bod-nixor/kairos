@@ -39,7 +39,7 @@ try {
         lms_error('forbidden', 'Assignment is not published', 403);
     }
 
-    lms_ok([
+    $payload = [
         'assignment_id' => (int)$assignment['assignment_id'],
         'course_id' => (int)$assignment['course_id'],
         'section_id' => $assignment['section_id'] === null ? null : (int)$assignment['section_id'],
@@ -51,8 +51,13 @@ try {
         'status' => (string)$assignment['status'],
         'published_flag' => (int)$module['published_flag'],
         'required_flag' => (int)$module['required_flag'],
-        'debug' => $debugMode ? ['endpoint' => 'assignments/get'] : null,
-    ]);
+    ];
+
+    if ($debugMode) {
+        $payload['debug'] = ['endpoint' => 'assignments/get'];
+    }
+
+    lms_ok($payload);
 } catch (Throwable $e) {
     error_log('lms/assignments/get.php failed assignment_id=' . $assignmentId . ' user_id=' . (int)$user['user_id'] . ' message=' . $e->getMessage());
     lms_error('assignment_fetch_failed', 'Failed to load assignment', 500, $debugMode ? ['exception' => $e->getMessage()] : null);

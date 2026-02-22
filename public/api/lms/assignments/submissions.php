@@ -39,7 +39,7 @@ try {
         lms_error('forbidden', 'Assignment is not published', 403);
     }
 
-    $stmt = $pdo->prepare('SELECT s.submission_id, s.assignment_id, s.student_user_id, s.version, s.status, s.submitted_at, s.is_late,
+    $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, s.version, s.status, s.submitted_at, s.is_late,
         s.text_submission, g.score AS grade, g.feedback,
         r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_preview_url
         FROM lms_submissions s
@@ -48,14 +48,18 @@ try {
         )
         LEFT JOIN lms_submission_files sf ON sf.submission_id = s.submission_id
         LEFT JOIN lms_resources r ON r.resource_id = sf.resource_id
-        WHERE s.assignment_id = :assignment_id
-          AND (:can_view_all = 1 OR s.student_user_id = :user_id)
-        ORDER BY s.submitted_at DESC, s.submission_id DESC');
-    $stmt->execute([
-        ':assignment_id' => $assignmentId,
-        ':can_view_all' => $canViewAll ? 1 : 0,
-        ':user_id' => (int)$user['user_id'],
-    ]);
+        WHERE s.assignment_id = :assignment_id';
+
+    if ($canViewAll) {
+        $stmt = $pdo->prepare($baseSql . ' ORDER BY s.submitted_at DESC, s.submission_id DESC');
+        $stmt->execute([':assignment_id' => $assignmentId]);
+    } else {
+        $stmt = $pdo->prepare($baseSql . ' AND s.student_user_id = :user_id ORDER BY s.submitted_at DESC, s.submission_id DESC');
+        $stmt->execute([
+            ':assignment_id' => $assignmentId,
+            ':user_id' => (int)$user['user_id'],
+        ]);
+    }
 
     $items = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
