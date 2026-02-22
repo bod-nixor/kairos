@@ -462,19 +462,34 @@
       return null;
     }
   }
+  
+function sanitizeForRender(html) {
+    if (!html || typeof html !== 'string') return '';
 
-  function sanitizeForRender(html) {
-    const template = document.createElement('template');
-    template.innerHTML = html || '';
-    template.content.querySelectorAll('script,style,object,embed').forEach((node) => node.remove());
-    template.content.querySelectorAll('*').forEach((node) => {
-      [...node.attributes].forEach((attr) => {
-        const name = attr.name.toLowerCase();
-        if (name.startsWith('on')) node.removeAttribute(attr.name);
-      });
+    const div = document.createElement('div');
+    div.innerHTML = html;
+
+    // Remove dangerous tags
+    div.querySelectorAll('script, style, object, embed').forEach(el => el.remove());
+
+    // Remove inline event handlers (onclick, onerror, etc.)
+    div.querySelectorAll('*').forEach(el => {
+        [...el.attributes].forEach(attr => {
+            if (attr.name.startsWith('on')) {
+                el.removeAttribute(attr.name);
+            }
+            // Block javascript: URLs
+            if (['href', 'src'].includes(attr.name)) {
+                const value = attr.value.trim().toLowerCase();
+                if (value.startsWith('javascript:')) {
+                    el.removeAttribute(attr.name);
+                }
+            }
+        });
     });
-    return template.innerHTML;
-  }
+
+    return div.innerHTML;
+}
 
   function debug(entry, options = {}) {
     const isDebugMode = new URLSearchParams(global.location.search).get('debug') === '1';
