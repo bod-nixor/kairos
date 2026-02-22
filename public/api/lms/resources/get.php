@@ -38,12 +38,17 @@ if (!lms_is_staff_role($role) && (int)$row['published_flag'] !== 1) {
     lms_error('forbidden', 'Resource is not published', 403);
 }
 
-$url = (string)($row['drive_preview_url'] ?? '');
-if ($url === '' && !empty($row['metadata_json'])) {
-    $meta = json_decode((string)$row['metadata_json'], true);
-    if (is_array($meta) && isset($meta['url']) && is_string($meta['url'])) {
-        $url = $meta['url'];
+$meta = [];
+if (!empty($row['metadata_json'])) {
+    $decoded = json_decode((string)$row['metadata_json'], true);
+    if (is_array($decoded)) {
+        $meta = $decoded;
     }
+}
+
+$url = (string)($row['drive_preview_url'] ?? '');
+if ($url === '' && isset($meta['url']) && is_string($meta['url'])) {
+    $url = $meta['url'];
 }
 
 $payload = [
@@ -53,7 +58,9 @@ $payload = [
     'type' => (string)$row['resource_type'],
     'resource_type' => (string)$row['resource_type'],
     'url' => $url,
-    'drive_preview_url' => $url,
+    'original_url' => (string)($meta['url'] ?? $url),
+    'drive_preview_url' => (string)($meta['preview_url'] ?? $url),
+    'share_warning' => $meta['share_warning'] ?? null,
     'mime_type' => $row['mime_type'],
     'file_size' => $row['file_size'],
     'access_scope' => $row['access_scope'],

@@ -15,7 +15,6 @@
 
     let assignData = null;
     let uploadedFiles = [];
-
     // ── Dropzone ───────────────────────────────────────────────
     function initDropzone() {
         const dz = $('dropzone');
@@ -125,18 +124,26 @@
                     LMS.toast('Please attach at least one file.', 'warning');
                     return;
                 }
-                uploadedFiles.forEach(f => formData.append('files[]', f));
             } else if (submType === 'text') {
                 const ta = $('textInput');
                 if (!ta || !ta.value.trim()) { LMS.toast('Please enter your answer.', 'warning'); return; }
-                formData.append('text', ta.value.trim());
             } else if (submType === 'url') {
                 const inp = $('urlInput');
                 if (!inp || !inp.value.trim()) { LMS.toast('Please enter a URL.', 'warning'); return; }
                 formData.append('url', inp.value.trim());
             }
 
-            const res = await LMS.api('POST', './api/lms/assignment_submit.php', formData);
+            if (submType === 'file' && uploadedFiles[0]) {
+                formData.append('file', uploadedFiles[0]);
+            }
+            if (submType === 'text') {
+                const ta = $('textInput');
+                formData.append('text_submission', (ta?.value || '').trim());
+            }
+
+            const endpoint = './api/lms/assignments/submit.php';
+            const res = await LMS.api('POST', endpoint, formData);
+            LMS.debug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null }, { paneId: 'assignDebug' });
             if (!res.ok) {
                 LMS.toast('Submission failed: ' + (res.error || 'Unknown error'), 'error');
                 return;
@@ -158,10 +165,14 @@
             return;
         }
 
+        const assignEndpoint = `./api/lms/assignments/get.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
+        const subsEndpoint = `./api/lms/assignments/submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
         const [assignRes, subsRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/assignment.php?id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`),
-            LMS.api('GET', `./api/lms/assignment_submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', assignEndpoint),
+            LMS.api('GET', subsEndpoint),
         ]);
+        LMS.debug({ endpoint: assignEndpoint, method: 'GET', response_status: assignRes.status, response_body: assignRes.data, parsed_error_message: assignRes.error || null }, { paneId: 'assignDebug' });
+        LMS.debug({ endpoint: subsEndpoint, method: 'GET', response_status: subsRes.status, response_body: subsRes.data, parsed_error_message: subsRes.error || null }, { paneId: 'assignDebug' });
 
         hideEl('assignSkeleton');
 
@@ -176,8 +187,8 @@
             return;
         }
 
-        assignData = assignRes.data;
-        const submissions = subsRes.ok ? (subsRes.data || []) : [];
+        assignData = assignRes.data?.data || assignRes.data || {};
+        const submissions = subsRes.ok ? (subsRes.data?.data?.items || subsRes.data?.data || subsRes.data?.items || []) : [];
         const latestSub = submissions[0] || null;
 
         document.title = `${assignData.title || 'Assignment'} — Kairos`;
@@ -230,8 +241,9 @@
         // Description
         const desc = $('assignDescription');
         if (desc) {
-            if (assignData.description) {
-                desc.innerHTML = assignData.description; // server MUST sanitize
+            const description = assignData.description || assignData.instructions || '';
+            if (description) {
+                desc.innerHTML = LMS.sanitizeForRender(description);
             } else {
                 desc.innerHTML = '<div class="k-empty" style="padding:0"><p class="k-empty__desc">No description provided.</p></div>';
             }

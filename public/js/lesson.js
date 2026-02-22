@@ -35,22 +35,6 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
-
-  function sanitizeForRender(html) {
-    const template = document.createElement('template');
-    template.innerHTML = html || '';
-    template.content.querySelectorAll('script,style,object,embed').forEach((node) => node.remove());
-    template.content.querySelectorAll('*').forEach((node) => {
-      [...node.attributes].forEach((attr) => {
-        const name = attr.name.toLowerCase();
-        if (name.startsWith('on')) {
-          node.removeAttribute(attr.name);
-        }
-      });
-    });
-    return template.innerHTML;
-  }
-
   function renderDebug() {
     if (!debugMode) return;
     const debug = $('lessonDebug');
@@ -104,7 +88,7 @@
     $('lessonSubtitle').textContent = lesson.summary || '';
     $('backToModules').href = `./modules.html?course_id=${encodeURIComponent(courseId || lesson.course_id || '')}`;
 
-    const html = sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
+    const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;
 
@@ -217,7 +201,7 @@
       return;
     }
 
-    const type = kind === 'video' ? 'video' : 'file';
+    const type = kind === 'video' ? 'video' : 'pdf';
     const res = await LMS.api('POST', './api/lms/resources/create.php', {
       course_id: Number(courseId),
       title,
@@ -241,12 +225,19 @@
     if (!editor) return;
 
     if (type === 'video') {
-      const safeUrl = escAttr(url);
-      const snippet = `<p><iframe src="${safeUrl}" width="640" height="360" allow="autoplay; encrypted-media" allowfullscreen></iframe></p>`;
-      document.execCommand('insertHTML', false, snippet);
+      const embedUrl = LMS.toYoutubeEmbedUrl(url);
+      if (embedUrl) {
+        const safeUrl = escAttr(embedUrl);
+        const fallback = escAttr(url);
+        const snippet = `<p><iframe src="${safeUrl}" width="640" height="360" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><br><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab ↗</a></p>`;
+        document.execCommand('insertHTML', false, snippet);
+      } else {
+        const viewerHref = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;
+        document.execCommand('insertHTML', false, `<p><a class="k-resource-link" href="${escAttr(viewerHref)}" target="_blank" rel="noopener noreferrer">${escAttr(title)}</a></p>`);
+      }
     } else {
       const href = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;
-      const snippet = `<p><a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escAttr(title)}</a></p>`;
+      const snippet = `<p><a class="k-resource-link" href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escAttr(title)}</a></p>`;
       document.execCommand('insertHTML', false, snippet);
     }
 
@@ -265,13 +256,31 @@
 
     $('addLinkBtn')?.addEventListener('click', () => {
       if (!state.canEdit || !state.isEditMode) return;
+      const editor = $('lessonEditor');
+      editor?.focus();
+      const selection = document.getSelection();
+      const hasSelection = !!selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
+      const savedRange = hasSelection ? selection.getRangeAt(0).cloneRange() : null;
       const url = window.prompt('Enter link URL');
-      if (!isSafeHttpUrl(url)) {
+      if (!url || !isSafeHttpUrl(url)) {
         LMS.toast('Please enter a valid http(s) URL.', 'warning');
         return;
       }
-      const safe = escAttr(url);
-      document.execCommand('insertHTML', false, `<a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`);
+
+      if (hasSelection && savedRange) {
+        const sel = document.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+        document.execCommand('createLink', false, url);
+      } else {
+        const text = window.prompt('Enter link text') || url;
+        document.execCommand('insertHTML', false, `<a href="${escAttr(url)}">${escAttr(text)}</a>`);
+      }
+
+      editor?.querySelectorAll('a[href]').forEach((anchor) => {
+        anchor.setAttribute('target', '_blank');
+        anchor.setAttribute('rel', 'noopener noreferrer');
+      });
     });
 
     $('addPdfBtn')?.addEventListener('click', () => {
