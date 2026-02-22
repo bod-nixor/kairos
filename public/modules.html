@@ -131,17 +131,19 @@
 
     <!-- Admin create modal (shared for all content types) -->
     <dialog class="k-modal" id="kCreateModal">
-        <div class="k-modal__header">
-            <h3 class="k-modal__title" id="kCreateModalTitle">Create</h3>
-            <button class="k-modal__close" id="kCreateModalClose" aria-label="Close">✕</button>
-        </div>
-        <form id="kCreateForm">
-            <div class="k-modal__body" id="kCreateModalBody"></div>
-            <div class="k-modal__footer">
-                <button type="button" class="btn btn-ghost btn-sm" id="kCreateModalCancel">Cancel</button>
-                <button type="submit" class="btn btn-primary btn-sm" id="kCreateModalSubmit">Create</button>
+        <div class="k-modal__panel">
+            <div class="k-modal__header">
+                <h3 class="k-modal__title" id="kCreateModalTitle">Create</h3>
+                <button class="k-modal__close" id="kCreateModalClose" aria-label="Close">✕</button>
             </div>
-        </form>
+            <form id="kCreateForm">
+                <div class="k-modal__body" id="kCreateModalBody"></div>
+                <div class="k-modal__footer">
+                    <button type="button" class="btn btn-ghost btn-sm" id="kCreateModalCancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="kCreateModalSubmit">Create</button>
+                </div>
+            </form>
+        </div>
     </dialog>
 </body>
 
