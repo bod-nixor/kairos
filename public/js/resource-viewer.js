@@ -6,8 +6,6 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const RESOURCE_ID = params.get('resource_id') || params.get('id') || '';
-    const DEBUG_MODE = params.get('debug') === '1';
-
     let lastRequest = null;
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
@@ -19,23 +17,39 @@
     };
 
     function renderDebugBlock(response) {
-        if (!DEBUG_MODE) return;
-        let debug = $('resourceDebug');
-        if (!debug) {
-            debug = document.createElement('pre');
-            debug.id = 'resourceDebug';
-            debug.className = 'k-card';
-            debug.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
-            document.querySelector('.k-page')?.appendChild(debug);
-        }
-
-        debug.textContent = JSON.stringify({
+        LMS.debug({
             resource_id: RESOURCE_ID,
             course_id: COURSE_ID,
             endpoint: `./api/lms/resources/get.php?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}`,
             response_status: response?.status ?? null,
             response_body: response?.data ?? null,
-        }, null, 2);
+            parsed_error_message: response?.error ?? null,
+        }, { paneId: 'resourceDebug' });
+    }
+    function toDrivePreviewUrl(inputUrl) {
+        if (!inputUrl) return '';
+        try {
+            const parsed = new URL(inputUrl);
+            const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+            if (host !== 'drive.google.com') return inputUrl;
+            const match = parsed.pathname.match(/\/file\/d\/([^/]+)/i);
+            const fileId = match ? match[1] : (parsed.searchParams.get('id') || '');
+            if (!fileId) return inputUrl;
+            return `https://drive.google.com/file/d/${fileId}/preview`;
+        } catch (_) {
+            return inputUrl;
+        }
+    }
+
+    function ensurePdfHints(resource, url) {
+        const notes = $('externalDesc');
+        if (!notes) return;
+        notes.textContent = `If preview fails, your account may not have Google Drive access for this file.`;
+        const link = $('externalLink');
+        if (link) {
+            link.href = url;
+            link.textContent = 'Open in Drive ↗';
+        }
     }
 
 

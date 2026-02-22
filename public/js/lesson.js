@@ -137,7 +137,7 @@
     $('lessonSubtitle').textContent = lesson.summary || '';
     $('backToModules').href = `./modules.html?course_id=${encodeURIComponent(courseId || lesson.course_id || '')}`;
 
-    const html = sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
+    const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;
 
@@ -310,7 +310,7 @@
       const selection = document.getSelection();
       const hasSelection = !!selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
       const url = window.prompt('Enter link URL');
-      if (!isSafeHttpUrl(url)) {
+      if (!url || !isSafeHttpUrl(url)) {
         LMS.toast('Please enter a valid http(s) URL.', 'warning');
         return;
       }

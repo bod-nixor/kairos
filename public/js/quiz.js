@@ -48,6 +48,24 @@
     let current = 0;
     let timerInterval = null;
     let secondsLeft = 0;
+    let navWired = false;
+
+
+    function wireAttemptNavigation() {
+        if (navWired) return;
+        navWired = true;
+
+        $('quizPrevBtn') && $('quizPrevBtn').addEventListener('click', () => { if (current > 0) renderQuestion(current - 1); });
+        $('quizNextBtn') && $('quizNextBtn').addEventListener('click', () => { if (current < questions.length - 1) renderQuestion(current + 1); });
+        $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => submitAttempt(false));
+
+        document.addEventListener('keydown', e => {
+            if (!attemptData) return;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+            if (e.key === 'j' || e.key === 'ArrowLeft') { if (current > 0) renderQuestion(current - 1); }
+            if (e.key === 'k' || e.key === 'ArrowRight') { if (current < questions.length - 1) renderQuestion(current + 1); }
+        });
+    }
 
     // ── Timer ──────────────────────────────────────────────────
     function formatTime(secs) {
@@ -157,7 +175,7 @@
                 opt.addEventListener('click', () => {
                     opt.classList.toggle('is-selected');
                     const cb = opt.querySelector('input[type="checkbox"]');
-                    if (cb) cb.checked = !cb.checked;
+                    if (cb) cb.checked = opt.classList.contains('is-selected');
                     const vals = Array.from(area.querySelectorAll('.k-option.is-selected')).map(o => o.dataset.val);
                     answers[q.id] = vals;
                     updateDots();
@@ -376,18 +394,7 @@
 
         updateDots();
         renderQuestion(0);
-
-        // Navigation buttons
-        $('quizPrevBtn') && $('quizPrevBtn').addEventListener('click', () => { if (current > 0) renderQuestion(current - 1); });
-        $('quizNextBtn') && $('quizNextBtn').addEventListener('click', () => { if (current < questions.length - 1) renderQuestion(current + 1); });
-        $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => submitAttempt(false));
-
-        // Keyboard nav (j = prev, k = next)
-        document.addEventListener('keydown', e => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-            if (e.key === 'j' || e.key === 'ArrowLeft') { if (current > 0) renderQuestion(current - 1); }
-            if (e.key === 'k' || e.key === 'ArrowRight') { if (current < questions.length - 1) renderQuestion(current + 1); }
-        });
+        wireAttemptNavigation();
     }
 
     $('historyBackBtn') && $('historyBackBtn').addEventListener('click', () => showPanel('quizIntroPanel'));

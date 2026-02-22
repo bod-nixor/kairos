@@ -38,11 +38,11 @@ if (!lms_is_staff_role($role) && (int)$row['published_flag'] !== 1) {
     lms_error('forbidden', 'Resource is not published', 403);
 }
 
-$url = (string)($row['drive_preview_url'] ?? '');
-if ($url === '' && !empty($row['metadata_json'])) {
-    $meta = json_decode((string)$row['metadata_json'], true);
-    if (is_array($meta) && isset($meta['url']) && is_string($meta['url'])) {
-        $url = $meta['url'];
+$meta = [];
+if (!empty($row['metadata_json'])) {
+    $decoded = json_decode((string)$row['metadata_json'], true);
+    if (is_array($decoded)) {
+        $meta = $decoded;
     }
 }
 

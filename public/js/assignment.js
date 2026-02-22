@@ -145,11 +145,9 @@
                     LMS.toast('Please attach at least one file.', 'warning');
                     return;
                 }
-                uploadedFiles.forEach(f => formData.append('files[]', f));
             } else if (submType === 'text') {
                 const ta = $('textInput');
                 if (!ta || !ta.value.trim()) { LMS.toast('Please enter your answer.', 'warning'); return; }
-                formData.append('text', ta.value.trim());
             } else if (submType === 'url') {
                 const inp = $('urlInput');
                 if (!inp || !inp.value.trim()) { LMS.toast('Please enter a URL.', 'warning'); return; }
