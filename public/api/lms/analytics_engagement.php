@@ -29,7 +29,7 @@ try {
              JOIN lms_course_sections s ON s.section_id = l.section_id
              WHERE s.course_id = :cid1 AND c.completed_at >= :cutoff1
              UNION ALL
-             SELECT sub.student_user_id AS user_id, sub.submitted_at AS created_at
+             SELECT sub.student_user_id AS user_id, sub.submitted_at AS activity_at
              FROM lms_submissions sub
              WHERE sub.course_id = :cid2 AND sub.submitted_at >= :cutoff2
          ) activity

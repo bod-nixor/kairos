@@ -82,14 +82,14 @@
                     ? `<span class="k-status k-status--success" aria-label="Completed">✓ Completed</span>`
                     : `<span class="k-status k-status--info" aria-label="In progress">${done}/${total}</span>`;
 
-            // Admin: per-module "Add Item" dropdown
+            const safeSectionId = parseInt(mod.id) || 0;
             const addItemHtml = isAdmin ? `
-              <div class="k-add-item-menu" data-section-id="${mod.id}">
+              <div class="k-add-item-menu" data-section-id="${safeSectionId}">
                 <button type="button" class="k-admin-btn k-admin-btn--sm k-add-item-toggle">+ Add Item</button>
                 <div class="k-add-item-menu__dropdown">
-                  <button type="button" class="k-add-item-menu__item" data-action="add-lesson" data-section-id="${mod.id}">📄 Lesson</button>
-                  <button type="button" class="k-add-item-menu__item" data-action="add-assignment" data-section-id="${mod.id}">📤 Assignment</button>
-                  <button type="button" class="k-add-item-menu__item" data-action="add-quiz" data-section-id="${mod.id}">⚡ Quiz</button>
+                  <button type="button" class="k-add-item-menu__item" data-action="add-lesson" data-section-id="${safeSectionId}">📄 Lesson</button>
+                  <button type="button" class="k-add-item-menu__item" data-action="add-assignment" data-section-id="${safeSectionId}">📤 Assignment</button>
+                  <button type="button" class="k-add-item-menu__item" data-action="add-quiz" data-section-id="${safeSectionId}">⚡ Quiz</button>
                 </div>
               </div>` : '';
 
@@ -159,13 +159,16 @@
     });
 
     // ── Admin: Add-item dropdown menus ────────────────────────
+    let outsideClickAttached = false;
+    function handleOutsideClick() {
+        document.querySelectorAll('.k-add-item-menu.is-open').forEach(m => m.classList.remove('is-open'));
+    }
     function attachAddItemMenus() {
         // Toggle dropdown
         document.querySelectorAll('.k-add-item-toggle').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const menu = btn.closest('.k-add-item-menu');
-                // Close other open menus
                 document.querySelectorAll('.k-add-item-menu.is-open').forEach(m => {
                     if (m !== menu) m.classList.remove('is-open');
                 });
@@ -186,10 +189,11 @@
             });
         });
 
-        // Close menus on outside click
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.k-add-item-menu.is-open').forEach(m => m.classList.remove('is-open'));
-        });
+        // Close menus on outside click — attach only once
+        if (!outsideClickAttached) {
+            document.addEventListener('click', handleOutsideClick);
+            outsideClickAttached = true;
+        }
     }
 
     // ── Admin: Create modal logic ─────────────────────────────
@@ -221,15 +225,18 @@
                 <div class="k-form-field"><label for="kf-due">Due Date</label><input id="kf-due" name="due_at" type="datetime-local"></div>
                 <div class="k-form-field"><label for="kf-status">Status</label><select id="kf-status" name="status"><option value="draft">Draft</option><option value="published">Published</option></select></div>`,
             api: './api/lms/assignments/create.php',
-            payload: (fd, sectionId) => ({
-                course_id: parseInt(COURSE_ID),
-                section_id: parseInt(sectionId),
-                title: fd.get('title'),
-                instructions: fd.get('instructions') || null,
-                max_points: parseFloat(fd.get('max_points')) || 100,
-                due_at: fd.get('due_at') || null,
-                status: fd.get('status') || 'draft',
-            }),
+            payload: (fd, sectionId) => {
+                const parsed = parseFloat(fd.get('max_points'));
+                return {
+                    course_id: parseInt(COURSE_ID),
+                    section_id: parseInt(sectionId),
+                    title: fd.get('title'),
+                    instructions: fd.get('instructions') || null,
+                    max_points: Number.isFinite(parsed) ? parsed : 100,
+                    due_at: fd.get('due_at') || null,
+                    status: fd.get('status') || 'draft',
+                };
+            },
             successMsg: 'Assignment added!',
         },
         quiz: {
@@ -283,12 +290,14 @@
         activeModalSectionId = null;
     }
 
-    // Modal event wiring
-    if ($('kCreateModal')) {
+    // Modal event wiring moved to DOMContentLoaded (dialog element is after scripts)
+    function setupCreateModal() {
+        const modal = $('kCreateModal');
+        if (!modal) return;
         $('kCreateModalClose').addEventListener('click', closeCreateModal);
         $('kCreateModalCancel').addEventListener('click', closeCreateModal);
-        $('kCreateModal').addEventListener('click', (e) => {
-            if (e.target === $('kCreateModal')) closeCreateModal();
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeCreateModal();
         });
 
         $('kCreateForm').addEventListener('submit', async (e) => {
@@ -322,10 +331,7 @@
         });
     }
 
-    // "New Module" button
-    if ($('addModuleBtn')) {
-        $('addModuleBtn').addEventListener('click', () => openCreateModal('module'));
-    }
+    // "New Module" button wired in DOMContentLoaded below
 
     // ── Main load ─────────────────────────────────────────────
     async function loadPage() {
@@ -392,7 +398,11 @@
         isAdmin = role === 'admin' || role === 'manager';
         if (isAdmin) {
             showEl('addModuleBtn');
+            $('addModuleBtn')?.addEventListener('click', () => openCreateModal('module'));
         }
+
+        // Wire modal (dialog is after scripts, so must be in DOMContentLoaded)
+        setupCreateModal();
 
         await loadPage();
     });
