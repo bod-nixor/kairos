@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <title>Lesson — Kairos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/lms.css" />
+  <script src="./js/config.js"></script>
+</head>
+<body class="k-page-body">
+  <div class="k-layout" style="padding:24px;max-width:1000px;margin:0 auto">
+    <div class="k-page-header">
+      <div>
+        <h1 class="k-page-header__title" id="lessonTitle">Lesson</h1>
+        <p class="k-page-header__subtitle" id="lessonSubtitle"></p>
+      </div>
+      <div class="k-page-header__actions">
+        <a class="btn btn-ghost btn-sm" id="backToModules" href="#">← Back to Modules</a>
+      </div>
+    </div>
+
+    <div id="editorWrap" class="hidden" style="margin-bottom:12px">
+      <div class="k-card" style="padding:12px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" data-cmd="bold" type="button">Bold</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="italic" type="button">Italic</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="underline" type="button">Underline</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="insertUnorderedList" type="button">• List</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="insertOrderedList" type="button">1. List</button>
+        <button class="btn btn-ghost btn-sm" id="addLinkBtn" type="button">Link</button>
+        <button class="btn btn-ghost btn-sm" id="addPdfBtn" type="button">Insert PDF</button>
+        <button class="btn btn-ghost btn-sm" id="addVideoBtn" type="button">Embed Video</button>
+      </div>
+      <div id="lessonEditor" contenteditable="true" class="k-card" style="min-height:280px;padding:16px"></div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" id="saveLessonBtn" type="button">Save Lesson</button>
+      </div>
+    </div>
+
+    <article id="lessonContent" class="k-card" style="padding:24px"></article>
+  </div>
+  <script src="./js/theme.js"></script>
+  <script src="./js/lms-core.js"></script>
+  <script src="./js/lesson.js"></script>
+</body>
+</html>
