@@ -8,14 +8,14 @@ if ($lessonId <= 0) {
     lms_error('validation_error', 'lesson_id is required', 422);
 }
 $pdo = db();
-$lessonStmt = $pdo->prepare('SELECT lesson_id, section_id, course_id, title, summary, position, requires_previous FROM lms_lessons WHERE lesson_id = :lesson_id AND deleted_at IS NULL LIMIT 1');
+$lessonStmt = $pdo->prepare('SELECT lesson_id, section_id, course_id, title, summary, html_content, position, requires_previous FROM lms_lessons WHERE lesson_id = :lesson_id AND deleted_at IS NULL LIMIT 1');
 $lessonStmt->execute([':lesson_id' => $lessonId]);
-$lesson = $lessonStmt->fetch();
+$lesson = $lessonStmt->fetch(PDO::FETCH_ASSOC);
 if (!$lesson) {
     lms_error('not_found', 'Lesson not found', 404);
 }
 lms_course_access($user, (int)$lesson['course_id']);
 $blocksStmt = $pdo->prepare('SELECT block_id, position, block_type, content_json, resource_id FROM lms_lesson_blocks WHERE lesson_id = :lesson_id AND deleted_at IS NULL ORDER BY position');
 $blocksStmt->execute([':lesson_id' => $lessonId]);
-$lesson['blocks'] = $blocksStmt->fetchAll();
+$lesson['blocks'] = $blocksStmt->fetchAll(PDO::FETCH_ASSOC);
 lms_ok($lesson);
