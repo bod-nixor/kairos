@@ -24,6 +24,21 @@
         }
     }
 
+    function applySafeExternalLink(linkEl, rawUrl, label) {
+        if (!linkEl) return;
+        const value = String(rawUrl || '').trim();
+        linkEl.textContent = label;
+        if (isHttpUrl(value)) {
+            linkEl.href = value;
+            linkEl.setAttribute('target', '_blank');
+            linkEl.setAttribute('rel', 'noopener noreferrer');
+            return;
+        }
+        linkEl.removeAttribute('href');
+        linkEl.removeAttribute('target');
+        linkEl.removeAttribute('rel');
+    }
+
     function toDrivePreviewUrl(inputUrl) {
         if (!inputUrl) return '';
         try {
@@ -90,14 +105,34 @@
             const embedUrl = LMS.toYoutubeEmbedUrl(rawUrl);
             if (!embedUrl) {
                 $('externalDesc') && ($('externalDesc').textContent = 'This video URL cannot be embedded safely.');
-                if ($('externalLink')) {
-                    $('externalLink').href = rawUrl;
-                    $('externalLink').textContent = 'Open video in new tab ↗';
+                if (!isHttpUrl(rawUrl) && $('externalDesc')) {
+                    $('externalDesc').textContent += ` URL: ${rawUrl}`;
                 }
+                applySafeExternalLink($('externalLink'), rawUrl, 'Open video in new tab ↗');
                 showEl('externalWrap');
                 return;
             }
-            $('videoWrap').innerHTML = `<iframe src="${LMS.escHtml(embedUrl)}" title="Embedded video" style="width:100%;height:480px;border:0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><p style="padding:8px 0"><a href="${LMS.escHtml(rawUrl)}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a></p>`;
+            const videoWrap = $('videoWrap');
+            if (!videoWrap) return;
+            videoWrap.innerHTML = '';
+            const iframe = document.createElement('iframe');
+            iframe.setAttribute('src', embedUrl);
+            iframe.setAttribute('title', 'Embedded video');
+            iframe.setAttribute('style', 'width:100%;height:480px;border:0');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('allowfullscreen', '');
+            videoWrap.appendChild(iframe);
+            const p = document.createElement('p');
+            p.style.padding = '8px 0';
+            const a = document.createElement('a');
+            a.textContent = 'Open in new tab ↗';
+            if (isHttpUrl(rawUrl)) {
+                a.href = rawUrl;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+            }
+            p.appendChild(a);
+            videoWrap.appendChild(p);
             showEl('videoWrap');
             return;
         }
@@ -114,11 +149,29 @@
                 $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
                 showEl('externalWrap');
             };
+            const onloadTimer = setTimeout(() => {
+                $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
+                showEl('externalWrap');
+            }, 3000);
+            iframe.onload = () => {
+                clearTimeout(onloadTimer);
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                    const bodyText = String(doc?.body?.innerText || '').toLowerCase();
+                    if (!doc?.body || !doc.body.childElementCount || bodyText.includes('access denied') || bodyText.includes('refused to connect')) {
+                        $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
+                        showEl('externalWrap');
+                    }
+                } catch (_) {
+                    $('externalDesc') && ($('externalDesc').textContent = 'Preview may be blocked by provider policy. Open file in Drive.');
+                    showEl('externalWrap');
+                }
+            };
             $('externalDesc') && ($('externalDesc').textContent = 'If preview fails, open this file in Drive in a new tab.');
-            if ($('externalLink')) {
-                $('externalLink').href = rawUrl;
-                $('externalLink').textContent = 'Open in Drive ↗';
+            if (!isHttpUrl(rawUrl) && $('externalDesc')) {
+                $('externalDesc').textContent += ` URL: ${rawUrl}`;
             }
+            applySafeExternalLink($('externalLink'), rawUrl, 'Open in Drive ↗');
             showEl('iframeWrap');
             showEl('externalWrap');
             return;
@@ -126,10 +179,10 @@
 
         if (type === 'link') {
             $('externalDesc') && ($('externalDesc').textContent = `This resource links to: ${rawUrl}`);
-            if ($('externalLink')) {
-                $('externalLink').href = rawUrl;
-                $('externalLink').textContent = 'Open Resource ↗';
+            if (!isHttpUrl(rawUrl) && $('externalDesc')) {
+                $('externalDesc').textContent = `This resource has an unsafe URL and cannot be opened: ${rawUrl}`;
             }
+            applySafeExternalLink($('externalLink'), rawUrl, 'Open Resource ↗');
             showEl('externalWrap');
             return;
         }

@@ -312,6 +312,7 @@
         const value = String(type || 'mcq').toLowerCase();
         if (value === 'multiple_choice') return 'mcq';
         if (value === 'truefalse') return 'true_false';
+        if (value === 'multi_select') return 'multiple_select';
         if (value === 'short') return 'short_answer';
         if (value === 'long') return 'long_answer';
         return value;
@@ -325,7 +326,7 @@
         const optionsRaw = window.prompt('Options (for mcq/multi_select) comma separated', '');
         const options = optionsRaw ? optionsRaw.split(',').map((v, i) => ({ value: `opt_${i + 1}`, text: v.trim() })).filter(o => o.text) : [];
         const correctRaw = window.prompt('Correct answer (value or comma list for multi_select)', '');
-        const answerKey = questionType === 'multi_select' ? correctRaw.split(',').map(v => v.trim()).filter(Boolean) : (correctRaw || null);
+        const answerKey = questionType === 'multiple_select' ? correctRaw.split(',').map(v => v.trim()).filter(Boolean) : (correctRaw || null);
         const payload = { assessment_id: Number(QUIZ_ID), prompt, question_type: questionType, points, options, answer_key: answerKey };
         const res = await LMS.api('POST', './api/lms/quiz/question/create.php', payload);
         if (!res.ok) {
@@ -333,12 +334,15 @@
             return;
         }
         LMS.toast('Question added', 'success');
+        await renderStaffPanel();
     }
 
     async function renderStaffPanel() {
         if (!canManage) return;
         const intro = $('quizIntroPanel');
-        if (!intro || $('quizStaffPanel')) return;
+        if (!intro) return;
+        const existingPanel = $('quizStaffPanel');
+        if (existingPanel) existingPanel.remove();
         const panel = document.createElement('section');
         panel.id = 'quizStaffPanel';
         panel.className = 'k-card';
@@ -359,8 +363,9 @@
             if (res.ok) await loadPage();
         });
         $('staffMandatoryBtn')?.addEventListener('click', async () => {
-            const required = window.confirm('Set as mandatory?');
-            const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', { assessment_id: Number(QUIZ_ID), required: required ? 1 : 0 });
+            const confirmed = window.confirm('Set as mandatory?');
+            if (!confirmed) return;
+            const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', { assessment_id: Number(QUIZ_ID), required: 1 });
             LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
         });
         $('staffLoadAttemptsBtn')?.addEventListener('click', async () => {

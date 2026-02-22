@@ -134,7 +134,9 @@
     async function renderStaffPanel(submissions) {
         if (!canManage) return;
         const root = $('assignLoaded');
-        if (!root || $('assignStaffPanel')) return;
+        if (!root) return;
+        const existingPanel = $('assignStaffPanel');
+        if (existingPanel) existingPanel.remove();
         const panel = document.createElement('section');
         panel.id = 'assignStaffPanel';
         panel.className = 'k-card';
@@ -146,22 +148,30 @@
         $('assignPublishBtn')?.addEventListener('click', async () => {
             const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 1 });
             LMS.toast(res.ok ? 'Assignment published' : 'Publish failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
         });
         $('assignDraftBtn')?.addEventListener('click', async () => {
             const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 0 });
             LMS.toast(res.ok ? 'Assignment moved to draft' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
         });
         $('assignMandatoryBtn')?.addEventListener('click', async () => {
-            const required = window.confirm('Set assignment as mandatory?');
-            const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: required ? 1 : 0 });
+            const confirmed = window.confirm('Set assignment as mandatory?');
+            if (!confirmed) return;
+            const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: 1 });
             LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
         });
         $('assignEditBtn')?.addEventListener('click', async () => {
             const title = window.prompt('Title', assignData?.title || '');
             if (!title) return;
             const description = window.prompt('Description', assignData?.instructions || assignData?.description || '');
             const dueAt = window.prompt('Due at (YYYY-MM-DD HH:MM:SS)', assignData?.due_at || '');
-            const maxPoints = Number(window.prompt('Max points', String(assignData?.max_points || 100)) || '100');
+            const maxPointsRaw = window.prompt('Max points', String(assignData?.max_points || 100));
+            let maxPoints = Number.parseInt(String(maxPointsRaw ?? ''), 10);
+            if (!Number.isFinite(maxPoints) || Number.isNaN(maxPoints) || maxPoints <= 0) {
+                maxPoints = 100;
+            }
             const res = await LMS.api('POST', './api/lms/assignments/update.php', { assignment_id: Number(ASSIGN_ID), title, instructions: description, due_at: dueAt, max_points: maxPoints });
             LMS.toast(res.ok ? 'Assignment updated' : 'Update failed', res.ok ? 'success' : 'error');
             if (res.ok) await loadPage();

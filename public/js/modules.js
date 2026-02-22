@@ -144,7 +144,7 @@
                     item_type: fd.get('item_type'),
                     title: fd.get('title'),
                     html_content: fd.get('html_content') || null,
-                    url: (() => { const raw = fd.get('url') || null; return raw ? normalizeExternalUrl(raw) : null; })(),
+                    url: fd.get('url') ? normalizeExternalUrl(fd.get('url')) : null,
                     assignment_id: fd.get('assignment_id') || null,
                     quiz_id: fd.get('quiz_id') || null,
                 };
