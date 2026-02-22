@@ -51,13 +51,14 @@ $files = $pdo->prepare(
      WHERE sf.submission_id = :id'
 );
 $files->execute([':id' => $id]);
-$row['files'] = $files->fetchAll();
+$fileRows = $files->fetchAll();
 
 // Determine submission type for frontend rendering
-$row['type'] = 'text'; // default
-if (!empty($row['files'])) {
+if (!empty($fileRows)) {
     $row['type'] = 'file';
-    $row['attachments'] = $row['files'];
+    $row['attachments'] = $fileRows;
+} else {
+    $row['type'] = 'text';
 }
 
 lms_ok($row);

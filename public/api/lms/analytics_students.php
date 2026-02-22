@@ -3,6 +3,9 @@
  * GET /api/lms/analytics_students.php?course_id=<id>
  * Student roster with progress data for the analytics table.
  * Returns: [{name, email, completion_pct, avg_grade, submission_count, last_active}, ...]
+ *
+ * avg_grade uses only released grades — draft grades are excluded so
+ * students are not shown scores that haven't been finalized.
  */
 declare(strict_types=1);
 require_once __DIR__ . '/_common.php';
@@ -15,8 +18,7 @@ if ($courseId <= 0) {
 lms_course_access($user, $courseId);
 $pdo = db();
 
-// Total lessons for completion percentage
-$totalLessons = 0;
+// Total lessons — abort on failure (bogus 0 would report 0% completion for everyone)
 try {
     $st = $pdo->prepare(
         'SELECT COUNT(*) FROM lms_lessons l
@@ -26,7 +28,8 @@ try {
     $st->execute([':cid' => $courseId]);
     $totalLessons = (int) $st->fetchColumn();
 } catch (\PDOException $e) {
-    error_log('analytics_students: lesson count failed: ' . $e->getMessage());
+    error_log('analytics_students: lesson count failed course_id=' . $courseId . ' error=' . $e->getMessage());
+    lms_error('server_error', 'Failed to query lesson count', 500);
 }
 
 $result = [];
@@ -39,7 +42,7 @@ try {
                  WHERE s.course_id = :cid2 AND c.user_id = u.user_id) AS completed_lessons,
                 (SELECT ROUND(AVG((g.score / NULLIF(g.max_score, 0)) * 100), 1)
                  FROM lms_grades g WHERE g.student_user_id = u.user_id AND g.course_id = :cid3
-                 AND g.status IN (\'draft\', \'released\')) AS avg_grade,
+                 AND g.status = \'released\') AS avg_grade,
                 (SELECT COUNT(*) FROM lms_submissions sub
                  WHERE sub.student_user_id = u.user_id AND sub.course_id = :cid4) AS submission_count,
                 (SELECT MAX(GREATEST(
@@ -69,9 +72,11 @@ try {
         $completionPct = $totalLessons > 0
             ? round(($completedLessons / $totalLessons) * 100, 1)
             : 0;
-        $lastActive = ($row['last_active'] && $row['last_active'] !== '1970-01-01')
-            ? $row['last_active']
-            : null;
+        // Treat any epoch/zero datetime as null (handles "1970-01-01", "1970-01-01 00:00:00", etc.)
+        $lastActive = null;
+        if (!empty($row['last_active']) && strtotime($row['last_active']) > 0) {
+            $lastActive = $row['last_active'];
+        }
         $result[] = [
             'name' => $row['name'],
             'email' => $row['email'],
@@ -82,7 +87,8 @@ try {
         ];
     }
 } catch (\PDOException $e) {
-    error_log('analytics_students: query failed: ' . $e->getMessage());
+    error_log('analytics_students: query failed course_id=' . $courseId . ' error=' . $e->getMessage());
+    lms_error('server_error', 'Failed to query student analytics', 500);
 }
 
 lms_ok($result);

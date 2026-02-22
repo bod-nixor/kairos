@@ -15,13 +15,14 @@ if ($courseId <= 0) {
 lms_course_access($user, $courseId);
 $pdo = db();
 
-$totalStudents = 0;
+// Student count — abort on failure (bogus 0 would skew all percentages)
 try {
     $st = $pdo->prepare('SELECT COUNT(*) FROM student_courses WHERE course_id = :cid');
     $st->execute([':cid' => $courseId]);
     $totalStudents = (int) $st->fetchColumn();
 } catch (\PDOException $e) {
-    error_log('analytics_completion: student count failed: ' . $e->getMessage());
+    error_log('analytics_completion: student count failed course_id=' . $courseId . ' error=' . $e->getMessage());
+    lms_error('server_error', 'Failed to query student count', 500);
 }
 
 $result = [];
@@ -39,17 +40,23 @@ try {
     );
     $st->execute([':cid' => $courseId]);
     foreach ($st->fetchAll() as $row) {
-        $totalPossible = (int) $row['total_lessons'] * max($totalStudents, 1);
-        $pct = $totalPossible > 0
-            ? round(((int) $row['completions'] / $totalPossible) * 100, 1)
-            : 0;
+        // Only compute per-student denominator when we have a valid student count
+        if ($totalStudents > 0) {
+            $totalPossible = (int) $row['total_lessons'] * $totalStudents;
+            $pct = $totalPossible > 0
+                ? round(((int) $row['completions'] / $totalPossible) * 100, 1)
+                : 0;
+        } else {
+            $pct = 0;
+        }
         $result[] = [
             'module_name' => $row['module_name'],
             'completion_pct' => $pct,
         ];
     }
 } catch (\PDOException $e) {
-    error_log('analytics_completion: query failed: ' . $e->getMessage());
+    error_log('analytics_completion: query failed course_id=' . $courseId . ' error=' . $e->getMessage());
+    lms_error('server_error', 'Failed to compute completion data', 500);
 }
 
 lms_ok($result);

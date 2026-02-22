@@ -18,10 +18,10 @@ $sql = 'SELECT s.submission_id AS id, s.assignment_id, s.student_user_id,
                u.name AS student_name, s.status, s.submitted_at, s.is_late,
                s.text_submission AS text_content,
                COALESCE(g.status, \'ungraded\') AS grade_status,
-               g.feedback, g.score AS grade_override
+               g.feedback, g.score
         FROM lms_submissions s
         JOIN users u ON u.user_id = s.student_user_id
-        JOIN lms_assignments a ON a.assignment_id = s.assignment_id
+        JOIN lms_assignments a ON a.assignment_id = s.assignment_id AND a.deleted_at IS NULL
         LEFT JOIN lms_grades g ON g.submission_id = s.submission_id
         WHERE s.course_id = :course_id';
 $params = [':course_id' => $courseId];

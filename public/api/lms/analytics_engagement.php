@@ -18,7 +18,6 @@ $pdo = db();
 $period = max(1, min((int) ($_GET['period'] ?? 30), 365));
 $cutoff = date('Y-m-d H:i:s', time() - ($period * 86400));
 
-$result = [];
 try {
     // Count lesson completions + submissions per student within the period
     $st = $pdo->prepare(
@@ -45,9 +44,8 @@ try {
         ':cid2' => $courseId,
         ':cutoff2' => $cutoff,
     ]);
-    $result = $st->fetchAll();
+    lms_ok($st->fetchAll());
 } catch (\PDOException $e) {
-    error_log('analytics_engagement: query failed: ' . $e->getMessage());
+    error_log('analytics_engagement: query failed course_id=' . $courseId . ' error=' . $e->getMessage());
+    lms_error('server_error', 'Failed to compute engagement data', 500);
 }
-
-lms_ok($result);
