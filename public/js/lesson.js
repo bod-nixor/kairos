@@ -37,38 +37,6 @@
   }
 
 
-  function parseStartSeconds(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return 0;
-    if (/^\d+$/.test(raw)) return Number(raw);
-    const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
-    if (!m) return 0;
-    return (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
-  }
-
-  function toYoutubeEmbedUrl(inputUrl) {
-    if (!inputUrl) return null;
-    try {
-      const parsed = new URL(inputUrl);
-      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
-      let videoId = '';
-      if (host === 'youtube.com' || host === 'm.youtube.com') {
-        if (parsed.pathname === '/watch') videoId = parsed.searchParams.get('v') || '';
-        else if (parsed.pathname.startsWith('/embed/')) videoId = parsed.pathname.split('/')[2] || '';
-        else if (parsed.pathname.startsWith('/shorts/')) videoId = parsed.pathname.split('/')[2] || '';
-      } else if (host === 'youtu.be') {
-        videoId = parsed.pathname.replace(/^\//, '').split('/')[0] || '';
-      }
-      if (!videoId) return null;
-      const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
-      const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
-      if (start > 0) embed.searchParams.set('start', String(start));
-      return embed.toString();
-    } catch (_) {
-      return null;
-    }
-  }
-
   function sanitizeForRender(html) {
     const template = document.createElement('template');
     template.innerHTML = html || '';
@@ -274,7 +242,7 @@
     if (!editor) return;
 
     if (type === 'video') {
-      const embedUrl = toYoutubeEmbedUrl(url);
+      const embedUrl = LMS.toYoutubeEmbedUrl(url);
       if (embedUrl) {
         const safeUrl = escAttr(embedUrl);
         const fallback = escAttr(url);

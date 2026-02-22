@@ -16,6 +16,7 @@
 
     let assignData = null;
     let uploadedFiles = [];
+    let canManage = false;
     const debugLogs = [];
 
     function safeStringify(v) {
@@ -127,6 +128,59 @@
         <div class="k-timeline-item__meta">${LMS.fmtDateTime(s.submitted_at)}${s.grade !== undefined ? ` · Grade: ${s.grade}` : ''}</div>
       </div>`;
         }).join('');
+    }
+
+
+    async function renderStaffPanel(submissions) {
+        if (!canManage) return;
+        const root = $('assignLoaded');
+        if (!root) return;
+        const existingPanel = $('assignStaffPanel');
+        if (existingPanel) existingPanel.remove();
+        const panel = document.createElement('section');
+        panel.id = 'assignStaffPanel';
+        panel.className = 'k-card';
+        panel.style.marginTop = '16px';
+        panel.style.padding = '16px';
+        panel.innerHTML = `<h3>Staff Assignment Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button">Toggle Mandatory</button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions"></div>`;
+        root.appendChild(panel);
+
+        $('assignPublishBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 1 });
+            LMS.toast(res.ok ? 'Assignment published' : 'Publish failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('assignDraftBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 0 });
+            LMS.toast(res.ok ? 'Assignment moved to draft' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('assignMandatoryBtn')?.addEventListener('click', async () => {
+            const confirmed = window.confirm('Set assignment as mandatory?');
+            if (!confirmed) return;
+            const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: 1 });
+            LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('assignEditBtn')?.addEventListener('click', async () => {
+            const title = window.prompt('Title', assignData?.title || '');
+            if (!title) return;
+            const description = window.prompt('Description', assignData?.instructions || assignData?.description || '');
+            const dueAt = window.prompt('Due at (YYYY-MM-DD HH:MM:SS)', assignData?.due_at || '');
+            const maxPointsRaw = window.prompt('Max points', String(assignData?.max_points || 100));
+            let maxPoints = Number.parseInt(String(maxPointsRaw ?? ''), 10);
+            if (!Number.isFinite(maxPoints) || Number.isNaN(maxPoints) || maxPoints <= 0) {
+                maxPoints = 100;
+            }
+            const res = await LMS.api('POST', './api/lms/assignments/update.php', { assignment_id: Number(ASSIGN_ID), title, instructions: description, due_at: dueAt, max_points: maxPoints });
+            LMS.toast(res.ok ? 'Assignment updated' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+
+        const target = $('assignStaffSubmissions');
+        if (target) {
+            target.innerHTML = `<h4>Submissions (${submissions.length})</h4>` + submissions.map((s) => `<div class="k-attempt-row">Submission #${s.submission_id} · student ${s.student_user_id} · ${LMS.fmtDateTime(s.submitted_at)} · grade ${s.grade ?? '-'}</div>`).join('');
+        }
     }
 
     // ── Submit ─────────────────────────────────────────────────
@@ -304,12 +358,15 @@
 
         renderTimeline(submissions);
         showEl('assignLoaded');
+        await renderStaffPanel(submissions);
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        const roles = session.caps?.roles || {};
+        canManage = !!(roles.admin || roles.manager);
         await loadPage();
     });
 
