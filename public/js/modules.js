@@ -6,6 +6,7 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const COURSE_ID_INT = parseInt(COURSE_ID, 10);
+    const DEBUG_MODULES = params.get('debug') === '1';
 
     let isAdmin = false;
     const expandedModules = new Set();
@@ -30,6 +31,27 @@
         const title = item.title || item.name || 'Untitled item';
         const href = itemHref(item);
         return `<a class="k-module-item" data-item-type="${LMS.escHtml(type)}" data-entity-id="${parseInt(item.entity_id || item.id || 0, 10)}" href="${LMS.escHtml(href)}" title="Open ${LMS.escHtml(title)}"><div class="k-module-item__icon">${icon}</div><div class="k-module-item__body"><div class="k-module-item__title">${LMS.escHtml(title)}</div></div></a>`;
+    }
+
+
+    function logModuleDebug(modules) {
+        if (!DEBUG_MODULES) return;
+        const list = Array.isArray(modules) ? modules : [];
+        const summary = list.reduce((acc, mod) => {
+            const parsedModuleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
+            const moduleId = Number.isFinite(parsedModuleId) ? parsedModuleId : 0;
+            const count = Array.isArray(mod.items) ? mod.items.length : 0;
+            acc.items_count += count;
+            acc.module_item_counts[moduleId] = (acc.module_item_counts[moduleId] || 0) + count;
+            return acc;
+        }, { items_count: 0, module_item_counts: {} });
+
+        console.debug('[modules] debug', {
+            course_id: COURSE_ID_INT,
+            modules_count: list.length,
+            items_count: summary.items_count,
+            module_item_counts: summary.module_item_counts,
+        });
     }
 
     function renderModuleHtml(mod, isExpanded) {
@@ -221,6 +243,7 @@
         }
 
         hideEl('modulesEmpty');
+        logModuleDebug(modules);
         renderModules(modules);
     }
 
