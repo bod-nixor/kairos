@@ -10,6 +10,7 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const QUIZ_ID = params.get('quiz_id') || '';
+    const DEBUG_MODE = params.get('debug') === '1';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -19,6 +20,26 @@
         showEl(id);
     }
 
+
+    const debugLogs = [];
+
+    function safeStringify(v) {
+        try { return JSON.stringify(v, null, 2); } catch (_) { return String(v); }
+    }
+
+    function logDebug(entry) {
+        if (!DEBUG_MODE) return;
+        debugLogs.push(entry);
+        let debugEl = $('quizDebug');
+        if (!debugEl) {
+            debugEl = document.createElement('pre');
+            debugEl.id = 'quizDebug';
+            debugEl.className = 'k-card';
+            debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            document.querySelector('.k-page')?.appendChild(debugEl);
+        }
+        debugEl.textContent = safeStringify(debugLogs);
+    }
 
     let quizData = null;
     let attemptData = null;
@@ -210,7 +231,7 @@
         };
         const endpoint = './api/lms/quiz/attempt/submit.php';
         const res = await LMS.api('POST', endpoint, payload);
-        LMS.debug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         if (!res.ok) {
             LMS.toast('Failed to submit quiz: ' + (res.error || 'Unknown error'), 'error');
             return;
@@ -266,7 +287,7 @@
         showPanel('quizHistoryPanel');
         const endpoint = `./api/lms/quiz/attempts.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`;
         const res = await LMS.api('GET', endpoint);
-        LMS.debug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         const list = $('attemptHistoryList');
         if (!list) return;
         const attempts = res.data?.data?.items || res.data?.items || [];
@@ -295,7 +316,7 @@
 
         const endpoint = `./api/lms/quiz/get.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
         const res = await LMS.api('GET', endpoint);
-        LMS.debug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         hideEl('quizSkeleton');
 
         if (res.status === 403) {
@@ -342,7 +363,7 @@
     async function startAttempt() {
         const endpoint = './api/lms/quiz/attempt.php';
         const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
-        LMS.debug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         if (!res.ok) {
             LMS.toast('Could not start quiz: ' + (res.error || 'Error'), 'error');
             return;
@@ -350,7 +371,7 @@
         attemptData = res.data?.data || res.data || {};
         const questionsEndpoint = `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`;
         const qRes = await LMS.api('GET', questionsEndpoint);
-        LMS.debug({ endpoint: questionsEndpoint, method: 'GET', response_status: qRes.status, response_body: qRes.data, parsed_error_message: qRes.error || null });
+        logDebug({ endpoint: questionsEndpoint, method: 'GET', response_status: qRes.status, response_body: qRes.data, parsed_error_message: qRes.error || null });
         questions = qRes.ok ? (qRes.data?.data?.items || qRes.data?.items || []) : [];
         questions = questions.map((q) => ({
             id: Number(q.question_id || q.id || 0),

@@ -1,16 +1,30 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/_helpers.php';
+require_once dirname(__DIR__, 2) . '/_common.php';
 
-lms_require_feature(['quizzes', 'lms_quizzes']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $assessmentId = (int)($_GET['assessment_id'] ?? 0);
-$assessment = lms_require_published_assessment($assessmentId, $user);
+if ($assessmentId <= 0) {
+    lms_error('validation_error', 'assessment_id required', 422);
+}
 
 $pdo = db();
-$qStmt = $pdo->prepare('SELECT question_id, prompt, question_type, points, position FROM lms_questions WHERE assessment_id=:a AND deleted_at IS NULL ORDER BY position ASC, question_id ASC');
-$qStmt->execute([':a' => (int)$assessment['assessment_id']]);
+$aStmt = $pdo->prepare('SELECT assessment_id, course_id, status FROM lms_assessments WHERE assessment_id=:id AND deleted_at IS NULL LIMIT 1');
+$aStmt->execute([':id' => $assessmentId]);
+$assessment = $aStmt->fetch(PDO::FETCH_ASSOC);
+if (!$assessment) {
+    lms_error('not_found', 'Quiz not found', 404);
+}
+
+lms_course_access($user, (int)$assessment['course_id']);
+$role = lms_user_role($user);
+if (!lms_is_staff_role($role) && (string)$assessment['status'] !== 'published') {
+    lms_error('forbidden', 'Quiz is not published', 403);
+}
+
+$qStmt = $pdo->prepare('SELECT question_id, prompt, question_type, points, position FROM lms_questions WHERE assessment_id=:a ORDER BY position ASC, question_id ASC');
+$qStmt->execute([':a' => $assessmentId]);
 $questions = $qStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $questionIds = array_map(static fn(array $q): int => (int)$q['question_id'], $questions);

@@ -21,7 +21,7 @@ function lms_drive_preview_url_from_url(string $url): string
 
     $path = (string)($parts['path'] ?? '');
     if (preg_match('#/file/d/([^/]+)#', $path, $m)) {
-        return 'https://drive.google.com/file/d/' . rawurlencode($m[1]) . '/preview';
+        return 'https://drive.google.com/file/d/' . $m[1] . '/preview';
     }
 
     parse_str((string)($parts['query'] ?? ''), $query);
@@ -33,7 +33,6 @@ function lms_drive_preview_url_from_url(string $url): string
     return $url;
 }
 
-lms_require_feature(['resources', 'lms_resources']);
 $user = lms_require_roles(['manager','admin']);
 $in = lms_json_input();
 
@@ -66,7 +65,7 @@ lms_course_access($user, $courseId);
 
 $previewUrl = $type === 'pdf' ? lms_drive_preview_url_from_url($url) : $url;
 $shareWarning = null;
-if ($type === 'pdf' && $previewUrl === $url) {
+if ($type === 'pdf' && str_contains($url, 'drive.google.com') && !str_contains($previewUrl, '/preview')) {
     $shareWarning = 'Drive link could not be normalized to preview URL. Ensure sharing settings allow viewers.';
 }
 

@@ -46,9 +46,13 @@ if (!empty($row['metadata_json'])) {
     }
 }
 
-$url = (string)($row['drive_preview_url'] ?? '');
-if ($url === '' && isset($meta['url']) && is_string($meta['url'])) {
-    $url = $meta['url'];
+
+$meta = [];
+if (!empty($row['metadata_json'])) {
+    $decoded = json_decode((string)$row['metadata_json'], true);
+    if (is_array($decoded)) {
+        $meta = $decoded;
+    }
 }
 
 $payload = [

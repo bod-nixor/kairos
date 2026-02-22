@@ -52,6 +52,69 @@
         }
     }
 
+
+    function parseStartSeconds(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return 0;
+        if (/^\d+$/.test(raw)) return Number(raw);
+        const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
+        if (!m) return 0;
+        return (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
+    }
+
+    function toYoutubeEmbedUrl(inputUrl) {
+        if (!inputUrl) return null;
+        try {
+            const parsed = new URL(inputUrl);
+            const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+            let videoId = '';
+            if (host === 'youtube.com' || host === 'm.youtube.com') {
+                if (parsed.pathname === '/watch') {
+                    videoId = parsed.searchParams.get('v') || '';
+                } else if (parsed.pathname.startsWith('/embed/')) {
+                    videoId = parsed.pathname.split('/')[2] || '';
+                } else if (parsed.pathname.startsWith('/shorts/')) {
+                    videoId = parsed.pathname.split('/')[2] || '';
+                }
+            } else if (host === 'youtu.be') {
+                videoId = parsed.pathname.replace(/^\//, '').split('/')[0] || '';
+            }
+            if (!videoId) return null;
+            const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
+            const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
+            if (start > 0) embed.searchParams.set('start', String(start));
+            return embed.toString();
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function toDrivePreviewUrl(inputUrl) {
+        if (!inputUrl) return '';
+        try {
+            const parsed = new URL(inputUrl);
+            const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+            if (host !== 'drive.google.com') return inputUrl;
+            const match = parsed.pathname.match(/\/file\/d\/([^/]+)/i);
+            const fileId = match ? match[1] : (parsed.searchParams.get('id') || '');
+            if (!fileId) return inputUrl;
+            return `https://drive.google.com/file/d/${fileId}/preview`;
+        } catch (_) {
+            return inputUrl;
+        }
+    }
+
+    function ensurePdfHints(resource, url) {
+        const notes = $('externalDesc');
+        if (!notes) return;
+        notes.textContent = `If preview fails, your account may not have Google Drive access for this file.`;
+        const link = $('externalLink');
+        if (link) {
+            link.href = url;
+            link.textContent = 'Open in Drive ↗';
+        }
+    }
+
     function inferType(resource) {
         if (resource.type) return String(resource.type).toLowerCase();
         const url = (resource.url || resource.file_url || '').toLowerCase();
@@ -101,7 +164,7 @@
 
         const resource = res.data?.data || res.data || {};
         const type = inferType(resource);
-        const rawUrl = resource.original_url || resource.url || resource.drive_preview_url || resource.file_url || '';
+        const rawUrl = resource.url || resource.drive_preview_url || resource.file_url || '';
         const url = (type === 'pdf' || type === 'file') ? toDrivePreviewUrl(rawUrl) : rawUrl;
 
         document.title = `${resource.title || 'Resource'} — Kairos`;
@@ -141,7 +204,7 @@
         }
 
         if (type === 'video') {
-            const ytUrl = LMS.toYoutubeEmbedUrl(url);
+            const ytUrl = toYoutubeEmbedUrl(url);
             const safeVideoUrl = ytUrl || embedSafeVideo(url);
             if (!safeVideoUrl) {
                 showEl('unsupportedWrap');
@@ -149,6 +212,10 @@
             }
             const videoWrap = $('videoWrap');
             if (videoWrap) {
+                if (!safeVideoUrl) {
+                    showEl('externalWrap');
+                    return;
+                }
                 videoWrap.innerHTML = `<iframe src="${safeVideoUrl}" title="Embedded video" style="width:100%;height:480px;border:0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><p style="padding:8px 0"><a href="${LMS.escHtml(url)}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a></p>`;
                 showEl('videoWrap');
             }
