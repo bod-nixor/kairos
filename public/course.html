@@ -205,7 +205,10 @@
                         <div class="k-card" style="position:sticky;top:calc(var(--k-topbar-height) + 20px)">
                             <div class="k-card__header">
                                 <h2 class="k-card__title">📢 Announcements</h2>
-                                <span class="k-status k-status--info hidden" id="newAnnBadge">New</span>
+                                <div style="display:flex;align-items:center;gap:8px">
+                                    <button class="k-admin-btn k-admin-btn--sm hidden" id="postAnnBtn">+ Post</button>
+                                    <span class="k-status k-status--info hidden" id="newAnnBadge">New</span>
+                                </div>
                             </div>
                             <div id="announcementsFeed">
                                 <div class="k-empty" style="padding:32px 16px">
@@ -241,6 +244,26 @@
     <script src="./js/lms-ws.js"></script>
     <script src="./js/announcements.js"></script>
     <script src="./js/course.js"></script>
+
+    <!-- Announcement create modal -->
+    <dialog class="k-modal" id="kAnnModal">
+        <div class="k-modal__header">
+            <h3 class="k-modal__title">Post Announcement</h3>
+            <button class="k-modal__close" id="kAnnModalClose" aria-label="Close">✕</button>
+        </div>
+        <form id="kAnnForm">
+            <div class="k-modal__body">
+                <div class="k-form-field"><label for="kf-ann-title">Title *</label><input id="kf-ann-title" name="title"
+                        required placeholder="e.g. Exam Schedule Updated"></div>
+                <div class="k-form-field"><label for="kf-ann-body">Body *</label><textarea id="kf-ann-body" name="body"
+                        required placeholder="Write your announcement here" rows="5"></textarea></div>
+            </div>
+            <div class="k-modal__footer">
+                <button type="button" class="btn btn-ghost btn-sm" id="kAnnModalCancel">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="kAnnModalSubmit">Post Announcement</button>
+            </div>
+        </form>
+    </dialog>
 </body>
 
 </html>
