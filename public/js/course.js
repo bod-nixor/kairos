@@ -182,6 +182,7 @@
         }
         if (role === 'manager' || role === 'admin') {
             $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden');
+            $('postAnnBtn') && $('postAnnBtn').classList.remove('hidden');
         }
 
         // View all modules link
@@ -244,12 +245,6 @@
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
 
-        // Show admin controls using capabilities (session.me has role_id, not role_name)
-        const roles = session.caps?.roles || {};
-        if (roles.admin || roles.manager) {
-            const btn = $('postAnnBtn');
-            if (btn) btn.classList.remove('hidden');
-        }
         setupAnnouncementModal();
 
         await loadPage();
