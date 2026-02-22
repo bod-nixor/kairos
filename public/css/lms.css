@@ -2600,13 +2600,10 @@ dialog.k-modal {
     width: min(480px, 90vw);
     padding: 0;
     box-shadow: var(--elev-3);
-    position: fixed;
-    inset: 0;
     margin: auto;
     opacity: 0;
     transition: opacity 0.2s, transform 0.2s;
     transform: scale(0.95);
-    z-index: 9000;
 }
 
 dialog.k-modal[open] {
@@ -2739,7 +2736,7 @@ dialog.k-modal::backdrop {
     position: absolute;
     right: 0;
     top: 100%;
-    z-index: 20;
+    z-index: 100;
     min-width: 180px;
     background: var(--panel);
     border: 1px solid var(--border);
