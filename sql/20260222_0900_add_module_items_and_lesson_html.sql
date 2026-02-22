@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS lms_module_items (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (module_item_id),
+  UNIQUE KEY uk_lms_module_items_section_position (section_id, position),
   KEY idx_lms_module_items_section (section_id, position),
   KEY idx_lms_module_items_course (course_id, item_type),
   CONSTRAINT fk_lms_module_items_course FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE,
@@ -21,11 +22,21 @@ CREATE TABLE IF NOT EXISTS lms_module_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE lms_lessons
-  ADD COLUMN html_content MEDIUMTEXT NULL AFTER summary;
+  ADD COLUMN IF NOT EXISTS html_content MEDIUMTEXT NULL AFTER summary;
 
 -- Backfill from summary (idempotent)
 UPDATE lms_lessons
-SET html_content = CONCAT('<p>', REPLACE(COALESCE(summary,''), '<', '&lt;'), '</p>')
+SET html_content = CONCAT(
+  '<p>',
+  REPLACE(
+    REPLACE(
+      REPLACE(COALESCE(summary,''), '&', '&amp;'),
+      '<', '&lt;'
+    ),
+    '>', '&gt;'
+  ),
+  '</p>'
+)
 WHERE html_content IS NULL AND summary IS NOT NULL AND summary <> '';
 
 -- Rollback migration

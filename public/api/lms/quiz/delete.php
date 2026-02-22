@@ -26,5 +26,15 @@ if ((int)$inProgressStmt->fetchColumn() > 0) {
     lms_error('conflict', 'Cannot archive quiz with in-progress attempts', 409);
 }
 
-$pdo->prepare('UPDATE lms_assessments SET deleted_at=CURRENT_TIMESTAMP, status=\'archived\' WHERE assessment_id=:id')->execute([':id' => $id]);
-lms_ok(['deleted' => true]);
+$pdo->beginTransaction();
+try {
+    $pdo->prepare('UPDATE lms_assessments SET deleted_at=CURRENT_TIMESTAMP, status=\'archived\' WHERE assessment_id=:id')->execute([':id' => $id]);
+    $pdo->prepare('DELETE FROM lms_module_items WHERE item_type = \'quiz\' AND entity_id = :id')->execute([':id' => $id]);
+    $pdo->commit();
+    lms_ok(['deleted' => true]);
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    lms_error('server_error', 'Failed to archive quiz', 500);
+}

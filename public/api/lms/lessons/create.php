@@ -16,6 +16,13 @@ if ($sectionId <= 0 || $courseId <= 0 || $title === '') {
 }
 
 $pdo = db();
+$sectionStmt = $pdo->prepare('SELECT section_id, course_id FROM lms_course_sections WHERE section_id = :sid AND deleted_at IS NULL LIMIT 1');
+$sectionStmt->execute([':sid' => $sectionId]);
+$section = $sectionStmt->fetch(PDO::FETCH_ASSOC);
+if (!$section || (int)$section['course_id'] !== $courseId) {
+    lms_error('validation_error', 'section_id does not belong to course_id', 422);
+}
+
 $pdo->prepare('INSERT INTO lms_lessons (section_id,course_id,title,summary,html_content,position,requires_previous,created_by) VALUES (:s,:c,:t,:m,:h,:p,:r,:u)')
     ->execute([
         ':s' => $sectionId,

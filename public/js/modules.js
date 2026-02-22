@@ -35,15 +35,14 @@
         const container = $('moduleList');
         if (!container) return;
 
-        container.innerHTML = modules.map((mod, idx) => {
-            const moduleId = parseInt(mod.section_id || mod.id || 0, 10);
-            if (!expandedModules.size && idx === 0) expandedModules.add(moduleId);
+        container.innerHTML = modules.map((mod) => {
+            const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
             const isExpanded = expandedModules.has(moduleId);
             const bodyId = `mod-items-${moduleId}`;
             const hdrId = `mod-hdr-${moduleId}`;
             const items = Array.isArray(mod.items) ? mod.items : [];
             const itemsHtml = items.length ? items.map(renderModuleItem).join('') : '<div class="k-empty" style="padding:20px"><p class="k-empty__desc">No items in this module.</p></div>';
-            return `<section class="k-module" data-module-id="${moduleId}"><div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}"><span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${isAdmin ? `<button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>` : ''}</div></div><div class="k-module__items" id="${bodyId}" role="list" aria-labelledby="${hdrId}" ${isExpanded ? '' : 'style="display:none"'}>${itemsHtml}</div></section>`;
+            return `<section class="k-module${isExpanded ? ' is-open' : ''}" data-module-id="${moduleId}"><div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}"><span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${isAdmin ? `<button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>` : ''}</div></div><div class="k-module__items" id="${bodyId}" role="list" aria-labelledby="${hdrId}" ${isExpanded ? '' : 'style="display:none"'}>${itemsHtml}</div></section>`;
         }).join('');
 
         container.querySelectorAll('.k-module__header').forEach(header => {
@@ -54,6 +53,7 @@
                 header.setAttribute('aria-expanded', expanded ? 'false' : 'true');
                 const panel = container.querySelector(`#${header.getAttribute('aria-controls')}`);
                 if (panel) panel.style.display = expanded ? 'none' : '';
+                if (moduleEl) moduleEl.classList.toggle('is-open', !expanded);
                 if (expanded) expandedModules.delete(moduleId); else expandedModules.add(moduleId);
             };
             header.addEventListener('click', toggle);
@@ -86,16 +86,20 @@
             title: 'Add Module Item',
             fields: `<div class="k-form-field"><label for="kf-item-type">Item Type *</label><select id="kf-item-type" name="item_type"><option value="lesson">Lesson</option><option value="file">File / PDF</option><option value="video">Video Embed</option><option value="link">External Link</option><option value="assignment">Assignment</option><option value="quiz">Quiz</option></select></div><div class="k-form-field"><label for="kf-title">Title *</label><input id="kf-title" name="title" required></div><div id="kTypeSpecificFields"></div>`,
             api: './api/lms/module_items/create.php',
-            payload: (fd, sectionId) => ({
-                course_id: parseInt(COURSE_ID, 10),
-                section_id: parseInt(sectionId, 10),
-                item_type: fd.get('item_type'),
-                title: fd.get('title'),
-                html_content: fd.get('html_content') || null,
-                url: fd.get('url') || null,
-                assignment_id: fd.get('assignment_id') || null,
-                quiz_id: fd.get('quiz_id') || null,
-            }),
+            payload: (fd, sectionId) => {
+                const rawSection = typeof sectionId === 'string' ? sectionId.trim() : '';
+                const parsedSectionId = rawSection !== '' ? parseInt(rawSection, 10) : null;
+                return {
+                    course_id: parseInt(COURSE_ID, 10),
+                    section_id: Number.isFinite(parsedSectionId) ? parsedSectionId : null,
+                    item_type: fd.get('item_type'),
+                    title: fd.get('title'),
+                    html_content: fd.get('html_content') || null,
+                    url: fd.get('url') || null,
+                    assignment_id: fd.get('assignment_id') || null,
+                    quiz_id: fd.get('quiz_id') || null,
+                };
+            },
             successMsg: 'Module item added!'
         }
     };
@@ -125,7 +129,7 @@
         const config = MODAL_CONFIG[type];
         if (!config) return;
         activeModalType = type;
-        activeModalSectionId = sectionId || null;
+        activeModalSectionId = sectionId || '';
         $('kCreateModalTitle').textContent = config.title;
         $('kCreateModalBody').innerHTML = config.fields;
         $('kCreateModalSubmit').textContent = type === 'module' ? 'Create Module' : 'Create Item';
@@ -136,26 +140,36 @@
         }
     }
 
-    function closeCreateModal() { $('kCreateModal').close(); activeModalType = null; activeModalSectionId = null; }
+    function closeCreateModal() { $('kCreateModal').close(); activeModalType = null; activeModalSectionId = ''; }
 
     function setupCreateModal() {
         const modal = $('kCreateModal');
-        if (!modal) return;
+        const form = $('kCreateForm');
+        if (!modal || !form) return;
         $('kCreateModalClose').addEventListener('click', closeCreateModal);
         $('kCreateModalCancel').addEventListener('click', closeCreateModal);
-        $('kCreateForm').addEventListener('submit', async (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (form.dataset.busy === '1') return;
             const config = MODAL_CONFIG[activeModalType];
             if (!config) return;
-            const fd = new FormData($('kCreateForm'));
-            const payload = config.payload(fd, activeModalSectionId);
-            const res = await LMS.api('POST', config.api, payload);
-            if (res.ok) {
-                LMS.toast(config.successMsg, 'success');
-                closeCreateModal();
-                await loadPage();
-            } else {
-                LMS.toast(res.data?.error?.message || 'Failed request', 'error');
+            const submitBtn = $('kCreateModalSubmit');
+            form.dataset.busy = '1';
+            if (submitBtn) submitBtn.disabled = true;
+            try {
+                const fd = new FormData(form);
+                const payload = config.payload(fd, activeModalSectionId);
+                const res = await LMS.api('POST', config.api, payload);
+                if (res.ok) {
+                    LMS.toast(config.successMsg, 'success');
+                    closeCreateModal();
+                    await loadPage();
+                } else {
+                    LMS.toast(res.data?.error?.message || 'Failed request', 'error');
+                }
+            } finally {
+                form.dataset.busy = '0';
+                if (submitBtn) submitBtn.disabled = false;
             }
         });
     }
@@ -165,13 +179,35 @@
             LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/modules.php?course_id=${encodeURIComponent(COURSE_ID)}`),
         ]);
+
         hideEl('modulesSkeleton');
-        if (!courseRes.ok || !modulesRes.ok) return;
+
+        if (!courseRes.ok || !modulesRes.ok) {
+            console.error('Failed to load modules page', { courseRes, modulesRes });
+            hideEl('moduleList');
+            showEl('modulesEmpty');
+            const desc = document.querySelector('#modulesEmpty .k-empty__desc');
+            if (desc) desc.textContent = 'Failed to load modules. Please try again.';
+            return;
+        }
+
         const course = courseRes.data?.data || courseRes.data || {};
         const modules = modulesRes.data?.data || modulesRes.data || [];
+
+        if (!expandedModules.size && Array.isArray(modules) && modules.length > 0) {
+            const firstId = parseInt(modules[0].section_id ?? modules[0].id ?? 0, 10);
+            if (firstId > 0) expandedModules.add(firstId);
+        }
+
         $('modulesSubtitle') && ($('modulesSubtitle').textContent = `${course.name || ''} · ${course.code || ''}`);
         document.querySelectorAll('[data-course-href]').forEach(el => el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`);
-        if (!modules.length) { showEl('modulesEmpty'); hideEl('moduleList'); return; }
+
+        if (!modules.length) {
+            showEl('modulesEmpty');
+            hideEl('moduleList');
+            return;
+        }
+
         hideEl('modulesEmpty');
         renderModules(modules);
     }

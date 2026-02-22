@@ -11,8 +11,11 @@ $sectionId = (int)($in['section_id'] ?? 0);
 $itemType = strtolower(trim((string)($in['item_type'] ?? '')));
 $title = trim((string)($in['title'] ?? ''));
 
-if ($courseId <= 0 || $sectionId <= 0 || $title === '') {
-    lms_error('validation_error', 'course_id, section_id, and title are required', 422);
+if ($courseId <= 0 || $title === '') {
+    lms_error('validation_error', 'course_id and title are required', 422);
+}
+if ($sectionId <= 0) {
+    lms_error('bad_request', 'section_id must be a positive integer', 400);
 }
 
 $allowed = ['lesson','file','video','link','assignment','quiz'];
@@ -40,6 +43,9 @@ try {
     } elseif (in_array($itemType, ['file','video','link'], true)) {
         $url = trim((string)($in['url'] ?? ''));
         if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             lms_error('validation_error', 'Valid url is required for file/video/link', 422);
         }
         $meta = json_encode(['url' => $url], JSON_THROW_ON_ERROR);
@@ -57,8 +63,11 @@ try {
     } elseif ($itemType === 'assignment') {
         $existingId = (int)($in['assignment_id'] ?? 0);
         if ($existingId > 0) {
-            $entityId = $existingId;
-        } else {
+            $existingStmt = $pdo->prepare('SELECT assignment_id FROM lms_assignments WHERE assignment_id = :id AND course_id = :course_id AND deleted_at IS NULL LIMIT 1');
+            $existingStmt->execute([':id' => $existingId, ':course_id' => $courseId]);
+            $entityId = $existingStmt->fetchColumn() ? $existingId : 0;
+        }
+        if ($entityId <= 0) {
             $stmt = $pdo->prepare('INSERT INTO lms_assignments (course_id,section_id,title,max_points,status,created_by) VALUES (:c,:s,:t,100,\'draft\',:u)');
             $stmt->execute([':c' => $courseId, ':s' => $sectionId, ':t' => $title, ':u' => (int)$user['user_id']]);
             $entityId = (int)$pdo->lastInsertId();
@@ -66,30 +75,44 @@ try {
     } elseif ($itemType === 'quiz') {
         $existingId = (int)($in['quiz_id'] ?? 0);
         if ($existingId > 0) {
-            $entityId = $existingId;
-        } else {
+            $existingStmt = $pdo->prepare('SELECT assessment_id FROM lms_assessments WHERE assessment_id = :id AND course_id = :course_id AND deleted_at IS NULL LIMIT 1');
+            $existingStmt->execute([':id' => $existingId, ':course_id' => $courseId]);
+            $entityId = $existingStmt->fetchColumn() ? $existingId : 0;
+        }
+        if ($entityId <= 0) {
             $stmt = $pdo->prepare('INSERT INTO lms_assessments (course_id,section_id,title,assessment_type,status,max_attempts,created_by) VALUES (:c,:s,:t,\'quiz\',\'draft\',1,:u)');
             $stmt->execute([':c' => $courseId, ':s' => $sectionId, ':t' => $title, ':u' => (int)$user['user_id']]);
             $entityId = (int)$pdo->lastInsertId();
         }
     }
 
-    $posStmt = $pdo->prepare('SELECT COALESCE(MAX(position),0)+1 FROM lms_module_items WHERE section_id=:sid');
-    $posStmt->execute([':sid' => $sectionId]);
-    $position = (int)$posStmt->fetchColumn();
+    $insertSql = 'INSERT INTO lms_module_items (course_id,section_id,item_type,entity_id,title,position,published_flag,created_by)
+                  VALUES (:c,:s,:it,:eid,:t,(SELECT COALESCE(MAX(position),0)+1 FROM lms_module_items mi WHERE mi.section_id = :s_pos),1,:u)';
 
-    $stmt = $pdo->prepare('INSERT INTO lms_module_items (course_id,section_id,item_type,entity_id,title,position,published_flag,created_by) VALUES (:c,:s,:it,:eid,:t,:p,1,:u)');
-    $stmt->execute([
-        ':c' => $courseId,
-        ':s' => $sectionId,
-        ':it' => $itemType,
-        ':eid' => $entityId,
-        ':t' => $title,
-        ':p' => $position,
-        ':u' => (int)$user['user_id'],
-    ]);
+    $moduleItemId = 0;
+    $attempts = 0;
+    while ($attempts < 3) {
+        $attempts++;
+        try {
+            $stmt = $pdo->prepare($insertSql);
+            $stmt->execute([
+                ':c' => $courseId,
+                ':s' => $sectionId,
+                ':s_pos' => $sectionId,
+                ':it' => $itemType,
+                ':eid' => $entityId,
+                ':t' => $title,
+                ':u' => (int)$user['user_id'],
+            ]);
+            $moduleItemId = (int)$pdo->lastInsertId();
+            break;
+        } catch (PDOException $e) {
+            if ((int)$e->getCode() !== 23000 || $attempts >= 3) {
+                throw $e;
+            }
+        }
+    }
 
-    $moduleItemId = (int)$pdo->lastInsertId();
     $pdo->commit();
 
     lms_ok([
