@@ -1,47 +1,61 @@
-/**
- * resource-viewer.js — Standalone resource viewer controller
- */
 (function () {
     'use strict';
 
-    const $ = id => document.getElementById(id);
+    const $ = (id) => document.getElementById(id);
     const LMS = window.KairosLMS;
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
-    const RESOURCE_ID = params.get('resource_id') || '';
+    const RESOURCE_ID = params.get('resource_id') || params.get('id') || '';
+    const DEBUG_MODE = params.get('debug') === '1';
+
+    let lastRequest = null;
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
     const TYPE_ICONS = {
         pdf: '📄', video: '🎬', link: '🔗', text: '📝', page: '📝',
-        file: '📎', image: '🖼️', audio: '🎵',
+        file: '📎', image: '🖼️', audio: '🎵', embed: '🎬',
     };
 
+    function renderDebugBlock(response) {
+        if (!DEBUG_MODE) return;
+        let debug = $('resourceDebug');
+        if (!debug) {
+            debug = document.createElement('pre');
+            debug.id = 'resourceDebug';
+            debug.className = 'k-card';
+            debug.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            document.querySelector('.k-page')?.appendChild(debug);
+        }
+
+        debug.textContent = JSON.stringify({
+            resource_id: RESOURCE_ID,
+            course_id: COURSE_ID,
+            endpoint: `./api/lms/resources/get.php?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}`,
+            response_status: response?.status ?? null,
+            response_body: response?.data ?? null,
+        }, null, 2);
+    }
+
     function inferType(resource) {
-        if (resource.type) return resource.type.toLowerCase();
+        if (resource.type) return String(resource.type).toLowerCase();
         const url = (resource.url || resource.file_url || '').toLowerCase();
         if (url.match(/\.(mp4|webm|mov|avi)$/)) return 'video';
-        if (url.match(/\.pdf$/)) return 'pdf';
+        if (url.match(/\.pdf($|\?)/)) return 'pdf';
         if (url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/)) return 'image';
         if (url.match(/\.(mp3|ogg|m4a|wav)$/)) return 'audio';
         if (url.startsWith('http')) return 'link';
         return 'file';
     }
 
-    async function markComplete() {
-        const btn = $('markCompleteBtn');
-        if (btn) { btn.disabled = true; btn.textContent = '✓ Marking…'; }
-        const res = await LMS.api('POST', './api/lms/complete_resource.php', {
-            resource_id: RESOURCE_ID,
-            course_id: COURSE_ID,
-        });
-        if (res.ok) {
-            LMS.toast('Marked as complete!', 'success');
-            if (btn) { btn.textContent = '✓ Completed'; btn.classList.add('btn-success'); }
-        } else {
-            LMS.toast('Could not mark complete: ' + (res.error || 'Error'), 'error');
-            if (btn) { btn.disabled = false; btn.textContent = '✓ Mark as Complete'; }
+    function embedSafeVideo(url) {
+        try {
+            const parsed = new URL(url);
+            if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+            return parsed.toString();
+        } catch (_) {
+            return '';
         }
     }
 
@@ -53,23 +67,27 @@
             return;
         }
 
-        const res = await LMS.api('GET', `./api/lms/resource.php?id=${encodeURIComponent(RESOURCE_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`);
+        const endpoint = `./api/lms/resources/get.php?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}`;
+        const res = await LMS.api('GET', endpoint);
+        lastRequest = { endpoint, ...res };
+        renderDebugBlock(lastRequest);
         hideEl('resourceSkeleton');
 
         if (res.status === 403) {
-            LMS.renderAccessDenied($('resourceAccessDenied'), 'You do not have access to this resource.', `/modules.html?course_id=${COURSE_ID}`);
+            LMS.renderAccessDenied($('resourceAccessDenied'), 'You do not have access to this resource.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
             showEl('resourceAccessDenied');
             return;
         }
+
         if (!res.ok) {
             showEl('resourceError');
-            $('resourceRetryBtn') && $('resourceRetryBtn').addEventListener('click', loadPage, { once: true });
+            $('resourceRetryBtn')?.addEventListener('click', loadPage, { once: true });
             return;
         }
 
-        const resource = res.data;
+        const resource = res.data?.data || res.data || {};
         const type = inferType(resource);
-        const url = resource.url || resource.file_url || '';
+        const url = resource.url || resource.drive_preview_url || resource.file_url || '';
 
         document.title = `${resource.title || 'Resource'} — Kairos`;
         $('resourceTypeIcon') && ($('resourceTypeIcon').textContent = TYPE_ICONS[type] || '📄');
@@ -78,10 +96,8 @@
         $('kBreadResource') && ($('kBreadResource').textContent = resource.title || 'Resource');
         $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
         $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
-        $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = resource.course_name || '');
         $('backToModules') && ($('backToModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
 
-        // Download + open buttons
         if (url && type !== 'link') {
             const dlBtn = $('downloadBtn');
             if (dlBtn) { dlBtn.href = url; dlBtn.classList.remove('hidden'); }
@@ -92,57 +108,47 @@
             }
         }
 
-        // Show viewer
         showEl('resourceViewer');
         ['iframeWrap', 'videoWrap', 'externalWrap', 'textWrap', 'unsupportedWrap'].forEach(hideEl);
 
-        if (type === 'pdf' || type === 'file') {
+        if (type === 'pdf' || type === 'file' || type === 'embed') {
             const iframe = $('resourceIframe');
             if (iframe && url) {
                 iframe.src = url;
                 showEl('iframeWrap');
             } else {
-                const dlFb = $('downloadFallbackBtn');
-                if (dlFb) dlFb.href = url;
+                $('downloadFallbackBtn') && ($('downloadFallbackBtn').href = url);
                 showEl('unsupportedWrap');
             }
-        } else if (type === 'video') {
-            const video = $('resourceVideo');
-            if (video) {
-                video.src = url;
-                video.load();
-                showEl('videoWrap');
-                // Mark complete when video ends
-                video.addEventListener('ended', () => {
-                    if (!resource.already_completed) markComplete();
-                }, { once: true });
-            }
-        } else if (type === 'image') {
-            const wrap = document.createElement('div');
-            wrap.style.cssText = 'text-align:center;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--surface)';
-            const img = document.createElement('img');
-            img.src = url; img.alt = resource.title || 'Image'; img.style.maxWidth = '100%'; img.style.display = 'block';
-            wrap.appendChild(img);
-            const viewer = $('resourceViewer');
-            if (viewer) { viewer.innerHTML = ''; viewer.appendChild(wrap); }
-        } else if (type === 'link') {
-            $('externalDesc') && ($('externalDesc').textContent = `This resource links to an external source: ${url}`);
-            $('externalLink') && ($('externalLink').href = url) && ($('externalLink').textContent = url);
-            showEl('externalWrap');
-        } else if (type === 'text' || type === 'page') {
-            $('textContent') && ($('textContent').textContent = resource.content || resource.body || '');
-            showEl('textWrap');
-        } else {
-            const dlFb = $('downloadFallbackBtn');
-            if (dlFb) dlFb.href = url;
-            showEl('unsupportedWrap');
+            return;
         }
 
-        // Mark complete button (shown if not already done)
-        if (!resource.already_completed && type !== 'video') {
-            showEl('completeFooter');
-            $('markCompleteBtn') && $('markCompleteBtn').addEventListener('click', markComplete, { once: true });
+        if (type === 'video') {
+            const safeVideoUrl = embedSafeVideo(url);
+            if (!safeVideoUrl) {
+                showEl('unsupportedWrap');
+                return;
+            }
+            const videoWrap = $('videoWrap');
+            if (videoWrap) {
+                videoWrap.innerHTML = `<iframe src="${safeVideoUrl}" title="Embedded video" style="width:100%;height:480px;border:0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                showEl('videoWrap');
+            }
+            return;
         }
+
+        if (type === 'link') {
+            $('externalDesc') && ($('externalDesc').textContent = `This resource links to: ${url}`);
+            if ($('externalLink')) {
+                $('externalLink').href = url;
+                $('externalLink').textContent = 'Open Resource ↗';
+            }
+            showEl('externalWrap');
+            return;
+        }
+
+        $('textContent') && ($('textContent').textContent = resource.content || resource.body || '');
+        showEl('textWrap');
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -151,5 +157,4 @@
         LMS.nav.updateUserBar(session.me);
         await loadPage();
     });
-
 })();

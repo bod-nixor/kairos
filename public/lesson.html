@@ -15,7 +15,13 @@
         <h1 class="k-page-header__title" id="lessonTitle">Lesson</h1>
         <p class="k-page-header__subtitle" id="lessonSubtitle"></p>
       </div>
-      <div class="k-page-header__actions">
+      <div class="k-page-header__actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="lessonStatusPill" class="k-chip">Draft</span>
+        <button class="btn btn-ghost btn-sm hidden" id="viewModeBtn" type="button">View</button>
+        <button class="btn btn-ghost btn-sm hidden" id="editModeBtn" type="button">Edit</button>
+        <button class="btn btn-primary btn-sm hidden" id="saveDraftBtn" type="button">Save Draft</button>
+        <button class="btn btn-secondary btn-sm hidden" id="publishBtn" type="button">Publish</button>
+        <button class="btn btn-ghost btn-sm hidden" id="unpublishBtn" type="button">Unpublish</button>
         <a class="btn btn-ghost btn-sm" id="backToModules" href="./modules.html">← Back to Modules</a>
       </div>
     </div>
@@ -31,21 +37,32 @@
         <button class="btn btn-ghost btn-sm" id="addPdfBtn" type="button">Insert PDF</button>
         <button class="btn btn-ghost btn-sm" id="addVideoBtn" type="button">Embed Video</button>
       </div>
-      <div id="lessonEditor" role="textbox" aria-multiline="true" aria-label="Lesson editor" class="k-card" style="min-height:280px;padding:16px"></div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" id="saveLessonBtn" type="button">Save Lesson</button>
-      </div>
+      <div id="lessonEditor" contenteditable="false" role="textbox" aria-multiline="true" aria-label="Lesson editor" class="k-card" style="min-height:280px;padding:16px;outline:none;position:relative;z-index:1;pointer-events:auto"></div>
     </div>
 
     <article id="lessonContent" class="k-card" style="padding:24px"></article>
+
+    <pre id="lessonDebug" class="k-card hidden" style="padding:12px;margin-top:12px;white-space:pre-wrap"></pre>
   </div>
+
+  <dialog id="resourceModal" class="k-modal">
+    <form method="dialog" id="resourceModalForm" class="k-modal__card" style="min-width: min(560px, 95vw);">
+      <header class="k-modal__header">
+        <h3 id="resourceModalTitle">Insert Resource</h3>
+      </header>
+      <div class="k-modal__body" style="display:grid;gap:10px">
+        <input id="resourceTitle" type="text" placeholder="Resource title" required />
+        <input id="resourceUrl" type="url" placeholder="https://..." required />
+      </div>
+      <footer class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" id="resourceModalCancel" class="btn btn-ghost btn-sm">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="resourceModalSubmit">Insert</button>
+      </footer>
+    </form>
+  </dialog>
+
   <script src="./js/theme.js"></script>
   <script src="./js/lms-core.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/embed@latest"></script>
   <script src="./js/lesson.js"></script>
 </body>
 </html>

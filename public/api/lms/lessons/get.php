@@ -1,14 +1,18 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/_common.php';
+require_once dirname(__DIR__) . '/_common.php';
 
 $user = lms_require_roles(['student','ta','manager','admin']);
 $courseId = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
 $lessonId = isset($_GET['lesson_id']) ? (int)$_GET['lesson_id'] : 0;
 
-if ($lessonId <= 0) {
-    lms_error('validation_error', 'lesson_id is required', 422);
+if ($courseId <= 0 || $lessonId <= 0) {
+    lms_error('validation_error', 'course_id and lesson_id are required', 422);
 }
+
+lms_course_access($user, $courseId);
+$role = lms_user_role($user);
+$isStaff = lms_is_staff_role($role);
 
 $pdo = db();
 $lessonStmt = $pdo->prepare(
@@ -18,28 +22,20 @@ $lessonStmt = $pdo->prepare(
      LEFT JOIN lms_module_items mi
        ON mi.item_type = \'lesson\' AND mi.entity_id = l.lesson_id AND mi.course_id = l.course_id
      WHERE l.lesson_id = :lesson_id
+       AND l.course_id = :course_id
        AND l.deleted_at IS NULL
      ORDER BY mi.module_item_id DESC
      LIMIT 1'
 );
-$lessonStmt->execute([':lesson_id' => $lessonId]);
+$lessonStmt->execute([':lesson_id' => $lessonId, ':course_id' => $courseId]);
 $lesson = $lessonStmt->fetch(PDO::FETCH_ASSOC);
+
 if (!$lesson) {
     lms_error('not_found', 'Lesson not found', 404);
 }
 
-if ($courseId > 0 && (int)$lesson['course_id'] !== $courseId) {
-    lms_error('not_found', 'Lesson not found in this course', 404);
-}
-
-lms_course_access($user, (int)$lesson['course_id']);
-$role = lms_user_role($user);
-if (!lms_is_staff_role($role) && (int)$lesson['published_flag'] !== 1) {
+if (!$isStaff && (int)$lesson['published_flag'] !== 1) {
     lms_error('forbidden', 'Lesson is not published', 403);
 }
-
-$blocksStmt = $pdo->prepare('SELECT block_id, position, block_type, content_json, resource_id FROM lms_lesson_blocks WHERE lesson_id = :lesson_id AND deleted_at IS NULL ORDER BY position');
-$blocksStmt->execute([':lesson_id' => $lessonId]);
-$lesson['blocks'] = $blocksStmt->fetchAll(PDO::FETCH_ASSOC);
 
 lms_ok($lesson);
