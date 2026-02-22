@@ -2201,8 +2201,14 @@
     transition: opacity .2s;
 }
 
-.k-modal.is-open {
+.k-modal.is-open,
+dialog.k-modal[open] {
     opacity: 1;
+}
+
+dialog.k-modal {
+    inset: auto;
+    display: block;
 }
 
 .k-modal__backdrop {
