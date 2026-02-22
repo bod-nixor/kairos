@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../public/api/bootstrap.php';
 
+$dryRun = in_array('--dry-run', $argv, true);
 $pdo = db();
 
 $sql = "
@@ -25,6 +26,14 @@ if (!$rows) {
 
 $deleteStmt = $pdo->prepare('DELETE FROM lms_module_items WHERE module_item_id = :id');
 foreach ($rows as $row) {
-    $deleteStmt->execute([':id' => (int)$row['module_item_id']]);
-    echo sprintf("Removed orphan module_item_id=%d type=%s entity_id=%d\n", (int)$row['module_item_id'], (string)$row['item_type'], (int)$row['entity_id']);
+    if (!$dryRun) {
+        $deleteStmt->execute([':id' => (int)$row['module_item_id']]);
+    }
+    echo sprintf(
+        "%s orphan module_item_id=%d type=%s entity_id=%d\n",
+        $dryRun ? 'Would remove' : 'Removed',
+        (int)$row['module_item_id'],
+        (string)$row['item_type'],
+        (int)$row['entity_id']
+    );
 }

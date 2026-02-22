@@ -19,6 +19,16 @@
     }
   }
 
+
+  function escAttr(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function sanitizeForRender(html) {
     const template = document.createElement('template');
     template.innerHTML = html || '';
@@ -71,7 +81,8 @@
       if (block.type === 'embed') {
         const src = block.data?.embed || block.data?.source || '';
         if (!isSafeHttpUrl(src)) return '';
-        return `<iframe src="${src}" width="640" height="360" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        const safeSrc = escAttr(src);
+        return `<iframe src="${safeSrc}" width="640" height="360" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
       }
       return `<p>${block.data?.text || ''}</p>`;
     }).join('');
@@ -136,7 +147,8 @@
       LMS.toast('Please enter a valid http(s) URL.', 'warning');
       return;
     }
-    await editor.blocks.insert('paragraph', { text: `<a href="${u}" target="_blank" rel="noopener noreferrer">${label}</a>` });
+    const safeUrl = escAttr(u);
+    await editor.blocks.insert('paragraph', { text: `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a>` });
   }
 
   async function insertSafeEmbed() {
@@ -173,7 +185,9 @@
           await editor.blocks.insert('list', { style: 'ordered', items: [''] });
           return;
         }
-        await editor.blocks.insert('paragraph', { text: `<${command === 'bold' ? 'strong' : command === 'italic' ? 'em' : 'u'}>Text</${command === 'bold' ? 'strong' : command === 'italic' ? 'em' : 'u'}>` });
+        if (command === 'bold' || command === 'italic' || command === 'underline') {
+          document.execCommand(command, false);
+        }
       });
     });
 

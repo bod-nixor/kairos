@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 
-lms_require_roles(['manager','admin']);
+$user = lms_require_roles(['manager','admin']);
 $in = lms_json_input();
 $resourceId = (int)($in['resource_id'] ?? 0);
 if ($resourceId <= 0) {
@@ -10,6 +10,15 @@ if ($resourceId <= 0) {
 }
 
 $pdo = db();
+$resourceStmt = $pdo->prepare('SELECT resource_id, course_id FROM lms_resources WHERE resource_id = :id AND deleted_at IS NULL LIMIT 1');
+$resourceStmt->execute([':id' => $resourceId]);
+$resource = $resourceStmt->fetch(PDO::FETCH_ASSOC);
+if (!$resource) {
+    lms_error('not_found', 'Resource not found', 404);
+}
+
+lms_course_access($user, (int)$resource['course_id']);
+
 $pdo->beginTransaction();
 try {
     $pdo->prepare('UPDATE lms_resources SET deleted_at = CURRENT_TIMESTAMP WHERE resource_id = :id')->execute([':id' => $resourceId]);

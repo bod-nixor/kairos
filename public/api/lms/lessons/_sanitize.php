@@ -4,7 +4,7 @@ declare(strict_types=1);
 function lms_sanitize_iframe(DOMElement $node): bool
 {
     $src = trim((string)$node->getAttribute('src'));
-    if ($src === '' || !preg_match('/^https?:\/\//i', $src)) {
+    if ($src === '' || !preg_match('/^https:\/\//i', $src)) {
         return false;
     }
 

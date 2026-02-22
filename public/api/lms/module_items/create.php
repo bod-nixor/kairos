@@ -24,6 +24,16 @@ if (!in_array($itemType, $allowed, true)) {
 }
 
 $pdo = db();
+
+$sectionStmt = $pdo->prepare('SELECT section_id, course_id FROM lms_course_sections WHERE section_id = :sid AND deleted_at IS NULL LIMIT 1');
+$sectionStmt->execute([':sid' => $sectionId]);
+$section = $sectionStmt->fetch(PDO::FETCH_ASSOC);
+if (!$section || (int)$section['course_id'] !== $courseId) {
+    lms_error('bad_request', 'section does not belong to the specified course', 400);
+}
+
+lms_course_access($user, $courseId);
+
 $pdo->beginTransaction();
 
 try {
@@ -65,7 +75,7 @@ try {
         if ($existingId > 0) {
             $existingStmt = $pdo->prepare('SELECT assignment_id FROM lms_assignments WHERE assignment_id = :id AND course_id = :course_id AND deleted_at IS NULL LIMIT 1');
             $existingStmt->execute([':id' => $existingId, ':course_id' => $courseId]);
-            $entityId = $existingStmt->fetchColumn() ? $existingId : 0;
+            $entityId = $existingStmt->fetchColumn() !== false ? $existingId : 0;
         }
         if ($entityId <= 0) {
             $stmt = $pdo->prepare('INSERT INTO lms_assignments (course_id,section_id,title,max_points,status,created_by) VALUES (:c,:s,:t,100,\'draft\',:u)');
@@ -77,7 +87,7 @@ try {
         if ($existingId > 0) {
             $existingStmt = $pdo->prepare('SELECT assessment_id FROM lms_assessments WHERE assessment_id = :id AND course_id = :course_id AND deleted_at IS NULL LIMIT 1');
             $existingStmt->execute([':id' => $existingId, ':course_id' => $courseId]);
-            $entityId = $existingStmt->fetchColumn() ? $existingId : 0;
+            $entityId = $existingStmt->fetchColumn() !== false ? $existingId : 0;
         }
         if ($entityId <= 0) {
             $stmt = $pdo->prepare('INSERT INTO lms_assessments (course_id,section_id,title,assessment_type,status,max_attempts,created_by) VALUES (:c,:s,:t,\'quiz\',\'draft\',1,:u)');
@@ -107,7 +117,8 @@ try {
             $moduleItemId = (int)$pdo->lastInsertId();
             break;
         } catch (PDOException $e) {
-            if ((int)$e->getCode() !== 23000 || $attempts >= 3) {
+            $sqlState = (string)($e->errorInfo[0] ?? $e->getCode());
+            if ($sqlState !== '23000' || $attempts >= 3) {
                 throw $e;
             }
         }

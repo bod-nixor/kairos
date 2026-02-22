@@ -5,6 +5,7 @@
     const LMS = window.KairosLMS;
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
+    const COURSE_ID_INT = parseInt(COURSE_ID, 10);
 
     let isAdmin = false;
     const expandedModules = new Set();
@@ -31,6 +32,21 @@
         return `<a class="k-module-item" data-item-type="${LMS.escHtml(type)}" data-entity-id="${parseInt(item.entity_id || item.id || 0, 10)}" href="${LMS.escHtml(href)}" title="Open ${LMS.escHtml(title)}"><div class="k-module-item__icon">${icon}</div><div class="k-module-item__body"><div class="k-module-item__title">${LMS.escHtml(title)}</div></div></a>`;
     }
 
+    function renderModuleHtml(mod, isExpanded) {
+        const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
+        const bodyId = `mod-items-${moduleId}`;
+        const hdrId = `mod-hdr-${moduleId}`;
+        const items = Array.isArray(mod.items) ? mod.items : [];
+        const itemsHtml = items.length
+            ? items.map(renderModuleItem).join('')
+            : '<div class="k-empty" style="padding:20px"><p class="k-empty__desc">No items in this module.</p></div>';
+
+        const headerHtml = `<div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}"><span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${isAdmin ? `<button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>` : ''}</div></div>`;
+        const itemsWrapHtml = `<div class="k-module__items" id="${bodyId}" role="list" aria-labelledby="${hdrId}" ${isExpanded ? '' : 'style="display:none"'}>${itemsHtml}</div>`;
+
+        return `<section class="k-module${isExpanded ? ' is-open' : ''}" data-module-id="${moduleId}">${headerHtml}${itemsWrapHtml}</section>`;
+    }
+
     function renderModules(modules) {
         const container = $('moduleList');
         if (!container) return;
@@ -38,11 +54,7 @@
         container.innerHTML = modules.map((mod) => {
             const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
             const isExpanded = expandedModules.has(moduleId);
-            const bodyId = `mod-items-${moduleId}`;
-            const hdrId = `mod-hdr-${moduleId}`;
-            const items = Array.isArray(mod.items) ? mod.items : [];
-            const itemsHtml = items.length ? items.map(renderModuleItem).join('') : '<div class="k-empty" style="padding:20px"><p class="k-empty__desc">No items in this module.</p></div>';
-            return `<section class="k-module${isExpanded ? ' is-open' : ''}" data-module-id="${moduleId}"><div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}"><span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${isAdmin ? `<button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>` : ''}</div></div><div class="k-module__items" id="${bodyId}" role="list" aria-labelledby="${hdrId}" ${isExpanded ? '' : 'style="display:none"'}>${itemsHtml}</div></section>`;
+            return renderModuleHtml(mod, isExpanded);
         }).join('');
 
         container.querySelectorAll('.k-module__header').forEach(header => {
@@ -79,7 +91,7 @@
             title: 'Create New Module',
             fields: '<div class="k-form-field"><label for="kf-title">Module Title *</label><input id="kf-title" name="title" required></div><div class="k-form-field"><label for="kf-desc">Description</label><textarea id="kf-desc" name="description"></textarea></div>',
             api: './api/lms/sections/create.php',
-            payload: (fd) => ({ course_id: parseInt(COURSE_ID, 10), title: fd.get('title'), description: fd.get('description') || null }),
+            payload: (fd) => ({ course_id: COURSE_ID_INT, title: fd.get('title'), description: fd.get('description') || null }),
             successMsg: 'Module created!'
         },
         module_item: {
@@ -90,7 +102,7 @@
                 const rawSection = typeof sectionId === 'string' ? sectionId.trim() : '';
                 const parsedSectionId = rawSection !== '' ? parseInt(rawSection, 10) : null;
                 return {
-                    course_id: parseInt(COURSE_ID, 10),
+                    course_id: COURSE_ID_INT,
                     section_id: Number.isFinite(parsedSectionId) ? parsedSectionId : null,
                     item_type: fd.get('item_type'),
                     title: fd.get('title'),
@@ -213,6 +225,16 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+        if (!Number.isInteger(COURSE_ID_INT) || COURSE_ID_INT <= 0) {
+            hideEl('modulesSkeleton');
+            hideEl('moduleList');
+            showEl('modulesEmpty');
+            const desc = document.querySelector('#modulesEmpty .k-empty__desc');
+            if (desc) desc.textContent = 'Missing or invalid course id.';
+            LMS.toast('Missing or invalid course id.', 'error');
+            return;
+        }
+
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);

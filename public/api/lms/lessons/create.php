@@ -15,6 +15,8 @@ if ($sectionId <= 0 || $courseId <= 0 || $title === '') {
     lms_error('validation_error','section_id, course_id, title required',422);
 }
 
+lms_course_access($user, $courseId);
+
 $pdo = db();
 $sectionStmt = $pdo->prepare('SELECT section_id, course_id FROM lms_course_sections WHERE section_id = :sid AND deleted_at IS NULL LIMIT 1');
 $sectionStmt->execute([':sid' => $sectionId]);

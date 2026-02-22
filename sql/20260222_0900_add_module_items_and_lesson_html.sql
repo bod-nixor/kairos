@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS lms_module_items (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (module_item_id),
   UNIQUE KEY uk_lms_module_items_section_position (section_id, position),
-  KEY idx_lms_module_items_section (section_id, position),
   KEY idx_lms_module_items_course (course_id, item_type),
   CONSTRAINT fk_lms_module_items_course FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE,
   CONSTRAINT fk_lms_module_items_section FOREIGN KEY (section_id) REFERENCES lms_course_sections (section_id) ON DELETE CASCADE,
