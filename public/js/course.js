@@ -244,9 +244,9 @@
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
 
-        // Show admin controls for manager/admin
-        const role = (session.me.role_name || session.me.role || '').toLowerCase();
-        if (role === 'admin' || role === 'manager') {
+        // Show admin controls using capabilities (session.me has role_id, not role_name)
+        const roles = session.caps?.roles || {};
+        if (roles.admin || roles.manager) {
             const btn = $('postAnnBtn');
             if (btn) btn.classList.remove('hidden');
         }
