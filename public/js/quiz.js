@@ -285,7 +285,7 @@
     // ── History ────────────────────────────────────────────────
     async function loadHistory() {
         showPanel('quizHistoryPanel');
-        const endpoint = `./api/lms/quiz/attempts.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`;
+        const endpoint = `./api/lms/quiz/attempts.php?assessment_id=${encodeURIComponent(QUIZ_ID)}${DEBUG_MODE ? '&debug=1' : ''}`;
         const res = await LMS.api('GET', endpoint);
         logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         const list = $('attemptHistoryList');
@@ -314,7 +314,8 @@
             return;
         }
 
-        const endpoint = `./api/lms/quiz/get.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
+        const dbg = DEBUG_MODE ? '&debug=1' : '';
+        const endpoint = `./api/lms/quiz/get.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`;
         const res = await LMS.api('GET', endpoint);
         logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         hideEl('quizSkeleton');
