@@ -46,6 +46,15 @@ if ($url === '' && !empty($row['metadata_json'])) {
     }
 }
 
+
+$meta = [];
+if (!empty($row['metadata_json'])) {
+    $decoded = json_decode((string)$row['metadata_json'], true);
+    if (is_array($decoded)) {
+        $meta = $decoded;
+    }
+}
+
 $payload = [
     'resource_id' => (int)$row['resource_id'],
     'course_id' => (int)$row['course_id'],
@@ -53,7 +62,9 @@ $payload = [
     'type' => (string)$row['resource_type'],
     'resource_type' => (string)$row['resource_type'],
     'url' => $url,
-    'drive_preview_url' => $url,
+    'original_url' => (string)($meta['url'] ?? $url),
+    'drive_preview_url' => (string)($meta['preview_url'] ?? $url),
+    'share_warning' => $meta['share_warning'] ?? null,
     'mime_type' => $row['mime_type'],
     'file_size' => $row['file_size'],
     'access_scope' => $row['access_scope'],

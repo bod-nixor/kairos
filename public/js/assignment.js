@@ -9,12 +9,32 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const ASSIGN_ID = params.get('assignment_id') || '';
+    const DEBUG_MODE = params.get('debug') === '1';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
     let assignData = null;
     let uploadedFiles = [];
+    const debugLogs = [];
+
+    function safeStringify(v) {
+        try { return JSON.stringify(v, null, 2); } catch (_) { return String(v); }
+    }
+
+    function logDebug(entry) {
+        if (!DEBUG_MODE) return;
+        debugLogs.push(entry);
+        let debugEl = $('assignDebug');
+        if (!debugEl) {
+            debugEl = document.createElement('pre');
+            debugEl.id = 'assignDebug';
+            debugEl.className = 'k-card';
+            debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            document.querySelector('.k-page')?.appendChild(debugEl);
+        }
+        debugEl.textContent = safeStringify(debugLogs);
+    }
 
     // ── Dropzone ───────────────────────────────────────────────
     function initDropzone() {
@@ -136,7 +156,17 @@
                 formData.append('url', inp.value.trim());
             }
 
-            const res = await LMS.api('POST', './api/lms/assignment_submit.php', formData);
+            if (submType === 'file' && uploadedFiles[0]) {
+                formData.append('file', uploadedFiles[0]);
+            }
+            if (submType === 'text') {
+                const ta = $('textInput');
+                formData.append('text_submission', (ta?.value || '').trim());
+            }
+
+            const endpoint = './api/lms/assignments/submit.php';
+            const res = await LMS.api('POST', endpoint, formData);
+            logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
             if (!res.ok) {
                 LMS.toast('Submission failed: ' + (res.error || 'Unknown error'), 'error');
                 return;
@@ -158,10 +188,14 @@
             return;
         }
 
+        const assignEndpoint = `./api/lms/assignments/get.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
+        const subsEndpoint = `./api/lms/assignments/submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
         const [assignRes, subsRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/assignment.php?id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`),
-            LMS.api('GET', `./api/lms/assignment_submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', assignEndpoint),
+            LMS.api('GET', subsEndpoint),
         ]);
+        logDebug({ endpoint: assignEndpoint, method: 'GET', response_status: assignRes.status, response_body: assignRes.data, parsed_error_message: assignRes.error || null });
+        logDebug({ endpoint: subsEndpoint, method: 'GET', response_status: subsRes.status, response_body: subsRes.data, parsed_error_message: subsRes.error || null });
 
         hideEl('assignSkeleton');
 
@@ -176,8 +210,8 @@
             return;
         }
 
-        assignData = assignRes.data;
-        const submissions = subsRes.ok ? (subsRes.data || []) : [];
+        assignData = assignRes.data?.data || assignRes.data || {};
+        const submissions = subsRes.ok ? (subsRes.data?.data?.items || subsRes.data?.data || subsRes.data?.items || []) : [];
         const latestSub = submissions[0] || null;
 
         document.title = `${assignData.title || 'Assignment'} — Kairos`;
@@ -230,8 +264,9 @@
         // Description
         const desc = $('assignDescription');
         if (desc) {
-            if (assignData.description) {
-                desc.innerHTML = assignData.description; // server MUST sanitize
+            const description = assignData.description || assignData.instructions || '';
+            if (description) {
+                desc.innerHTML = description; // server MUST sanitize
             } else {
                 desc.innerHTML = '<div class="k-empty" style="padding:0"><p class="k-empty__desc">No description provided.</p></div>';
             }
