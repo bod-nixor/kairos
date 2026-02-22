@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
-lms_require_feature(['assignments', 'lms_assignments']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
+lms_require_feature(['assignments', 'lms_assignments']);
 $assignmentId = (int)($_GET['assignment_id'] ?? 0);
 $courseId = (int)($_GET['course_id'] ?? 0);
 
@@ -56,7 +56,14 @@ try {
                    g.score AS grade,
                    r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_preview_url
             FROM lms_submissions s
-            LEFT JOIN lms_grades g ON g.submission_id = s.submission_id
+            LEFT JOIN lms_grades g
+                   ON g.grade_id = (
+                       SELECT g2.grade_id
+                       FROM lms_grades g2
+                       WHERE g2.submission_id = s.submission_id
+                       ORDER BY g2.updated_at DESC, g2.grade_id DESC
+                       LIMIT 1
+                   )
             LEFT JOIN lms_submission_files sf ON sf.submission_id = s.submission_id
             LEFT JOIN lms_resources r ON r.resource_id = sf.resource_id
             WHERE s.assignment_id = :assignment_id

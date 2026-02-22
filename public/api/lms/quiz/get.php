@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
+lms_require_feature(['quizzes', 'lms_quizzes']);
 $assessmentId = (int)($_GET['assessment_id'] ?? 0);
 $courseId = (int)($_GET['course_id'] ?? 0);
 if ($assessmentId <= 0) {
@@ -54,16 +55,16 @@ try {
     $questionCount = (int)$qStmt->fetchColumn();
 
     $response = [
-        'quiz_id' => (int)$row['assessment_id'],
+        'quiz_id' => (int)$row['assessment_id'], // deprecated alias for assessment_id
         'assessment_id' => (int)$row['assessment_id'],
         'course_id' => (int)$row['course_id'],
         'title' => (string)$row['title'],
-        'description' => (string)($row['instructions'] ?? ''),
+        'description' => (string)($row['instructions'] ?? ''), // deprecated alias for instructions
         'instructions' => (string)($row['instructions'] ?? ''),
         'status' => (string)$row['status'],
         'max_attempts' => (int)$row['max_attempts'],
         'attempts_used' => $attemptsUsed,
-        'time_limit_min' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'],
+        'time_limit_min' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'], // deprecated alias for time_limit_minutes
         'time_limit_minutes' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'],
         'question_count' => $questionCount,
         'available_from' => $row['available_from'],

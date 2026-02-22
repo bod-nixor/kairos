@@ -16,7 +16,7 @@ if ($courseId <= 0) {
 lms_course_access($user, $courseId);
 
 $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && lms_user_role($user) === 'admin';
-$debug = $debugMode ? ['steps' => []] : null;
+$debug = ['steps' => []];
 
 try {
     $pdo = db();
@@ -35,7 +35,19 @@ try {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    $response = ['items' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+    $items = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $items[] = [
+            'id' => (int)$row['id'],
+            'title' => (string)$row['title'],
+            'description' => (string)($row['description'] ?? ''),
+            'due_date' => $row['due_date'],
+            'max_points' => $row['max_points'] === null ? null : (float)$row['max_points'],
+            'status' => (string)$row['status'],
+        ];
+    }
+
+    $response = ['items' => $items];
     if ($debugMode) {
         $response['debug'] = $debug;
     }

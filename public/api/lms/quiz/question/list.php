@@ -59,7 +59,7 @@ try {
     foreach ($questions as $q) {
         $qid = (int)$q['question_id'];
         $items[] = [
-            'id' => $qid,
+            'id' => $qid, // deprecated: keep for legacy UI; remove after migration to question_id
             'question_id' => $qid,
             'prompt' => (string)$q['prompt'],
             'question_type' => (string)$q['question_type'],

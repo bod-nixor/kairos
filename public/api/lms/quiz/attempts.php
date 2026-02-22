@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
+lms_require_feature(['quizzes', 'lms_quizzes']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $assessmentId = (int)($_GET['assessment_id'] ?? 0);
 if ($assessmentId <= 0) {
