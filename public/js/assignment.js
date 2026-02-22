@@ -186,8 +186,9 @@
             return;
         }
 
-        const assignEndpoint = `./api/lms/assignments/get.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
-        const subsEndpoint = `./api/lms/assignments/submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`;
+        const dbg = DEBUG_MODE ? '&debug=1' : '';
+        const assignEndpoint = `./api/lms/assignments/get.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`;
+        const subsEndpoint = `./api/lms/assignments/submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`;
         const [assignRes, subsRes] = await Promise.all([
             LMS.api('GET', assignEndpoint),
             LMS.api('GET', subsEndpoint),
