@@ -43,7 +43,7 @@ if ($title === '') {
     lms_error('validation_error', 'title cannot be blank', 422);
 }
 
-$instructionsRaw = array_key_exists('instructions', $in) ? $in['instructions'] : $existing['instructions'];
+$instructionsRaw = $in['instructions'] ?? $in['description'] ?? $in['description_html'] ?? $existing['instructions'];
 if ($instructionsRaw === null) {
     $instructions = null;
 } elseif (is_scalar($instructionsRaw)) {
