@@ -113,6 +113,11 @@ function lms_course_access(array $user, int $courseId, bool $allowStaff = true):
     }
 }
 
+function lms_is_staff_role(string $role): bool
+{
+    return in_array(strtolower($role), ['admin', 'manager', 'ta'], true);
+}
+
 function lms_emit_event(PDO $pdo, string $eventName, array $event): void
 {
     $sql = 'INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)';

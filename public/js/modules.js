@@ -11,7 +11,7 @@
     let isAdmin = false;
     const expandedModules = new Set();
 
-    const TYPE_ICONS = { lesson: '📄', assignment: '📤', quiz: '⚡', file: '📎', video: '🎬', link: '🔗' };
+    const TYPE_ICONS = { lesson: '📄', assignment: '📤', quiz: '⚡', file: '📎', video: '🎬', link: '🔗', resource: '📎' };
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -22,7 +22,9 @@
         if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}`;
         if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}`;
         if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}`;
-        return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
+        if (type === 'file' || type === 'video' || type === 'link' || type === 'resource') return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
+        if (entityId > 0) return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
+        return `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}&debug=1`;
     }
 
     function renderModuleItem(item) {
