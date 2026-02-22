@@ -46,14 +46,9 @@ if (!empty($row['metadata_json'])) {
     }
 }
 
-
-$meta = [];
-if (!empty($row['metadata_json'])) {
-    $decoded = json_decode((string)$row['metadata_json'], true);
-    if (is_array($decoded)) {
-        $meta = $decoded;
-    }
-}
+$storedUrl = (string)($row['drive_preview_url'] ?? '');
+$originalUrl = (string)($meta['url'] ?? $storedUrl);
+$previewUrl = (string)($meta['preview_url'] ?? $storedUrl);
 
 $payload = [
     'resource_id' => (int)$row['resource_id'],
@@ -61,9 +56,10 @@ $payload = [
     'title' => (string)$row['title'],
     'type' => (string)$row['resource_type'],
     'resource_type' => (string)$row['resource_type'],
-    'url' => $url,
-    'original_url' => (string)($meta['url'] ?? $url),
-    'drive_preview_url' => (string)($meta['preview_url'] ?? $url),
+    'url' => $previewUrl,
+    'original_url' => $originalUrl,
+    'drive_preview_url' => $previewUrl,
+    'stored_url' => $storedUrl,
     'share_warning' => $meta['share_warning'] ?? null,
     'mime_type' => $row['mime_type'],
     'file_size' => $row['file_size'],

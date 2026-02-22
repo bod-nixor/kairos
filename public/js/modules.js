@@ -16,13 +16,25 @@
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
+
+    function normalizeExternalUrl(raw) {
+        const value = String(raw || '').trim();
+        if (!value) return '';
+        if (/^https?:\/\//i.test(value)) return value;
+        return `https://${value}`;
+    }
+
     function itemHref(item) {
         const type = String(item.item_type || item.type || '').toLowerCase();
         const entityId = parseInt(item.entity_id || item.id || 0, 10);
         if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}`;
         if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}`;
         if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}`;
-        if (type === 'file' || type === 'video' || type === 'link' || type === 'resource') return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
+        if (type === 'link') {
+            const external = normalizeExternalUrl(item.url || item.resource_url || item.external_url || '');
+            if (external) return external;
+        }
+        if (type === 'file' || type === 'video' || type === 'resource' || type === 'link') return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
         if (entityId > 0) return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
         return `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}&debug=1`;
     }
@@ -32,7 +44,8 @@
         const icon = TYPE_ICONS[type] || '📌';
         const title = item.title || item.name || 'Untitled item';
         const href = itemHref(item);
-        return `<a class="k-module-item" data-item-type="${LMS.escHtml(type)}" data-entity-id="${parseInt(item.entity_id || item.id || 0, 10)}" href="${LMS.escHtml(href)}" title="Open ${LMS.escHtml(title)}"><div class="k-module-item__icon">${icon}</div><div class="k-module-item__body"><div class="k-module-item__title">${LMS.escHtml(title)}</div></div></a>`;
+        const isExternal = type === 'link' && /^https?:\/\//i.test(href);
+        return `<a class="k-module-item" data-item-type="${LMS.escHtml(type)}" data-entity-id="${parseInt(item.entity_id || item.id || 0, 10)}" href="${LMS.escHtml(href)}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} title="Open ${LMS.escHtml(title)}"><div class="k-module-item__icon">${icon}</div><div class="k-module-item__body"><div class="k-module-item__title">${LMS.escHtml(title)}</div></div></a>`;
     }
 
 
@@ -131,7 +144,7 @@
                     item_type: fd.get('item_type'),
                     title: fd.get('title'),
                     html_content: fd.get('html_content') || null,
-                    url: fd.get('url') || null,
+                    url: (() => { const raw = fd.get('url') || null; return raw ? normalizeExternalUrl(raw) : null; })(),
                     assignment_id: fd.get('assignment_id') || null,
                     quiz_id: fd.get('quiz_id') || null,
                 };

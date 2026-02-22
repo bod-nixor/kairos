@@ -6,86 +6,21 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const RESOURCE_ID = params.get('resource_id') || params.get('id') || '';
-    let lastRequest = null;
-
-    function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
-    function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
     const TYPE_ICONS = {
         pdf: '📄', video: '🎬', link: '🔗', text: '📝', page: '📝',
         file: '📎', image: '🖼️', audio: '🎵', embed: '🎬',
     };
 
-    function renderDebugBlock(response) {
-        LMS.debug({
-            resource_id: RESOURCE_ID,
-            course_id: COURSE_ID,
-            endpoint: `./api/lms/resources/get.php?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}`,
-            response_status: response?.status ?? null,
-            response_body: response?.data ?? null,
-            parsed_error_message: response?.error ?? null,
-        }, { paneId: 'resourceDebug' });
-    }
-    function toDrivePreviewUrl(inputUrl) {
-        if (!inputUrl) return '';
+    function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
+    function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
+
+    function isHttpUrl(value) {
         try {
-            const parsed = new URL(inputUrl);
-            const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
-            if (host !== 'drive.google.com') return inputUrl;
-            const match = parsed.pathname.match(/\/file\/d\/([^/]+)/i);
-            const fileId = match ? match[1] : (parsed.searchParams.get('id') || '');
-            if (!fileId) return inputUrl;
-            return `https://drive.google.com/file/d/${fileId}/preview`;
+            const parsed = new URL(String(value || ''));
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
         } catch (_) {
-            return inputUrl;
-        }
-    }
-
-    function ensurePdfHints(resource, url) {
-        const notes = $('externalDesc');
-        if (!notes) return;
-        notes.textContent = `If preview fails, your account may not have Google Drive access for this file.`;
-        const link = $('externalLink');
-        if (link) {
-            link.href = url;
-            link.textContent = 'Open in Drive ↗';
-        }
-    }
-
-
-    function parseStartSeconds(value) {
-        const raw = String(value || '').trim();
-        if (!raw) return 0;
-        if (/^\d+$/.test(raw)) return Number(raw);
-        const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
-        if (!m) return 0;
-        return (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
-    }
-
-    function toYoutubeEmbedUrl(inputUrl) {
-        if (!inputUrl) return null;
-        try {
-            const parsed = new URL(inputUrl);
-            const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
-            let videoId = '';
-            if (host === 'youtube.com' || host === 'm.youtube.com') {
-                if (parsed.pathname === '/watch') {
-                    videoId = parsed.searchParams.get('v') || '';
-                } else if (parsed.pathname.startsWith('/embed/')) {
-                    videoId = parsed.pathname.split('/')[2] || '';
-                } else if (parsed.pathname.startsWith('/shorts/')) {
-                    videoId = parsed.pathname.split('/')[2] || '';
-                }
-            } else if (host === 'youtu.be') {
-                videoId = parsed.pathname.replace(/^\//, '').split('/')[0] || '';
-            }
-            if (!videoId) return null;
-            const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
-            const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
-            if (start > 0) embed.searchParams.set('start', String(start));
-            return embed.toString();
-        } catch (_) {
-            return null;
+            return false;
         }
     }
 
@@ -95,45 +30,23 @@
             const parsed = new URL(inputUrl);
             const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
             if (host !== 'drive.google.com') return inputUrl;
-            const match = parsed.pathname.match(/\/file\/d\/([^/]+)/i);
-            const fileId = match ? match[1] : (parsed.searchParams.get('id') || '');
+            const pathId = parsed.pathname.match(/\/file\/d\/([^/]+)/i)?.[1] || '';
+            const queryId = parsed.searchParams.get('id') || '';
+            const fileId = pathId || queryId;
             if (!fileId) return inputUrl;
             return `https://drive.google.com/file/d/${fileId}/preview`;
         } catch (_) {
             return inputUrl;
-        }
-    }
-
-    function ensurePdfHints(resource, url) {
-        const notes = $('externalDesc');
-        if (!notes) return;
-        notes.textContent = `If preview fails, your account may not have Google Drive access for this file.`;
-        const link = $('externalLink');
-        if (link) {
-            link.href = url;
-            link.textContent = 'Open in Drive ↗';
         }
     }
 
     function inferType(resource) {
         if (resource.type) return String(resource.type).toLowerCase();
         const url = (resource.url || resource.file_url || '').toLowerCase();
-        if (url.match(/\.(mp4|webm|mov|avi)$/)) return 'video';
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
-        if (url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/)) return 'image';
-        if (url.match(/\.(mp3|ogg|m4a|wav)$/)) return 'audio';
+        if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
-    }
-
-    function embedSafeVideo(url) {
-        try {
-            const parsed = new URL(url);
-            if (!['http:', 'https:'].includes(parsed.protocol)) return '';
-            return parsed.toString();
-        } catch (_) {
-            return '';
-        }
     }
 
     async function loadPage() {
@@ -146,16 +59,14 @@
 
         const endpoint = `./api/lms/resources/get.php?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}`;
         const res = await LMS.api('GET', endpoint);
-        lastRequest = { endpoint, ...res };
-        renderDebugBlock(lastRequest);
-        hideEl('resourceSkeleton');
+        LMS.debug({ endpoint, response_status: res.status, response_body: res.data, parsed_error_message: res.error || null }, { paneId: 'resourceDebug' });
 
+        hideEl('resourceSkeleton');
         if (res.status === 403) {
             LMS.renderAccessDenied($('resourceAccessDenied'), 'You do not have access to this resource.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
             showEl('resourceAccessDenied');
             return;
         }
-
         if (!res.ok) {
             showEl('resourceError');
             $('resourceRetryBtn')?.addEventListener('click', loadPage, { once: true });
@@ -165,67 +76,58 @@
         const resource = res.data?.data || res.data || {};
         const type = inferType(resource);
         const rawUrl = resource.url || resource.drive_preview_url || resource.file_url || '';
-        const url = (type === 'pdf' || type === 'file') ? toDrivePreviewUrl(rawUrl) : rawUrl;
+        const drivePreviewUrl = toDrivePreviewUrl(rawUrl);
 
         document.title = `${resource.title || 'Resource'} — Kairos`;
         $('resourceTypeIcon') && ($('resourceTypeIcon').textContent = TYPE_ICONS[type] || '📄');
         $('resourceTitle') && ($('resourceTitle').textContent = resource.title || 'Resource');
         $('resourceType') && ($('resourceType').textContent = (type || 'file').toUpperCase());
-        $('kBreadResource') && ($('kBreadResource').textContent = resource.title || 'Resource');
-        $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
-        $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
-        $('backToModules') && ($('backToModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
-
-        if (url && type !== 'link') {
-            const dlBtn = $('downloadBtn');
-            if (dlBtn) { dlBtn.href = url; dlBtn.classList.remove('hidden'); }
-            const openBtn = $('openNewTabBtn');
-            if (openBtn) {
-                openBtn.classList.remove('hidden');
-                openBtn.addEventListener('click', () => window.open(url, '_blank', 'noopener'));
-            }
-        }
 
         showEl('resourceViewer');
         ['iframeWrap', 'videoWrap', 'externalWrap', 'textWrap', 'unsupportedWrap'].forEach(hideEl);
 
-        if (type === 'pdf' || type === 'file' || type === 'embed') {
-            const iframe = $('resourceIframe');
-            if (iframe && url) {
-                iframe.src = url;
-                showEl('iframeWrap');
-                ensurePdfHints(resource, rawUrl || url);
+        if (type === 'video') {
+            const embedUrl = LMS.toYoutubeEmbedUrl(rawUrl);
+            if (!embedUrl) {
+                $('externalDesc') && ($('externalDesc').textContent = 'This video URL cannot be embedded safely.');
+                if ($('externalLink')) {
+                    $('externalLink').href = rawUrl;
+                    $('externalLink').textContent = 'Open video in new tab ↗';
+                }
                 showEl('externalWrap');
-            } else {
-                $('downloadFallbackBtn') && ($('downloadFallbackBtn').href = url);
-                showEl('unsupportedWrap');
+                return;
             }
+            $('videoWrap').innerHTML = `<iframe src="${LMS.escHtml(embedUrl)}" title="Embedded video" style="width:100%;height:480px;border:0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><p style="padding:8px 0"><a href="${LMS.escHtml(rawUrl)}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a></p>`;
+            showEl('videoWrap');
             return;
         }
 
-        if (type === 'video') {
-            const ytUrl = toYoutubeEmbedUrl(url);
-            const safeVideoUrl = ytUrl || embedSafeVideo(url);
-            if (!safeVideoUrl) {
+        if (type === 'pdf' || type === 'file' || type === 'embed') {
+            const iframeSrc = type === 'pdf' ? drivePreviewUrl : rawUrl;
+            if (!isHttpUrl(iframeSrc)) {
                 showEl('unsupportedWrap');
                 return;
             }
-            const videoWrap = $('videoWrap');
-            if (videoWrap) {
-                if (!safeVideoUrl) {
-                    showEl('externalWrap');
-                    return;
-                }
-                videoWrap.innerHTML = `<iframe src="${safeVideoUrl}" title="Embedded video" style="width:100%;height:480px;border:0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><p style="padding:8px 0"><a href="${LMS.escHtml(url)}" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a></p>`;
-                showEl('videoWrap');
+            const iframe = $('resourceIframe');
+            iframe.src = iframeSrc;
+            iframe.onerror = () => {
+                $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
+                showEl('externalWrap');
+            };
+            $('externalDesc') && ($('externalDesc').textContent = 'If preview fails, open this file in Drive in a new tab.');
+            if ($('externalLink')) {
+                $('externalLink').href = rawUrl;
+                $('externalLink').textContent = 'Open in Drive ↗';
             }
+            showEl('iframeWrap');
+            showEl('externalWrap');
             return;
         }
 
         if (type === 'link') {
-            $('externalDesc') && ($('externalDesc').textContent = `This resource links to: ${url}`);
+            $('externalDesc') && ($('externalDesc').textContent = `This resource links to: ${rawUrl}`);
             if ($('externalLink')) {
-                $('externalLink').href = url;
+                $('externalLink').href = rawUrl;
                 $('externalLink').textContent = 'Open Resource ↗';
             }
             showEl('externalWrap');
