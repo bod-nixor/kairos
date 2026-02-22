@@ -73,26 +73,35 @@ try {
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $items = [];
+    $itemsBySubmissionId = [];
     foreach ($rows as $row) {
-        $items[] = [
-            'submission_id' => (int)$row['submission_id'],
-            'assignment_id' => (int)$row['assignment_id'],
-            'student_user_id' => (int)$row['student_user_id'],
-            'version' => (int)$row['version'],
-            'status' => (string)$row['status'],
-            'submitted_at' => $row['submitted_at'],
-            'is_late' => (int)$row['is_late'],
-            'grade' => $row['grade'] === null ? null : (float)$row['grade'],
-            'file' => $row['resource_id'] === null ? null : [
+        $submissionId = (int)$row['submission_id'];
+        if (!isset($itemsBySubmissionId[$submissionId])) {
+            $itemsBySubmissionId[$submissionId] = [
+                'submission_id' => $submissionId,
+                'assignment_id' => (int)$row['assignment_id'],
+                'student_user_id' => (int)$row['student_user_id'],
+                'version' => (int)$row['version'],
+                'status' => (string)$row['status'],
+                'submitted_at' => $row['submitted_at'],
+                'is_late' => (int)$row['is_late'],
+                'grade' => $row['grade'] === null ? null : (float)$row['grade'],
+                'files' => [],
+            ];
+        }
+
+        if ($row['resource_id'] !== null) {
+            $itemsBySubmissionId[$submissionId]['files'][] = [
                 'resource_id' => (int)$row['resource_id'],
                 'name' => (string)($row['file_name'] ?? ''),
                 'mime_type' => (string)($row['mime_type'] ?? ''),
                 'file_size' => $row['file_size'] === null ? null : (int)$row['file_size'],
                 'preview_url' => (string)($row['drive_preview_url'] ?? ''),
-            ],
-        ];
+            ];
+        }
     }
+
+    $items = array_values($itemsBySubmissionId);
 
     $response = ['items' => $items];
     if ($debugMode) {

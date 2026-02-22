@@ -8,6 +8,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_common.php';
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
+lms_require_feature(['assignments', 'lms_assignments']);
 $courseId = (int) ($_GET['course_id'] ?? 0);
 if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
@@ -15,7 +16,7 @@ if ($courseId <= 0) {
 lms_course_access($user, $courseId);
 
 $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && lms_user_role($user) === 'admin';
-$debug = ['steps' => []];
+$debug = $debugMode ? ['steps' => []] : null;
 
 try {
     $pdo = db();
@@ -28,7 +29,9 @@ try {
               AND (:is_staff = 1 OR status = \'published\')
             ORDER BY due_at ASC, assignment_id ASC';
     $params = [':course_id' => $courseId, ':is_staff' => $isStaff ? 1 : 0];
-    $debug['steps'][] = ['step' => 'list_assignments', 'sql' => $sql, 'params' => $params];
+    if ($debugMode) {
+        $debug['steps'][] = ['step' => 'list_assignments', 'sql' => $sql, 'params' => $params];
+    }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 

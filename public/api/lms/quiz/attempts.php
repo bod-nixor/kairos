@@ -27,6 +27,10 @@ try {
     lms_course_access($user, (int)$quiz['course_id']);
 
     $role = lms_user_role($user);
+    if (!lms_is_staff_role($role) && (string)$quiz['status'] !== 'published') {
+        lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
+    }
+
     $all = in_array($role, ['manager', 'admin', 'ta'], true) ? 1 : 0;
     $attemptSql = 'SELECT attempt_id, assessment_id, user_id, status, score, max_score, started_at, submitted_at, grading_status
                    FROM lms_assessment_attempts
@@ -49,7 +53,9 @@ try {
             'status' => (string)$row['status'],
             'score' => $score,
             'max_score' => $maxScore,
-            'score_pct' => ($score !== null && $maxScore && $maxScore > 0) ? (int)round(($score / $maxScore) * 100) : 0,
+            'score_pct' => ($score !== null && $maxScore !== null && $maxScore > 0)
+                ? (int)round(($score / $maxScore) * 100)
+                : null,
             'started_at' => $row['started_at'],
             'submitted_at' => $row['submitted_at'],
             'grading_status' => (string)$row['grading_status'],

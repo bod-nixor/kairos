@@ -10,11 +10,11 @@ if ($assessmentId <= 0) {
     lms_error('validation_error', 'assessment_id required', 422);
 }
 
-$pdo = db();
 $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && lms_user_role($user) === 'admin';
 $debug = ['steps' => []];
 
 try {
+    $pdo = db();
     $sql = 'SELECT assessment_id, course_id, section_id, title, instructions, status, max_attempts, time_limit_minutes, available_from, due_at
             FROM lms_assessments
             WHERE assessment_id = :assessment_id AND deleted_at IS NULL
@@ -54,19 +54,19 @@ try {
     $questionCount = (int)$qStmt->fetchColumn();
 
     $response = [
-    'quiz_id' => (int)$row['assessment_id'],
-    'assessment_id' => (int)$row['assessment_id'],
-    'course_id' => (int)$row['course_id'],
-    'title' => (string)$row['title'],
-    'description' => (string)($row['instructions'] ?? ''),
-    'instructions' => (string)($row['instructions'] ?? ''),
-    'status' => (string)$row['status'],
-    'max_attempts' => (int)$row['max_attempts'],
-    'attempts_used' => $attemptsUsed,
-    'time_limit_min' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'],
-    'time_limit_minutes' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'],
-    'question_count' => $questionCount,
-    'available_from' => $row['available_from'],
+        'quiz_id' => (int)$row['assessment_id'],
+        'assessment_id' => (int)$row['assessment_id'],
+        'course_id' => (int)$row['course_id'],
+        'title' => (string)$row['title'],
+        'description' => (string)($row['instructions'] ?? ''),
+        'instructions' => (string)($row['instructions'] ?? ''),
+        'status' => (string)$row['status'],
+        'max_attempts' => (int)$row['max_attempts'],
+        'attempts_used' => $attemptsUsed,
+        'time_limit_min' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'],
+        'time_limit_minutes' => $row['time_limit_minutes'] === null ? null : (int)$row['time_limit_minutes'],
+        'question_count' => $questionCount,
+        'available_from' => $row['available_from'],
         'due_at' => $row['due_at'],
     ];
     if ($debugMode) {

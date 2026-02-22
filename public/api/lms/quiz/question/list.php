@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/_common.php';
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
+lms_require_feature(['quizzes', 'lms_quizzes']);
 $assessmentId = (int)($_GET['assessment_id'] ?? 0);
 if ($assessmentId <= 0) {
     lms_error('validation_error', 'assessment_id required', 422);
