@@ -37,17 +37,20 @@
     function logModuleDebug(modules) {
         if (!DEBUG_MODULES) return;
         const list = Array.isArray(modules) ? modules : [];
-        const byModule = {};
-        list.forEach((mod) => {
-            const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
+        const summary = list.reduce((acc, mod) => {
+            const parsedModuleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
+            const moduleId = Number.isFinite(parsedModuleId) ? parsedModuleId : 0;
             const count = Array.isArray(mod.items) ? mod.items.length : 0;
-            if (moduleId > 0) byModule[moduleId] = count;
-        });
+            acc.items_count += count;
+            acc.module_item_counts[moduleId] = (acc.module_item_counts[moduleId] || 0) + count;
+            return acc;
+        }, { items_count: 0, module_item_counts: {} });
+
         console.debug('[modules] debug', {
             course_id: COURSE_ID_INT,
             modules_count: list.length,
-            items_count: list.reduce((sum, mod) => sum + (Array.isArray(mod.items) ? mod.items.length : 0), 0),
-            module_item_counts: byModule,
+            items_count: summary.items_count,
+            module_item_counts: summary.module_item_counts,
         });
     }
 
