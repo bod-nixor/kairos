@@ -197,11 +197,61 @@
         showEl('courseLoaded');
     }
 
+    // ── Admin: Announcement creation ──────────────────────────────
+    function setupAnnouncementModal() {
+        const modal = $('kAnnModal');
+        const form = $('kAnnForm');
+        if (!modal || !form) return;
+
+        $('postAnnBtn')?.addEventListener('click', () => {
+            modal.showModal();
+            setTimeout(() => { const f = form.querySelector('input'); if (f) f.focus(); }, 100);
+        });
+        $('kAnnModalClose')?.addEventListener('click', () => modal.close());
+        $('kAnnModalCancel')?.addEventListener('click', () => modal.close());
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = $('kAnnModalSubmit');
+            btn.disabled = true; btn.textContent = 'Posting…';
+            try {
+                const fd = new FormData(form);
+                const res = await LMS.api('POST', './api/lms/announcements/create.php', {
+                    course_id: parseInt(COURSE_ID),
+                    title: fd.get('title'),
+                    body: fd.get('body'),
+                });
+                if (res.ok) {
+                    LMS.toast('Announcement posted!', 'success');
+                    modal.close();
+                    form.reset();
+                    await loadPage(); // Refresh to show new announcement
+                } else {
+                    LMS.toast(res.data?.error?.message || 'Failed to post announcement.', 'error');
+                }
+            } catch (err) {
+                LMS.toast('Network error. Please try again.', 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Post Announcement';
+            }
+        });
+    }
+
     // ── Boot ───────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+
+        // Show admin controls for manager/admin
+        const role = (session.me.role_name || session.me.role || '').toLowerCase();
+        if (role === 'admin' || role === 'manager') {
+            const btn = $('postAnnBtn');
+            if (btn) btn.classList.remove('hidden');
+        }
+        setupAnnouncementModal();
+
         await loadPage();
     });
 

@@ -46,7 +46,7 @@ try {
                 (SELECT COUNT(*) FROM lms_submissions sub
                  WHERE sub.student_user_id = u.user_id AND sub.course_id = :cid4) AS submission_count,
                 (SELECT MAX(GREATEST(
-                    COALESCE((SELECT MAX(c2.created_at) FROM lms_lesson_completions c2
+                    COALESCE((SELECT MAX(c2.completed_at) FROM lms_lesson_completions c2
                               JOIN lms_lessons l2 ON l2.lesson_id = c2.lesson_id
                               JOIN lms_course_sections s2 ON s2.section_id = l2.section_id
                               WHERE s2.course_id = :cid5 AND c2.user_id = u.user_id), \'1970-01-01\'),
@@ -74,7 +74,7 @@ try {
             : 0;
         // Treat any epoch/zero datetime as null — string-based to avoid timezone issues
         $lastActive = null;
-        if (!empty($row['last_active']) && !str_starts_with($row['last_active'], '1970-')) {
+        if (!empty($row['last_active']) && substr($row['last_active'], 0, 5) !== '1970-') {
             $lastActive = $row['last_active'];
         }
         $result[] = [

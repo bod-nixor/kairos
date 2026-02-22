@@ -23,11 +23,11 @@ try {
     $st = $pdo->prepare(
         'SELECT u.name AS student_name, COUNT(*) AS activity_count
          FROM (
-             SELECT c.user_id, c.created_at
+             SELECT c.user_id, c.completed_at AS activity_at
              FROM lms_lesson_completions c
              JOIN lms_lessons l ON l.lesson_id = c.lesson_id
              JOIN lms_course_sections s ON s.section_id = l.section_id
-             WHERE s.course_id = :cid1 AND c.created_at >= :cutoff1
+             WHERE s.course_id = :cid1 AND c.completed_at >= :cutoff1
              UNION ALL
              SELECT sub.student_user_id AS user_id, sub.submitted_at AS created_at
              FROM lms_submissions sub

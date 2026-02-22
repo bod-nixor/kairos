@@ -1,5 +1,6 @@
 /**
  * modules.js — Modules list page controller
+ * Handles module display + admin content creation (module, lesson, assignment, quiz)
  */
 (function () {
     'use strict';
@@ -11,6 +12,8 @@
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
+
+    let isAdmin = false;
 
     const TYPE_ICONS = {
         lesson: '📄', quiz: '⚡', assignment: '📤', file: '📎',
@@ -79,6 +82,17 @@
                     ? `<span class="k-status k-status--success" aria-label="Completed">✓ Completed</span>`
                     : `<span class="k-status k-status--info" aria-label="In progress">${done}/${total}</span>`;
 
+            // Admin: per-module "Add Item" dropdown
+            const addItemHtml = isAdmin ? `
+              <div class="k-add-item-menu" data-section-id="${mod.id}">
+                <button type="button" class="k-admin-btn k-admin-btn--sm k-add-item-toggle">+ Add Item</button>
+                <div class="k-add-item-menu__dropdown">
+                  <button type="button" class="k-add-item-menu__item" data-action="add-lesson" data-section-id="${mod.id}">📄 Lesson</button>
+                  <button type="button" class="k-add-item-menu__item" data-action="add-assignment" data-section-id="${mod.id}">📤 Assignment</button>
+                  <button type="button" class="k-add-item-menu__item" data-action="add-quiz" data-section-id="${mod.id}">⚡ Quiz</button>
+                </div>
+              </div>` : '';
+
             return `
         <div class="k-module${mod.locked ? ' k-module--locked' : ''}" role="listitem">
           <div class="k-module__header"
@@ -91,6 +105,7 @@
             <div class="k-module__meta">
               ${statusBadge}
               <span class="k-module__count">${total} item${total !== 1 ? 's' : ''}</span>
+              ${addItemHtml}
             </div>
           </div>
           <div class="k-module__items" id="mod-items-${mod.id}"
@@ -103,11 +118,14 @@
 
         showEl('moduleList');
         attachAccordion();
+        if (isAdmin) attachAddItemMenus();
     }
 
     function attachAccordion() {
         document.querySelectorAll('.k-module__header').forEach(header => {
-            const toggleFn = () => {
+            const toggleFn = (e) => {
+                // Don't toggle if clicking an admin button
+                if (e && e.target.closest('.k-add-item-menu')) return;
                 const module = header.closest('.k-module');
                 if (!module) return;
                 if (module.classList.contains('k-module--locked')) return;
@@ -120,7 +138,7 @@
                 items.style.display = isOpen ? 'none' : '';
             };
             header.addEventListener('click', toggleFn);
-            header.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFn(); } });
+            header.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFn(e); } });
         });
 
         // Open first module by default
@@ -140,6 +158,176 @@
         });
     });
 
+    // ── Admin: Add-item dropdown menus ────────────────────────
+    function attachAddItemMenus() {
+        // Toggle dropdown
+        document.querySelectorAll('.k-add-item-toggle').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = btn.closest('.k-add-item-menu');
+                // Close other open menus
+                document.querySelectorAll('.k-add-item-menu.is-open').forEach(m => {
+                    if (m !== menu) m.classList.remove('is-open');
+                });
+                menu.classList.toggle('is-open');
+            });
+        });
+
+        // Menu item clicks
+        document.querySelectorAll('.k-add-item-menu__item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = item.dataset.action;
+                const sectionId = item.dataset.sectionId;
+                item.closest('.k-add-item-menu').classList.remove('is-open');
+                if (action === 'add-lesson') openCreateModal('lesson', sectionId);
+                else if (action === 'add-assignment') openCreateModal('assignment', sectionId);
+                else if (action === 'add-quiz') openCreateModal('quiz', sectionId);
+            });
+        });
+
+        // Close menus on outside click
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.k-add-item-menu.is-open').forEach(m => m.classList.remove('is-open'));
+        });
+    }
+
+    // ── Admin: Create modal logic ─────────────────────────────
+    const MODAL_CONFIG = {
+        module: {
+            title: 'Create New Module',
+            fields: `
+                <div class="k-form-field"><label for="kf-title">Module Title *</label><input id="kf-title" name="title" required placeholder="e.g. Week 1: Introduction"></div>
+                <div class="k-form-field"><label for="kf-desc">Description</label><textarea id="kf-desc" name="description" placeholder="Brief module description (optional)"></textarea></div>`,
+            api: './api/lms/sections/create.php',
+            payload: (fd) => ({ course_id: parseInt(COURSE_ID), title: fd.get('title'), description: fd.get('description') || null }),
+            successMsg: 'Module created!',
+        },
+        lesson: {
+            title: 'Add Lesson',
+            fields: `
+                <div class="k-form-field"><label for="kf-title">Lesson Title *</label><input id="kf-title" name="title" required placeholder="e.g. Introduction to PHP"></div>
+                <div class="k-form-field"><label for="kf-summary">Summary</label><textarea id="kf-summary" name="summary" placeholder="Brief lesson summary (optional)"></textarea></div>`,
+            api: './api/lms/lessons/create.php',
+            payload: (fd, sectionId) => ({ course_id: parseInt(COURSE_ID), section_id: parseInt(sectionId), title: fd.get('title'), summary: fd.get('summary') || null }),
+            successMsg: 'Lesson added!',
+        },
+        assignment: {
+            title: 'Add Assignment',
+            fields: `
+                <div class="k-form-field"><label for="kf-title">Assignment Title *</label><input id="kf-title" name="title" required placeholder="e.g. Homework 1"></div>
+                <div class="k-form-field"><label for="kf-instructions">Instructions</label><textarea id="kf-instructions" name="instructions" placeholder="Describe what students should submit"></textarea></div>
+                <div class="k-form-field"><label for="kf-points">Max Points</label><input id="kf-points" name="max_points" type="number" min="0" step="1" value="100"></div>
+                <div class="k-form-field"><label for="kf-due">Due Date</label><input id="kf-due" name="due_at" type="datetime-local"></div>
+                <div class="k-form-field"><label for="kf-status">Status</label><select id="kf-status" name="status"><option value="draft">Draft</option><option value="published">Published</option></select></div>`,
+            api: './api/lms/assignments/create.php',
+            payload: (fd, sectionId) => ({
+                course_id: parseInt(COURSE_ID),
+                section_id: parseInt(sectionId),
+                title: fd.get('title'),
+                instructions: fd.get('instructions') || null,
+                max_points: parseFloat(fd.get('max_points')) || 100,
+                due_at: fd.get('due_at') || null,
+                status: fd.get('status') || 'draft',
+            }),
+            successMsg: 'Assignment added!',
+        },
+        quiz: {
+            title: 'Add Quiz',
+            fields: `
+                <div class="k-form-field"><label for="kf-title">Quiz Title *</label><input id="kf-title" name="title" required placeholder="e.g. Week 1 Practice Quiz"></div>
+                <div class="k-form-field"><label for="kf-instructions">Instructions</label><textarea id="kf-instructions" name="instructions" placeholder="Quiz instructions for students"></textarea></div>
+                <div class="k-form-field"><label for="kf-attempts">Max Attempts</label><input id="kf-attempts" name="max_attempts" type="number" min="1" value="1"></div>
+                <div class="k-form-field"><label for="kf-time">Time Limit (minutes)</label><input id="kf-time" name="time_limit_minutes" type="number" min="0" placeholder="Leave blank for unlimited"></div>
+                <div class="k-form-field"><label for="kf-due">Due Date</label><input id="kf-due" name="due_at" type="datetime-local"></div>
+                <div class="k-form-field"><label for="kf-status">Status</label><select id="kf-status" name="status"><option value="draft">Draft</option><option value="published">Published</option></select></div>`,
+            api: './api/lms/quiz/create.php',
+            payload: (fd, sectionId) => ({
+                course_id: parseInt(COURSE_ID),
+                section_id: parseInt(sectionId),
+                title: fd.get('title'),
+                instructions: fd.get('instructions') || null,
+                max_attempts: parseInt(fd.get('max_attempts')) || 1,
+                time_limit_minutes: fd.get('time_limit_minutes') ? parseInt(fd.get('time_limit_minutes')) : null,
+                due_at: fd.get('due_at') || null,
+                status: fd.get('status') || 'draft',
+            }),
+            successMsg: 'Quiz added!',
+        },
+    };
+
+    let activeModalType = null;
+    let activeModalSectionId = null;
+
+    function openCreateModal(type, sectionId) {
+        const config = MODAL_CONFIG[type];
+        if (!config) return;
+        activeModalType = type;
+        activeModalSectionId = sectionId || null;
+
+        $('kCreateModalTitle').textContent = config.title;
+        $('kCreateModalBody').innerHTML = config.fields;
+        $('kCreateModalSubmit').textContent = type === 'module' ? 'Create Module' : 'Add ' + type.charAt(0).toUpperCase() + type.slice(1);
+        $('kCreateModal').showModal();
+
+        // Focus first input
+        setTimeout(() => {
+            const first = $('kCreateModalBody').querySelector('input, textarea');
+            if (first) first.focus();
+        }, 100);
+    }
+
+    function closeCreateModal() {
+        $('kCreateModal').close();
+        activeModalType = null;
+        activeModalSectionId = null;
+    }
+
+    // Modal event wiring
+    if ($('kCreateModal')) {
+        $('kCreateModalClose').addEventListener('click', closeCreateModal);
+        $('kCreateModalCancel').addEventListener('click', closeCreateModal);
+        $('kCreateModal').addEventListener('click', (e) => {
+            if (e.target === $('kCreateModal')) closeCreateModal();
+        });
+
+        $('kCreateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const config = MODAL_CONFIG[activeModalType];
+            if (!config) return;
+
+            const submitBtn = $('kCreateModalSubmit');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating…';
+
+            try {
+                const fd = new FormData($('kCreateForm'));
+                const payload = config.payload(fd, activeModalSectionId);
+                const res = await LMS.api('POST', config.api, payload);
+
+                if (res.ok) {
+                    LMS.toast(config.successMsg, 'success');
+                    closeCreateModal();
+                    await loadPage(); // Refresh module list
+                } else {
+                    const msg = res.data?.error?.message || 'Failed to create. Please try again.';
+                    LMS.toast(msg, 'error');
+                }
+            } catch (err) {
+                LMS.toast('Network error. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create';
+            }
+        });
+    }
+
+    // "New Module" button
+    if ($('addModuleBtn')) {
+        $('addModuleBtn').addEventListener('click', () => openCreateModal('module'));
+    }
+
+    // ── Main load ─────────────────────────────────────────────
     async function loadPage() {
         if (!COURSE_ID) {
             LMS.renderAccessDenied($('modulesAccessDenied'), 'No course specified.', '/');
@@ -186,9 +374,11 @@
 
         if (!modules.length) {
             showEl('modulesEmpty');
+            hideEl('moduleList');
             return;
         }
 
+        hideEl('modulesEmpty');
         renderModules(modules);
     }
 
@@ -196,6 +386,14 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+
+        // Show admin controls for manager/admin
+        const role = (session.me.role_name || session.me.role || '').toLowerCase();
+        isAdmin = role === 'admin' || role === 'manager';
+        if (isAdmin) {
+            showEl('addModuleBtn');
+        }
+
         await loadPage();
     });
 

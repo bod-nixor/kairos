@@ -2589,3 +2589,169 @@
     height: auto;
     margin-bottom: var(--space-4);
 }
+
+/* ── Admin Content Modal ──────────────────────────────────── */
+.k-modal {
+    border: none;
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--text);
+    width: min(480px, 90vw);
+    padding: 0;
+    box-shadow: var(--elev-3);
+}
+
+.k-modal::backdrop {
+    background: rgba(0, 0, 0, .45);
+    backdrop-filter: blur(4px);
+}
+
+.k-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--border);
+}
+
+.k-modal__title {
+    font-size: var(--font-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+}
+
+.k-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px;
+    line-height: 1;
+}
+
+.k-modal__close:hover {
+    color: var(--text);
+}
+
+.k-modal__body {
+    padding: var(--space-5) var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.k-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border);
+}
+
+.k-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.k-form-field label {
+    font-size: var(--font-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+}
+
+.k-form-field input,
+.k-form-field textarea,
+.k-form-field select {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--font-sm);
+    font-family: inherit;
+    transition: border-color .15s;
+}
+
+.k-form-field input:focus,
+.k-form-field textarea:focus,
+.k-form-field select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .15);
+}
+
+.k-form-field textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* Admin action buttons */
+.k-admin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px dashed var(--primary);
+    background: transparent;
+    color: var(--primary);
+    font-size: var(--font-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.k-admin-btn:hover {
+    background: var(--primary);
+    color: #fff;
+    border-style: solid;
+}
+
+.k-admin-btn--sm {
+    padding: 4px 10px;
+    font-size: var(--font-xs);
+}
+
+/* Per-module add-item dropdown */
+.k-add-item-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.k-add-item-menu__dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 20;
+    min-width: 180px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--elev-2);
+    padding: 6px 0;
+    margin-top: 4px;
+}
+
+.k-add-item-menu.is-open .k-add-item-menu__dropdown {
+    display: block;
+}
+
+.k-add-item-menu__item {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font-size: var(--font-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background .1s;
+}
+
+.k-add-item-menu__item:hover {
+    background: var(--bg-hover);
+}
