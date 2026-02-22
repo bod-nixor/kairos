@@ -36,6 +36,39 @@
       .replace(/>/g, '&gt;');
   }
 
+
+  function parseStartSeconds(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    if (/^\d+$/.test(raw)) return Number(raw);
+    const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
+    if (!m) return 0;
+    return (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
+  }
+
+  function toYoutubeEmbedUrl(inputUrl) {
+    if (!inputUrl) return null;
+    try {
+      const parsed = new URL(inputUrl);
+      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+      let videoId = '';
+      if (host === 'youtube.com' || host === 'm.youtube.com') {
+        if (parsed.pathname === '/watch') videoId = parsed.searchParams.get('v') || '';
+        else if (parsed.pathname.startsWith('/embed/')) videoId = parsed.pathname.split('/')[2] || '';
+        else if (parsed.pathname.startsWith('/shorts/')) videoId = parsed.pathname.split('/')[2] || '';
+      } else if (host === 'youtu.be') {
+        videoId = parsed.pathname.replace(/^\//, '').split('/')[0] || '';
+      }
+      if (!videoId) return null;
+      const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
+      const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
+      if (start > 0) embed.searchParams.set('start', String(start));
+      return embed.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   function sanitizeForRender(html) {
     const template = document.createElement('template');
     template.innerHTML = html || '';
@@ -217,7 +250,7 @@
       return;
     }
 
-    const type = kind === 'video' ? 'video' : 'file';
+    const type = kind === 'video' ? 'video' : 'pdf';
     const res = await LMS.api('POST', './api/lms/resources/create.php', {
       course_id: Number(courseId),
       title,
@@ -241,12 +274,19 @@
     if (!editor) return;
 
     if (type === 'video') {
-      const safeUrl = escAttr(url);
-      const snippet = `<p><iframe src="${safeUrl}" width="640" height="360" allow="autoplay; encrypted-media" allowfullscreen></iframe></p>`;
-      document.execCommand('insertHTML', false, snippet);
+      const embedUrl = toYoutubeEmbedUrl(url);
+      if (embedUrl) {
+        const safeUrl = escAttr(embedUrl);
+        const fallback = escAttr(url);
+        const snippet = `<p><iframe src="${safeUrl}" width="640" height="360" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><br><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab ↗</a></p>`;
+        document.execCommand('insertHTML', false, snippet);
+      } else {
+        const viewerHref = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;
+        document.execCommand('insertHTML', false, `<p><a class="k-resource-link" href="${escAttr(viewerHref)}" target="_blank" rel="noopener noreferrer">${escAttr(title)}</a></p>`);
+      }
     } else {
       const href = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;
-      const snippet = `<p><a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escAttr(title)}</a></p>`;
+      const snippet = `<p><a class="k-resource-link" href="${escAttr(href)}" target="_blank" rel="noopener noreferrer">${escAttr(title)}</a></p>`;
       document.execCommand('insertHTML', false, snippet);
     }
 
@@ -265,13 +305,27 @@
 
     $('addLinkBtn')?.addEventListener('click', () => {
       if (!state.canEdit || !state.isEditMode) return;
+      const editor = $('lessonEditor');
+      editor?.focus();
+      const selection = document.getSelection();
+      const hasSelection = !!selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
       const url = window.prompt('Enter link URL');
       if (!isSafeHttpUrl(url)) {
         LMS.toast('Please enter a valid http(s) URL.', 'warning');
         return;
       }
-      const safe = escAttr(url);
-      document.execCommand('insertHTML', false, `<a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`);
+
+      if (hasSelection) {
+        document.execCommand('createLink', false, url);
+      } else {
+        const text = window.prompt('Enter link text') || url;
+        document.execCommand('insertHTML', false, `<a href="${escAttr(url)}">${escAttr(text)}</a>`);
+      }
+
+      editor?.querySelectorAll('a[href]').forEach((anchor) => {
+        anchor.setAttribute('target', '_blank');
+        anchor.setAttribute('rel', 'noopener noreferrer');
+      });
     });
 
     $('addPdfBtn')?.addEventListener('click', () => {
