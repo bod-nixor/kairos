@@ -48,7 +48,7 @@
         return `
       <a href="${locked ? '#' : LMS.escHtml(itemHref(item))}"
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}"
-         aria-disabled="${locked}"
+         aria-disabled="${locked ? 'true' : 'false'}"
          ${locked ? 'tabindex="-1"' : ''}
          role="listitem">
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
@@ -306,6 +306,7 @@
             if (!config) return;
 
             const submitBtn = $('kCreateModalSubmit');
+            const originalLabel = submitBtn.textContent;
             submitBtn.disabled = true;
             submitBtn.textContent = 'Creating…';
 
@@ -326,7 +327,7 @@
                 LMS.toast('Network error. Please try again.', 'error');
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create';
+                submitBtn.textContent = originalLabel;
             }
         });
     }
