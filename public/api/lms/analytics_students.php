@@ -37,8 +37,8 @@ try {
     $st = $pdo->prepare(
         'SELECT u.user_id, u.name, u.email,
                 (SELECT COUNT(*) FROM lms_lesson_completions c
-                 JOIN lms_lessons l ON l.lesson_id = c.lesson_id
-                 JOIN lms_course_sections s ON s.section_id = l.section_id
+                 JOIN lms_lessons l ON l.lesson_id = c.lesson_id AND l.deleted_at IS NULL
+                 JOIN lms_course_sections s ON s.section_id = l.section_id AND s.deleted_at IS NULL
                  WHERE s.course_id = :cid2 AND c.user_id = u.user_id) AS completed_lessons,
                 (SELECT ROUND(AVG((g.score / NULLIF(g.max_score, 0)) * 100), 1)
                  FROM lms_grades g WHERE g.student_user_id = u.user_id AND g.course_id = :cid3
@@ -72,9 +72,9 @@ try {
         $completionPct = $totalLessons > 0
             ? round(($completedLessons / $totalLessons) * 100, 1)
             : 0;
-        // Treat any epoch/zero datetime as null (handles "1970-01-01", "1970-01-01 00:00:00", etc.)
+        // Treat any epoch/zero datetime as null — string-based to avoid timezone issues
         $lastActive = null;
-        if (!empty($row['last_active']) && strtotime($row['last_active']) > 0) {
+        if (!empty($row['last_active']) && !str_starts_with($row['last_active'], '1970-')) {
             $lastActive = $row['last_active'];
         }
         $result[] = [

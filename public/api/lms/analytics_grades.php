@@ -11,6 +11,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_common.php';
 
 $user = lms_require_roles(['manager', 'admin']);
+lms_require_feature(['course_analytics', 'analytics']);
 $courseId = (int) ($_GET['course_id'] ?? 0);
 $assignmentId = (int) ($_GET['assignment_id'] ?? 0);
 if ($courseId <= 0) {
@@ -40,7 +41,7 @@ $buckets = [
     ['label' => '60-70%', 'min' => 60, 'max' => 70],
     ['label' => '70-80%', 'min' => 70, 'max' => 80],
     ['label' => '80-90%', 'min' => 80, 'max' => 90],
-    ['label' => '90-100%', 'min' => 90, 'max' => PHP_FLOAT_MAX],
+    ['label' => '90%+', 'min' => 90, 'max' => PHP_FLOAT_MAX],
 ];
 
 try {

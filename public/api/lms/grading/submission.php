@@ -21,6 +21,7 @@ $st = $pdo->prepare(
             g.status AS grade_status
      FROM lms_submissions s
      JOIN users u ON u.user_id = s.student_user_id
+     JOIN lms_assignments a ON a.assignment_id = s.assignment_id AND a.deleted_at IS NULL
      LEFT JOIN lms_grades g ON g.submission_id = s.submission_id
      WHERE s.submission_id = :id
      LIMIT 1'
@@ -30,6 +31,9 @@ $row = $st->fetch();
 if (!$row) {
     lms_error('not_found', 'Submission not found', 404);
 }
+
+// Enforce course-scoped access for all roles (prevents IDOR via direct submission_id)
+lms_course_access($user, (int) $row['course_id']);
 
 // TA restriction: only assigned items
 if ($user['role_name'] === 'ta') {

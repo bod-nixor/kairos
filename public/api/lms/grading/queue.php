@@ -16,7 +16,7 @@ $pdo = db();
 
 $sql = 'SELECT s.submission_id AS id, s.assignment_id, s.student_user_id,
                u.name AS student_name, s.status, s.submitted_at, s.is_late,
-               s.text_submission AS text_content,
+               LEFT(s.text_submission, 200) AS text_preview,
                COALESCE(g.status, \'ungraded\') AS grade_status,
                g.feedback, g.score
         FROM lms_submissions s
