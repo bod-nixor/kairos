@@ -90,6 +90,7 @@
         const items = Array.isArray(itemsPayload) ? itemsPayload : (itemsPayload.items || []);
 
         renderList(items);
+        hideEl('errorView');
         showEl('loadedView');
     }
 
