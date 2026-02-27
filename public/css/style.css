@@ -610,6 +610,7 @@ body {
 .k-settings-fab {
   position: fixed;
   right: 18px;
+  /* Use constant() for iOS <11.2, then env() for modern safe-area support. */
   bottom: calc(18px + constant(safe-area-inset-bottom));
   bottom: calc(18px + env(safe-area-inset-bottom));
   z-index: 1200;
@@ -643,6 +644,9 @@ body {
 .k-settings-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
 .k-settings-check { display:flex; align-items:center; gap:8px; font-size:14px; }
 
+:root[data-gradient-theme="ocean"] {
+  --primary: #1769ff;
+}
 :root[data-gradient-theme="sunset"] {
   --primary: #f97316;
 }

@@ -40,9 +40,9 @@
         return `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}&debug=1`;
     }
 
-    function isExternalHttpUrl(url) {
+    function isExternalUrl(href) {
         try {
-            const parsed = new URL(String(url || ''), window.location.origin);
+            const parsed = new URL(String(href || ''), window.location.origin);
             return /^https?:$/i.test(parsed.protocol) && parsed.origin !== window.location.origin;
         } catch (_) {
             return false;
@@ -52,7 +52,7 @@
     function navigateToHref(href) {
         const url = String(href || '').trim();
         if (!url) return false;
-        if (isExternalHttpUrl(url)) {
+        if (isExternalUrl(url)) {
             LMS.confirm('Open external link', `${url} is being opened in a new tab. Proceed?`, () => {
                 window.open(url, '_blank', 'noopener,noreferrer');
             }, { okLabel: 'Yes' });
@@ -89,16 +89,18 @@
           </span>` : '';
 
         const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
+        const viewHref = itemHref(item, 'view');
+        const itemRole = !locked && isExternalUrl(viewHref) ? 'link' : 'button';
         const titleMarkup = locked
             ? `<span>${titleText}</span>`
-            : `<a href="${LMS.escHtml(itemHref(item, 'view'))}" style="color:inherit;text-decoration:none;"${isExternalHttpUrl(itemHref(item, 'view')) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : ""}>${titleText}</a>`;
+            : `<a href="${LMS.escHtml(viewHref)}" style="color:inherit;text-decoration:none;"${isExternalUrl(viewHref) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : ""}>${titleText}</a>`;
 
         return `
       <div 
-         ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
+         ${!locked ? `data-href="${LMS.escHtml(viewHref)}" tabindex="0"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
-         role="button"
+         role="${itemRole}"
          style="${!locked ? 'cursor:pointer;' : ''}">
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
