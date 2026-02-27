@@ -23,12 +23,20 @@ This checklist validates redirect behavior for Kairos pages under `/signoff/`.
    - Expect one redirect to `/signoff/`.
    - Confirm redirect halts after landing on `/signoff/`.
 
-4. **Logged in on login/home entry**
+4. **Rapid multi-401 redirect throttling**
+   - Clear session cookies (or force logout in another tab) before loading a protected route.
+   - Open DevTools `Network` + `Application > Session Storage`.
+   - Open `https://kairos.nixorcorporate.com/signoff/course.html?course_id=3` in a fresh tab.
+   - Trigger multiple unauthorized API responses during page boot (for example, by replaying/stubbing several `./api/*` requests to return `401` in DevTools or by reloading while logged out to generate parallel 401s).
+   - Verify browser navigation contains only one redirect to `/signoff/`.
+   - Verify `sessionStorage['kairos:lastRedirect']` is written once for that redirect target (timestamp present), and additional 401 responses do not trigger further redirects while the sentinel window is active.
+
+5. **Logged in on login/home entry**
    - Open `https://kairos.nixorcorporate.com/signoff/`.
    - Expect one transition into authenticated dashboard state.
    - Reload 3 times and verify no loop.
 
-5. **Path normalization behavior**
+6. **Path normalization behavior**
    - Open these paths manually:
      - `/signoff`
      - `/signoff/`
