@@ -66,12 +66,6 @@
             return;
         }
 
-        if (!listRes.ok) {
-            showEl('errorView');
-            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
-            return;
-        }
-
         const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             document.title = `Quizzes — ${course.name || 'Course'} — Kairos`;
@@ -87,14 +81,21 @@
             });
         }
 
-        const itemsPayload = listRes.ok ? (listRes.data?.data || listRes.data || []) : [];
+        if (!listRes.ok) {
+            showEl('errorView');
+            return;
+        }
+
+        const itemsPayload = listRes.data?.data || listRes.data || [];
         const items = Array.isArray(itemsPayload) ? itemsPayload : (itemsPayload.items || []);
 
         renderList(items);
+        hideEl('errorView');
         showEl('loadedView');
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+        $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
