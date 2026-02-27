@@ -168,7 +168,11 @@
             document.title = `Analytics — ${course.name || 'Course'} — Kairos`;
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
             $('analyticsSubtitle') && ($('analyticsSubtitle').textContent = `${course.name} · Manager view`);
-            $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+            const bc = $('kBreadCourse');
+            if (bc) {
+                bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
+                bc.textContent = course.name || 'Course';
+            }
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });

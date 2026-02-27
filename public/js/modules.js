@@ -45,18 +45,37 @@
         if (item.points) metaParts.push(`${item.points} pts`);
         if (item.duration_min) metaParts.push(`${item.duration_min} min`);
 
+        // Status badges for admin visibility
+        const isDraft = item.status === 'draft' || item.published === false || item.published === 0;
+        const isMandatory = item.mandatory === true || item.mandatory === 1 || item.is_mandatory === true || item.is_mandatory === 1;
+        const statusBadges = [];
+        if (isDraft) statusBadges.push('<span class="k-badge k-badge--draft" title="Draft">Draft</span>');
+        if (isMandatory) statusBadges.push('<span class="k-badge k-badge--mandatory" title="Mandatory">Required</span>');
+
+        // Admin per-item controls
+        const adminBtns = isAdmin ? `
+          <span class="k-module-item__admin-actions" onclick="event.preventDefault();event.stopPropagation();">
+            <a href="${LMS.escHtml(itemHref(item))}" class="k-btn-icon" title="Edit" onclick="event.stopPropagation();">
+              ✏️
+            </a>
+          </span>` : '';
+
         return `
       <a href="${locked ? '#' : LMS.escHtml(itemHref(item))}"
-         class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}"
+         class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
          ${locked ? 'tabindex="-1"' : ''}
          role="listitem">
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
-          <div class="k-module-item__title">${LMS.escHtml(item.name)}</div>
+          <div class="k-module-item__title">
+            ${LMS.escHtml(item.name)}
+            ${statusBadges.join(' ')}
+          </div>
           ${metaParts.length ? `<div class="k-module-item__meta">${LMS.escHtml(metaParts.join(' · '))}</div>` : ''}
         </div>
         <div class="k-module-item__right">
+          ${adminBtns}
           ${done ? '<span class="k-status k-status--success" aria-label="Completed">✓</span>' : ''}
           ${locked ? '<span class="k-module-item__lock" aria-label="Locked">🔒</span>' : ''}
         </div>

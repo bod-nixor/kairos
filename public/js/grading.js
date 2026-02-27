@@ -258,7 +258,11 @@
         const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
-            $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+            const bc = $('kBreadCourse');
+            if (bc) {
+                bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
+                bc.textContent = course.name || 'Course';
+            }
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });

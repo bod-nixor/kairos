@@ -369,6 +369,73 @@
     font-size: 14px;
 }
 
+/* ── Module Item Badges ────────────────────────────────────── */
+.k-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    line-height: 1.6;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+.k-badge--draft {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+[data-theme="dark"] .k-badge--draft {
+    background: #451a03;
+    color: #fbbf24;
+    border-color: #78350f;
+}
+
+.k-badge--mandatory {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+[data-theme="dark"] .k-badge--mandatory {
+    background: #450a0a;
+    color: #fca5a5;
+    border-color: #7f1d1d;
+}
+
+.k-module-item--draft {
+    opacity: .7;
+}
+
+.k-module-item__admin-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 4px;
+}
+
+.k-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 14px;
+    text-decoration: none;
+    transition: background .12s;
+    cursor: pointer;
+}
+
+.k-btn-icon:hover {
+    background: var(--primary-ghost);
+}
+
 /* ── Lesson Layout ──────────────────────────────────────────── */
 .k-lesson-layout {
     display: grid;

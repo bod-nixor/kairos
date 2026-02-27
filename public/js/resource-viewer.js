@@ -76,7 +76,11 @@
         $('resourceTitle') && ($('resourceTitle').textContent = resource.title || 'Resource');
         $('resourceType') && ($('resourceType').textContent = (type || 'file').toUpperCase());
         $('kBreadResource') && ($('kBreadResource').textContent = resource.title || 'Resource');
-        $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+        const bc = $('kBreadCourse');
+        if (bc) {
+            bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
+            bc.textContent = resource.course_name || 'Course';
+        }
         $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
         $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = resource.course_name || '');
         $('backToModules') && ($('backToModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);

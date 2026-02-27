@@ -32,11 +32,14 @@
                         class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
                 <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
                         class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
-                <a class="k-nav-item is-active" data-nav-key="quizzes" data-course-href="./quiz.html" href="#"
-                    aria-current="page"><span class="k-nav-item__icon">⚡</span><span
-                        class="k-nav-item__text">Quizzes</span></a>
-                <a class="k-nav-item hidden" data-course-href="./assignment.html" href="#" id="kNavAssignments"><span
-                        class="k-nav-item__icon">📤</span><span class="k-nav-item__text">Assignments</span></a>
+                <a class="k-nav-item is-active" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                    id="kNavQuizzes" aria-current="page">
+                    <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
+                    <span class="k-nav-item__text">Quizzes</span>
+                </a>
+                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                    id="kNavAssignments"><span class="k-nav-item__icon">📤</span><span
+                        class="k-nav-item__text">Assignments</span></a>
                 <a class="k-nav-item hidden" data-course-href="./grading.html" href="#" id="kNavGrading"><span
                         class="k-nav-item__icon">🧑‍🏫</span><span class="k-nav-item__text">Grading</span></a>
                 <a class="k-nav-item hidden" data-course-href="./analytics.html" href="#" id="kNavAnalytics"><span
@@ -71,7 +74,7 @@
             <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
                 <a class="k-breadcrumb__item" href="/">Courses</a>
                 <span class="k-breadcrumb__sep">›</span>
-                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Course</a>
+                <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Loading…</a>
                 <span class="k-breadcrumb__sep">›</span>
                 <span class="k-breadcrumb__item is-current">Quiz</span>
             </nav>
