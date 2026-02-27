@@ -40,7 +40,7 @@ try {
     }
 
     $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, s.version, s.status, s.submitted_at, s.is_late,
-        s.text_submission, g.score AS grade, g.feedback,
+        s.text_submission, s.submission_comment, g.score AS grade, g.feedback,
         r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_preview_url
         FROM lms_submissions s
         LEFT JOIN lms_grades g ON g.grade_id = (
@@ -74,6 +74,7 @@ try {
                 'submitted_at' => $row['submitted_at'],
                 'is_late' => (int)$row['is_late'],
                 'text_submission' => $row['text_submission'],
+                'submission_comment' => $row['submission_comment'],
                 'grade' => $row['grade'] === null ? null : (float)$row['grade'],
                 'feedback' => $row['feedback'] ?? null,
                 'files' => [],

@@ -12,6 +12,7 @@
     const expandedModules = new Set();
 
     const TYPE_ICONS = { lesson: '📝', assignment: '📤', quiz: '🧪', file: '📄', video: '🎬', link: '🔗', resource: '📎', page: '📘', text: '📝' };
+    const TYPE_ICON_CLASS = { lesson: 'lesson', assignment: 'assign', quiz: 'quiz', file: 'file', video: 'video', link: 'link', resource: 'resource', page: 'lesson', text: 'lesson' };
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -20,8 +21,14 @@
     function normalizeExternalUrl(raw) {
         const value = String(raw || '').trim();
         if (!value) return '';
-        if (/^https?:\/\//i.test(value)) return value;
-        return `https://${value}`;
+        const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+        try {
+            const parsed = new URL(withProtocol);
+            if (!/^https?:$/i.test(parsed.protocol)) return '';
+            return parsed.toString();
+        } catch (_) {
+            return '';
+        }
     }
 
 
@@ -64,7 +71,7 @@
 
     function renderModuleItem(item) {
         const typeKey = String(item.type || item.item_type || '').toLowerCase();
-        const iconClass = `k-module-item__icon--${LMS.escHtml(typeKey || 'default')}`;
+        const iconClass = `k-module-item__icon--${LMS.escHtml(TYPE_ICON_CLASS[typeKey] || 'default')}`;
         const icon = TYPE_ICONS[typeKey] || '📌';
         const locked = item.locked;
         const done = item.completed;
@@ -89,14 +96,12 @@
           </span>` : '';
 
         const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
-        const titleMarkup = locked
-            ? `<span>${titleText}</span>`
-            : `<a href="${LMS.escHtml(itemHref(item, 'view'))}" style="color:inherit;text-decoration:none;"${isExternalHttpUrl(itemHref(item, 'view')) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : ""}>${titleText}</a>`;
+        const titleMarkup = `<span>${titleText}</span>`;
 
         return `
       <div 
          ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
-         class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
+         class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}${!locked ? ' k-module-item--interactive' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
          role="button"
          style="${!locked ? 'cursor:pointer;' : ''}">

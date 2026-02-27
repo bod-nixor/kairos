@@ -280,6 +280,17 @@
     background: var(--surface-subtle);
 }
 
+.k-module-item--interactive {
+    cursor: pointer;
+}
+
+.k-module-item--interactive:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+    box-shadow: inset 0 0 0 1px var(--focus-ring);
+    background: var(--surface-subtle);
+}
+
 .k-module-item--locked {
     opacity: .55;
     pointer-events: none;
@@ -318,6 +329,21 @@
     color: #9333ea;
 }
 
+.k-module-item__icon--lesson {
+    background: #ecfeff;
+    color: #0e7490;
+}
+
+.k-module-item__icon--video {
+    background: #fef2f2;
+    color: #be123c;
+}
+
+.k-module-item__icon--resource {
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
 [data-theme="dark"] .k-module-item__icon--quiz {
     background: #052e16;
     color: #4ade80;
@@ -336,6 +362,21 @@
 [data-theme="dark"] .k-module-item__icon--link {
     background: #2e1065;
     color: #c084fc;
+}
+
+[data-theme="dark"] .k-module-item__icon--lesson {
+    background: #083344;
+    color: #67e8f9;
+}
+
+[data-theme="dark"] .k-module-item__icon--video {
+    background: #4c0519;
+    color: #fda4af;
+}
+
+[data-theme="dark"] .k-module-item__icon--resource {
+    background: #2e1065;
+    color: #c4b5fd;
 }
 
 .k-module-item__body {
@@ -2858,4 +2899,33 @@ dialog.k-modal::backdrop {
 
 .k-add-item-menu__item:hover {
     background: var(--bg-hover);
+}
+
+.k-embed-16x9 {
+  position: relative;
+  width: min(100%, 960px);
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-subtle);
+  margin: 12px 0;
+}
+.k-embed-16x9 iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+@supports not (aspect-ratio: 1 / 1) {
+  .k-embed-16x9 {
+    height: auto;
+  }
+
+  .k-embed-16x9::before {
+    content: '';
+    display: block;
+    padding-top: 56.25%;
+  }
 }

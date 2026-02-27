@@ -15,6 +15,7 @@
     let activeIdx = -1;
     let rubricRows = [];
     let gradingRole = 'ta'; // 'ta' | 'manager'
+    let visibleSubmissionIds = [];
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -25,13 +26,18 @@
         if (!container) return;
         if (!list.length) {
             container.innerHTML = `<div class="k-empty" style="padding:40px 16px"><div class="k-empty__icon">📋</div><p class="k-empty__title">No submissions yet</p></div>`;
+            visibleSubmissionIds = [];
+            activeIdx = -1;
             return;
         }
-        container.innerHTML = list.map((s, i) => {
+        visibleSubmissionIds = list
+            .map((item) => Number(item?.id))
+            .filter((id) => Number.isFinite(id));
+        container.innerHTML = list.map((s) => {
             const initials = (s.student_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
             const statusCls = s.grade_status === 'released' ? 'k-status--success' : s.grade_status === 'draft' ? 'k-status--warning' : 'k-status--neutral';
             const statusLabel = s.grade_status === 'released' ? 'Released' : s.grade_status === 'draft' ? 'Draft' : 'Ungraded';
-            return `<div class="k-queue-item" data-idx="${i}" role="listitem" tabindex="0" aria-label="Submission by ${LMS.escHtml(s.student_name)}">
+            return `<div class="k-queue-item" data-submission-id="${Number(s.id)}" role="listitem" tabindex="0" aria-label="Submission by ${LMS.escHtml(s.student_name)}">
         <div class="k-queue-item__avatar">${initials}</div>
         <div class="k-queue-item__info">
           <div class="k-queue-item__name">${LMS.escHtml(s.student_name || 'Unknown')}</div>
@@ -44,9 +50,20 @@
         $('queueCount') && ($('queueCount').textContent = list.length);
 
         container.querySelectorAll('.k-queue-item').forEach(item => {
-            const activate = () => selectSubmission(Number(item.dataset.idx));
+            const activate = () => {
+                const submissionId = Number(item.dataset.submissionId || 0);
+                const idx = submissions.findIndex((entry) => Number(entry.id) === submissionId);
+                if (idx >= 0) selectSubmission(idx);
+            };
             item.addEventListener('click', activate);
-            item.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') activate(); });
+            item.addEventListener('keydown', (e) => {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    activate();
+                    return;
+                }
+                if (e.key === 'Enter') activate();
+            });
         });
     }
 
@@ -111,15 +128,22 @@
         const sub = submissions[idx];
 
         // Update queue highlight
-        document.querySelectorAll('.k-queue-item').forEach((el, i) => el.classList.toggle('is-active', i === idx));
+        const activeSubmissionId = Number(sub.id);
+        document.querySelectorAll('.k-queue-item').forEach((el) => {
+            el.classList.toggle('is-active', Number(el.dataset.submissionId || 0) === activeSubmissionId);
+        });
 
         // Update workspace header
         hideEl('workspaceEmpty');
         showEl('workspaceActive');
         $('workspaceStudentName') && ($('workspaceStudentName').textContent = sub.student_name || 'Unknown');
-        $('submissionNavPos') && ($('submissionNavPos').textContent = `${idx + 1} / ${submissions.length}`);
-        $('prevSubmissionBtn') && ($('prevSubmissionBtn').disabled = idx === 0);
-        $('nextSubmissionBtn') && ($('nextSubmissionBtn').disabled = idx === submissions.length - 1);
+        const visibleIdx = visibleSubmissionIds.indexOf(Number(sub.id));
+        const visibleTotal = visibleSubmissionIds.length || submissions.length;
+        $('submissionNavPos') && ($('submissionNavPos').textContent = `${visibleIdx >= 0 ? visibleIdx + 1 : idx + 1} / ${visibleTotal}`);
+        const prevVisibleId = visibleIdx > 0 ? visibleSubmissionIds[visibleIdx - 1] : null;
+        const nextVisibleId = visibleIdx >= 0 && visibleIdx < visibleSubmissionIds.length - 1 ? visibleSubmissionIds[visibleIdx + 1] : null;
+        $('prevSubmissionBtn') && ($('prevSubmissionBtn').disabled = prevVisibleId === null);
+        $('nextSubmissionBtn') && ($('nextSubmissionBtn').disabled = nextVisibleId === null);
 
         // Grade state indicator
         const stateEl = $('workspaceGradeState');
@@ -176,6 +200,21 @@
     }
 
     // ── Save + Release ─────────────────────────────────────────
+
+    function selectVisibleStep(step) {
+        if (activeIdx < 0 || !visibleSubmissionIds.length) return;
+        const activeId = Number(submissions[activeIdx]?.id || 0);
+        const visibleIdx = visibleSubmissionIds.indexOf(activeId);
+        if (visibleIdx < 0) return;
+        const targetVisibleIdx = visibleIdx + step;
+        if (targetVisibleIdx < 0 || targetVisibleIdx >= visibleSubmissionIds.length) return;
+        const targetId = visibleSubmissionIds[targetVisibleIdx];
+        const targetIdx = submissions.findIndex((entry) => Number(entry.id) === Number(targetId));
+        if (targetIdx >= 0) {
+            selectSubmission(targetIdx);
+        }
+    }
+
     async function saveGrade(release) {
         const sub = submissions[activeIdx];
         if (!sub) return;
@@ -227,13 +266,20 @@
         hideEl('workspaceEmpty');
         if (submissions.length === 0) {
             showEl('workspaceEmpty');
+            activeIdx = -1;
+            return;
+        }
+        const firstVisibleId = visibleSubmissionIds[0];
+        const firstIdx = submissions.findIndex((entry) => Number(entry.id) === Number(firstVisibleId));
+        if (firstIdx >= 0) {
+            await selectSubmission(firstIdx);
         }
     }
 
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!COURSE_ID) {
-            LMS.renderAccessDenied($('gradingAccessDenied').querySelector('div'), 'No course specified.', '/');
+            LMS.renderAccessDenied($('gradingAccessDenied').querySelector('div'), 'No course specified.', '/signoff/');
             showEl('gradingAccessDenied'); hideEl('gradingSkeleton'); return;
         }
 
@@ -248,13 +294,13 @@
         if (!isTA) {
             LMS.renderAccessDenied(
                 $('gradingAccessDenied').querySelector('.k-page'),
-                'Grading is only accessible to TAs and Managers.',
+                'Grading is only accessible to TAs, Managers, and Admins.',
                 `/course.html?course_id=${COURSE_ID}`
             );
             showEl('gradingAccessDenied'); hideEl('gradingSkeleton'); return;
         }
 
-        gradingRole = (caps.roles && caps.roles.manager) ? 'manager' : 'ta';
+        gradingRole = (caps.roles && (caps.roles.manager || caps.roles.admin)) ? 'manager' : 'ta';
         const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
@@ -304,16 +350,16 @@
         $('releaseGradeBtn') && $('releaseGradeBtn').addEventListener('click', () => saveGrade(true));
 
         // Bulk nav
-        $('prevSubmissionBtn') && $('prevSubmissionBtn').addEventListener('click', () => selectSubmission(activeIdx - 1));
-        $('nextSubmissionBtn') && $('nextSubmissionBtn').addEventListener('click', () => selectSubmission(activeIdx + 1));
+        $('prevSubmissionBtn') && $('prevSubmissionBtn').addEventListener('click', () => selectVisibleStep(-1));
+        $('nextSubmissionBtn') && $('nextSubmissionBtn').addEventListener('click', () => selectVisibleStep(1));
 
         // Keyboard shortcuts
         document.addEventListener('keydown', e => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
             if (e.key === 's' || e.key === 'S') { e.preventDefault(); saveGrade(false); }
             if (e.key === 'r' || e.key === 'R') { e.preventDefault(); saveGrade(true); }
-            if (e.key === 'j' || e.key === 'J') selectSubmission(activeIdx - 1);
-            if (e.key === 'k' || e.key === 'K') selectSubmission(activeIdx + 1);
+            if (e.key === 'j' || e.key === 'J') selectVisibleStep(-1);
+            if (e.key === 'k' || e.key === 'K') selectVisibleStep(1);
         });
 
         hideEl('gradingSkeleton');

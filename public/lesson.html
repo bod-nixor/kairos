@@ -28,6 +28,9 @@
 
     <div id="editorWrap" class="hidden" style="margin-bottom:12px">
       <div class="k-card" style="padding:12px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" data-cmd="formatBlock" data-cmd-value="h1" type="button">H1</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="formatBlock" data-cmd-value="h2" type="button">H2</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="formatBlock" data-cmd-value="h3" type="button">H3</button>
         <button class="btn btn-ghost btn-sm" data-cmd="bold" type="button">Bold</button>
         <button class="btn btn-ghost btn-sm" data-cmd="italic" type="button">Italic</button>
         <button class="btn btn-ghost btn-sm" data-cmd="underline" type="button">Underline</button>
@@ -36,6 +39,7 @@
         <button class="btn btn-ghost btn-sm" id="addLinkBtn" type="button">Link</button>
         <button class="btn btn-ghost btn-sm" id="addPdfBtn" type="button">Insert PDF</button>
         <button class="btn btn-ghost btn-sm" id="addVideoBtn" type="button">Embed Video</button>
+        <button class="btn btn-ghost btn-sm" id="copyMarkdownBtn" type="button">Copy Markdown</button>
       </div>
       <div id="lessonEditor" contenteditable="false" role="textbox" aria-multiline="true" aria-label="Lesson editor" class="k-card" style="min-height:280px;padding:16px;outline:none;position:relative;z-index:1;pointer-events:auto"></div>
     </div>

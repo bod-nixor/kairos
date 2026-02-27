@@ -150,10 +150,11 @@
                     updateDots();
                 });
             });
-        } else if (q.type === 'short_answer' || q.type === 'text') {
+        } else if (q.type === 'short_answer' || q.type === 'text' || q.type === 'long_answer') {
+            const rows = q.type === 'long_answer' ? 8 : 4;
             area.innerHTML = `<div class="k-field">
         <label class="k-label" for="saInput">Your answer</label>
-        <textarea class="k-textarea" id="saInput" rows="4" placeholder="Type your answer…">${LMS.escHtml(saved || '')}</textarea>
+        <textarea class="k-textarea" id="saInput" rows="${rows}" placeholder="Type your answer…">${LMS.escHtml(saved || '')}</textarea>
         <span class="k-field-hint">Your answer will be manually reviewed by a grader.</span>
       </div>`;
             area.querySelector('#saInput').addEventListener('input', e => {
@@ -308,6 +309,74 @@
     }
 
 
+
+    function ensureQuestionEditorModal() {
+        let modal = $('quizQuestionModal');
+        if (modal) return modal;
+        modal = document.createElement('dialog');
+        modal.id = 'quizQuestionModal';
+        modal.className = 'k-modal';
+        modal.innerHTML = `<form method="dialog" class="k-modal__content" id="quizQuestionForm" style="max-width:640px">
+            <h3 style="margin:0 0 12px">Add question</h3>
+            <label style="display:grid;gap:6px;margin-bottom:8px"><span>Prompt</span><textarea id="quizQPrompt" rows="3" required></textarea></label>
+            <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;margin-bottom:8px">
+              <label style="display:grid;gap:6px"><span>Type</span><select id="quizQType"><option value="mcq">Multiple choice</option><option value="multiple_select">Multi-select</option><option value="true_false">True/False</option><option value="short_answer">Short answer</option><option value="long_answer">Long answer</option></select></label>
+              <label style="display:grid;gap:6px"><span>Points</span><input id="quizQPoints" type="number" min="1" value="1" /></label>
+            </div>
+            <label style="display:grid;gap:6px;margin-bottom:8px"><span>Options (comma-separated, optional)</span><input id="quizQOptions" type="text" placeholder="Option A, Option B" /></label>
+            <label style="display:grid;gap:6px;margin-bottom:12px"><span>Correct answer (value or comma list)</span><input id="quizQAnswer" type="text" /></label>
+            <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" id="quizQuestionCancel">Cancel</button><button class="btn btn-primary" type="submit">Add question</button></div>
+          </form>`;
+        document.body.appendChild(modal);
+        $('quizQuestionCancel')?.addEventListener('click', () => modal.close());
+        return modal;
+    }
+
+    function openQuestionEditorModal(initial = {}) {
+        const modal = ensureQuestionEditorModal();
+        const form = $('quizQuestionForm');
+        const prompt = $('quizQPrompt');
+        const type = $('quizQType');
+        const points = $('quizQPoints');
+        const options = $('quizQOptions');
+        const answer = $('quizQAnswer');
+        if (!form || !prompt || !type || !points || !options || !answer) return Promise.resolve(null);
+        prompt.value = initial.prompt || '';
+        type.value = normalizeQuestionType(initial.question_type || 'mcq');
+        points.value = String(initial.points || 1);
+        options.value = initial.options_raw || '';
+        answer.value = initial.answer_raw || '';
+        modal.showModal();
+        return new Promise((resolve) => {
+            const closeHandler = () => {
+                form.removeEventListener('submit', submitHandler);
+                modal.removeEventListener('close', closeHandler);
+                resolve(null);
+            };
+            const submitHandler = (event) => {
+                event.preventDefault();
+                const payload = {
+                    prompt: prompt.value.trim(),
+                    question_type: normalizeQuestionType(type.value),
+                    points: Number(points.value || 1),
+                    options_raw: options.value,
+                    answer_raw: answer.value,
+                };
+                if (!payload.prompt) {
+                    LMS.toast('Question prompt is required', 'warning');
+                    return;
+                }
+                form.removeEventListener('submit', submitHandler);
+                modal.removeEventListener('close', closeHandler);
+                modal.close();
+                resolve(payload);
+            };
+            form.addEventListener('submit', submitHandler);
+            modal.addEventListener('close', closeHandler);
+            setTimeout(() => prompt.focus(), 0);
+        });
+    }
+
     function normalizeQuestionType(type) {
         const value = String(type || 'mcq').toLowerCase();
         if (value === 'multiple_choice') return 'mcq';
@@ -319,15 +388,23 @@
     }
 
     async function addQuestion() {
-        const prompt = window.prompt('Question prompt');
-        if (!prompt) return;
-        const questionType = normalizeQuestionType(window.prompt('Question type (mcq,multi_select,true_false,short,long)', 'mcq'));
-        const points = Number(window.prompt('Points', '1') || '1');
-        const optionsRaw = window.prompt('Options (for mcq/multi_select) comma separated', '');
-        const options = optionsRaw ? optionsRaw.split(',').map((v, i) => ({ value: `opt_${i + 1}`, text: v.trim() })).filter(o => o.text) : [];
-        const correctRaw = window.prompt('Correct answer (value or comma list for multi_select)', '');
-        const answerKey = questionType === 'multiple_select' ? correctRaw.split(',').map(v => v.trim()).filter(Boolean) : (correctRaw || null);
-        const payload = { assessment_id: Number(QUIZ_ID), prompt, question_type: questionType, points, options, answer_key: answerKey };
+        const modalInput = await openQuestionEditorModal();
+        if (!modalInput) return;
+        const options = modalInput.options_raw
+            ? modalInput.options_raw.split(',').map((v, i) => ({ value: `opt_${i + 1}`, text: v.trim() })).filter((o) => o.text)
+            : [];
+        const correctRaw = String(modalInput.answer_raw || '').trim();
+        const answerKey = modalInput.question_type === 'multiple_select'
+            ? correctRaw.split(',').map((v) => v.trim()).filter(Boolean)
+            : (correctRaw || null);
+        const payload = {
+            assessment_id: Number(QUIZ_ID),
+            prompt: modalInput.prompt,
+            question_type: modalInput.question_type,
+            points: Number(modalInput.points) > 0 ? Number(modalInput.points) : 1,
+            options,
+            answer_key: answerKey,
+        };
         const res = await LMS.api('POST', './api/lms/quiz/question/create.php', payload);
         if (!res.ok) {
             LMS.toast(res.data?.error?.message || 'Failed to add question', 'error');
@@ -348,8 +425,14 @@
         panel.className = 'k-card';
         panel.style.marginTop = '16px';
         panel.style.padding = '16px';
-        panel.innerHTML = `<h3>Staff Quiz Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button">Toggle Mandatory</button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions"></div><div id="staffAttempts"></div>`;
+        panel.innerHTML = `<h3>Staff Quiz Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions"></div><div id="staffAttempts"></div>`;
         intro.appendChild(panel);
+
+        const staffMandatoryBtn = $('staffMandatoryBtn');
+        if (staffMandatoryBtn) {
+            const requiredNow = Number(quizData?.required_flag || 0) === 1;
+            staffMandatoryBtn.textContent = requiredNow ? 'Set Optional' : 'Set Mandatory';
+        }
 
         $('staffAddQuestionBtn')?.addEventListener('click', addQuestion);
         $('staffPublishQuizBtn')?.addEventListener('click', async () => {
@@ -363,10 +446,30 @@
             if (res.ok) await loadPage();
         });
         $('staffMandatoryBtn')?.addEventListener('click', async () => {
-            const confirmed = window.confirm('Set as mandatory?');
-            if (!confirmed) return;
-            const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', { assessment_id: Number(QUIZ_ID), required: 1 });
-            LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
+            const currentRequired = Number(quizData?.required_flag || 0) === 1;
+            const newRequired = currentRequired ? 0 : 1;
+            LMS.confirm(
+                newRequired ? 'Set as mandatory?' : 'Unset mandatory?',
+                newRequired ? 'Students will be required to complete this quiz.' : 'Students will no longer be required to complete this quiz.',
+                async () => {
+                    const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', {
+                        assessment_id: Number(QUIZ_ID),
+                        required: newRequired,
+                    });
+                    LMS.toast(
+                        res.ok
+                            ? (newRequired ? 'Quiz marked as mandatory' : 'Quiz marked as optional')
+                            : 'Mandatory update failed',
+                        res.ok ? 'success' : 'error'
+                    );
+                    if (res.ok) {
+                        quizData = { ...(quizData || {}), required_flag: newRequired };
+                        if (staffMandatoryBtn) staffMandatoryBtn.textContent = newRequired ? 'Set Optional' : 'Set Mandatory';
+                        await loadPage();
+                    }
+                },
+                { okLabel: newRequired ? 'Set mandatory' : 'Set optional', okClass: 'btn-primary' }
+            );
         });
         $('staffLoadAttemptsBtn')?.addEventListener('click', async () => {
             const res = await LMS.api('GET', `./api/lms/quiz/submissions.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`);
@@ -393,10 +496,36 @@
         }));
         wrap.querySelectorAll('button[data-act="edit"]').forEach((btn) => btn.addEventListener('click', async () => {
             const id = Number(btn.dataset.id || 0);
-            const prompt = window.prompt('Updated prompt');
-            if (!prompt) return;
-            const points = Number(window.prompt('Points', '1') || '1');
-            const res = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: id, prompt, points });
+            const question = questions.find((q) => Number(q.question_id) === id) || {};
+            const questionOptions = Array.isArray(question.options) ? question.options : [];
+            const answerSeed = Array.isArray(question.answer_key)
+                ? question.answer_key.join(', ')
+                : (question.answer_key || '');
+            const modalInput = await openQuestionEditorModal({
+                prompt: question.prompt || '',
+                question_type: question.question_type || 'mcq',
+                points: question.points || 1,
+                options_raw: questionOptions.map((opt) => opt.text || opt.value || '').filter(Boolean).join(', '),
+                answer_raw: answerSeed,
+            });
+            if (!modalInput) return;
+            const options = String(modalInput.options_raw || '')
+                .split(',')
+                .map((v, idx) => ({ value: `opt_${idx + 1}`, text: v.trim() }))
+                .filter((opt) => opt.text);
+            const normalizedPoints = Number(modalInput.points) > 0 ? Number(modalInput.points) : 1;
+            const answerRaw = String(modalInput.answer_raw || '').trim();
+            const answerKey = modalInput.question_type === 'multiple_select'
+                ? answerRaw.split(',').map((v) => v.trim()).filter(Boolean)
+                : (answerRaw || null);
+            const res = await LMS.api('POST', './api/lms/quiz/question/update.php', {
+                question_id: id,
+                prompt: modalInput.prompt,
+                question_type: modalInput.question_type,
+                points: normalizedPoints,
+                answer_key: answerKey,
+                settings: { options },
+            });
             LMS.toast(res.ok ? 'Question updated' : 'Update failed', res.ok ? 'success' : 'error');
             if (res.ok) await renderStaffPanel();
         }));
@@ -405,7 +534,7 @@
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!QUIZ_ID) {
-            LMS.renderAccessDenied($('quizAccessDenied'), 'No quiz specified. Please select a quiz from the Modules page.', COURSE_ID ? `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}` : '/');
+            LMS.renderAccessDenied($('quizAccessDenied'), 'No quiz specified. Please select a quiz from the Modules page.', COURSE_ID ? `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}` : '/signoff/');
             showPanel('quizAccessDenied');
             return;
         }

@@ -21,17 +21,17 @@
         }
 
         container.innerHTML = '<div class="k-list" role="list">' + items.map(item => {
-            const dueStr = item.due_date ? `Due ${LMS.fmtDateTime(item.due_date)}` : 'No due date';
+            const dueStr = (item.due_at || item.due_date) ? `Due ${LMS.fmtDateTime(item.due_at || item.due_date)}` : 'No due date';
             const ptsStr = item.max_points ? `${item.max_points} pts` : '';
             const safeDueStr = LMS.escHtml(dueStr);
             const safePtsStr = LMS.escHtml(ptsStr);
 
             return `
-            <a href="./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&id=${encodeURIComponent(item.id)}" class="k-list-item" role="listitem">
+            <a href="./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${encodeURIComponent(item.assignment_id || item.id)}" class="k-list-item" role="listitem">
                 <div class="k-list-item__icon" aria-hidden="true">📤</div>
                 <div class="k-list-item__content">
                     <div class="k-list-item__title">${LMS.escHtml(item.title || 'Untitled Assignment')}</div>
-                    <div class="k-list-item__desc">${LMS.escHtml(item.description || '')}</div>
+                    <div class="k-list-item__desc">${LMS.escHtml(item.instructions || item.description || '')}</div>
                     <div class="k-list-item__meta">
                         <span>${safeDueStr}</span>
                         ${safePtsStr ? `<span>• ${safePtsStr}</span>` : ''}
@@ -43,7 +43,7 @@
 
     async function loadPage() {
         if (!COURSE_ID) {
-            LMS.renderAccessDenied($('accessDenied'), 'No course specified.', '/');
+            LMS.renderAccessDenied($('accessDenied'), 'No course specified.', '/signoff/');
             hideEl('skeletonView');
             showEl('accessDenied');
             return;
@@ -57,7 +57,7 @@
         hideEl('skeletonView');
 
         if (courseRes.status === 403 || listRes.status === 403) {
-            LMS.renderAccessDenied($('accessDenied'), 'You are not enrolled in this course.', '/');
+            LMS.renderAccessDenied($('accessDenied'), 'You are not enrolled in this course.', '/signoff/');
             showEl('accessDenied');
             return;
         }

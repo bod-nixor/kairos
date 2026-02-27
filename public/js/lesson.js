@@ -185,9 +185,9 @@
     await loadLesson();
   }
 
-  function applyFormat(command) {
+  function applyFormat(command, value) {
     $('lessonEditor')?.focus();
-    document.execCommand(command, false);
+    document.execCommand(command, false, value || null);
   }
 
   function openResourceModal(kind) {
@@ -246,7 +246,7 @@
       if (embedUrl) {
         const safeUrl = escAttr(embedUrl);
         const fallback = escAttr(url);
-        const snippet = `<p><iframe src="${safeUrl}" width="640" height="360" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><br><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab ↗</a></p>`;
+        const snippet = `<div class="k-embed-16x9"><iframe src="${safeUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab ↗</a></p>`;
         document.execCommand('insertHTML', false, snippet);
       } else {
         const viewerHref = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;
@@ -262,38 +262,182 @@
     await saveDraft();
   }
 
+
+  function ensureLinkModal() {
+    let modal = $('lessonLinkModal');
+    if (modal) return modal;
+    modal = document.createElement('dialog');
+    modal.id = 'lessonLinkModal';
+    modal.className = 'k-modal';
+    modal.innerHTML = `
+      <form method="dialog" class="k-modal__content" id="lessonLinkForm" style="max-width:520px">
+        <h3 style="margin:0 0 12px">Insert link</h3>
+        <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px">
+          <span>URL</span>
+          <input id="lessonLinkUrl" type="url" required placeholder="https://example.com" />
+        </label>
+        <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px">
+          <span>Anchor text</span>
+          <input id="lessonLinkText" type="text" placeholder="Link text" />
+        </label>
+        <div class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-ghost" type="button" id="lessonLinkCancel">Cancel</button>
+          <button class="btn btn-primary" type="submit">Insert link</button>
+        </div>
+      </form>`;
+    document.body.appendChild(modal);
+    $('lessonLinkCancel')?.addEventListener('click', () => modal.close());
+    return modal;
+  }
+
+  function openLinkModal(initialText) {
+    const modal = ensureLinkModal();
+    const form = $('lessonLinkForm');
+    const urlInput = $('lessonLinkUrl');
+    const textInput = $('lessonLinkText');
+    if (!form || !urlInput || !textInput) return Promise.resolve(null);
+    urlInput.value = '';
+    textInput.value = initialText || '';
+    modal.showModal();
+    return new Promise((resolve) => {
+      const closeHandler = () => {
+        form.removeEventListener('submit', submitHandler);
+        modal.removeEventListener('close', closeHandler);
+        resolve(null);
+      };
+      const submitHandler = (event) => {
+        event.preventDefault();
+        const url = urlInput.value.trim();
+        const text = textInput.value.trim();
+        if (!isSafeHttpUrl(url)) {
+          LMS.toast('Please enter a valid http(s) URL.', 'warning');
+          return;
+        }
+        form.removeEventListener('submit', submitHandler);
+        modal.removeEventListener('close', closeHandler);
+        modal.close();
+        resolve({ url, text });
+      };
+      form.addEventListener('submit', submitHandler);
+      modal.addEventListener('close', closeHandler);
+      setTimeout(() => urlInput.focus(), 0);
+    });
+  }
+
+
+
+  function markdownToHtml(markdown) {
+    const lines = String(markdown || '').split(/\r?\n/);
+    const htmlLines = lines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '<p><br></p>';
+      if (trimmed.startsWith('### ')) return `<h3>${LMS.escHtml(trimmed.slice(4))}</h3>`;
+      if (trimmed.startsWith('## ')) return `<h2>${LMS.escHtml(trimmed.slice(3))}</h2>`;
+      if (trimmed.startsWith('# ')) return `<h1>${LMS.escHtml(trimmed.slice(2))}</h1>`;
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) return `<li>${LMS.escHtml(trimmed.slice(2))}</li>`;
+      if (/^\d+\.\s+/.test(trimmed)) return `<li data-ordered="1">${LMS.escHtml(trimmed.replace(/^\d+\.\s+/, ''))}</li>`;
+      return `<p>${LMS.escHtml(trimmed)}</p>`;
+    });
+
+    let html = htmlLines.join('');
+    html = html.replace(/(<li data-ordered="1">[\s\S]*?<\/li>)+/g, (chunk) => `<ol>${chunk.replace(/ data-ordered="1"/g, '')}</ol>`);
+    html = html.replace(/(<li(?![^>]*data-ordered)[^>]*>[\s\S]*?<\/li>)+/g, (chunk) => `<ul>${chunk}</ul>`);
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    return html;
+  }
+
+  function htmlToMarkdown(html) {
+    const container = document.createElement('div');
+    container.innerHTML = html || '';
+
+    const mapNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+      const tag = node.tagName.toLowerCase();
+      const text = Array.from(node.childNodes).map(mapNode).join('');
+      if (tag === 'h1') return `# ${text}\n\n`;
+      if (tag === 'h2') return `## ${text}\n\n`;
+      if (tag === 'h3') return `### ${text}\n\n`;
+      if (tag === 'strong' || tag === 'b') return `**${text}**`;
+      if (tag === 'em' || tag === 'i') return `*${text}*`;
+      if (tag === 'u') return `<u>${text}</u>`;
+      if (tag === 'a') return `[${text}](${node.getAttribute('href') || ''})`;
+      if (tag === 'li') return `- ${text}\n`;
+      if (tag === 'ul' || tag === 'ol') return `${Array.from(node.children).map(mapNode).join('')}\n`;
+      if (tag === 'br') return '\n';
+      if (tag === 'p' || tag === 'div') return `${text}\n\n`;
+      return text;
+    };
+
+    return Array.from(container.childNodes).map(mapNode).join('').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   function wireToolbar() {
     document.querySelectorAll('[data-cmd]').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (!state.canEdit || !state.isEditMode) return;
         const command = btn.dataset.cmd;
-        applyFormat(command);
+        const value = btn.dataset.cmdValue || null;
+        applyFormat(command, value);
       });
     });
 
-    $('addLinkBtn')?.addEventListener('click', () => {
+    $('addLinkBtn')?.addEventListener('click', async () => {
       if (!state.canEdit || !state.isEditMode) return;
       const editor = $('lessonEditor');
       editor?.focus();
       const selection = document.getSelection();
       const hasSelection = !!selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
-      const url = window.prompt('Enter link URL');
-      if (!url || !isSafeHttpUrl(url)) {
-        LMS.toast('Please enter a valid http(s) URL.', 'warning');
-        return;
-      }
+      const savedRange = hasSelection ? selection.getRangeAt(0).cloneRange() : null;
+      const selectedText = hasSelection ? selection.toString() : '';
+      const linkInput = await openLinkModal(selectedText);
+      if (!linkInput) return;
 
-      if (hasSelection) {
-        document.execCommand('createLink', false, url);
+      const restoreSelection = () => {
+        if (!savedRange || !editor) return;
+        const sel = document.getSelection();
+        if (!sel) return;
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      };
+      restoreSelection();
+
+      if (savedRange) {
+        document.execCommand('createLink', false, linkInput.url);
       } else {
-        const text = window.prompt('Enter link text') || url;
-        document.execCommand('insertHTML', false, `<a href="${escAttr(url)}">${escAttr(text)}</a>`);
+        const text = linkInput.text || linkInput.url;
+        document.execCommand('insertHTML', false, `<a href="${escAttr(linkInput.url)}">${escAttr(text)}</a>`);
       }
 
       editor?.querySelectorAll('a[href]').forEach((anchor) => {
         anchor.setAttribute('target', '_blank');
         anchor.setAttribute('rel', 'noopener noreferrer');
       });
+    });
+
+
+
+    $('copyMarkdownBtn')?.addEventListener('click', async () => {
+      const editor = $('lessonEditor');
+      if (!editor) return;
+      const markdown = htmlToMarkdown(editor.innerHTML);
+      try {
+        await navigator.clipboard.writeText(markdown);
+        LMS.toast('Markdown copied to clipboard.', 'success');
+      } catch (_) {
+        LMS.toast('Unable to copy markdown.', 'error');
+      }
+    });
+
+    $('lessonEditor')?.addEventListener('paste', (event) => {
+      if (!state.canEdit || !state.isEditMode) return;
+      const text = event.clipboardData?.getData('text/plain') || '';
+      if (!text || !/[#*\-\[\]]/.test(text)) return;
+      event.preventDefault();
+      const html = markdownToHtml(text);
+      document.execCommand('insertHTML', false, html);
     });
 
     $('addPdfBtn')?.addEventListener('click', () => {
