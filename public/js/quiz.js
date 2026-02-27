@@ -150,10 +150,11 @@
                     updateDots();
                 });
             });
-        } else if (q.type === 'short_answer' || q.type === 'text') {
+        } else if (q.type === 'short_answer' || q.type === 'text' || q.type === 'long_answer') {
+            const rows = q.type === 'long_answer' ? 8 : 4;
             area.innerHTML = `<div class="k-field">
         <label class="k-label" for="saInput">Your answer</label>
-        <textarea class="k-textarea" id="saInput" rows="4" placeholder="Type your answer…">${LMS.escHtml(saved || '')}</textarea>
+        <textarea class="k-textarea" id="saInput" rows="${rows}" placeholder="Type your answer…">${LMS.escHtml(saved || '')}</textarea>
         <span class="k-field-hint">Your answer will be manually reviewed by a grader.</span>
       </div>`;
             area.querySelector('#saInput').addEventListener('input', e => {

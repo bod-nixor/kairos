@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/_common.php';
 require_once dirname(__DIR__) . '/drive_client.php';
 
 const LMS_MAX_TEXT_SUBMISSION_LENGTH = 20000;
+const LMS_MAX_SUBMISSION_COMMENT_LENGTH = 2000;
 
 lms_require_feature(['assignments', 'lms_assignments']);
 $user = lms_require_roles(['student']);
@@ -77,10 +78,10 @@ if ($textSubmission === '' && $uploadMeta === null) {
 
 
 $submissionComment = trim((string)($_POST['submission_comment'] ?? ''));
-if ($submissionComment !== '' && function_exists('mb_strlen') && mb_strlen($submissionComment) > 2000) {
+if ($submissionComment !== '' && function_exists('mb_strlen') && mb_strlen($submissionComment) > LMS_MAX_SUBMISSION_COMMENT_LENGTH) {
     lms_error('validation_error', 'submission_comment is too long', 422);
 }
-if ($submissionComment !== '' && !function_exists('mb_strlen') && strlen($submissionComment) > 2000) {
+if ($submissionComment !== '' && !function_exists('mb_strlen') && strlen($submissionComment) > LMS_MAX_SUBMISSION_COMMENT_LENGTH) {
     lms_error('validation_error', 'submission_comment is too long', 422);
 }
 

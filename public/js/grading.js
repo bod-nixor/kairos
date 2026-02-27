@@ -26,6 +26,8 @@
         if (!container) return;
         if (!list.length) {
             container.innerHTML = `<div class="k-empty" style="padding:40px 16px"><div class="k-empty__icon">📋</div><p class="k-empty__title">No submissions yet</p></div>`;
+            visibleSubmissionIds = [];
+            activeIdx = -1;
             return;
         }
         visibleSubmissionIds = list.map((item) => Number(item.id));
@@ -118,7 +120,9 @@
 
         // Update queue highlight
         const activeSubmissionId = Number(sub.id);
-        document.querySelectorAll('.k-queue-item').forEach((el) => el.classList.toggle('is-active', Number(el.dataset.submissionId || 0) === activeSubmissionId));
+        document.querySelectorAll('.k-queue-item').forEach((el) => {
+            el.classList.toggle('is-active', Number(el.dataset.submissionId || 0) === activeSubmissionId);
+        });
 
         // Update workspace header
         hideEl('workspaceEmpty');

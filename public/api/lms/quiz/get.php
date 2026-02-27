@@ -54,7 +54,7 @@ try {
     $qStmt->execute($questionParams);
     $questionCount = (int)$qStmt->fetchColumn();
 
-    $moduleStmt = $pdo->prepare("SELECT required_flag FROM lms_module_items WHERE item_type = 'quiz' AND entity_id = :assessment_id LIMIT 1");
+    $moduleStmt = $pdo->prepare("SELECT COALESCE(MAX(required_flag), 0) AS required_flag FROM lms_module_items WHERE item_type = 'quiz' AND entity_id = :assessment_id");
     $moduleStmt->execute([':assessment_id' => $assessmentId]);
     $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['required_flag' => 0];
 

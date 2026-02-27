@@ -267,6 +267,7 @@
                 created_at: evt.created_at,
             });
         });
+        renderNotifications();
 
         document.title = `${course.name || 'Course'} — Kairos`;
         showEl('courseLoaded');
