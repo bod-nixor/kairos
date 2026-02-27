@@ -66,12 +66,6 @@
             return;
         }
 
-        if (!listRes.ok) {
-            showEl('errorView');
-            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
-            return;
-        }
-
         const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             document.title = `Quizzes — ${course.name || 'Course'} — Kairos`;
@@ -85,6 +79,12 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
+        }
+
+        if (!listRes.ok) {
+            showEl('errorView');
+            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
+            return;
         }
 
         const itemsPayload = listRes.ok ? (listRes.data?.data || listRes.data || []) : [];
