@@ -64,7 +64,7 @@
             panel.classList.add('hidden');
         });
         document.addEventListener('click', (e) => {
-            if (!panel.classList.contains('hidden') && !panel.contains(e.target) && e.target !== bell) {
+            if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !bell.contains(e.target)) {
                 panel.classList.add('hidden');
             }
         });
@@ -249,18 +249,22 @@
         renderAnnouncementsFeed(announcements);
         renderRecentActivity(activity);
         notifications.length = 0;
-        announcements.slice(0, 10).forEach((a) => pushNotification({
-            event_id: `announcement:${a.announcement_id || a.id || a.created_at}`,
-            type: 'announcement',
-            message: `New announcement: ${a.title || 'Course update'}`,
-            created_at: a.created_at,
-        }));
-        activity.slice(0, 10).forEach((evt) => pushNotification({
-            event_id: `activity:${evt.id || evt.event_id || evt.created_at}:${evt.type || 'event'}`,
-            type: evt.type || 'activity',
-            message: evt.message || 'Course activity updated',
-            created_at: evt.created_at,
-        }));
+        announcements.slice(0, 10).forEach((a) => {
+            pushNotification({
+                event_id: `announcement:${a.announcement_id || a.id || a.created_at}`,
+                type: 'announcement',
+                message: `New announcement: ${a.title || 'Course update'}`,
+                created_at: a.created_at,
+            });
+        });
+        activity.slice(0, 10).forEach((evt) => {
+            pushNotification({
+                event_id: `activity:${evt.id || evt.event_id || evt.created_at}:${evt.type || 'event'}`,
+                type: evt.type || 'activity',
+                message: evt.message || 'Course activity updated',
+                created_at: evt.created_at,
+            });
+        });
 
         document.title = `${course.name || 'Course'} — Kairos`;
         showEl('courseLoaded');
