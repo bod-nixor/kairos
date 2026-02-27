@@ -177,7 +177,7 @@
         hideEl('courseSkeleton');
 
         if (courseRes.status === 403) {
-            LMS.renderAccessDenied($('courseAccessDenied'), 'You are not enrolled in this course.', '/');
+            LMS.renderAccessDenied($('courseAccessDenied'), 'You are not enrolled in this course.', '/signoff/');
             showEl('courseAccessDenied');
             return;
         }

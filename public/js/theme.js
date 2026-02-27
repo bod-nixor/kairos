@@ -180,9 +180,7 @@
   };
 
   const syncThemeState = () => {
-    const stored = readStoredTheme();
-    const datasetTheme = isValidTheme(root.dataset.theme) ? root.dataset.theme : null;
-    const preferred = stored || datasetTheme || resolvePreferredTheme();
+    const preferred = resolvePreferredTheme();
     applyTheme(preferred, false);
   };
 
