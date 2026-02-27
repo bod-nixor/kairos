@@ -54,6 +54,23 @@
     return ((id - 1) % 8) + 1;
   }
 
+
+  function normalizePathname(pathname) {
+    const raw = String(pathname || '').replace(/\/+$/, '');
+    return raw || '/';
+  }
+
+  function isSignoffHomePath(pathname) {
+    const normalized = normalizePathname(pathname);
+    return normalized === '/signoff' || normalized === '/signoff/index.html';
+  }
+
+  function redirectToSignoffHome() {
+    if (!global.location) return;
+    if (isSignoffHomePath(global.location.pathname)) return;
+    global.location.href = '/signoff/';
+  }
+
   /* ── API wrapper ─────────────────────────────────────────── */
   async function api(method, path, body) {
     const opts = {
@@ -72,7 +89,7 @@
     try {
       const resp = await fetch(path, opts);
       if (resp.status === 401) {
-        global.location.href = '/';
+        redirectToSignoffHome();
         return { ok: false, status: 401, error: 'Unauthorized', data: null };
       }
       let data = null;
@@ -521,7 +538,7 @@ function sanitizeForRender(html) {
     // Load session
     const [me, caps] = await Promise.all([loadMe(), loadCaps()]);
     if (!me || !me.email) {
-      global.location.href = '/';
+      redirectToSignoffHome();
       return;
     }
     // Logout button
@@ -529,7 +546,7 @@ function sanitizeForRender(html) {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
         await api('POST', './api/logout.php', {});
-        global.location.href = '/';
+        redirectToSignoffHome();
       });
     }
     return { me, caps };
