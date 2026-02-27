@@ -23,6 +23,8 @@
         container.innerHTML = '<div class="k-list" role="list">' + items.map(item => {
             const dueStr = item.due_date ? `Due ${LMS.fmtDateTime(item.due_date)}` : 'No due date';
             const ptsStr = item.max_points ? `${item.max_points} pts` : '';
+            const safeDueStr = LMS.escHtml(dueStr);
+            const safePtsStr = LMS.escHtml(ptsStr);
 
             return `
             <a href="./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&id=${encodeURIComponent(item.id)}" class="k-list-item" role="listitem">
@@ -31,8 +33,8 @@
                     <div class="k-list-item__title">${LMS.escHtml(item.title || 'Untitled Assignment')}</div>
                     <div class="k-list-item__desc">${LMS.escHtml(item.description || '')}</div>
                     <div class="k-list-item__meta">
-                        <span>${dueStr}</span>
-                        ${ptsStr ? `<span>• ${ptsStr}</span>` : ''}
+                        <span>${safeDueStr}</span>
+                        ${safePtsStr ? `<span>• ${safePtsStr}</span>` : ''}
                     </div>
                 </div>
             </a>`;
@@ -62,9 +64,10 @@
 
         if (!listRes.ok) {
             showEl('errorView');
-            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage, { once: true });
+            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
             return;
         }
+
 
         const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {

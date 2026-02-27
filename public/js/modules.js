@@ -40,7 +40,7 @@
     }
 
     function renderModuleItem(item) {
-        const iconClass = TYPE_CLASS[item.type] || '';
+        const iconClass = '';
         const icon = TYPE_ICONS[item.type] || '📌';
         const locked = item.locked;
         const done = item.completed;

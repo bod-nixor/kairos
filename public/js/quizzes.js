@@ -27,6 +27,9 @@
                 item.max_attempts ? `${item.max_attempts} attempts max` : null
             ].filter(Boolean).join(' • ');
 
+            const safeDueStr = LMS.escHtml(dueStr);
+            const safeMetaStr = LMS.escHtml(metaStr);
+
             return `
             <a href="./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&id=${encodeURIComponent(item.id)}" class="k-list-item" role="listitem">
                 <div class="k-list-item__icon" aria-hidden="true">⚡</div>
@@ -34,8 +37,8 @@
                     <div class="k-list-item__title">${LMS.escHtml(item.title || 'Untitled Quiz')}</div>
                     <div class="k-list-item__desc">${LMS.escHtml(item.description || '')}</div>
                     <div class="k-list-item__meta">
-                        <span>${dueStr}</span>
-                        ${metaStr ? `<span>• ${metaStr}</span>` : ''}
+                        <span>${safeDueStr}</span>
+                        ${safeMetaStr ? `<span>• ${safeMetaStr}</span>` : ''}
                     </div>
                 </div>
             </a>`;
@@ -65,7 +68,7 @@
 
         if (!listRes.ok) {
             showEl('errorView');
-            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage, { once: true });
+            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
             return;
         }
 
