@@ -138,6 +138,7 @@
             const iframe = document.createElement('iframe');
             iframe.setAttribute('src', embedUrl);
             iframe.setAttribute('title', 'Embedded video');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
             iframe.setAttribute('allowfullscreen', 'true');
             videoWrap.appendChild(iframe);
             showEl('videoWrap');

@@ -13,7 +13,10 @@ function simulate_quizzes_api(array $request, array $session, array $features, a
 {
     // 1. Role requirements (student, ta, manager, admin)
     $allowedRoles = ['student', 'ta', 'manager', 'admin'];
-    $userRole = strtolower($session['role_name'] ?? 'student');
+    if (empty($session['role_name'])) {
+        return ['status' => 403, 'error' => 'forbidden'];
+    }
+    $userRole = strtolower($session['role_name']);
     if (!in_array($userRole, $allowedRoles, true)) {
         return ['status' => 403, 'error' => 'forbidden'];
     }
@@ -79,7 +82,8 @@ $cases = [
         'session' => ['role_name' => 'admin'],
         'features' => ['lms_expansion_quizzes' => [10 => false]],
         'enrollments' => [],
-        'expected_status' => 404
+        'expected_status' => 404,
+        'expected_error_code' => 'feature_disabled'
     ],
     [
         'name' => 'Non-enrolled student returns 403',
@@ -87,7 +91,8 @@ $cases = [
         'session' => ['role_name' => 'student'],
         'features' => ['lms_expansion_quizzes' => [10 => true]],
         'enrollments' => ['student' => [20]], // Enrolled in 20, not 10
-        'expected_status' => 403
+        'expected_status' => 403,
+        'expected_error_code' => 'forbidden'
     ],
     [
         'name' => 'Student sees only published, non-deleted items in their course',
@@ -125,7 +130,36 @@ $cases = [
         'session' => ['role_name' => 'user'], // 'user' is not in allowed roles
         'features' => ['lms_expansion_quizzes' => [10 => true]],
         'enrollments' => [],
-        'expected_status' => 403
+        'expected_status' => 403,
+        'expected_error_code' => 'forbidden'
+    ],
+    [
+        'name' => 'Missing role returns 403',
+        'request' => ['course_id' => 10],
+        'session' => [],
+        'features' => ['lms_expansion_quizzes' => [10 => true]],
+        'enrollments' => [],
+        'expected_status' => 403,
+        'expected_error_code' => 'forbidden'
+    ],
+    [
+        'name' => 'Global feature flag fallback allows access',
+        'request' => ['course_id' => 999],
+        'session' => ['role_name' => 'admin'],
+        'features' => ['lms_expansion_quizzes' => [null => true]],
+        'enrollments' => [],
+        'expected_status' => 200,
+        'expected_count' => 0,
+        'expected_ids' => []
+    ],
+    [
+        'name' => 'Invalid course ID returns 422',
+        'request' => ['course_id' => 0],
+        'session' => ['role_name' => 'student'],
+        'features' => ['lms_expansion_quizzes' => [null => true]],
+        'enrollments' => [],
+        'expected_status' => 422,
+        'expected_error_code' => 'validation_error'
     ]
 ];
 
@@ -136,6 +170,12 @@ foreach ($cases as $case) {
 
         if ($actual['status'] !== $case['expected_status']) {
             throw new Exception("Expected status {$case['expected_status']}, got {$actual['status']}");
+        }
+
+        if ($actual['status'] !== 200) {
+            if (isset($case['expected_error_code']) && ($actual['error'] ?? '') !== $case['expected_error_code']) {
+                throw new Exception("Expected error code {$case['expected_error_code']}, got " . ($actual['error'] ?? 'none'));
+            }
         }
 
         if ($actual['status'] === 200) {

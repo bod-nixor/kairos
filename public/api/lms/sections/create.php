@@ -12,7 +12,18 @@ if ($courseId <= 0 || $title === '') {
 lms_course_access($user, $courseId);
 
 $pdo = db();
-$pos = (int) ($in['position'] ?? -1);
+$pos = -1;
+if (isset($in['position']) && $in['position'] !== '') {
+    $val = $in['position'];
+    if (is_int($val) || ctype_digit((string) $val)) {
+        $pos = (int) $val;
+        if ($pos === 0) {
+            $pos = -1;
+        }
+    } else {
+        lms_error('validation_error', 'Invalid position format', 400);
+    }
+}
 
 try {
     $pdo->beginTransaction();
