@@ -183,7 +183,7 @@
             return `<div class="k-timeline-item ${cls}">
         <div class="k-timeline-item__version">Submission ${submissions.length - i}</div>
         <div class="k-timeline-item__title">${LMS.escHtml(s.label || s.file_name || 'Submitted')}</div>
-        <div class="k-timeline-item__meta">${LMS.fmtDateTime(s.submitted_at)}${s.grade !== undefined ? ` · Grade: ${s.grade}` : ''}</div>
+        <div class="k-timeline-item__meta">${LMS.fmtDateTime(s.submitted_at)}${s.grade !== undefined ? ` · Grade: ${s.grade}` : ''}${s.submission_comment ? ` · Comment: ${LMS.escHtml(s.submission_comment)}` : ''}</div>
       </div>`;
         }).join('');
     }
@@ -288,6 +288,12 @@
                 const inp = $('urlInput');
                 if (!inp || !inp.value.trim()) { LMS.toast('Please enter a URL.', 'warning'); return; }
                 formData.append('url', inp.value.trim());
+            }
+
+            const commentInput = $('submissionCommentInput');
+            const submissionComment = (commentInput?.value || '').trim();
+            if (submissionComment) {
+                formData.append('submission_comment', submissionComment);
             }
 
             if (submType === 'file' && uploadedFiles[0]) {

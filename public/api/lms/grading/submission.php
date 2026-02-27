@@ -16,13 +16,15 @@ $pdo = db();
 $st = $pdo->prepare(
     'SELECT s.submission_id AS id, s.assignment_id, s.course_id, s.student_user_id,
             u.name AS student_name,
-            s.text_submission AS text_content, s.status, s.submitted_at,
+            s.text_submission AS text_content, s.submission_comment, s.status, s.submitted_at,
             g.grade_id, g.score, g.max_score, g.feedback,
             g.status AS grade_status
      FROM lms_submissions s
      JOIN users u ON u.user_id = s.student_user_id
      JOIN lms_assignments a ON a.assignment_id = s.assignment_id AND a.deleted_at IS NULL
-     LEFT JOIN lms_grades g ON g.submission_id = s.submission_id
+     LEFT JOIN lms_grades g ON g.grade_id = (
+         SELECT g2.grade_id FROM lms_grades g2 WHERE g2.submission_id = s.submission_id ORDER BY g2.updated_at DESC, g2.grade_id DESC LIMIT 1
+     )
      WHERE s.submission_id = :id
      LIMIT 1'
 );

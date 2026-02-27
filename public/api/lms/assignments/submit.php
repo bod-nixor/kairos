@@ -75,6 +75,15 @@ if ($textSubmission === '' && $uploadMeta === null) {
     lms_error('validation_error', 'Provide text_submission or a file', 422);
 }
 
+
+$submissionComment = trim((string)($_POST['submission_comment'] ?? ''));
+if ($submissionComment !== '' && function_exists('mb_strlen') && mb_strlen($submissionComment) > 2000) {
+    lms_error('validation_error', 'submission_comment is too long', 422);
+}
+if ($submissionComment !== '' && !function_exists('mb_strlen') && strlen($submissionComment) > 2000) {
+    lms_error('validation_error', 'submission_comment is too long', 422);
+}
+
 $pdo = db();
 $aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at, status, late_allowed FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
 $aSt->execute([':id' => $assignmentId]);
@@ -105,12 +114,13 @@ try {
     $version = (int)$verStmt->fetchColumn();
 
     $status = $late ? 'late' : 'submitted';
-    $pdo->prepare('INSERT INTO lms_submissions (assignment_id,course_id,student_user_id,version,text_submission,status,is_late) VALUES (:a,:c,:u,:v,:t,:s,:l)')->execute([
+    $pdo->prepare('INSERT INTO lms_submissions (assignment_id,course_id,student_user_id,version,text_submission,submission_comment,status,is_late) VALUES (:a,:c,:u,:v,:t,:comment,:s,:l)')->execute([
         ':a' => $assignmentId,
         ':c' => (int)$assignment['course_id'],
         ':u' => (int)$user['user_id'],
         ':v' => $version,
         ':t' => $textSubmission === '' ? null : $textSubmission,
+        ':comment' => $submissionComment === '' ? null : $submissionComment,
         ':s' => $status,
         ':l' => $late ? 1 : 0,
     ]);
@@ -144,7 +154,7 @@ try {
         ':new_status' => $status,
         ':occurred_at' => gmdate('Y-m-d H:i:s'),
         ':version' => $version,
-        ':metadata_json' => json_encode(['is_late' => $late, 'has_file' => $uploadMeta !== null], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ':metadata_json' => json_encode(['is_late' => $late, 'has_file' => $uploadMeta !== null, 'has_comment' => $submissionComment !== ''], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ]);
 
     $event = [
