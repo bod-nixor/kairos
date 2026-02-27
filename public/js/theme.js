@@ -37,7 +37,40 @@
   const saveSettings = (patch) => {
     const next = { ...readSettings(), ...(patch || {}) };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch (_) { /* ignore */ }
+    persistSettingsServer(next);
     return next;
+  };
+
+
+
+  let serverSaveTimer = null;
+
+  const canUseLmsApi = () => !!(window.KairosLMS && typeof window.KairosLMS.api === 'function');
+
+  const persistSettingsServer = (settings, themeOverride) => {
+    if (!canUseLmsApi()) return;
+    clearTimeout(serverSaveTimer);
+    serverSaveTimer = window.setTimeout(() => {
+      window.KairosLMS.api('POST', './api/lms/user_settings/set.php', {
+        theme: isValidTheme(themeOverride) ? themeOverride : (isValidTheme(root.dataset.theme) ? root.dataset.theme : null),
+        gradient: settings.gradient,
+        compact_mode: settings.compactMode ? 1 : 0,
+        reduce_motion: settings.reduceMotion ? 1 : 0,
+      });
+    }, 250);
+  };
+
+  const loadSettingsServer = async () => {
+    if (!canUseLmsApi()) return null;
+    const res = await window.KairosLMS.api('GET', './api/lms/user_settings/get.php');
+    if (!res.ok) return null;
+    const data = res.data?.data || res.data || {};
+    return {
+      theme: isValidTheme(data.theme) ? data.theme : null,
+      gradient: typeof data.gradient === 'string' ? data.gradient : 'ocean',
+      compactMode: Number(data.compact_mode || 0) === 1,
+      reduceMotion: Number(data.reduce_motion || 0) === 1,
+    };
   };
 
   const applyUiSettings = (settings) => {
@@ -66,6 +99,7 @@
     root.classList.toggle('theme-light', next !== 'dark');
     if (persist) {
       try { localStorage.setItem(STORAGE_KEY, next); } catch (err) { /* ignore */ }
+      persistSettingsServer(readSettings(), next);
     }
     syncToggle(next);
   };
@@ -184,11 +218,31 @@
     applyTheme(preferred, false);
   };
 
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     syncThemeState();
     applyUiSettings(readSettings());
     normalizeHomeLinks();
     ensureSettingsLauncher();
+
+    const serverSettings = await loadSettingsServer();
+    if (serverSettings) {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+          gradient: serverSettings.gradient,
+          compactMode: serverSettings.compactMode,
+          reduceMotion: serverSettings.reduceMotion,
+        }));
+      } catch (_) { /* ignore */ }
+      if (serverSettings.theme) {
+        applyTheme(serverSettings.theme, false);
+      }
+      applyUiSettings({
+        gradient: serverSettings.gradient,
+        compactMode: serverSettings.compactMode,
+        reduceMotion: serverSettings.reduceMotion,
+      });
+    }
+
     document.querySelectorAll('[data-theme-toggle]').forEach((toggle) => {
       toggle.addEventListener('click', () => {
         const current = isValidTheme(root.dataset.theme) ? root.dataset.theme : resolvePreferredTheme();
