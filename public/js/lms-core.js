@@ -60,6 +60,10 @@
     return raw || '/';
   }
 
+  const APP_BASE = '/signoff/';
+  const REDIRECT_SENTINEL_KEY = 'kairos:lastRedirect';
+  const REDIRECT_SENTINEL_WINDOW_MS = 2000;
+
   function isSignoffHomePath(pathname) {
     const normalized = normalizePathname(pathname);
     return normalized === '/signoff' || normalized === '/signoff/index.html';
@@ -67,8 +71,30 @@
 
   function redirectToSignoffHome() {
     if (!global.location) return;
-    if (isSignoffHomePath(global.location.pathname)) return;
-    global.location.href = '/signoff/';
+    const currentPath = normalizePathname(global.location.pathname);
+    const targetPath = normalizePathname(APP_BASE);
+    if (currentPath === targetPath) return;
+
+    let canRedirect = true;
+    try {
+      const now = Date.now();
+      const raw = global.sessionStorage ? global.sessionStorage.getItem(REDIRECT_SENTINEL_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.path === targetPath && Number.isFinite(parsed.at) && (now - parsed.at) < REDIRECT_SENTINEL_WINDOW_MS) {
+          canRedirect = false;
+        }
+      }
+      if (canRedirect && global.sessionStorage) {
+        global.sessionStorage.setItem(REDIRECT_SENTINEL_KEY, JSON.stringify({ path: targetPath, at: now }));
+      }
+    } catch (_) {
+      canRedirect = true;
+    }
+
+    if (canRedirect) {
+      global.location.replace(APP_BASE);
+    }
   }
 
   /* ── API wrapper ─────────────────────────────────────────── */
@@ -89,7 +115,7 @@
     try {
       const resp = await fetch(path, opts);
       if (resp.status === 401) {
-        global.location.href = '/signoff/';
+        redirectToSignoffHome();
         return { ok: false, status: 401, error: 'Unauthorized', data: null };
       }
       let data = null;
@@ -538,7 +564,7 @@ function sanitizeForRender(html) {
     // Load session
     const [me, caps] = await Promise.all([loadMe(), loadCaps()]);
     if (!me || !me.email) {
-      global.location.href = '/signoff/';
+      redirectToSignoffHome();
       return;
     }
     // Logout button
@@ -546,7 +572,7 @@ function sanitizeForRender(html) {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
         await api('POST', './api/logout.php', {});
-        global.location.href = '/signoff/';
+        redirectToSignoffHome();
       });
     }
     return { me, caps };
