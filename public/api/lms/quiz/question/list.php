@@ -31,7 +31,7 @@ try {
         lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
     }
 
-    $qSql = 'SELECT question_id, prompt, question_type, points, position, answer_key_json, settings_json FROM lms_questions WHERE assessment_id = :assessment_id ORDER BY position ASC, question_id ASC';
+    $qSql = 'SELECT question_id, prompt, question_type, points, position, is_required, answer_key_json, settings_json FROM lms_questions WHERE assessment_id = :assessment_id AND deleted_at IS NULL ORDER BY position ASC, question_id ASC';
     $qParams = [':assessment_id' => $assessmentId];
     $debug['steps'][] = ['step' => 'load_questions', 'sql' => $qSql, 'params' => $qParams];
     $qStmt = $pdo->prepare($qSql);
@@ -62,11 +62,37 @@ try {
             'id' => $qid, // deprecated: keep for legacy UI; remove after migration to question_id
             'question_id' => $qid,
             'prompt' => (string)$q['prompt'],
-            'question_type' => (string)$q['question_type'],
+            'question_type' => ((string)$q['question_type'] === 'multi_select' ? 'multiple_select' : (string)$q['question_type']),
             'points' => (float)$q['points'],
             'position' => (int)$q['position'],
+            'is_required' => (int)($q['is_required'] ?? 0),
             'options' => $optionsByQuestion[$qid] ?? [],
         ];
+
+
+        if (empty($item['options']) && $q['settings_json'] !== null) {
+            $decodedSettings = json_decode((string)$q['settings_json'], true);
+            if (is_array($decodedSettings) && isset($decodedSettings['options']) && is_array($decodedSettings['options'])) {
+                $normalized = [];
+                foreach ($decodedSettings['options'] as $opt) {
+                    if (is_array($opt)) {
+                        $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+                        $value = trim((string)($opt['value'] ?? $text));
+                    } else {
+                        $text = trim((string)$opt);
+                        $value = $text;
+                    }
+                    if ($text === '') {
+                        continue;
+                    }
+                    $normalized[] = [
+                        'value' => ($value === '' ? $text : $value),
+                        'text' => $text,
+                    ];
+                }
+                $item['options'] = $normalized;
+            }
+        }
 
         if (lms_is_staff_role($role)) {
             $item['answer_key'] = $q['answer_key_json'] === null ? null : json_decode((string)$q['answer_key_json'], true);

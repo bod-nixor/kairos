@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/_restriction_helpers.php';
 
 lms_require_feature(['lms_assignments', 'assignments']);
 $user = lms_require_roles(['manager', 'admin']);
@@ -12,7 +13,7 @@ if ($id <= 0) {
 }
 
 $pdo = db();
-$existingStmt = $pdo->prepare('SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points, status FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1');
+$existingStmt = $pdo->prepare('SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1');
 $existingStmt->execute([':id' => $id]);
 $existing = $existingStmt->fetch();
 if (!$existing) {
@@ -77,14 +78,22 @@ if (array_key_exists('max_points', $in)) {
 
 $status = array_key_exists('status', $in) ? (string)$in['status'] : (string)$existing['status'];
 
+
+$allowedFileExtensions = lms_normalize_allowed_file_extensions(
+    array_key_exists('allowed_file_extensions', $in) ? $in['allowed_file_extensions'] : ($existing['allowed_file_extensions'] ?? null)
+);
+$maxFileMb = lms_clamp_max_file_mb(array_key_exists('max_file_mb', $in) ? $in['max_file_mb'] : ($existing['max_file_mb'] ?? 50), 50);
+
 $pdo->beginTransaction();
 try {
-    $pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l, max_points=:m, status=:st, updated_at=CURRENT_TIMESTAMP WHERE assignment_id=:id')->execute([
+    $pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l, max_points=:m, allowed_file_extensions=:afe, max_file_mb=:mfm, status=:st, updated_at=CURRENT_TIMESTAMP WHERE assignment_id=:id')->execute([
         ':t' => $title,
         ':i' => $instructions,
         ':d' => $dueAt,
         ':l' => $lateAllowed,
         ':m' => $maxPoints,
+        ':afe' => ($allowedFileExtensions === '' ? null : $allowedFileExtensions),
+        ':mfm' => $maxFileMb,
         ':st' => $status,
         ':id' => $id,
     ]);

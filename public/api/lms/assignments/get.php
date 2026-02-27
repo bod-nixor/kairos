@@ -17,7 +17,7 @@ $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && in_array
 
 try {
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, status
+    $stmt = $pdo->prepare('SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status
         FROM lms_assignments WHERE assignment_id = :assignment_id AND deleted_at IS NULL LIMIT 1');
     $stmt->execute([':assignment_id' => $assignmentId]);
     $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -48,6 +48,8 @@ try {
         'due_at' => $assignment['due_at'],
         'late_allowed' => (int)$assignment['late_allowed'],
         'max_points' => (float)$assignment['max_points'],
+        'allowed_file_extensions' => (string)($assignment['allowed_file_extensions'] ?? ''),
+        'max_file_mb' => max(1, (int)($assignment['max_file_mb'] ?? 50)),
         'status' => (string)$assignment['status'],
         'published_flag' => (int)$module['published_flag'],
         'required_flag' => (int)$module['required_flag'],
