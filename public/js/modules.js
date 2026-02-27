@@ -11,7 +11,7 @@
     let isAdmin = false;
     const expandedModules = new Set();
 
-    const TYPE_ICONS = { lesson: '📄', assignment: '📤', quiz: '⚡', file: '📎', video: '🎬', link: '🔗', resource: '📎' };
+    const TYPE_ICONS = { lesson: '📝', assignment: '📤', quiz: '🧪', file: '📄', video: '🎬', link: '🔗', resource: '📎', page: '📘', text: '📝' };
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -24,12 +24,12 @@
         return `https://${value}`;
     }
 
-    function itemHref(item) {
+    function itemHref(item, mode = 'view') {
         const type = String(item.item_type || item.type || '').toLowerCase();
         const entityId = parseInt(item.entity_id || item.id || 0, 10);
-        if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}`;
-        if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}`;
-        if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}`;
+        if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}${mode === 'edit' ? '&mode=edit' : ''}`;
+        if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}${mode === 'edit' ? '&mode=edit' : ''}`;
+        if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}${mode === 'edit' ? '&mode=edit' : ''}`;
         if (type === 'link') {
             const external = normalizeExternalUrl(item.url || item.resource_url || item.external_url || '');
             if (external) return external;
@@ -40,8 +40,9 @@
     }
 
     function renderModuleItem(item) {
-        const iconClass = '';
-        const icon = TYPE_ICONS[item.type] || '📌';
+        const typeKey = String(item.type || item.item_type || '').toLowerCase();
+        const iconClass = `k-module-item__icon--${LMS.escHtml(typeKey || 'default')}`;
+        const icon = TYPE_ICONS[typeKey] || '📌';
         const locked = item.locked;
         const done = item.completed;
         const metaParts = [];
@@ -59,7 +60,7 @@
         // Admin per-item controls
         const adminBtns = isAdmin ? `
           <span class="k-module-item__admin-actions">
-            <button class="k-btn-icon" title="Edit" data-href="${LMS.escHtml(itemHref(item))}">
+            <button class="k-btn-icon" title="Edit" data-action="edit-item" data-href="${LMS.escHtml(itemHref(item, 'edit'))}">
               ✏️
             </button>
           </span>` : '';
@@ -67,11 +68,11 @@
         const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
         const titleMarkup = locked
             ? `<span>${titleText}</span>`
-            : `<a href="${LMS.escHtml(itemHref(item))}" style="color:inherit;text-decoration:none;">${titleText}</a>`;
+            : `<a href="${LMS.escHtml(itemHref(item, 'view'))}" style="color:inherit;text-decoration:none;">${titleText}</a>`;
 
         return `
       <div 
-         ${!locked ? `data-href="${LMS.escHtml(itemHref(item))}" tabindex="0"` : ''}
+         ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
          role="listitem"
@@ -165,10 +166,17 @@
         }
 
         container.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action="edit-item"]')) return;
             const target = e.target.closest('[data-href], a');
             if (target && target.dataset.href) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (/^https?:\/\//i.test(target.dataset.href)) {
+                    LMS.confirm('Open external link', `${target.dataset.href} is being opened in a new tab. Proceed?`, () => {
+                        window.open(target.dataset.href, '_blank', 'noopener,noreferrer');
+                    }, { okLabel: 'Yes' });
+                    return;
+                }
                 window.location.href = target.dataset.href;
             } else if (target && target.tagName === 'A') {
                 e.stopPropagation();
