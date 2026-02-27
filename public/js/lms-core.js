@@ -72,7 +72,7 @@
     try {
       const resp = await fetch(path, opts);
       if (resp.status === 401) {
-        global.location.href = '/';
+        global.location.href = '/signoff/';
         return { ok: false, status: 401, error: 'Unauthorized', data: null };
       }
       let data = null;
@@ -521,7 +521,7 @@ function sanitizeForRender(html) {
     // Load session
     const [me, caps] = await Promise.all([loadMe(), loadCaps()]);
     if (!me || !me.email) {
-      global.location.href = '/';
+      global.location.href = '/signoff/';
       return;
     }
     // Logout button
@@ -529,7 +529,7 @@ function sanitizeForRender(html) {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
         await api('POST', './api/logout.php', {});
-        global.location.href = '/';
+        global.location.href = '/signoff/';
       });
     }
     return { me, caps };
