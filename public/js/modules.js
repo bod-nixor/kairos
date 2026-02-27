@@ -208,7 +208,7 @@
                 }
             } else if (target && target.tagName === 'A') {
                 const href = target.getAttribute('href') || '';
-                if (isExternalHttpUrl(href)) {
+                if (isExternalUrl(href)) {
                     if (navigateToHref(href)) {
                         e.preventDefault();
                         e.stopPropagation();
