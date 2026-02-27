@@ -280,6 +280,10 @@
     background: var(--surface-subtle);
 }
 
+.k-module-item--interactive {
+    cursor: pointer;
+}
+
 .k-module-item--locked {
     opacity: .55;
     pointer-events: none;
@@ -318,6 +322,21 @@
     color: #9333ea;
 }
 
+.k-module-item__icon--lesson {
+    background: #ecfeff;
+    color: #0e7490;
+}
+
+.k-module-item__icon--video {
+    background: #fef2f2;
+    color: #be123c;
+}
+
+.k-module-item__icon--resource {
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
 [data-theme="dark"] .k-module-item__icon--quiz {
     background: #052e16;
     color: #4ade80;
@@ -336,6 +355,21 @@
 [data-theme="dark"] .k-module-item__icon--link {
     background: #2e1065;
     color: #c084fc;
+}
+
+[data-theme="dark"] .k-module-item__icon--lesson {
+    background: #083344;
+    color: #67e8f9;
+}
+
+[data-theme="dark"] .k-module-item__icon--video {
+    background: #4c0519;
+    color: #fda4af;
+}
+
+[data-theme="dark"] .k-module-item__icon--resource {
+    background: #2e1065;
+    color: #c4b5fd;
 }
 
 .k-module-item__body {

@@ -10,10 +10,65 @@
 
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
+    const notifications = [];
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
+
+    function pushNotification(entry) {
+        if (!entry || !entry.message) return;
+        const eventId = String(entry.event_id || `${entry.type || 'event'}:${entry.created_at || Date.now()}`);
+        if (notifications.some(n => n.event_id === eventId)) return;
+        notifications.unshift({
+            event_id: eventId,
+            type: entry.type || 'update',
+            message: entry.message,
+            created_at: entry.created_at || new Date().toISOString(),
+        });
+        if (notifications.length > 25) notifications.length = 25;
+        renderNotifications();
+    }
+
+    function renderNotifications() {
+        const list = $('kNotificationsList');
+        const dot = $('kBellDot');
+        if (!list) return;
+        if (!notifications.length) {
+            list.innerHTML = '<div class="k-empty" style="padding:12px"><p class="k-empty__title">No notifications yet</p></div>';
+            if (dot) dot.classList.add('hidden');
+            return;
+        }
+        list.innerHTML = notifications.map((n) => `
+          <article class="k-notification-item">
+            <div class="k-notification-item__title">${LMS.escHtml(n.message)}</div>
+            <div class="k-notification-item__meta">${LMS.timeAgo(n.created_at)}</div>
+          </article>
+        `).join('');
+        if (dot) dot.classList.remove('hidden');
+    }
+
+    function setupNotificationsPanel() {
+        const bell = $('kBellBtn');
+        const panel = $('kNotificationsPanel');
+        if (!bell || !panel) return;
+        bell.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                $('kBellDot')?.classList.add('hidden');
+            }
+        });
+        $('kNotifClearBtn')?.addEventListener('click', () => {
+            $('kBellDot')?.classList.add('hidden');
+            panel.classList.add('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!panel.classList.contains('hidden') && !panel.contains(e.target) && e.target !== bell) {
+                panel.classList.add('hidden');
+            }
+        });
+    }
     // ── Module overview rendering ─────────────────────────────
     function renderModuleOverview(modules) {
         const container = $('moduleOverview');
@@ -105,7 +160,7 @@
     // ── Main load function ─────────────────────────────────────
     async function loadPage() {
         if (!COURSE_ID) {
-            LMS.renderAccessDenied($('courseAccessDenied'), 'No course specified.', '/');
+            LMS.renderAccessDenied($('courseAccessDenied'), 'No course specified.', '/signoff/');
             hideEl('courseSkeleton');
             showEl('courseAccessDenied');
             return;
@@ -193,6 +248,19 @@
         renderModuleOverview(modules);
         renderAnnouncementsFeed(announcements);
         renderRecentActivity(activity);
+        notifications.length = 0;
+        announcements.slice(0, 10).forEach((a) => pushNotification({
+            event_id: `announcement:${a.announcement_id || a.id || a.created_at}`,
+            type: 'announcement',
+            message: `New announcement: ${a.title || 'Course update'}`,
+            created_at: a.created_at,
+        }));
+        activity.slice(0, 10).forEach((evt) => pushNotification({
+            event_id: `activity:${evt.id || evt.event_id || evt.created_at}:${evt.type || 'event'}`,
+            type: evt.type || 'activity',
+            message: evt.message || 'Course activity updated',
+            created_at: evt.created_at,
+        }));
 
         document.title = `${course.name || 'Course'} — Kairos`;
         showEl('courseLoaded');
@@ -246,6 +314,7 @@
         LMS.nav.updateUserBar(session.me);
 
         setupAnnouncementModal();
+        setupNotificationsPanel();
 
         await loadPage();
     });
@@ -257,6 +326,12 @@
             const badge = $('newAnnBadge');
             if (badge) badge.classList.remove('hidden');
             LMS.toast('New announcement posted!', 'info');
+            pushNotification({
+                event_id: `announcement:${payload.announcement_id || payload.event_id || Date.now()}`,
+                type: 'announcement',
+                message: `New announcement: ${payload.title || 'Course update'}`,
+                created_at: payload.created_at || new Date().toISOString(),
+            });
         });
     }
 

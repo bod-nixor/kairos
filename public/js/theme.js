@@ -72,11 +72,32 @@
 
   const homeUrl = () => `${window.location.origin}${HOME_PATH}`;
 
+  const normalizeHrefToHome = (href) => {
+    const raw = String(href || '').trim();
+    if (!raw || raw === '#' || raw.startsWith('javascript:')) return null;
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      const path = parsed.pathname.replace(/\/+$/, '') || '/';
+      if (
+        path === '/' ||
+        path === '/index.html' ||
+        path === '/signoff' ||
+        path === '/signoff/index.html'
+      ) {
+        return homeUrl();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  };
+
   const normalizeHomeLinks = () => {
     document.querySelectorAll('a[href]').forEach((anchor) => {
       const href = (anchor.getAttribute('href') || '').trim();
-      if (href === '/' || href === './' || href === '/index.html') {
-        anchor.setAttribute('href', homeUrl());
+      const normalized = normalizeHrefToHome(href);
+      if (normalized) {
+        anchor.setAttribute('href', normalized);
       }
       if (anchor.dataset.homeLink === 'true') {
         anchor.setAttribute('href', homeUrl());
@@ -158,9 +179,15 @@
     return prefersDarkQuery && prefersDarkQuery.matches ? 'dark' : 'light';
   };
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const preferred = resolvePreferredTheme();
+  const syncThemeState = () => {
+    const stored = readStoredTheme();
+    const datasetTheme = isValidTheme(root.dataset.theme) ? root.dataset.theme : null;
+    const preferred = stored || datasetTheme || resolvePreferredTheme();
     applyTheme(preferred, false);
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    syncThemeState();
     applyUiSettings(readSettings());
     normalizeHomeLinks();
     ensureSettingsLauncher();
@@ -173,8 +200,14 @@
   });
 
   window.addEventListener('resize', () => {
-    applyTheme(resolvePreferredTheme(), false);
+    syncThemeState();
     applyUiSettings(readSettings());
+  });
+
+  window.addEventListener('pageshow', () => {
+    syncThemeState();
+    applyUiSettings(readSettings());
+    normalizeHomeLinks();
   });
 
   if (prefersDarkQuery && typeof prefersDarkQuery.addEventListener === 'function') {

@@ -139,6 +139,8 @@
             iframe.setAttribute('src', embedUrl);
             iframe.setAttribute('title', 'Embedded video');
             iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
+            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
             iframe.setAttribute('allowfullscreen', 'true');
             videoWrap.appendChild(iframe);
             showEl('videoWrap');
@@ -153,6 +155,8 @@
             }
             const iframe = $('resourceIframe');
             iframe.src = iframeSrc;
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
             iframe.onerror = () => {
                 $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
                 showEl('externalWrap');
