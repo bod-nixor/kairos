@@ -93,6 +93,64 @@
         });
     }
 
+
+    function ensureAssignmentEditorModal() {
+        let modal = $('assignEditorModal');
+        if (modal) return modal;
+        modal = document.createElement('dialog');
+        modal.id = 'assignEditorModal';
+        modal.className = 'k-modal';
+        modal.innerHTML = `<form method="dialog" class="k-modal__content" id="assignEditorForm" style="max-width:640px">
+            <h3 style="margin:0 0 12px">Edit assignment</h3>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Title</span><input id="assignEditTitle" type="text" required /></label>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Description</span><textarea id="assignEditDescription" rows="5"></textarea></label>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Due date/time</span><input id="assignEditDueAt" type="text" placeholder="YYYY-MM-DD HH:MM:SS" /></label>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px"><span>Max points</span><input id="assignEditMaxPoints" type="number" min="1" step="1" /></label>
+            <div class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" id="assignEditorCancel">Cancel</button><button class="btn btn-primary" type="submit">Save changes</button></div>
+        </form>`;
+        document.body.appendChild(modal);
+        $('assignEditorCancel')?.addEventListener('click', () => modal.close());
+        return modal;
+    }
+
+    function openAssignmentEditor(initial) {
+        const modal = ensureAssignmentEditorModal();
+        const form = $('assignEditorForm');
+        const title = $('assignEditTitle');
+        const description = $('assignEditDescription');
+        const dueAt = $('assignEditDueAt');
+        const maxPoints = $('assignEditMaxPoints');
+        if (!form || !title || !description || !dueAt || !maxPoints) return Promise.resolve(null);
+        title.value = initial?.title || '';
+        description.value = initial?.instructions || initial?.description || '';
+        dueAt.value = initial?.due_at || '';
+        maxPoints.value = String(initial?.max_points || 100);
+        modal.showModal();
+        return new Promise((resolve) => {
+            const closeHandler = () => {
+                form.removeEventListener('submit', submitHandler);
+                modal.removeEventListener('close', closeHandler);
+                resolve(null);
+            };
+            const submitHandler = (event) => {
+                event.preventDefault();
+                const points = Number.parseInt(maxPoints.value || '100', 10);
+                form.removeEventListener('submit', submitHandler);
+                modal.removeEventListener('close', closeHandler);
+                modal.close();
+                resolve({
+                    title: title.value.trim(),
+                    instructions: description.value.trim(),
+                    due_at: dueAt.value.trim(),
+                    max_points: Number.isFinite(points) && points > 0 ? points : 100,
+                });
+            };
+            form.addEventListener('submit', submitHandler);
+            modal.addEventListener('close', closeHandler);
+            setTimeout(() => title.focus(), 0);
+        });
+    }
+
     // ── Rubric ─────────────────────────────────────────────────
     function renderRubric(rubric) {
         if (!rubric || !rubric.length) return;
@@ -156,23 +214,22 @@
             if (res.ok) await loadPage();
         });
         $('assignMandatoryBtn')?.addEventListener('click', async () => {
-            const confirmed = window.confirm('Set assignment as mandatory?');
-            if (!confirmed) return;
-            const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: 1 });
-            LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
-            if (res.ok) await loadPage();
+            LMS.confirm('Set as mandatory?', 'Students will be required to submit this assignment.', async () => {
+                const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: 1 });
+                LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
+                if (res.ok) await loadPage();
+            }, { okLabel: 'Set mandatory', okClass: 'btn-primary' });
         });
         $('assignEditBtn')?.addEventListener('click', async () => {
-            const title = window.prompt('Title', assignData?.title || '');
-            if (!title) return;
-            const description = window.prompt('Description', assignData?.instructions || assignData?.description || '');
-            const dueAt = window.prompt('Due at (YYYY-MM-DD HH:MM:SS)', assignData?.due_at || '');
-            const maxPointsRaw = window.prompt('Max points', String(assignData?.max_points || 100));
-            let maxPoints = Number.parseInt(String(maxPointsRaw ?? ''), 10);
-            if (!Number.isFinite(maxPoints) || Number.isNaN(maxPoints) || maxPoints <= 0) {
-                maxPoints = 100;
-            }
-            const res = await LMS.api('POST', './api/lms/assignments/update.php', { assignment_id: Number(ASSIGN_ID), title, instructions: description, due_at: dueAt, max_points: maxPoints });
+            const updatePayload = await openAssignmentEditor(assignData);
+            if (!updatePayload || !updatePayload.title) return;
+            const res = await LMS.api('POST', './api/lms/assignments/update.php', {
+                assignment_id: Number(ASSIGN_ID),
+                title: updatePayload.title,
+                instructions: updatePayload.instructions,
+                due_at: updatePayload.due_at,
+                max_points: updatePayload.max_points,
+            });
             LMS.toast(res.ok ? 'Assignment updated' : 'Update failed', res.ok ? 'success' : 'error');
             if (res.ok) await loadPage();
         });
@@ -234,7 +291,7 @@
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!ASSIGN_ID) {
-            LMS.renderAccessDenied($('assignAccessDenied'), 'No assignment specified. Please select an assignment from the Modules page.', COURSE_ID ? `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}` : '/');
+            LMS.renderAccessDenied($('assignAccessDenied'), 'No assignment specified. Please select an assignment from the Modules page.', COURSE_ID ? `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}` : '/signoff/');
             hideEl('assignSkeleton');
             showEl('assignAccessDenied');
             return;

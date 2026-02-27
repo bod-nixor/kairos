@@ -262,6 +262,68 @@
     await saveDraft();
   }
 
+
+  function ensureLinkModal() {
+    let modal = $('lessonLinkModal');
+    if (modal) return modal;
+    modal = document.createElement('dialog');
+    modal.id = 'lessonLinkModal';
+    modal.className = 'k-modal';
+    modal.innerHTML = `
+      <form method="dialog" class="k-modal__content" id="lessonLinkForm" style="max-width:520px">
+        <h3 style="margin:0 0 12px">Insert link</h3>
+        <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px">
+          <span>URL</span>
+          <input id="lessonLinkUrl" type="url" required placeholder="https://example.com" />
+        </label>
+        <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px">
+          <span>Anchor text</span>
+          <input id="lessonLinkText" type="text" placeholder="Link text" />
+        </label>
+        <div class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-ghost" type="button" id="lessonLinkCancel">Cancel</button>
+          <button class="btn btn-primary" type="submit">Insert link</button>
+        </div>
+      </form>`;
+    document.body.appendChild(modal);
+    $('lessonLinkCancel')?.addEventListener('click', () => modal.close());
+    return modal;
+  }
+
+  function openLinkModal(initialText) {
+    const modal = ensureLinkModal();
+    const form = $('lessonLinkForm');
+    const urlInput = $('lessonLinkUrl');
+    const textInput = $('lessonLinkText');
+    if (!form || !urlInput || !textInput) return Promise.resolve(null);
+    urlInput.value = '';
+    textInput.value = initialText || '';
+    modal.showModal();
+    return new Promise((resolve) => {
+      const closeHandler = () => {
+        form.removeEventListener('submit', submitHandler);
+        modal.removeEventListener('close', closeHandler);
+        resolve(null);
+      };
+      const submitHandler = (event) => {
+        event.preventDefault();
+        const url = urlInput.value.trim();
+        const text = textInput.value.trim();
+        if (!isSafeHttpUrl(url)) {
+          LMS.toast('Please enter a valid http(s) URL.', 'warning');
+          return;
+        }
+        form.removeEventListener('submit', submitHandler);
+        modal.removeEventListener('close', closeHandler);
+        modal.close();
+        resolve({ url, text });
+      };
+      form.addEventListener('submit', submitHandler);
+      modal.addEventListener('close', closeHandler);
+      setTimeout(() => urlInput.focus(), 0);
+    });
+  }
+
   function wireToolbar() {
     document.querySelectorAll('[data-cmd]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -271,23 +333,21 @@
       });
     });
 
-    $('addLinkBtn')?.addEventListener('click', () => {
+    $('addLinkBtn')?.addEventListener('click', async () => {
       if (!state.canEdit || !state.isEditMode) return;
       const editor = $('lessonEditor');
       editor?.focus();
       const selection = document.getSelection();
       const hasSelection = !!selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
-      const url = window.prompt('Enter link URL');
-      if (!url || !isSafeHttpUrl(url)) {
-        LMS.toast('Please enter a valid http(s) URL.', 'warning');
-        return;
-      }
+      const selectedText = hasSelection ? selection.toString() : '';
+      const linkInput = await openLinkModal(selectedText);
+      if (!linkInput) return;
 
       if (hasSelection) {
-        document.execCommand('createLink', false, url);
+        document.execCommand('createLink', false, linkInput.url);
       } else {
-        const text = window.prompt('Enter link text') || url;
-        document.execCommand('insertHTML', false, `<a href="${escAttr(url)}">${escAttr(text)}</a>`);
+        const text = linkInput.text || linkInput.url;
+        document.execCommand('insertHTML', false, `<a href="${escAttr(linkInput.url)}">${escAttr(text)}</a>`);
       }
 
       editor?.querySelectorAll('a[href]').forEach((anchor) => {

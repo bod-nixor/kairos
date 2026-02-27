@@ -21,9 +21,9 @@
         }
 
         container.innerHTML = '<div class="k-list" role="list">' + items.map(item => {
-            const dueStr = item.due_date ? `Due ${LMS.fmtDateTime(item.due_date)}` : 'No due date';
+            const dueStr = (item.available_until || item.due_date) ? `Due ${LMS.fmtDateTime(item.available_until || item.due_date)}` : 'No due date';
             const metaStr = [
-                item.time_limit_min ? `${item.time_limit_min} min` : null,
+                (item.time_limit_min || item.time_limit_minutes) ? `${item.time_limit_min || item.time_limit_minutes} min` : null,
                 item.max_attempts ? `${item.max_attempts} attempts max` : null
             ].filter(Boolean).join(' • ');
 
@@ -31,11 +31,11 @@
             const safeMetaStr = LMS.escHtml(metaStr);
 
             return `
-            <a href="./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&id=${encodeURIComponent(item.id)}" class="k-list-item" role="listitem">
+            <a href="./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${encodeURIComponent(item.assessment_id || item.id)}" class="k-list-item" role="listitem">
                 <div class="k-list-item__icon" aria-hidden="true">⚡</div>
                 <div class="k-list-item__content">
                     <div class="k-list-item__title">${LMS.escHtml(item.title || 'Untitled Quiz')}</div>
-                    <div class="k-list-item__desc">${LMS.escHtml(item.description || '')}</div>
+                    <div class="k-list-item__desc">${LMS.escHtml(item.instructions || item.description || '')}</div>
                     <div class="k-list-item__meta">
                         <span>${safeDueStr}</span>
                         ${safeMetaStr ? `<span>• ${safeMetaStr}</span>` : ''}
@@ -47,7 +47,7 @@
 
     async function loadPage() {
         if (!COURSE_ID) {
-            LMS.renderAccessDenied($('accessDenied'), 'No course specified.', '/');
+            LMS.renderAccessDenied($('accessDenied'), 'No course specified.', '/signoff/');
             hideEl('skeletonView');
             showEl('accessDenied');
             return;
@@ -61,7 +61,7 @@
         hideEl('skeletonView');
 
         if (courseRes.status === 403 || listRes.status === 403) {
-            LMS.renderAccessDenied($('accessDenied'), 'You are not enrolled in this course.', '/');
+            LMS.renderAccessDenied($('accessDenied'), 'You are not enrolled in this course.', '/signoff/');
             showEl('accessDenied');
             return;
         }
