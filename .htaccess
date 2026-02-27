@@ -1,6 +1,10 @@
 Options -Indexes -MultiViews
 RewriteEngine On
 
+# Canonical root entrypoint: send site root to /signoff/ once.
+RewriteCond %{REQUEST_URI} ^/$
+RewriteRule ^$ /signoff/ [R=302,L]
+
 # --- WebSocket + emit reverse proxy (must be before RewriteBase/other rules) ---
 
 # Proxy WebSocket: /signoff/ws → ws://127.0.0.1:8090/ws
