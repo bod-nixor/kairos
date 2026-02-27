@@ -60,6 +60,8 @@
             }
         });
         $('kNotifClearBtn')?.addEventListener('click', () => {
+            notifications.length = 0;
+            renderNotifications();
             $('kBellDot')?.classList.add('hidden');
             panel.classList.add('hidden');
         });

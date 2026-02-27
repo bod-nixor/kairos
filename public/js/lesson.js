@@ -339,11 +339,21 @@
       editor?.focus();
       const selection = document.getSelection();
       const hasSelection = !!selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
+      const savedRange = hasSelection ? selection.getRangeAt(0).cloneRange() : null;
       const selectedText = hasSelection ? selection.toString() : '';
       const linkInput = await openLinkModal(selectedText);
       if (!linkInput) return;
 
-      if (hasSelection) {
+      const restoreSelection = () => {
+        if (!savedRange || !editor) return;
+        const sel = document.getSelection();
+        if (!sel) return;
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      };
+      restoreSelection();
+
+      if (savedRange) {
         document.execCommand('createLink', false, linkInput.url);
       } else {
         const text = linkInput.text || linkInput.url;

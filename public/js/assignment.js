@@ -214,11 +214,29 @@
             if (res.ok) await loadPage();
         });
         $('assignMandatoryBtn')?.addEventListener('click', async () => {
-            LMS.confirm('Set as mandatory?', 'Students will be required to submit this assignment.', async () => {
-                const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: 1 });
-                LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
-                if (res.ok) await loadPage();
-            }, { okLabel: 'Set mandatory', okClass: 'btn-primary' });
+            const currentRequired = Number(assignData?.required_flag || 0) === 1;
+            const newRequired = currentRequired ? 0 : 1;
+            LMS.confirm(
+                newRequired ? 'Set as mandatory?' : 'Unset mandatory?',
+                newRequired ? 'Students will be required to submit this assignment.' : 'Students will no longer be required to submit this assignment.',
+                async () => {
+                    const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', {
+                        assignment_id: Number(ASSIGN_ID),
+                        required: newRequired,
+                    });
+                    LMS.toast(
+                        res.ok
+                            ? (newRequired ? 'Assignment marked as mandatory' : 'Assignment marked as optional')
+                            : 'Mandatory update failed',
+                        res.ok ? 'success' : 'error'
+                    );
+                    if (res.ok) {
+                        assignData = { ...(assignData || {}), required_flag: newRequired };
+                        await loadPage();
+                    }
+                },
+                { okLabel: newRequired ? 'Set mandatory' : 'Set optional', okClass: 'btn-primary' }
+            );
         });
         $('assignEditBtn')?.addEventListener('click', async () => {
             const updatePayload = await openAssignmentEditor(assignData);

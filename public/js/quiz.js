@@ -439,10 +439,29 @@
             if (res.ok) await loadPage();
         });
         $('staffMandatoryBtn')?.addEventListener('click', async () => {
-            LMS.confirm('Set as mandatory?', 'Students will be required to complete this quiz.', async () => {
-                const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', { assessment_id: Number(QUIZ_ID), required: 1 });
-                LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
-            }, { okLabel: 'Set mandatory', okClass: 'btn-primary' });
+            const currentRequired = Number(quizData?.required_flag || 0) === 1;
+            const newRequired = currentRequired ? 0 : 1;
+            LMS.confirm(
+                newRequired ? 'Set as mandatory?' : 'Unset mandatory?',
+                newRequired ? 'Students will be required to complete this quiz.' : 'Students will no longer be required to complete this quiz.',
+                async () => {
+                    const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', {
+                        assessment_id: Number(QUIZ_ID),
+                        required: newRequired,
+                    });
+                    LMS.toast(
+                        res.ok
+                            ? (newRequired ? 'Quiz marked as mandatory' : 'Quiz marked as optional')
+                            : 'Mandatory update failed',
+                        res.ok ? 'success' : 'error'
+                    );
+                    if (res.ok) {
+                        quizData = { ...(quizData || {}), required_flag: newRequired };
+                        await loadPage();
+                    }
+                },
+                { okLabel: newRequired ? 'Set mandatory' : 'Set optional', okClass: 'btn-primary' }
+            );
         });
         $('staffLoadAttemptsBtn')?.addEventListener('click', async () => {
             const res = await LMS.api('GET', `./api/lms/quiz/submissions.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`);
@@ -470,16 +489,34 @@
         wrap.querySelectorAll('button[data-act="edit"]').forEach((btn) => btn.addEventListener('click', async () => {
             const id = Number(btn.dataset.id || 0);
             const question = questions.find((q) => Number(q.question_id) === id) || {};
+            const questionOptions = Array.isArray(question.options) ? question.options : [];
+            const answerSeed = Array.isArray(question.answer_key)
+                ? question.answer_key.join(', ')
+                : (question.answer_key || '');
             const modalInput = await openQuestionEditorModal({
                 prompt: question.prompt || '',
                 question_type: question.question_type || 'mcq',
                 points: question.points || 1,
+                options_raw: questionOptions.map((opt) => opt.text || opt.value || '').filter(Boolean).join(', '),
+                answer_raw: answerSeed,
             });
             if (!modalInput) return;
+            const options = String(modalInput.options_raw || '')
+                .split(',')
+                .map((v, idx) => ({ value: `opt_${idx + 1}`, text: v.trim() }))
+                .filter((opt) => opt.text);
+            const normalizedPoints = Number(modalInput.points) > 0 ? Number(modalInput.points) : 1;
+            const answerRaw = String(modalInput.answer_raw || '').trim();
+            const answerKey = modalInput.question_type === 'multiple_select'
+                ? answerRaw.split(',').map((v) => v.trim()).filter(Boolean)
+                : (answerRaw || null);
             const res = await LMS.api('POST', './api/lms/quiz/question/update.php', {
                 question_id: id,
                 prompt: modalInput.prompt,
-                points: Number(modalInput.points) > 0 ? Number(modalInput.points) : 1,
+                question_type: modalInput.question_type,
+                points: normalizedPoints,
+                answer_key: answerKey,
+                settings: { options },
             });
             LMS.toast(res.ok ? 'Question updated' : 'Update failed', res.ok ? 'success' : 'error');
             if (res.ok) await renderStaffPanel();

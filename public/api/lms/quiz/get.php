@@ -54,6 +54,10 @@ try {
     $qStmt->execute($questionParams);
     $questionCount = (int)$qStmt->fetchColumn();
 
+    $moduleStmt = $pdo->prepare("SELECT required_flag FROM lms_module_items WHERE item_type = 'quiz' AND entity_id = :assessment_id LIMIT 1");
+    $moduleStmt->execute([':assessment_id' => $assessmentId]);
+    $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['required_flag' => 0];
+
     $response = [
         'quiz_id' => (int)$row['assessment_id'], // deprecated alias for assessment_id
         'assessment_id' => (int)$row['assessment_id'],
@@ -69,6 +73,7 @@ try {
         'question_count' => $questionCount,
         'available_from' => $row['available_from'],
         'due_at' => $row['due_at'],
+        'required_flag' => (int)$module['required_flag'],
     ];
     if ($debugMode) {
         $response['debug'] = $debug;
