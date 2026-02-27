@@ -103,7 +103,8 @@
 
         // Update header
         $('questionNum') && ($('questionNum').textContent = `Question ${idx + 1} of ${questions.length}`);
-        $('questionText') && ($('questionText').textContent = q.text || q.prompt || '');
+        const questionLabel = (q.text || q.prompt || '') + (q.is_required ? ' *' : '');
+        $('questionText') && ($('questionText').textContent = questionLabel);
         $('quizProgressText') && ($('quizProgressText').textContent = `${idx + 1} / ${questions.length}`);
 
         const fill = ((idx + 1) / questions.length) * 100;
@@ -214,7 +215,7 @@
     async function submitAttempt(forced) {
         stopTimer();
         if (!forced) {
-            const unanswered = questions.filter(q => answers[q.id] === undefined).length;
+            const unanswered = questions.filter(q => q.is_required && (answers[q.id] === undefined || answers[q.id] === null || (typeof answers[q.id] === 'string' && !answers[q.id].trim()) || (Array.isArray(answers[q.id]) && answers[q.id].length === 0))).length;
             if (unanswered > 0) {
                 const confirmed = await new Promise(res => {
                     LMS.confirm('Submit Quiz?',
@@ -324,7 +325,8 @@
               <label style="display:grid;gap:6px"><span>Points</span><input id="quizQPoints" type="number" min="1" value="1" /></label>
             </div>
             <label style="display:grid;gap:6px;margin-bottom:8px"><span>Options (comma-separated, optional)</span><input id="quizQOptions" type="text" placeholder="Option A, Option B" /></label>
-            <label style="display:grid;gap:6px;margin-bottom:12px"><span>Correct answer (value or comma list)</span><input id="quizQAnswer" type="text" /></label>
+            <label style="display:grid;gap:6px;margin-bottom:8px"><span>Correct answer (value or comma list)</span><input id="quizQAnswer" type="text" /></label>
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><input id="quizQRequired" type="checkbox" /><span>Required question</span></label>
             <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" id="quizQuestionCancel">Cancel</button><button class="btn btn-primary" type="submit">Add question</button></div>
           </form>`;
         document.body.appendChild(modal);
@@ -340,12 +342,14 @@
         const points = $('quizQPoints');
         const options = $('quizQOptions');
         const answer = $('quizQAnswer');
-        if (!form || !prompt || !type || !points || !options || !answer) return Promise.resolve(null);
+        const required = $('quizQRequired');
+        if (!form || !prompt || !type || !points || !options || !answer || !required) return Promise.resolve(null);
         prompt.value = initial.prompt || '';
         type.value = normalizeQuestionType(initial.question_type || 'mcq');
         points.value = String(initial.points || 1);
         options.value = initial.options_raw || '';
         answer.value = initial.answer_raw || '';
+        required.checked = !!initial.is_required;
         modal.showModal();
         return new Promise((resolve) => {
             const closeHandler = () => {
@@ -361,6 +365,7 @@
                     points: Number(points.value || 1),
                     options_raw: options.value,
                     answer_raw: answer.value,
+                    is_required: required.checked,
                 };
                 if (!payload.prompt) {
                     LMS.toast('Question prompt is required', 'warning');
@@ -404,6 +409,7 @@
             points: Number(modalInput.points) > 0 ? Number(modalInput.points) : 1,
             options,
             answer_key: answerKey,
+            is_required: modalInput.is_required ? 1 : 0,
         };
         const res = await LMS.api('POST', './api/lms/quiz/question/create.php', payload);
         if (!res.ok) {
@@ -487,7 +493,37 @@
         const questions = qRes.ok ? (qRes.data?.data?.items || qRes.data?.items || []) : [];
         const wrap = $('staffQuestions');
         if (!wrap) return;
-        wrap.innerHTML = `<h4>Questions (${questions.length})</h4>` + questions.map((q, idx) => `<div class="k-card" style="padding:8px;margin-bottom:8px"><div><strong>Q${idx + 1}.</strong> ${LMS.escHtml(q.prompt || '')} (${LMS.escHtml(q.question_type || '')})</div><div style="margin-top:6px"><button class="btn btn-ghost btn-sm" data-act="edit" data-id="${q.question_id}">Edit</button> <button class="btn btn-ghost btn-sm" data-act="delete" data-id="${q.question_id}">Delete</button></div></div>`).join('');
+        wrap.innerHTML = `<h4>Questions (${questions.length})</h4>` + questions.map((q, idx) => `<div class="k-card" style="padding:8px;margin-bottom:8px"><div><strong>Q${idx + 1}.</strong> ${LMS.escHtml(q.prompt || '')} (${LMS.escHtml(q.question_type || '')})${Number(q.is_required||0)===1 ? ' <span class="k-status k-status--warning">Required</span>' : ''}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="move-up" data-id="${q.question_id}" ${idx===0?'disabled':''}>Move Up</button><button class="btn btn-ghost btn-sm" data-act="move-down" data-id="${q.question_id}" ${idx===questions.length-1?'disabled':''}>Move Down</button><button class="btn btn-ghost btn-sm" data-act="toggle-required" data-id="${q.question_id}" data-required="${Number(q.is_required||0)}">${Number(q.is_required||0)===1?'Set Optional':'Set Required'}</button><button class="btn btn-ghost btn-sm" data-act="edit" data-id="${q.question_id}">Edit</button> <button class="btn btn-ghost btn-sm" data-act="delete" data-id="${q.question_id}">Delete</button></div></div>`).join('');
+        wrap.querySelectorAll('button[data-act="move-up"]').forEach((btn) => btn.addEventListener('click', async () => {
+            const id = Number(btn.dataset.id || 0);
+            const idx = questions.findIndex((q) => Number(q.question_id) === id);
+            if (idx <= 0) return;
+            const currentQ = questions[idx];
+            const prevQ = questions[idx - 1];
+            const a = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(currentQ.question_id), position: Number(prevQ.position || idx) });
+            const b = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(prevQ.question_id), position: Number(currentQ.position || (idx + 1)) });
+            LMS.toast(a.ok && b.ok ? 'Question order updated' : 'Failed to reorder questions', a.ok && b.ok ? 'success' : 'error');
+            if (a.ok && b.ok) await renderStaffPanel();
+        }));
+        wrap.querySelectorAll('button[data-act="move-down"]').forEach((btn) => btn.addEventListener('click', async () => {
+            const id = Number(btn.dataset.id || 0);
+            const idx = questions.findIndex((q) => Number(q.question_id) === id);
+            if (idx < 0 || idx >= questions.length - 1) return;
+            const currentQ = questions[idx];
+            const nextQ = questions[idx + 1];
+            const a = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(currentQ.question_id), position: Number(nextQ.position || (idx + 2)) });
+            const b = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(nextQ.question_id), position: Number(currentQ.position || (idx + 1)) });
+            LMS.toast(a.ok && b.ok ? 'Question order updated' : 'Failed to reorder questions', a.ok && b.ok ? 'success' : 'error');
+            if (a.ok && b.ok) await renderStaffPanel();
+        }));
+        wrap.querySelectorAll('button[data-act="toggle-required"]').forEach((btn) => btn.addEventListener('click', async () => {
+            const id = Number(btn.dataset.id || 0);
+            const isRequired = Number(btn.dataset.required || 0) === 1;
+            const res = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: id, is_required: isRequired ? 0 : 1 });
+            LMS.toast(res.ok ? 'Question requirement updated' : 'Failed to update requirement', res.ok ? 'success' : 'error');
+            if (res.ok) await renderStaffPanel();
+        }));
+
         wrap.querySelectorAll('button[data-act="delete"]').forEach((btn) => btn.addEventListener('click', async () => {
             const id = Number(btn.dataset.id || 0);
             const res = await LMS.api('POST', './api/lms/quiz/question/delete.php', { question_id: id });
@@ -507,6 +543,7 @@
                 points: question.points || 1,
                 options_raw: questionOptions.map((opt) => opt.text || opt.value || '').filter(Boolean).join(', '),
                 answer_raw: answerSeed,
+                is_required: Number(question.is_required || 0) === 1,
             });
             if (!modalInput) return;
             const options = String(modalInput.options_raw || '')
@@ -525,6 +562,7 @@
                 points: normalizedPoints,
                 answer_key: answerKey,
                 settings: { options },
+                is_required: modalInput.is_required ? 1 : 0,
             });
             LMS.toast(res.ok ? 'Question updated' : 'Update failed', res.ok ? 'success' : 'error');
             if (res.ok) await renderStaffPanel();
@@ -609,6 +647,8 @@
             text: q.prompt || q.text || '',
             type: q.question_type || q.type || 'mcq',
             options: Array.isArray(q.options) ? q.options : [],
+            position: Number(q.position || 0),
+            is_required: Number(q.is_required || 0) === 1,
         }));
         answers = {};
 

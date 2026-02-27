@@ -12,7 +12,7 @@ if ($id <= 0) {
 }
 
 $pdo = db();
-$existingStmt = $pdo->prepare('SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points, status FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1');
+$existingStmt = $pdo->prepare('SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1');
 $existingStmt->execute([':id' => $id]);
 $existing = $existingStmt->fetch();
 if (!$existing) {
@@ -77,14 +77,36 @@ if (array_key_exists('max_points', $in)) {
 
 $status = array_key_exists('status', $in) ? (string)$in['status'] : (string)$existing['status'];
 
+
+$allowedFileExtensions = array_key_exists('allowed_file_extensions', $in)
+    ? trim(strtolower((string)$in['allowed_file_extensions']))
+    : trim(strtolower((string)($existing['allowed_file_extensions'] ?? '')));
+if ($allowedFileExtensions !== '') {
+    $parts = array_filter(array_map(static fn($v) => trim(strtolower((string)$v)), explode(',', $allowedFileExtensions)), static fn($v) => $v !== '');
+    $parts = array_values(array_unique($parts));
+    foreach ($parts as $ext) {
+        if (!preg_match('/^[a-z0-9]{1,10}$/', $ext)) {
+            lms_error('validation_error', 'allowed_file_extensions must be comma-separated extensions', 422);
+        }
+    }
+    $allowedFileExtensions = implode(',', $parts);
+}
+
+$maxFileMb = array_key_exists('max_file_mb', $in) ? (int)$in['max_file_mb'] : (int)($existing['max_file_mb'] ?? 50);
+if ($maxFileMb < 1 || $maxFileMb > 1024) {
+    lms_error('validation_error', 'max_file_mb must be between 1 and 1024', 422);
+}
+
 $pdo->beginTransaction();
 try {
-    $pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l, max_points=:m, status=:st, updated_at=CURRENT_TIMESTAMP WHERE assignment_id=:id')->execute([
+    $pdo->prepare('UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l, max_points=:m, allowed_file_extensions=:afe, max_file_mb=:mfm, status=:st, updated_at=CURRENT_TIMESTAMP WHERE assignment_id=:id')->execute([
         ':t' => $title,
         ':i' => $instructions,
         ':d' => $dueAt,
         ':l' => $lateAllowed,
         ':m' => $maxPoints,
+        ':afe' => ($allowedFileExtensions === '' ? null : $allowedFileExtensions),
+        ':mfm' => $maxFileMb,
         ':st' => $status,
         ':id' => $id,
     ]);

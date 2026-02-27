@@ -66,10 +66,20 @@
 
     function addFiles(files) {
         const MAX_MB = (assignData && assignData.max_file_mb) || 50;
+        const allowedExtRaw = String(assignData?.allowed_file_extensions || '').toLowerCase();
+        const allowedExts = allowedExtRaw ? allowedExtRaw.split(',').map((v) => v.trim()).filter(Boolean) : [];
         files.forEach(f => {
             if (f.size > MAX_MB * 1024 * 1024) {
                 LMS.toast(`${f.name} exceeds ${MAX_MB}MB limit.`, 'error');
                 return;
+            }
+            if (allowedExts.length) {
+                const parts = String(f.name || '').toLowerCase().split('.');
+                const ext = parts.length > 1 ? parts.pop() : '';
+                if (!ext || !allowedExts.includes(ext)) {
+                    LMS.toast(`${f.name} is not an allowed file type (${allowedExts.join(', ')}).`, 'error');
+                    return;
+                }
             }
             uploadedFiles.push(f);
         });
@@ -93,6 +103,47 @@
         });
     }
 
+    function markdownToHtml(markdown) {
+        const lines = String(markdown || '').split(/\r?\n/);
+        const htmlLines = lines.map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return '<p><br></p>';
+            if (trimmed.startsWith('### ')) return '<h3>' + LMS.escHtml(trimmed.slice(4)) + '</h3>';
+            if (trimmed.startsWith('## ')) return '<h2>' + LMS.escHtml(trimmed.slice(3)) + '</h2>';
+            if (trimmed.startsWith('# ')) return '<h1>' + LMS.escHtml(trimmed.slice(2)) + '</h1>';
+            if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) return '<li>' + LMS.escHtml(trimmed.slice(2)) + '</li>';
+            return '<p>' + LMS.escHtml(trimmed) + '</p>';
+        });
+        let html = htmlLines.join('');
+        html = html.replace(/(<li>[\s\S]*?<\/li>)+/g, (chunk) => '<ul>' + chunk + '</ul>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        return html;
+    }
+
+    function htmlToMarkdown(html) {
+        const container = document.createElement('div');
+        container.innerHTML = html || '';
+        const mapNode = (node) => {
+            if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+            if (node.nodeType !== Node.ELEMENT_NODE) return '';
+            const tag = node.tagName.toLowerCase();
+            const text = Array.from(node.childNodes).map(mapNode).join('');
+            if (tag === 'h1') return '# ' + text + '\n\n';
+            if (tag === 'h2') return '## ' + text + '\n\n';
+            if (tag === 'h3') return '### ' + text + '\n\n';
+            if (tag === 'strong' || tag === 'b') return '**' + text + '**';
+            if (tag === 'em' || tag === 'i') return '*' + text + '*';
+            if (tag === 'a') return '[' + text + '](' + (node.getAttribute('href') || '') + ')';
+            if (tag === 'li') return '- ' + text + '\n';
+            if (tag === 'ul' || tag === 'ol') return Array.from(node.children).map(mapNode).join('') + '\n';
+            if (tag === 'p' || tag === 'div') return text + '\n\n';
+            if (tag === 'br') return '\n';
+            return text;
+        };
+        return Array.from(container.childNodes).map(mapNode).join('').replace(/\n{3,}/g, '\n\n').trim();
+    }
 
     function ensureAssignmentEditorModal() {
         let modal = $('assignEditorModal');
@@ -100,16 +151,50 @@
         modal = document.createElement('dialog');
         modal.id = 'assignEditorModal';
         modal.className = 'k-modal';
-        modal.innerHTML = `<form method="dialog" class="k-modal__content" id="assignEditorForm" style="max-width:640px">
+        modal.innerHTML = `<form method="dialog" class="k-modal__content" id="assignEditorForm" style="max-width:760px">
             <h3 style="margin:0 0 12px">Edit assignment</h3>
             <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Title</span><input id="assignEditTitle" type="text" required /></label>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Description</span><textarea id="assignEditDescription" rows="5"></textarea></label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="formatBlock" data-assign-cmd-value="<h2>">H2</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="bold">Bold</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="italic">Italic</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="underline">Underline</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="insertUnorderedList">List</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="assignCopyMarkdownBtn">Copy Markdown</button>
+            </div>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Description</span><div id="assignEditDescription" class="k-card" contenteditable="true" style="min-height:160px;padding:10px"></div></label>
             <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Due date/time</span><input id="assignEditDueAt" type="text" placeholder="YYYY-MM-DD HH:MM:SS" /></label>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px"><span>Max points</span><input id="assignEditMaxPoints" type="number" min="1" step="1" /></label>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Max points</span><input id="assignEditMaxPoints" type="number" min="1" step="1" /></label>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Allowed extensions (comma separated)</span><input id="assignEditAllowedExt" type="text" placeholder="pdf,docx,png" /></label>
+            <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px"><span>Max file size (MB)</span><input id="assignEditMaxFileMb" type="number" min="1" max="1024" step="1" /></label>
             <div class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" id="assignEditorCancel">Cancel</button><button class="btn btn-primary" type="submit">Save changes</button></div>
         </form>`;
         document.body.appendChild(modal);
         $('assignEditorCancel')?.addEventListener('click', () => modal.close());
+        modal.querySelectorAll('[data-assign-cmd]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const editor = $('assignEditDescription');
+                if (!editor) return;
+                editor.focus();
+                document.execCommand(btn.dataset.assignCmd, false, btn.dataset.assignCmdValue || null);
+            });
+        });
+        $('assignCopyMarkdownBtn')?.addEventListener('click', async () => {
+            const editor = $('assignEditDescription');
+            if (!editor) return;
+            try {
+                await navigator.clipboard.writeText(htmlToMarkdown(editor.innerHTML || ''));
+                LMS.toast('Markdown copied to clipboard.', 'success');
+            } catch (_) {
+                LMS.toast('Unable to copy markdown.', 'error');
+            }
+        });
+        $('assignEditDescription')?.addEventListener('paste', (event) => {
+            const text = event.clipboardData?.getData('text/plain') || '';
+            if (!text || !/[#*\-\[\]]/.test(text)) return;
+            event.preventDefault();
+            document.execCommand('insertHTML', false, markdownToHtml(text));
+        });
         return modal;
     }
 
@@ -120,11 +205,18 @@
         const description = $('assignEditDescription');
         const dueAt = $('assignEditDueAt');
         const maxPoints = $('assignEditMaxPoints');
-        if (!form || !title || !description || !dueAt || !maxPoints) return Promise.resolve(null);
+        const allowedExt = $('assignEditAllowedExt');
+        const maxFileMb = $('assignEditMaxFileMb');
+        if (!form || !title || !description || !dueAt || !maxPoints || !allowedExt || !maxFileMb) {
+            LMS.toast('Assignment editor failed to open. Please refresh and try again.', 'error');
+            return Promise.resolve(null);
+        }
         title.value = initial?.title || '';
-        description.value = initial?.instructions || initial?.description || '';
+        description.innerHTML = LMS.sanitizeForRender(initial?.instructions || initial?.description || '');
         dueAt.value = initial?.due_at || '';
         maxPoints.value = String(initial?.max_points || 100);
+        allowedExt.value = initial?.allowed_file_extensions || '';
+        maxFileMb.value = String(initial?.max_file_mb || 50);
         modal.showModal();
         return new Promise((resolve) => {
             const closeHandler = () => {
@@ -135,14 +227,17 @@
             const submitHandler = (event) => {
                 event.preventDefault();
                 const points = Number.parseInt(maxPoints.value || '100', 10);
+                const maxMb = Number.parseInt(maxFileMb.value || '50', 10);
                 form.removeEventListener('submit', submitHandler);
                 modal.removeEventListener('close', closeHandler);
                 modal.close();
                 resolve({
                     title: title.value.trim(),
-                    instructions: description.value.trim(),
+                    instructions: (description.innerHTML || '').trim(),
                     due_at: dueAt.value.trim(),
                     max_points: Number.isFinite(points) && points > 0 ? points : 100,
+                    allowed_file_extensions: allowedExt.value.trim().toLowerCase(),
+                    max_file_mb: Number.isFinite(maxMb) && maxMb > 0 ? maxMb : 50,
                 });
             };
             form.addEventListener('submit', submitHandler);
@@ -254,8 +349,10 @@
                 instructions: updatePayload.instructions,
                 due_at: updatePayload.due_at,
                 max_points: updatePayload.max_points,
+                allowed_file_extensions: updatePayload.allowed_file_extensions,
+                max_file_mb: updatePayload.max_file_mb,
             });
-            LMS.toast(res.ok ? 'Assignment updated' : 'Update failed', res.ok ? 'success' : 'error');
+LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknown error'}`, res.ok ? 'success' : 'error');
             if (res.ok) await loadPage();
         });
 
@@ -411,7 +508,7 @@
         if (desc) {
             const description = assignData.description || assignData.instructions || '';
             if (description) {
-                desc.innerHTML = description; // server MUST sanitize
+                desc.innerHTML = LMS.sanitizeForRender(description);
             } else {
                 desc.innerHTML = '<div class="k-empty" style="padding:0"><p class="k-empty__desc">No description provided.</p></div>';
             }
@@ -437,7 +534,8 @@
             });
         } else {
             showEl(submType + 'Submission');
-            $('dropzoneHint') && ($('dropzoneHint').textContent = `${assignData.allowed_file_types || 'Any file type'} · Max ${assignData.max_file_mb || 50}MB per file`);
+            const allowedTypesHint = assignData.allowed_file_extensions ? assignData.allowed_file_extensions.split(',').map((v) => v.trim()).filter(Boolean).join(', ') : 'Any file type';
+            $('dropzoneHint') && ($('dropzoneHint').textContent = `${allowedTypesHint} · Max ${assignData.max_file_mb || 50}MB per file`);
             initDropzone();
             $('submitBtn') && $('submitBtn').addEventListener('click', submitWork);
         }

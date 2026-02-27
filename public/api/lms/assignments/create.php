@@ -18,8 +18,8 @@ if ($courseId <= 0 || $title === '') {
 lms_course_access($user, $courseId);
 
 $pdo = db();
-$pdo->prepare('INSERT INTO lms_assignments (course_id, section_id, title, instructions, due_at, late_allowed, max_points, status, created_by)
-    VALUES (:course_id, :section_id, :title, :instructions, :due_at, :late_allowed, :max_points, :status, :created_by)')
+$pdo->prepare('INSERT INTO lms_assignments (course_id, section_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status, created_by)
+    VALUES (:course_id, :section_id, :title, :instructions, :due_at, :late_allowed, :max_points, :allowed_file_extensions, :max_file_mb, :status, :created_by)')
     ->execute([
         ':course_id' => $courseId,
         ':section_id' => isset($in['section_id']) ? (int)$in['section_id'] : null,
@@ -28,6 +28,8 @@ $pdo->prepare('INSERT INTO lms_assignments (course_id, section_id, title, instru
         ':due_at' => $in['due_at'] ?? null,
         ':late_allowed' => !empty($in['late_allowed']) ? 1 : 0,
         ':max_points' => (float)($in['max_points'] ?? 100),
+        ':allowed_file_extensions' => isset($in['allowed_file_extensions']) ? (string)$in['allowed_file_extensions'] : null,
+        ':max_file_mb' => isset($in['max_file_mb']) ? (int)$in['max_file_mb'] : 50,
         ':status' => $in['status'] ?? 'draft',
         ':created_by' => (int)$user['user_id'],
     ]);

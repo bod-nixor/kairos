@@ -2903,7 +2903,7 @@ dialog.k-modal::backdrop {
 
 .k-embed-16x9 {
   position: relative;
-  width: min(100%, 960px);
+  width: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 12px;
   overflow: hidden;
@@ -2928,4 +2928,9 @@ dialog.k-modal::backdrop {
     display: block;
     padding-top: 56.25%;
   }
+}
+
+
+#videoWrap.k-embed-16x9 {
+    border: 1px solid var(--border);
 }

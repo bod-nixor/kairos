@@ -62,6 +62,8 @@ if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) 
         'name' => $filename,
         'tmp_name' => (string)$file['tmp_name'],
         'mime_type' => $detectedMime,
+        'size' => $size,
+        'extension' => $ext,
     ];
 }
 
@@ -86,7 +88,7 @@ if ($submissionComment !== '' && !function_exists('mb_strlen') && strlen($submis
 }
 
 $pdo = db();
-$aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at, status, late_allowed FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
+$aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at, status, late_allowed, allowed_file_extensions, max_file_mb FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
 $aSt->execute([':id' => $assignmentId]);
 $assignment = $aSt->fetch();
 if (!$assignment) {
@@ -101,6 +103,24 @@ if ((string)$assignment['status'] !== 'published') {
 $late = !empty($assignment['due_at']) && strtotime((string)$assignment['due_at']) < time();
 if ($late && (int)$assignment['late_allowed'] === 0) {
     lms_error('late_not_allowed', 'Late submissions are not allowed for this assignment', 422);
+}
+
+
+if ($uploadMeta !== null) {
+    $maxMb = max(1, (int)($assignment['max_file_mb'] ?? 50));
+    $maxBytesForAssignment = $maxMb * 1024 * 1024;
+    if ((int)$uploadMeta['size'] > $maxBytesForAssignment) {
+        lms_error('validation_error', 'file exceeds assignment max size of ' . $maxMb . 'MB', 422);
+    }
+
+    $allowedExtRaw = trim(strtolower((string)($assignment['allowed_file_extensions'] ?? '')));
+    if ($allowedExtRaw !== '') {
+        $allowedExts = array_values(array_filter(array_map(static fn($v) => trim((string)$v), explode(',', $allowedExtRaw)), static fn($v) => $v !== ''));
+        $ext = trim(strtolower((string)($uploadMeta['extension'] ?? '')));
+        if ($ext === '' || !in_array($ext, $allowedExts, true)) {
+            lms_error('validation_error', 'file type .' . ($ext !== '' ? $ext : '?') . ' is not allowed for this assignment', 422);
+        }
+    }
 }
 
 $uploadedDriveMeta = null;

@@ -42,11 +42,38 @@ if ((string)$attempt['status'] !== 'in_progress') {
     lms_error('conflict', 'Attempt is not in progress', 409);
 }
 
-$questionsStmt = $pdo->prepare('SELECT question_id, question_type, points, answer_key_json FROM lms_questions WHERE assessment_id=:a AND deleted_at IS NULL');
+$questionsStmt = $pdo->prepare('SELECT question_id, question_type, points, is_required, answer_key_json FROM lms_questions WHERE assessment_id=:a AND deleted_at IS NULL');
 $questionsStmt->execute([':a' => (int)$attempt['assessment_id']]);
 $questions = [];
 foreach ($questionsStmt->fetchAll() as $q) {
     $questions[(int)$q['question_id']] = $q;
+}
+
+
+$missingRequired = [];
+foreach ($questions as $qid => $question) {
+    if ((int)($question['is_required'] ?? 0) !== 1) {
+        continue;
+    }
+    if (!array_key_exists((string)$qid, $responses) && !array_key_exists($qid, $responses)) {
+        $missingRequired[] = $qid;
+        continue;
+    }
+    $raw = array_key_exists((string)$qid, $responses) ? $responses[(string)$qid] : $responses[$qid];
+    $empty = false;
+    if (is_string($raw)) {
+        $empty = trim($raw) === '';
+    } elseif (is_array($raw)) {
+        $empty = count(array_filter($raw, static fn($v) => !((is_string($v) && trim($v) === '') || $v === null))) === 0;
+    } else {
+        $empty = $raw === null;
+    }
+    if ($empty) {
+        $missingRequired[] = $qid;
+    }
+}
+if (!empty($missingRequired)) {
+    lms_error('validation_error', 'Required questions must be answered before submission', 422, ['missing_question_ids' => $missingRequired]);
 }
 
 $score = 0.0;
