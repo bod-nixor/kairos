@@ -31,7 +31,7 @@ try {
         lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
     }
 
-    $qSql = 'SELECT question_id, prompt, question_type, points, position FROM lms_questions WHERE assessment_id = :assessment_id ORDER BY position ASC, question_id ASC';
+    $qSql = 'SELECT question_id, prompt, question_type, points, position, answer_key_json, settings_json FROM lms_questions WHERE assessment_id = :assessment_id ORDER BY position ASC, question_id ASC';
     $qParams = [':assessment_id' => $assessmentId];
     $debug['steps'][] = ['step' => 'load_questions', 'sql' => $qSql, 'params' => $qParams];
     $qStmt = $pdo->prepare($qSql);
@@ -58,7 +58,7 @@ try {
     $items = [];
     foreach ($questions as $q) {
         $qid = (int)$q['question_id'];
-        $items[] = [
+        $item = [
             'id' => $qid, // deprecated: keep for legacy UI; remove after migration to question_id
             'question_id' => $qid,
             'prompt' => (string)$q['prompt'],
@@ -67,6 +67,13 @@ try {
             'position' => (int)$q['position'],
             'options' => $optionsByQuestion[$qid] ?? [],
         ];
+
+        if (lms_is_staff_role($role)) {
+            $item['answer_key'] = $q['answer_key_json'] === null ? null : json_decode((string)$q['answer_key_json'], true);
+            $item['settings'] = $q['settings_json'] === null ? null : json_decode((string)$q['settings_json'], true);
+        }
+
+        $items[] = $item;
     }
 
     $response = ['items' => $items];

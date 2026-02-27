@@ -200,8 +200,14 @@
         panel.className = 'k-card';
         panel.style.marginTop = '16px';
         panel.style.padding = '16px';
-        panel.innerHTML = `<h3>Staff Assignment Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button">Toggle Mandatory</button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions"></div>`;
+        panel.innerHTML = `<h3>Staff Assignment Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button"></button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions"></div>`;
         root.appendChild(panel);
+
+        const assignMandatoryBtn = $('assignMandatoryBtn');
+        if (assignMandatoryBtn) {
+            const requiredNow = Number(assignData?.required_flag || 0) === 1;
+            assignMandatoryBtn.textContent = requiredNow ? 'Set Optional' : 'Set Mandatory';
+        }
 
         $('assignPublishBtn')?.addEventListener('click', async () => {
             const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 1 });
@@ -232,6 +238,7 @@
                     );
                     if (res.ok) {
                         assignData = { ...(assignData || {}), required_flag: newRequired };
+                        if (assignMandatoryBtn) assignMandatoryBtn.textContent = newRequired ? 'Set Optional' : 'Set Mandatory';
                         await loadPage();
                     }
                 },

@@ -424,8 +424,14 @@
         panel.className = 'k-card';
         panel.style.marginTop = '16px';
         panel.style.padding = '16px';
-        panel.innerHTML = `<h3>Staff Quiz Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button">Toggle Mandatory</button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions"></div><div id="staffAttempts"></div>`;
+        panel.innerHTML = `<h3>Staff Quiz Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions"></div><div id="staffAttempts"></div>`;
         intro.appendChild(panel);
+
+        const staffMandatoryBtn = $('staffMandatoryBtn');
+        if (staffMandatoryBtn) {
+            const requiredNow = Number(quizData?.required_flag || 0) === 1;
+            staffMandatoryBtn.textContent = requiredNow ? 'Set Optional' : 'Set Mandatory';
+        }
 
         $('staffAddQuestionBtn')?.addEventListener('click', addQuestion);
         $('staffPublishQuizBtn')?.addEventListener('click', async () => {
@@ -457,6 +463,7 @@
                     );
                     if (res.ok) {
                         quizData = { ...(quizData || {}), required_flag: newRequired };
+                        if (staffMandatoryBtn) staffMandatoryBtn.textContent = newRequired ? 'Set Optional' : 'Set Mandatory';
                         await loadPage();
                     }
                 },
