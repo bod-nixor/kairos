@@ -2893,3 +2893,20 @@ dialog.k-modal::backdrop {
 .k-add-item-menu__item:hover {
     background: var(--bg-hover);
 }
+
+.k-embed-16x9 {
+  position: relative;
+  width: min(100%, 960px);
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-subtle);
+  margin: 12px 0;
+}
+.k-embed-16x9 iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
