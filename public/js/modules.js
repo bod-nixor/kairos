@@ -73,7 +73,7 @@
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
           <div class="k-module-item__title">
-            ${LMS.escHtml(item.name || item.title)}
+            ${LMS.escHtml(item.name || item.title || 'Untitled Module')}
             ${statusBadges.join(' ')}
           </div>
           ${metaParts.length ? `<div class="k-module-item__meta">${LMS.escHtml(metaParts.join(' · '))}</div>` : ''}

@@ -83,11 +83,10 @@
 
         if (!listRes.ok) {
             showEl('errorView');
-            $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
             return;
         }
 
-        const itemsPayload = listRes.ok ? (listRes.data?.data || listRes.data || []) : [];
+        const itemsPayload = listRes.data?.data || listRes.data || [];
         const items = Array.isArray(itemsPayload) ? itemsPayload : (itemsPayload.items || []);
 
         renderList(items);
@@ -95,6 +94,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+        $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
