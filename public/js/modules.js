@@ -286,7 +286,10 @@
             if (firstId > 0) expandedModules.add(firstId);
         }
 
+        modules.sort((a, b) => ((a.position || 0) - (b.position || 0)) || (parseInt(a.section_id || 0) - parseInt(b.section_id || 0)));
+
         $('modulesSubtitle') && ($('modulesSubtitle').textContent = `${course.name || ''} · ${course.code || ''}`);
+        $('kBreadCourse') && ($('kBreadCourse').textContent = course.name || 'Course');
         document.querySelectorAll('[data-course-href]').forEach(el => el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`);
 
         if (!modules.length) {
