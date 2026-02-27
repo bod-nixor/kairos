@@ -24,6 +24,7 @@
         return `https://${value}`;
     }
 
+
     function itemHref(item, mode = 'view') {
         const type = String(item.item_type || item.type || '').toLowerCase();
         const entityId = parseInt(item.entity_id || item.id || 0, 10);
@@ -37,6 +38,28 @@
         if (type === 'file' || type === 'video' || type === 'resource' || type === 'link') return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
         if (entityId > 0) return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
         return `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}&debug=1`;
+    }
+
+    function isExternalHttpUrl(url) {
+        try {
+            const parsed = new URL(String(url || ''), window.location.origin);
+            return /^https?:$/i.test(parsed.protocol) && parsed.origin !== window.location.origin;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function navigateToHref(href) {
+        const url = String(href || '').trim();
+        if (!url) return false;
+        if (isExternalHttpUrl(url)) {
+            LMS.confirm('Open external link', `${url} is being opened in a new tab. Proceed?`, () => {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }, { okLabel: 'Yes' });
+            return true;
+        }
+        window.location.assign(url);
+        return true;
     }
 
     function renderModuleItem(item) {
@@ -68,14 +91,14 @@
         const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
         const titleMarkup = locked
             ? `<span>${titleText}</span>`
-            : `<a href="${LMS.escHtml(itemHref(item, 'view'))}" style="color:inherit;text-decoration:none;">${titleText}</a>`;
+            : `<a href="${LMS.escHtml(itemHref(item, 'view'))}" style="color:inherit;text-decoration:none;"${isExternalHttpUrl(itemHref(item, 'view')) ? " target=\"_blank\" rel=\"noopener noreferrer\"" : ""}>${titleText}</a>`;
 
         return `
       <div 
          ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
-         role="listitem"
+         role="button"
          style="${!locked ? 'cursor:pointer;' : ''}">
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
@@ -166,30 +189,41 @@
         }
 
         container.addEventListener('click', (e) => {
-            if (e.target.closest('[data-action="edit-item"]')) return;
+            const editBtn = e.target.closest('[data-action="edit-item"]');
+            if (editBtn) {
+                const href = editBtn.dataset.href || '';
+                if (navigateToHref(href)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                return;
+            }
             const target = e.target.closest('[data-href], a');
             if (target && target.dataset.href) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (/^https?:\/\//i.test(target.dataset.href)) {
-                    LMS.confirm('Open external link', `${target.dataset.href} is being opened in a new tab. Proceed?`, () => {
-                        window.open(target.dataset.href, '_blank', 'noopener,noreferrer');
-                    }, { okLabel: 'Yes' });
-                    return;
+                if (navigateToHref(target.dataset.href)) {
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
-                window.location.href = target.dataset.href;
             } else if (target && target.tagName === 'A') {
-                e.stopPropagation();
+                const href = target.getAttribute('href') || '';
+                if (isExternalHttpUrl(href)) {
+                    if (navigateToHref(href)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                } else {
+                    e.stopPropagation();
+                }
             }
         });
 
         container.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
-                const target = e.target.closest('[data-href]');
-                if (target && target.dataset.href) {
+                const target = e.target.closest('[data-href], [data-action="edit-item"]');
+                const href = target?.dataset?.href || '';
+                if (href && navigateToHref(href)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    window.location.href = target.dataset.href;
                 }
             }
         });

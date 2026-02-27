@@ -91,6 +91,8 @@
     btn.className = 'k-settings-fab';
     btn.type = 'button';
     btn.setAttribute('aria-label', 'Open settings');
+    btn.setAttribute('aria-controls', 'kSettingsPanel');
+    btn.setAttribute('aria-expanded', 'false');
     btn.innerHTML = '⚙️';
     document.body.appendChild(btn);
 
@@ -122,8 +124,14 @@
     `;
     document.body.appendChild(panel);
 
-    btn.addEventListener('click', () => panel.classList.toggle('hidden'));
-    panel.querySelector('#kSettingsClose')?.addEventListener('click', () => panel.classList.add('hidden'));
+    btn.addEventListener('click', () => {
+      const hidden = panel.classList.toggle('hidden');
+      btn.setAttribute('aria-expanded', String(!hidden));
+    });
+    panel.querySelector('#kSettingsClose')?.addEventListener('click', () => {
+      panel.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+    });
 
     const settings = readSettings();
     panel.querySelector('#kGradientTheme').value = settings.gradient;
@@ -140,6 +148,7 @@
     });
     syncToggle(resolvePreferredTheme());
     panel.classList.add('hidden');
+    btn.setAttribute('aria-expanded', 'false');
   };
 
   const resolvePreferredTheme = () => {
