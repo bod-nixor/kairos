@@ -286,7 +286,7 @@
             if (firstId > 0) expandedModules.add(firstId);
         }
 
-        modules.sort((a, b) => ((a.position || 0) - (b.position || 0)) || (parseInt(a.section_id || 0) - parseInt(b.section_id || 0)));
+        modules.sort((a, b) => ((a.position || 0) - (b.position || 0)) || (parseInt(a.section_id || 0, 10) - parseInt(b.section_id || 0, 10)));
 
         $('modulesSubtitle') && ($('modulesSubtitle').textContent = `${course.name || ''} · ${course.code || ''}`);
         $('kBreadCourse') && ($('kBreadCourse').textContent = course.name || 'Course');
