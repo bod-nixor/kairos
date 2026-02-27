@@ -10,6 +10,7 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const QUIZ_ID = params.get('quiz_id') || '';
+    const DEBUG_MODE = params.get('debug') === '1';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -19,6 +20,27 @@
         showEl(id);
     }
 
+
+    const debugLogs = [];
+
+    function safeStringify(v) {
+        try { return JSON.stringify(v, null, 2); } catch (_) { return String(v); }
+    }
+
+    function logDebug(entry) {
+        if (!DEBUG_MODE) return;
+        debugLogs.push(entry);
+        let debugEl = $('quizDebug');
+        if (!debugEl) {
+            debugEl = document.createElement('pre');
+            debugEl.id = 'quizDebug';
+            debugEl.className = 'k-card';
+            debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            document.querySelector('.k-page')?.appendChild(debugEl);
+        }
+        debugEl.textContent = safeStringify(debugLogs);
+    }
+
     let quizData = null;
     let attemptData = null;
     let questions = [];
@@ -26,6 +48,25 @@
     let current = 0;
     let timerInterval = null;
     let secondsLeft = 0;
+    let navWired = false;
+    let canManage = false;
+
+
+    function wireAttemptNavigation() {
+        if (navWired) return;
+        navWired = true;
+
+        $('quizPrevBtn') && $('quizPrevBtn').addEventListener('click', () => { if (current > 0) renderQuestion(current - 1); });
+        $('quizNextBtn') && $('quizNextBtn').addEventListener('click', () => { if (current < questions.length - 1) renderQuestion(current + 1); });
+        $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => submitAttempt(false));
+
+        document.addEventListener('keydown', e => {
+            if (!attemptData) return;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+            if (e.key === 'j' || e.key === 'ArrowLeft') { if (current > 0) renderQuestion(current - 1); }
+            if (e.key === 'k' || e.key === 'ArrowRight') { if (current < questions.length - 1) renderQuestion(current + 1); }
+        });
+    }
 
     // ── Timer ──────────────────────────────────────────────────
     function formatTime(secs) {
@@ -135,7 +176,7 @@
                 opt.addEventListener('click', () => {
                     opt.classList.toggle('is-selected');
                     const cb = opt.querySelector('input[type="checkbox"]');
-                    if (cb) cb.checked = !cb.checked;
+                    if (cb) cb.checked = opt.classList.contains('is-selected');
                     const vals = Array.from(area.querySelectorAll('.k-option.is-selected')).map(o => o.dataset.val);
                     answers[q.id] = vals;
                     updateDots();
@@ -186,16 +227,17 @@
         }
 
         const payload = {
-            quiz_id: QUIZ_ID,
             attempt_id: attemptData && attemptData.attempt_id,
-            answers: Object.entries(answers).map(([qid, value]) => ({ question_id: qid, value })),
+            responses: answers,
         };
-        const res = await LMS.api('POST', './api/lms/quiz_submit.php', payload);
+        const endpoint = './api/lms/quiz/attempt/submit.php';
+        const res = await LMS.api('POST', endpoint, payload);
+        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         if (!res.ok) {
             LMS.toast('Failed to submit quiz: ' + (res.error || 'Unknown error'), 'error');
             return;
         }
-        showResult(res.data);
+        showResult(res.data?.data || res.data || {});
     }
 
     // ── Result ─────────────────────────────────────────────────
@@ -244,14 +286,17 @@
     // ── History ────────────────────────────────────────────────
     async function loadHistory() {
         showPanel('quizHistoryPanel');
-        const res = await LMS.api('GET', `./api/lms/quiz_attempts.php?quiz_id=${encodeURIComponent(QUIZ_ID)}`);
+        const endpoint = `./api/lms/quiz/attempts.php?assessment_id=${encodeURIComponent(QUIZ_ID)}${DEBUG_MODE ? '&debug=1' : ''}`;
+        const res = await LMS.api('GET', endpoint);
+        logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         const list = $('attemptHistoryList');
         if (!list) return;
-        if (!res.ok || !res.data || !res.data.length) {
+        const attempts = res.data?.data?.items || res.data?.items || [];
+        if (!res.ok || !attempts.length) {
             list.innerHTML = '<div class="k-empty"><div class="k-empty__icon">📋</div><p class="k-empty__title">No attempts yet</p></div>';
             return;
         }
-        list.innerHTML = res.data.map((a, i) => `
+        list.innerHTML = attempts.map((a, i) => `
       <div class="k-attempt-row">
         <span class="k-attempt-row__num">#${a.attempt_number || i + 1}</span>
         <span class="k-attempt-row__date">${LMS.fmtDateTime(a.submitted_at)}</span>
@@ -262,6 +307,101 @@
       </div>`).join('');
     }
 
+
+    function normalizeQuestionType(type) {
+        const value = String(type || 'mcq').toLowerCase();
+        if (value === 'multiple_choice') return 'mcq';
+        if (value === 'truefalse') return 'true_false';
+        if (value === 'multi_select') return 'multiple_select';
+        if (value === 'short') return 'short_answer';
+        if (value === 'long') return 'long_answer';
+        return value;
+    }
+
+    async function addQuestion() {
+        const prompt = window.prompt('Question prompt');
+        if (!prompt) return;
+        const questionType = normalizeQuestionType(window.prompt('Question type (mcq,multi_select,true_false,short,long)', 'mcq'));
+        const points = Number(window.prompt('Points', '1') || '1');
+        const optionsRaw = window.prompt('Options (for mcq/multi_select) comma separated', '');
+        const options = optionsRaw ? optionsRaw.split(',').map((v, i) => ({ value: `opt_${i + 1}`, text: v.trim() })).filter(o => o.text) : [];
+        const correctRaw = window.prompt('Correct answer (value or comma list for multi_select)', '');
+        const answerKey = questionType === 'multiple_select' ? correctRaw.split(',').map(v => v.trim()).filter(Boolean) : (correctRaw || null);
+        const payload = { assessment_id: Number(QUIZ_ID), prompt, question_type: questionType, points, options, answer_key: answerKey };
+        const res = await LMS.api('POST', './api/lms/quiz/question/create.php', payload);
+        if (!res.ok) {
+            LMS.toast(res.data?.error?.message || 'Failed to add question', 'error');
+            return;
+        }
+        LMS.toast('Question added', 'success');
+        await renderStaffPanel();
+    }
+
+    async function renderStaffPanel() {
+        if (!canManage) return;
+        const intro = $('quizIntroPanel');
+        if (!intro) return;
+        const existingPanel = $('quizStaffPanel');
+        if (existingPanel) existingPanel.remove();
+        const panel = document.createElement('section');
+        panel.id = 'quizStaffPanel';
+        panel.className = 'k-card';
+        panel.style.marginTop = '16px';
+        panel.style.padding = '16px';
+        panel.innerHTML = `<h3>Staff Quiz Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button">Toggle Mandatory</button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions"></div><div id="staffAttempts"></div>`;
+        intro.appendChild(panel);
+
+        $('staffAddQuestionBtn')?.addEventListener('click', addQuestion);
+        $('staffPublishQuizBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('POST', './api/lms/quiz/publish.php', { assessment_id: Number(QUIZ_ID), published: 1 });
+            LMS.toast(res.ok ? 'Quiz published' : 'Publish failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('staffDraftQuizBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('POST', './api/lms/quiz/publish.php', { assessment_id: Number(QUIZ_ID), published: 0 });
+            LMS.toast(res.ok ? 'Quiz moved to draft' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('staffMandatoryBtn')?.addEventListener('click', async () => {
+            const confirmed = window.confirm('Set as mandatory?');
+            if (!confirmed) return;
+            const res = await LMS.api('POST', './api/lms/quiz/mandatory.php', { assessment_id: Number(QUIZ_ID), required: 1 });
+            LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
+        });
+        $('staffLoadAttemptsBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('GET', `./api/lms/quiz/submissions.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`);
+            const target = $('staffAttempts');
+            if (!target) return;
+            if (!res.ok) {
+                target.innerHTML = '<p>Failed to load attempts.</p>';
+                return;
+            }
+            const items = res.data?.data?.items || res.data?.items || [];
+            target.innerHTML = `<h4>Attempts / Submissions (${items.length})</h4>` + items.map((a) => `<div class="k-attempt-row">Attempt #${a.attempt_id} · student ${a.student_user_id} · ${a.status} · ${a.score ?? '-'} / ${a.max_score ?? '-'}</div>`).join('');
+        });
+
+        const qRes = await LMS.api('GET', `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`);
+        const questions = qRes.ok ? (qRes.data?.data?.items || qRes.data?.items || []) : [];
+        const wrap = $('staffQuestions');
+        if (!wrap) return;
+        wrap.innerHTML = `<h4>Questions (${questions.length})</h4>` + questions.map((q, idx) => `<div class="k-card" style="padding:8px;margin-bottom:8px"><div><strong>Q${idx + 1}.</strong> ${LMS.escHtml(q.prompt || '')} (${LMS.escHtml(q.question_type || '')})</div><div style="margin-top:6px"><button class="btn btn-ghost btn-sm" data-act="edit" data-id="${q.question_id}">Edit</button> <button class="btn btn-ghost btn-sm" data-act="delete" data-id="${q.question_id}">Delete</button></div></div>`).join('');
+        wrap.querySelectorAll('button[data-act="delete"]').forEach((btn) => btn.addEventListener('click', async () => {
+            const id = Number(btn.dataset.id || 0);
+            const res = await LMS.api('POST', './api/lms/quiz/question/delete.php', { question_id: id });
+            LMS.toast(res.ok ? 'Question deleted' : 'Delete failed', res.ok ? 'success' : 'error');
+            if (res.ok) await renderStaffPanel();
+        }));
+        wrap.querySelectorAll('button[data-act="edit"]').forEach((btn) => btn.addEventListener('click', async () => {
+            const id = Number(btn.dataset.id || 0);
+            const prompt = window.prompt('Updated prompt');
+            if (!prompt) return;
+            const points = Number(window.prompt('Points', '1') || '1');
+            const res = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: id, prompt, points });
+            LMS.toast(res.ok ? 'Question updated' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await renderStaffPanel();
+        }));
+    }
+
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!QUIZ_ID) {
@@ -270,7 +410,10 @@
             return;
         }
 
-        const res = await LMS.api('GET', `./api/lms/quiz.php?id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`);
+        const dbg = DEBUG_MODE ? '&debug=1' : '';
+        const endpoint = `./api/lms/quiz/get.php?assessment_id=${encodeURIComponent(QUIZ_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`;
+        const res = await LMS.api('GET', endpoint);
+        logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         hideEl('quizSkeleton');
 
         if (res.status === 403) {
@@ -284,7 +427,7 @@
             return;
         }
 
-        quizData = res.data;
+        quizData = res.data?.data || res.data || {};
         document.title = `${quizData.title || 'Quiz'} — Kairos`;
         const bc = $('kBreadCourse');
         if (bc) {
@@ -295,16 +438,17 @@
 
         // Populate intro panel
         $('quizIntroTitle') && ($('quizIntroTitle').textContent = quizData.title || 'Quiz');
-        $('quizIntroDesc') && ($('quizIntroDesc').textContent = quizData.description || '');
-        $('metaQuestions') && ($('metaQuestions').textContent = quizData.question_count || '?');
-        $('metaTime') && ($('metaTime').textContent = quizData.time_limit_min ? quizData.time_limit_min + ' min' : 'None');
+        $('quizIntroDesc') && ($('quizIntroDesc').textContent = quizData.description || quizData.instructions || '');
+        $('metaQuestions') && ($('metaQuestions').textContent = quizData.question_count || quizData.total_questions || '?');
+        $('metaTime') && ($('metaTime').textContent = quizData.time_limit_min ? quizData.time_limit_min + ' min' : (quizData.time_limit_minutes ? quizData.time_limit_minutes + ' min' : 'None'));
         $('metaAttempts') && ($('metaAttempts').textContent = quizData.attempts_used || 0);
         $('metaMax') && ($('metaMax').textContent = quizData.max_attempts ? quizData.max_attempts : '∞');
 
         // Disable start if max attempts reached
         const startBtn = $('quizStartBtn');
         if (startBtn) {
-            const noAttempts = quizData.max_attempts && quizData.attempts_used >= quizData.max_attempts;
+            const attemptsUsed = Number(quizData.attempts_used || 0);
+            const noAttempts = quizData.max_attempts && attemptsUsed >= Number(quizData.max_attempts);
             if (noAttempts) {
                 startBtn.disabled = true;
                 startBtn.textContent = 'No attempts remaining';
@@ -315,16 +459,28 @@
 
         $('quizShowHistoryBtn') && $('quizShowHistoryBtn').addEventListener('click', loadHistory);
         showPanel('quizIntroPanel');
+        await renderStaffPanel();
     }
 
     async function startAttempt() {
-        const res = await LMS.api('POST', './api/lms/quiz_start.php', { quiz_id: QUIZ_ID, course_id: COURSE_ID });
+        const endpoint = './api/lms/quiz/attempt.php';
+        const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
+        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
         if (!res.ok) {
             LMS.toast('Could not start quiz: ' + (res.error || 'Error'), 'error');
             return;
         }
-        attemptData = res.data;
-        questions = res.data.questions || [];
+        attemptData = res.data?.data || res.data || {};
+        const questionsEndpoint = `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`;
+        const qRes = await LMS.api('GET', questionsEndpoint);
+        logDebug({ endpoint: questionsEndpoint, method: 'GET', response_status: qRes.status, response_body: qRes.data, parsed_error_message: qRes.error || null });
+        questions = qRes.ok ? (qRes.data?.data?.items || qRes.data?.items || []) : [];
+        questions = questions.map((q) => ({
+            id: Number(q.question_id || q.id || 0),
+            text: q.prompt || q.text || '',
+            type: q.question_type || q.type || 'mcq',
+            options: Array.isArray(q.options) ? q.options : [],
+        }));
         answers = {};
 
         if (!questions.length) {
@@ -340,18 +496,7 @@
 
         updateDots();
         renderQuestion(0);
-
-        // Navigation buttons
-        $('quizPrevBtn') && $('quizPrevBtn').addEventListener('click', () => { if (current > 0) renderQuestion(current - 1); });
-        $('quizNextBtn') && $('quizNextBtn').addEventListener('click', () => { if (current < questions.length - 1) renderQuestion(current + 1); });
-        $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => submitAttempt(false));
-
-        // Keyboard nav (j = prev, k = next)
-        document.addEventListener('keydown', e => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-            if (e.key === 'j' || e.key === 'ArrowLeft') { if (current > 0) renderQuestion(current - 1); }
-            if (e.key === 'k' || e.key === 'ArrowRight') { if (current < questions.length - 1) renderQuestion(current + 1); }
-        });
+        wireAttemptNavigation();
     }
 
     $('historyBackBtn') && $('historyBackBtn').addEventListener('click', () => showPanel('quizIntroPanel'));
@@ -360,6 +505,8 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        const roles = session.caps?.roles || {};
+        canManage = !!(roles.admin || roles.manager);
         await loadPage();
     });
 

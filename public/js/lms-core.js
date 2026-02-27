@@ -427,6 +427,93 @@
     return val;
   }
 
+
+  /* ── URL + Debug utilities ─────────────────────────────── */
+  const _debugStores = new Map();
+
+  function parseStartSeconds(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    if (/^\d+$/.test(raw)) return Number(raw);
+    const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
+    if (!m) return 0;
+    return (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
+  }
+
+  function toYoutubeEmbedUrl(inputUrl) {
+    if (!inputUrl) return null;
+    try {
+      const parsed = new URL(inputUrl);
+      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+      let videoId = '';
+      if (host === 'youtube.com' || host === 'm.youtube.com') {
+        if (parsed.pathname === '/watch') videoId = parsed.searchParams.get('v') || '';
+        else if (parsed.pathname.startsWith('/embed/')) videoId = parsed.pathname.split('/')[2] || '';
+        else if (parsed.pathname.startsWith('/shorts/')) videoId = parsed.pathname.split('/')[2] || '';
+      } else if (host === 'youtu.be') {
+        videoId = parsed.pathname.replace(/^\//, '').split('/')[0] || '';
+      }
+      if (!videoId) return null;
+      const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
+      const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
+      if (start > 0) embed.searchParams.set('start', String(start));
+      return embed.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+  
+function sanitizeForRender(html) {
+    if (!html || typeof html !== 'string') return '';
+
+    const div = document.createElement('div');
+    div.innerHTML = html;
+
+    // Remove dangerous tags
+    div.querySelectorAll('script, style, object, embed').forEach(el => el.remove());
+
+    // Remove inline event handlers (onclick, onerror, etc.)
+    div.querySelectorAll('*').forEach(el => {
+        [...el.attributes].forEach(attr => {
+            if (attr.name.startsWith('on')) {
+                el.removeAttribute(attr.name);
+            }
+            // Block javascript: URLs
+            if (['href', 'src'].includes(attr.name)) {
+                const value = attr.value.trim().toLowerCase();
+                if (value.startsWith('javascript:')) {
+                    el.removeAttribute(attr.name);
+                }
+            }
+        });
+    });
+
+    return div.innerHTML;
+}
+
+  function debug(entry, options = {}) {
+    const isDebugMode = new URLSearchParams(global.location.search).get('debug') === '1';
+    if (!isDebugMode) return;
+    const paneId = options.paneId || 'quizDebug';
+    const pane = _debugStores.get(paneId) || [];
+    pane.push(entry);
+    _debugStores.set(paneId, pane);
+
+    let debugEl = document.getElementById(paneId);
+    if (!debugEl) {
+      debugEl = document.createElement('pre');
+      debugEl.id = paneId;
+      debugEl.className = 'k-card';
+      debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+      document.querySelector('.k-page')?.appendChild(debugEl);
+    }
+    try {
+      debugEl.textContent = JSON.stringify(pane, null, 2);
+    } catch (_) {
+      debugEl.textContent = String(pane);
+    }
+  }
+
   /* ── Boot helper (call on DOMContentLoaded in each page) ── */
   async function boot() {
     // Apply theme immediately
@@ -482,6 +569,10 @@
     getRole,
     boot,
     setProgressRing,
+    parseStartSeconds,
+    toYoutubeEmbedUrl,
+    sanitizeForRender,
+    debug,
     nav: KairosNav,
   };
 

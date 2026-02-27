@@ -9,12 +9,33 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const ASSIGN_ID = params.get('assignment_id') || '';
+    const DEBUG_MODE = params.get('debug') === '1';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
     let assignData = null;
     let uploadedFiles = [];
+    let canManage = false;
+    const debugLogs = [];
+
+    function safeStringify(v) {
+        try { return JSON.stringify(v, null, 2); } catch (_) { return String(v); }
+    }
+
+    function logDebug(entry) {
+        if (!DEBUG_MODE) return;
+        debugLogs.push(entry);
+        let debugEl = $('assignDebug');
+        if (!debugEl) {
+            debugEl = document.createElement('pre');
+            debugEl.id = 'assignDebug';
+            debugEl.className = 'k-card';
+            debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            document.querySelector('.k-page')?.appendChild(debugEl);
+        }
+        debugEl.textContent = safeStringify(debugLogs);
+    }
 
     // ── Dropzone ───────────────────────────────────────────────
     function initDropzone() {
@@ -109,6 +130,59 @@
         }).join('');
     }
 
+
+    async function renderStaffPanel(submissions) {
+        if (!canManage) return;
+        const root = $('assignLoaded');
+        if (!root) return;
+        const existingPanel = $('assignStaffPanel');
+        if (existingPanel) existingPanel.remove();
+        const panel = document.createElement('section');
+        panel.id = 'assignStaffPanel';
+        panel.className = 'k-card';
+        panel.style.marginTop = '16px';
+        panel.style.padding = '16px';
+        panel.innerHTML = `<h3>Staff Assignment Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button">Toggle Mandatory</button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions"></div>`;
+        root.appendChild(panel);
+
+        $('assignPublishBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 1 });
+            LMS.toast(res.ok ? 'Assignment published' : 'Publish failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('assignDraftBtn')?.addEventListener('click', async () => {
+            const res = await LMS.api('POST', './api/lms/assignments/publish.php', { assignment_id: Number(ASSIGN_ID), published: 0 });
+            LMS.toast(res.ok ? 'Assignment moved to draft' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('assignMandatoryBtn')?.addEventListener('click', async () => {
+            const confirmed = window.confirm('Set assignment as mandatory?');
+            if (!confirmed) return;
+            const res = await LMS.api('POST', './api/lms/assignments/mandatory.php', { assignment_id: Number(ASSIGN_ID), required: 1 });
+            LMS.toast(res.ok ? 'Mandatory flag updated' : 'Mandatory update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+        $('assignEditBtn')?.addEventListener('click', async () => {
+            const title = window.prompt('Title', assignData?.title || '');
+            if (!title) return;
+            const description = window.prompt('Description', assignData?.instructions || assignData?.description || '');
+            const dueAt = window.prompt('Due at (YYYY-MM-DD HH:MM:SS)', assignData?.due_at || '');
+            const maxPointsRaw = window.prompt('Max points', String(assignData?.max_points || 100));
+            let maxPoints = Number.parseInt(String(maxPointsRaw ?? ''), 10);
+            if (!Number.isFinite(maxPoints) || Number.isNaN(maxPoints) || maxPoints <= 0) {
+                maxPoints = 100;
+            }
+            const res = await LMS.api('POST', './api/lms/assignments/update.php', { assignment_id: Number(ASSIGN_ID), title, instructions: description, due_at: dueAt, max_points: maxPoints });
+            LMS.toast(res.ok ? 'Assignment updated' : 'Update failed', res.ok ? 'success' : 'error');
+            if (res.ok) await loadPage();
+        });
+
+        const target = $('assignStaffSubmissions');
+        if (target) {
+            target.innerHTML = `<h4>Submissions (${submissions.length})</h4>` + submissions.map((s) => `<div class="k-attempt-row">Submission #${s.submission_id} · student ${s.student_user_id} · ${LMS.fmtDateTime(s.submitted_at)} · grade ${s.grade ?? '-'}</div>`).join('');
+        }
+    }
+
     // ── Submit ─────────────────────────────────────────────────
     async function submitWork() {
         const btn = $('submitBtn');
@@ -125,18 +199,26 @@
                     LMS.toast('Please attach at least one file.', 'warning');
                     return;
                 }
-                uploadedFiles.forEach(f => formData.append('files[]', f));
             } else if (submType === 'text') {
                 const ta = $('textInput');
                 if (!ta || !ta.value.trim()) { LMS.toast('Please enter your answer.', 'warning'); return; }
-                formData.append('text', ta.value.trim());
             } else if (submType === 'url') {
                 const inp = $('urlInput');
                 if (!inp || !inp.value.trim()) { LMS.toast('Please enter a URL.', 'warning'); return; }
                 formData.append('url', inp.value.trim());
             }
 
-            const res = await LMS.api('POST', './api/lms/assignment_submit.php', formData);
+            if (submType === 'file' && uploadedFiles[0]) {
+                formData.append('file', uploadedFiles[0]);
+            }
+            if (submType === 'text') {
+                const ta = $('textInput');
+                formData.append('text_submission', (ta?.value || '').trim());
+            }
+
+            const endpoint = './api/lms/assignments/submit.php';
+            const res = await LMS.api('POST', endpoint, formData);
+            logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
             if (!res.ok) {
                 LMS.toast('Submission failed: ' + (res.error || 'Unknown error'), 'error');
                 return;
@@ -158,10 +240,15 @@
             return;
         }
 
+        const dbg = DEBUG_MODE ? '&debug=1' : '';
+        const assignEndpoint = `./api/lms/assignments/get.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`;
+        const subsEndpoint = `./api/lms/assignments/submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`;
         const [assignRes, subsRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/assignment.php?id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`),
-            LMS.api('GET', `./api/lms/assignment_submissions.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', assignEndpoint),
+            LMS.api('GET', subsEndpoint),
         ]);
+        logDebug({ endpoint: assignEndpoint, method: 'GET', response_status: assignRes.status, response_body: assignRes.data, parsed_error_message: assignRes.error || null });
+        logDebug({ endpoint: subsEndpoint, method: 'GET', response_status: subsRes.status, response_body: subsRes.data, parsed_error_message: subsRes.error || null });
 
         hideEl('assignSkeleton');
 
@@ -176,8 +263,8 @@
             return;
         }
 
-        assignData = assignRes.data;
-        const submissions = subsRes.ok ? (subsRes.data || []) : [];
+        assignData = assignRes.data?.data || assignRes.data || {};
+        const submissions = subsRes.ok ? (subsRes.data?.data?.items || subsRes.data?.data || subsRes.data?.items || []) : [];
         const latestSub = submissions[0] || null;
 
         document.title = `${assignData.title || 'Assignment'} — Kairos`;
@@ -234,8 +321,9 @@
         // Description
         const desc = $('assignDescription');
         if (desc) {
-            if (assignData.description) {
-                desc.innerHTML = assignData.description; // server MUST sanitize
+            const description = assignData.description || assignData.instructions || '';
+            if (description) {
+                desc.innerHTML = description; // server MUST sanitize
             } else {
                 desc.innerHTML = '<div class="k-empty" style="padding:0"><p class="k-empty__desc">No description provided.</p></div>';
             }
@@ -274,12 +362,15 @@
 
         renderTimeline(submissions);
         showEl('assignLoaded');
+        await renderStaffPanel(submissions);
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        const roles = session.caps?.roles || {};
+        canManage = !!(roles.admin || roles.manager);
         await loadPage();
     });
 
