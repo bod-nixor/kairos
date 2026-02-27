@@ -6,24 +6,50 @@ require_once dirname(__DIR__) . '/_common.php';
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $in = lms_json_input();
 
-$theme = array_key_exists('theme', $in) ? trim((string)$in['theme']) : null;
-if ($theme !== null && $theme !== '' && !in_array($theme, ['light', 'dark'], true)) {
-    lms_error('validation_error', 'theme must be light or dark', 422);
-}
-if ($theme === '') {
-    $theme = null;
+$allowedGradients = ['ocean', 'sunset', 'forest', 'violet'];
+$allowedThemes = ['light', 'dark'];
+
+$pdo = db();
+$existingStmt = $pdo->prepare('SELECT theme, gradient_theme, compact_mode, reduce_motion
+    FROM lms_user_ui_settings
+    WHERE user_id = :user_id
+    LIMIT 1');
+$existingStmt->execute([':user_id' => (int)$user['user_id']]);
+$existing = $existingStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$theme = $existing['theme'] ?? null;
+if (array_key_exists('theme', $in)) {
+    $nextTheme = trim((string)$in['theme']);
+    if ($nextTheme === '') {
+        $theme = null;
+    } else {
+        $nextTheme = strtolower($nextTheme);
+        if (!in_array($nextTheme, $allowedThemes, true)) {
+            lms_error('validation_error', 'theme must be light or dark', 422);
+        }
+        $theme = $nextTheme;
+    }
 }
 
-$gradient = array_key_exists('gradient', $in) ? trim((string)$in['gradient']) : 'ocean';
-$allowedGradients = ['ocean', 'sunset', 'forest', 'violet'];
+$gradient = strtolower(trim((string)($existing['gradient_theme'] ?? 'ocean')));
 if (!in_array($gradient, $allowedGradients, true)) {
     $gradient = 'ocean';
 }
+if (array_key_exists('gradient', $in)) {
+    $nextGradient = strtolower(trim((string)$in['gradient']));
+    $gradient = in_array($nextGradient, $allowedGradients, true) ? $nextGradient : 'ocean';
+}
 
-$compactMode = !empty($in['compact_mode']) ? 1 : 0;
-$reduceMotion = !empty($in['reduce_motion']) ? 1 : 0;
+$compactMode = isset($existing['compact_mode']) ? (int)$existing['compact_mode'] : 0;
+if (array_key_exists('compact_mode', $in)) {
+    $compactMode = filter_var($in['compact_mode'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+}
 
-$pdo = db();
+$reduceMotion = isset($existing['reduce_motion']) ? (int)$existing['reduce_motion'] : 0;
+if (array_key_exists('reduce_motion', $in)) {
+    $reduceMotion = filter_var($in['reduce_motion'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+}
+
 $pdo->prepare('INSERT INTO lms_user_ui_settings (user_id, theme, gradient_theme, compact_mode, reduce_motion)
     VALUES (:user_id, :theme, :gradient_theme, :compact_mode, :reduce_motion)
     ON DUPLICATE KEY UPDATE

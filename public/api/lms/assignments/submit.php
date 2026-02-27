@@ -167,6 +167,7 @@ try {
         'course_id' => (int)$assignment['course_id'],
         'assignment_id' => $assignmentId,
         'is_late' => $late,
+        'has_comment' => $submissionComment !== '',
     ];
     lms_emit_event($pdo, 'assignment.submission.created', $event);
 

@@ -30,7 +30,9 @@
             activeIdx = -1;
             return;
         }
-        visibleSubmissionIds = list.map((item) => Number(item.id));
+        visibleSubmissionIds = list
+            .map((item) => Number(item?.id))
+            .filter((id) => Number.isFinite(id));
         container.innerHTML = list.map((s) => {
             const initials = (s.student_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
             const statusCls = s.grade_status === 'released' ? 'k-status--success' : s.grade_status === 'draft' ? 'k-status--warning' : 'k-status--neutral';
@@ -54,7 +56,14 @@
                 if (idx >= 0) selectSubmission(idx);
             };
             item.addEventListener('click', activate);
-            item.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') activate(); });
+            item.addEventListener('keydown', (e) => {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    activate();
+                    return;
+                }
+                if (e.key === 'Enter') activate();
+            });
         });
     }
 

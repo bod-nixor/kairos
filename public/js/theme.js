@@ -111,6 +111,7 @@
     if (!raw || raw === '#' || raw.startsWith('javascript:')) return null;
     try {
       const parsed = new URL(raw, window.location.origin);
+      if (parsed.origin !== window.location.origin) return null;
       const path = parsed.pathname.replace(/\/+$/, '') || '/';
       if (
         path === '/' ||
@@ -241,6 +242,19 @@
         compactMode: serverSettings.compactMode,
         reduceMotion: serverSettings.reduceMotion,
       });
+
+      const gradientInput = document.getElementById('kGradientTheme');
+      const compactInput = document.getElementById('kCompactMode');
+      const reduceMotionInput = document.getElementById('kReduceMotion');
+      if (gradientInput) gradientInput.value = serverSettings.gradient;
+      if (compactInput) {
+        compactInput.checked = !!serverSettings.compactMode;
+        compactInput.setAttribute('aria-checked', String(!!serverSettings.compactMode));
+      }
+      if (reduceMotionInput) {
+        reduceMotionInput.checked = !!serverSettings.reduceMotion;
+        reduceMotionInput.setAttribute('aria-checked', String(!!serverSettings.reduceMotion));
+      }
     }
 
     document.querySelectorAll('[data-theme-toggle]').forEach((toggle) => {

@@ -341,7 +341,7 @@
 
     let html = htmlLines.join('');
     html = html.replace(/(<li data-ordered="1">[\s\S]*?<\/li>)+/g, (chunk) => `<ol>${chunk.replace(/ data-ordered="1"/g, '')}</ol>`);
-    html = html.replace(/(<li>[\s\S]*?<\/li>)+/g, (chunk) => `<ul>${chunk}</ul>`);
+    html = html.replace(/(<li(?![^>]*data-ordered)[^>]*>[\s\S]*?<\/li>)+/g, (chunk) => `<ul>${chunk}</ul>`);
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');

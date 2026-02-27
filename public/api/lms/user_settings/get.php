@@ -13,18 +13,26 @@ $stmt = $pdo->prepare('SELECT theme, gradient_theme, compact_mode, reduce_motion
 $stmt->execute([':user_id' => (int)$user['user_id']]);
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
+$allowedGradients = ['ocean', 'sunset', 'forest', 'violet'];
+
 if (!$row) {
     lms_ok([
         'theme' => null,
         'gradient' => 'ocean',
         'compact_mode' => 0,
         'reduce_motion' => 0,
+        'updated_at' => null,
     ]);
+}
+
+$gradient = strtolower(trim((string)($row['gradient_theme'] ?? '')));
+if (!in_array($gradient, $allowedGradients, true)) {
+    $gradient = 'ocean';
 }
 
 lms_ok([
     'theme' => $row['theme'] === null ? null : (string)$row['theme'],
-    'gradient' => (string)($row['gradient_theme'] ?? 'ocean'),
+    'gradient' => $gradient,
     'compact_mode' => (int)($row['compact_mode'] ?? 0),
     'reduce_motion' => (int)($row['reduce_motion'] ?? 0),
     'updated_at' => $row['updated_at'] ?? null,

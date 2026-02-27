@@ -284,6 +284,13 @@
     cursor: pointer;
 }
 
+.k-module-item--interactive:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+    box-shadow: inset 0 0 0 1px var(--focus-ring);
+    background: var(--surface-subtle);
+}
+
 .k-module-item--locked {
     opacity: .55;
     pointer-events: none;
@@ -2909,4 +2916,16 @@ dialog.k-modal::backdrop {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+@supports not (aspect-ratio: 1 / 1) {
+  .k-embed-16x9 {
+    height: auto;
+  }
+
+  .k-embed-16x9::before {
+    content: '';
+    display: block;
+    padding-top: 56.25%;
+  }
 }
