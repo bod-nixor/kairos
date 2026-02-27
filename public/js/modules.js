@@ -71,7 +71,7 @@
 
         return `
       <div 
-         ${!locked ? `data-href="${LMS.escHtml(itemHref(item))}"` : ''}
+         ${!locked ? `data-href="${LMS.escHtml(itemHref(item))}" tabindex="0"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
          role="listitem"
@@ -172,6 +172,17 @@
                 window.location.href = target.dataset.href;
             } else if (target && target.tagName === 'A') {
                 e.stopPropagation();
+            }
+        });
+
+        container.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const target = e.target.closest('[data-href]');
+                if (target && target.dataset.href) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = target.dataset.href;
+                }
             }
         });
 
