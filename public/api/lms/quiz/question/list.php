@@ -62,7 +62,7 @@ try {
             'id' => $qid, // deprecated: keep for legacy UI; remove after migration to question_id
             'question_id' => $qid,
             'prompt' => (string)$q['prompt'],
-            'question_type' => (string)$q['question_type'],
+            'question_type' => ((string)$q['question_type'] === 'multi_select' ? 'multiple_select' : (string)$q['question_type']),
             'points' => (float)$q['points'],
             'position' => (int)$q['position'],
             'is_required' => (int)($q['is_required'] ?? 0),
@@ -75,12 +75,18 @@ try {
             if (is_array($decodedSettings) && isset($decodedSettings['options']) && is_array($decodedSettings['options'])) {
                 $normalized = [];
                 foreach ($decodedSettings['options'] as $opt) {
-                    $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+                    if (is_array($opt)) {
+                        $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+                        $value = trim((string)($opt['value'] ?? $text));
+                    } else {
+                        $text = trim((string)$opt);
+                        $value = $text;
+                    }
                     if ($text === '') {
                         continue;
                     }
                     $normalized[] = [
-                        'value' => (string)($opt['value'] ?? $text),
+                        'value' => ($value === '' ? $text : $value),
                         'text' => $text,
                     ];
                 }

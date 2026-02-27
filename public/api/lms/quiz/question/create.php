@@ -16,8 +16,8 @@ if ($assessmentId <= 0 || $prompt === '' || $questionType === '') {
 }
 
 $allowedQuestionTypes = ['mcq', 'multi_select', 'multiple_select', 'true_false', 'short_answer', 'long_answer', 'file_upload'];
-if ($questionType === 'multiple_select') {
-    $questionType = 'multi_select';
+if ($questionType === 'multi_select') {
+    $questionType = 'multiple_select';
 }
 if (!in_array($questionType, $allowedQuestionTypes, true)) {
     lms_error('validation_error', 'question_type is invalid', 422);
@@ -84,11 +84,19 @@ try {
         $optStmt = $pdo->prepare('INSERT INTO lms_question_options (question_id, option_text, option_value, position, is_correct) VALUES (:question_id, :option_text, :option_value, :position, 0)');
         $idx = 1;
         foreach ($options as $opt) {
-            $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+            if (is_array($opt)) {
+                $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+                $value = trim((string)($opt['value'] ?? ''));
+            } else {
+                $text = trim((string)$opt);
+                $value = '';
+            }
             if ($text === '') {
                 continue;
             }
-            $value = trim((string)($opt['value'] ?? ('opt_' . $idx)));
+            if ($value === '') {
+                $value = 'opt_' . $idx;
+            }
             $optStmt->execute([
                 ':question_id' => $questionId,
                 ':option_text' => $text,

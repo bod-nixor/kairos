@@ -489,12 +489,37 @@
     });
 
     let html = htmlLines.join('');
-    html = html.replace(/(<li data-ordered="1">[\s\S]*?<\/li>)+/g, (chunk) => `<ol>${chunk.replace(/ data-ordered="1"/g, '')}</ol>`);
     html = html.replace(/(<li(?![^>]*data-ordered)[^>]*>[\s\S]*?<\/li>)+/g, (chunk) => `<ul>${chunk}</ul>`);
+    html = html.replace(/(<li data-ordered="1">[\s\S]*?<\/li>)+/g, (chunk) => `<ol>${chunk.replace(/ data-ordered="1"/g, '')}</ol>`);
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     return html;
+  }
+
+  function htmlToMarkdown(html) {
+    const container = document.createElement('div');
+    container.innerHTML = html || '';
+
+    const mapNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+      const tag = node.tagName.toLowerCase();
+      const text = Array.from(node.childNodes).map(mapNode).join('');
+      if (tag === 'h1') return `# ${text}\n\n`;
+      if (tag === 'h2') return `## ${text}\n\n`;
+      if (tag === 'h3') return `### ${text}\n\n`;
+      if (tag === 'strong' || tag === 'b') return `**${text}**`;
+      if (tag === 'em' || tag === 'i') return `*${text}*`;
+      if (tag === 'a') return `[${text}](${node.getAttribute('href') || ''})`;
+      if (tag === 'li') return `- ${text}\n`;
+      if (tag === 'ul' || tag === 'ol') return `${Array.from(node.children).map(mapNode).join('')}\n`;
+      if (tag === 'br') return '\n';
+      if (tag === 'p' || tag === 'div') return `${text}\n\n`;
+      return text;
+    };
+
+    return Array.from(container.childNodes).map(mapNode).join('').replace(/\n{3,}/g, '\n\n').trim();
   }
 
   function parseStartSeconds(value) {
@@ -638,6 +663,7 @@ function sanitizeForRender(html) {
     parseStartSeconds,
     toYoutubeEmbedUrl,
     markdownToHtml,
+    htmlToMarkdown,
     sanitizeForRender,
     debug,
     nav: KairosNav,

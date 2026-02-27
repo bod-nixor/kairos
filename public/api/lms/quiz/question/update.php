@@ -27,8 +27,8 @@ $questionType = array_key_exists('question_type', $in)
     : trim((string)$existing['question_type']);
 
 $allowedQuestionTypes = ['mcq', 'multi_select', 'multiple_select', 'true_false', 'short_answer', 'long_answer', 'file_upload'];
-if ($questionType === 'multiple_select') {
-    $questionType = 'multi_select';
+if ($questionType === 'multi_select') {
+    $questionType = 'multiple_select';
 }
 if (!in_array($questionType, $allowedQuestionTypes, true)) {
     lms_error('validation_error', 'question_type is invalid', 422);
@@ -42,14 +42,22 @@ $answerKeyJson = array_key_exists('answer_key', $in)
     ? json_encode($in['answer_key'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
     : $existing['answer_key_json'];
 
-$settings = array_key_exists('settings', $in) && is_array($in['settings'])
-    ? $in['settings']
-    : (json_decode((string)$existing['settings_json'], true) ?: []);
-$options = [];
+$settings = json_decode((string)$existing['settings_json'], true) ?: [];
+if (!is_array($settings)) {
+    $settings = [];
+}
+if (array_key_exists('settings', $in) && is_array($in['settings'])) {
+    foreach ($in['settings'] as $key => $val) {
+        $settings[$key] = $val;
+    }
+}
+
 if (array_key_exists('options', $in) && is_array($in['options'])) {
     $options = $in['options'];
-} elseif (isset($settings['options']) && is_array($settings['options'])) {
-    $options = $settings['options'];
+} elseif (array_key_exists('settings', $in) && is_array($in['settings']) && array_key_exists('options', $in['settings']) && is_array($in['settings']['options'])) {
+    $options = $in['settings']['options'];
+} else {
+    $options = (isset($settings['options']) && is_array($settings['options'])) ? $settings['options'] : [];
 }
 $settings['options'] = $options;
 $settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -90,11 +98,19 @@ try {
         $optStmt = $pdo->prepare('INSERT INTO lms_question_options (question_id, option_text, option_value, position, is_correct) VALUES (:question_id, :option_text, :option_value, :position, 0)');
         $idx = 1;
         foreach ($options as $opt) {
-            $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+            if (is_array($opt)) {
+                $text = trim((string)($opt['text'] ?? $opt['label'] ?? $opt['value'] ?? ''));
+                $value = trim((string)($opt['value'] ?? ''));
+            } else {
+                $text = trim((string)$opt);
+                $value = '';
+            }
             if ($text === '') {
                 continue;
             }
-            $value = trim((string)($opt['value'] ?? ('opt_' . $idx)));
+            if ($value === '') {
+                $value = 'opt_' . $idx;
+            }
             $optStmt->execute([
                 ':question_id' => $id,
                 ':option_text' => $text,

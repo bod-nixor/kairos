@@ -114,29 +114,6 @@
         selection.addRange(range);
     }
 
-    function htmlToMarkdown(html) {
-        const container = document.createElement('div');
-        container.innerHTML = html || '';
-        const mapNode = (node) => {
-            if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
-            if (node.nodeType !== Node.ELEMENT_NODE) return '';
-            const tag = node.tagName.toLowerCase();
-            const text = Array.from(node.childNodes).map(mapNode).join('');
-            if (tag === 'h1') return '# ' + text + '\n\n';
-            if (tag === 'h2') return '## ' + text + '\n\n';
-            if (tag === 'h3') return '### ' + text + '\n\n';
-            if (tag === 'strong' || tag === 'b') return '**' + text + '**';
-            if (tag === 'em' || tag === 'i') return '*' + text + '*';
-            if (tag === 'a') return '[' + text + '](' + (node.getAttribute('href') || '') + ')';
-            if (tag === 'li') return '- ' + text + '\n';
-            if (tag === 'ul' || tag === 'ol') return Array.from(node.children).map(mapNode).join('') + '\n';
-            if (tag === 'p' || tag === 'div') return text + '\n\n';
-            if (tag === 'br') return '\n';
-            return text;
-        };
-        return Array.from(container.childNodes).map(mapNode).join('').replace(/\n{3,}/g, '\n\n').trim();
-    }
-
     function ensureAssignmentEditorModal() {
         let modal = $('assignEditorModal');
         if (modal) return modal;
@@ -182,7 +159,7 @@
             const editor = $('assignEditDescription');
             if (!editor) return;
             try {
-                await navigator.clipboard.writeText(htmlToMarkdown(editor.innerHTML || ''));
+                await navigator.clipboard.writeText(LMS.htmlToMarkdown(editor.innerHTML || ''));
                 LMS.toast('Markdown copied to clipboard.', 'success');
             } catch (_) {
                 LMS.toast('Unable to copy markdown.', 'error');
