@@ -234,7 +234,7 @@
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!ASSIGN_ID) {
-            LMS.renderAccessDenied($('assignAccessDenied'), 'No assignment specified.', '/');
+            LMS.renderAccessDenied($('assignAccessDenied'), 'No assignment specified. Please select an assignment from the Modules page.', COURSE_ID ? `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}` : '/');
             hideEl('assignSkeleton');
             showEl('assignAccessDenied');
             return;
@@ -269,7 +269,11 @@
 
         document.title = `${assignData.title || 'Assignment'} — Kairos`;
         $('kBreadAssign') && ($('kBreadAssign').textContent = assignData.title || 'Assignment');
-        $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+        const bc = $('kBreadCourse');
+        if (bc) {
+            bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
+            bc.textContent = assignData.course_name || 'Course';
+        }
         document.querySelectorAll('[data-course-href]').forEach(el => {
             el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
         });

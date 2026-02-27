@@ -405,7 +405,7 @@
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!QUIZ_ID) {
-            LMS.renderAccessDenied($('quizAccessDenied'), 'No quiz specified.', '/');
+            LMS.renderAccessDenied($('quizAccessDenied'), 'No quiz specified. Please select a quiz from the Modules page.', COURSE_ID ? `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}` : '/');
             showPanel('quizAccessDenied');
             return;
         }
@@ -429,7 +429,11 @@
 
         quizData = res.data?.data || res.data || {};
         document.title = `${quizData.title || 'Quiz'} — Kairos`;
-        $('kBreadCourse') && ($('kBreadCourse').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+        const bc = $('kBreadCourse');
+        if (bc) {
+            bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
+            bc.textContent = quizData.course_name || 'Course';
+        }
         $('quizStickyTitle') && ($('quizStickyTitle').textContent = quizData.title || 'Quiz');
 
         // Populate intro panel

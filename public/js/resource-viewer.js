@@ -97,6 +97,26 @@
         $('resourceTypeIcon') && ($('resourceTypeIcon').textContent = TYPE_ICONS[type] || '📄');
         $('resourceTitle') && ($('resourceTitle').textContent = resource.title || 'Resource');
         $('resourceType') && ($('resourceType').textContent = (type || 'file').toUpperCase());
+        $('kBreadResource') && ($('kBreadResource').textContent = resource.title || 'Resource');
+        const bc = $('kBreadCourse');
+        if (bc) {
+            bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
+            bc.textContent = resource.course_name || 'Course';
+        }
+        $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+        $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = resource.course_name || '');
+        $('backToModules') && ($('backToModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+
+        // Download + open buttons
+        if (rawUrl && type !== 'link' && isHttpUrl(rawUrl)) {
+            const dlBtn = $('downloadBtn');
+            if (dlBtn) { dlBtn.href = rawUrl; dlBtn.classList.remove('hidden'); }
+            const openBtn = $('openNewTabBtn');
+            if (openBtn) {
+                openBtn.classList.remove('hidden');
+                openBtn.addEventListener('click', () => window.open(rawUrl, '_blank', 'noopener'));
+            }
+        }
 
         showEl('resourceViewer');
         ['iframeWrap', 'videoWrap', 'externalWrap', 'textWrap', 'unsupportedWrap'].forEach(hideEl);
@@ -118,21 +138,9 @@
             const iframe = document.createElement('iframe');
             iframe.setAttribute('src', embedUrl);
             iframe.setAttribute('title', 'Embedded video');
-            iframe.setAttribute('style', 'width:100%;height:480px;border:0');
             iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
-            iframe.setAttribute('allowfullscreen', '');
+            iframe.setAttribute('allowfullscreen', 'true');
             videoWrap.appendChild(iframe);
-            const p = document.createElement('p');
-            p.style.padding = '8px 0';
-            const a = document.createElement('a');
-            a.textContent = 'Open in new tab ↗';
-            if (isHttpUrl(rawUrl)) {
-                a.href = rawUrl;
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-            }
-            p.appendChild(a);
-            videoWrap.appendChild(p);
             showEl('videoWrap');
             return;
         }
