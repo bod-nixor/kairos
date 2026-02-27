@@ -108,7 +108,7 @@
         $('backToModules') && ($('backToModules').href = `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
 
         // Download + open buttons
-        if (rawUrl && type !== 'link') {
+        if (rawUrl && type !== 'link' && isHttpUrl(rawUrl)) {
             const dlBtn = $('downloadBtn');
             if (dlBtn) { dlBtn.href = rawUrl; dlBtn.classList.remove('hidden'); }
             const openBtn = $('openNewTabBtn');
