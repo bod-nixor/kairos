@@ -66,7 +66,7 @@
 
     async function loadPage() {
         if (!RESOURCE_ID) {
-            LMS.renderAccessDenied($('resourceAccessDenied'), 'No resource specified.', '/signoff/');
+            LMS.renderAccessDenied($('resourceAccessDenied'), 'No resource specified.', '/');
             hideEl('resourceSkeleton');
             showEl('resourceAccessDenied');
             return;

@@ -139,7 +139,7 @@
     // ── Main load ──────────────────────────────────────────────
     async function loadPage() {
         if (!COURSE_ID) {
-            LMS.renderAccessDenied($('analyticsAccessDenied'), 'No course specified.', '/signoff/');
+            LMS.renderAccessDenied($('analyticsAccessDenied'), 'No course specified.', '/');
             hideEl('analyticsSkeleton'); showEl('analyticsAccessDenied'); return;
         }
 
