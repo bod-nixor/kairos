@@ -59,21 +59,23 @@
         // Admin per-item controls
         const adminBtns = isAdmin ? `
           <span class="k-module-item__admin-actions" onclick="event.preventDefault();event.stopPropagation();">
-            <a href="${LMS.escHtml(itemHref(item))}" class="k-btn-icon" title="Edit" onclick="event.stopPropagation();">
+            <button class="k-btn-icon" title="Edit" onclick="event.preventDefault();event.stopPropagation();window.location.href='${LMS.escHtml(itemHref(item))}';">
               ✏️
-            </a>
+            </button>
           </span>` : '';
 
         return `
-      <a href="${locked ? '#' : LMS.escHtml(itemHref(item))}"
+      <div 
+         ${!locked ? `onclick="window.location.href='${LMS.escHtml(itemHref(item))}';"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
-         ${locked ? 'tabindex="-1"' : ''}
-         role="listitem">
+         ${locked ? 'tabindex="-1"' : 'tabindex="0"'}
+         role="listitem"
+         style="${!locked ? 'cursor:pointer;' : ''}">
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
           <div class="k-module-item__title">
-            ${LMS.escHtml(item.name || item.title || 'Untitled Module')}
+            <a href="${locked ? '#' : LMS.escHtml(itemHref(item))}" onclick="event.stopPropagation();" style="color:inherit;text-decoration:none;">${LMS.escHtml(item.name || item.title || 'Untitled Module')}</a>
             ${statusBadges.join(' ')}
           </div>
           ${metaParts.length ? `<div class="k-module-item__meta">${LMS.escHtml(metaParts.join(' · '))}</div>` : ''}
@@ -83,7 +85,7 @@
           ${done ? '<span class="k-status k-status--success" aria-label="Completed">✓</span>' : ''}
           ${locked ? '<span class="k-module-item__lock" aria-label="Locked">🔒</span>' : ''}
         </div>
-      </a>`;
+      </div>`;
     }
 
 
