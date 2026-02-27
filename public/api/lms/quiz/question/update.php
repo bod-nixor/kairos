@@ -84,9 +84,6 @@ try {
         ':id' => $id,
     ]);
 
-    if ($updateStmt->rowCount() === 0) {
-        lms_error('conflict', 'Question was not updated', 409);
-    }
 
     $pdo->prepare('DELETE FROM lms_question_options WHERE question_id = :question_id')->execute([':question_id' => $id]);
     if (!empty($options)) {

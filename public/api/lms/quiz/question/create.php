@@ -61,7 +61,7 @@ $pdo->beginTransaction();
 try {
     $position = isset($in['position']) ? (int)$in['position'] : 0;
     if ($position <= 0) {
-        $posStmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM lms_questions WHERE assessment_id = :assessment_id AND deleted_at IS NULL');
+        $posStmt = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM lms_questions WHERE assessment_id = :assessment_id AND deleted_at IS NULL FOR UPDATE');
         $posStmt->execute([':assessment_id' => $assessmentId]);
         $position = (int)$posStmt->fetchColumn();
     }

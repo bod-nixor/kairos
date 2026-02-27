@@ -31,7 +31,7 @@ try {
         lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
     }
 
-    $qSql = 'SELECT question_id, prompt, question_type, points, position, is_required, answer_key_json, settings_json FROM lms_questions WHERE assessment_id = :assessment_id ORDER BY position ASC, question_id ASC';
+    $qSql = 'SELECT question_id, prompt, question_type, points, position, is_required, answer_key_json, settings_json FROM lms_questions WHERE assessment_id = :assessment_id AND deleted_at IS NULL ORDER BY position ASC, question_id ASC';
     $qParams = [':assessment_id' => $assessmentId];
     $debug['steps'][] = ['step' => 'load_questions', 'sql' => $qSql, 'params' => $qParams];
     $qStmt = $pdo->prepare($qSql);

@@ -494,28 +494,29 @@
         const wrap = $('staffQuestions');
         if (!wrap) return;
         wrap.innerHTML = `<h4>Questions (${questions.length})</h4>` + questions.map((q, idx) => `<div class="k-card" style="padding:8px;margin-bottom:8px"><div><strong>Q${idx + 1}.</strong> ${LMS.escHtml(q.prompt || '')} (${LMS.escHtml(q.question_type || '')})${Number(q.is_required||0)===1 ? ' <span class="k-status k-status--warning">Required</span>' : ''}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="move-up" data-id="${q.question_id}" ${idx===0?'disabled':''}>Move Up</button><button class="btn btn-ghost btn-sm" data-act="move-down" data-id="${q.question_id}" ${idx===questions.length-1?'disabled':''}>Move Down</button><button class="btn btn-ghost btn-sm" data-act="toggle-required" data-id="${q.question_id}" data-required="${Number(q.is_required||0)}">${Number(q.is_required||0)===1?'Set Optional':'Set Required'}</button><button class="btn btn-ghost btn-sm" data-act="edit" data-id="${q.question_id}">Edit</button> <button class="btn btn-ghost btn-sm" data-act="delete" data-id="${q.question_id}">Delete</button></div></div>`).join('');
-        wrap.querySelectorAll('button[data-act="move-up"]').forEach((btn) => btn.addEventListener('click', async () => {
-            const id = Number(btn.dataset.id || 0);
-            const idx = questions.findIndex((q) => Number(q.question_id) === id);
-            if (idx <= 0) return;
-            const currentQ = questions[idx];
-            const prevQ = questions[idx - 1];
-            const a = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(currentQ.question_id), position: Number(prevQ.position || idx) });
-            const b = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(prevQ.question_id), position: Number(currentQ.position || (idx + 1)) });
-            LMS.toast(a.ok && b.ok ? 'Question order updated' : 'Failed to reorder questions', a.ok && b.ok ? 'success' : 'error');
-            if (a.ok && b.ok) await renderStaffPanel();
-        }));
-        wrap.querySelectorAll('button[data-act="move-down"]').forEach((btn) => btn.addEventListener('click', async () => {
-            const id = Number(btn.dataset.id || 0);
-            const idx = questions.findIndex((q) => Number(q.question_id) === id);
-            if (idx < 0 || idx >= questions.length - 1) return;
-            const currentQ = questions[idx];
-            const nextQ = questions[idx + 1];
-            const a = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(currentQ.question_id), position: Number(nextQ.position || (idx + 2)) });
-            const b = await LMS.api('POST', './api/lms/quiz/question/update.php', { question_id: Number(nextQ.question_id), position: Number(currentQ.position || (idx + 1)) });
-            LMS.toast(a.ok && b.ok ? 'Question order updated' : 'Failed to reorder questions', a.ok && b.ok ? 'success' : 'error');
-            if (a.ok && b.ok) await renderStaffPanel();
-        }));
+
+        for (const btn of wrap.querySelectorAll('button[data-act="move-up"]')) {
+            btn.addEventListener('click', async () => {
+                const id = Number(btn.dataset.id || 0);
+                const res = await LMS.api('POST', './api/lms/quiz/question/reorder.php', {
+                    question_id: id,
+                    direction: 'up',
+                });
+                LMS.toast(res.ok ? 'Question order updated' : 'Failed to reorder questions', res.ok ? 'success' : 'error');
+                if (res.ok) await renderStaffPanel();
+            });
+        }
+        for (const btn of wrap.querySelectorAll('button[data-act="move-down"]')) {
+            btn.addEventListener('click', async () => {
+                const id = Number(btn.dataset.id || 0);
+                const res = await LMS.api('POST', './api/lms/quiz/question/reorder.php', {
+                    question_id: id,
+                    direction: 'down',
+                });
+                LMS.toast(res.ok ? 'Question order updated' : 'Failed to reorder questions', res.ok ? 'success' : 'error');
+                if (res.ok) await renderStaffPanel();
+            });
+        }
         wrap.querySelectorAll('button[data-act="toggle-required"]').forEach((btn) => btn.addEventListener('click', async () => {
             const id = Number(btn.dataset.id || 0);
             const isRequired = Number(btn.dataset.required || 0) === 1;

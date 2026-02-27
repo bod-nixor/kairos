@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/_common.php';
 
+lms_require_feature(['quizzes', 'lms_quizzes']);
+
 function lms_normalize_answer_value($value)
 {
     if (is_array($value)) {

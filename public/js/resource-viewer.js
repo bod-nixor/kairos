@@ -134,7 +134,7 @@
             }
             const videoWrap = $('videoWrap');
             if (!videoWrap) return;
-            videoWrap.className = 'k-embed-16x9';
+            videoWrap.classList.add('k-embed-16x9');
             videoWrap.innerHTML = '';
             const iframe = document.createElement('iframe');
             iframe.setAttribute('src', embedUrl);

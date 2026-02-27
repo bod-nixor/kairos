@@ -326,28 +326,6 @@
 
 
 
-  function markdownToHtml(markdown) {
-    const lines = String(markdown || '').split(/\r?\n/);
-    const htmlLines = lines.map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return '<p><br></p>';
-      if (trimmed.startsWith('### ')) return `<h3>${LMS.escHtml(trimmed.slice(4))}</h3>`;
-      if (trimmed.startsWith('## ')) return `<h2>${LMS.escHtml(trimmed.slice(3))}</h2>`;
-      if (trimmed.startsWith('# ')) return `<h1>${LMS.escHtml(trimmed.slice(2))}</h1>`;
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) return `<li>${LMS.escHtml(trimmed.slice(2))}</li>`;
-      if (/^\d+\.\s+/.test(trimmed)) return `<li data-ordered="1">${LMS.escHtml(trimmed.replace(/^\d+\.\s+/, ''))}</li>`;
-      return `<p>${LMS.escHtml(trimmed)}</p>`;
-    });
-
-    let html = htmlLines.join('');
-    html = html.replace(/(<li data-ordered="1">[\s\S]*?<\/li>)+/g, (chunk) => `<ol>${chunk.replace(/ data-ordered="1"/g, '')}</ol>`);
-    html = html.replace(/(<li(?![^>]*data-ordered)[^>]*>[\s\S]*?<\/li>)+/g, (chunk) => `<ul>${chunk}</ul>`);
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    return html;
-  }
-
   function htmlToMarkdown(html) {
     const container = document.createElement('div');
     container.innerHTML = html || '';
@@ -436,7 +414,7 @@
       const text = event.clipboardData?.getData('text/plain') || '';
       if (!text || !/[#*\-\[\]]/.test(text)) return;
       event.preventDefault();
-      const html = markdownToHtml(text);
+      const html = LMS.markdownToHtml(text);
       document.execCommand('insertHTML', false, html);
     });
 

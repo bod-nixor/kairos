@@ -474,6 +474,29 @@
   /* ── URL + Debug utilities ─────────────────────────────── */
   const _debugStores = new Map();
 
+
+  function markdownToHtml(markdown) {
+    const lines = String(markdown || '').split(/\r?\n/);
+    const htmlLines = lines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '<p><br></p>';
+      if (trimmed.startsWith('### ')) return `<h3>${escHtml(trimmed.slice(4))}</h3>`;
+      if (trimmed.startsWith('## ')) return `<h2>${escHtml(trimmed.slice(3))}</h2>`;
+      if (trimmed.startsWith('# ')) return `<h1>${escHtml(trimmed.slice(2))}</h1>`;
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) return `<li>${escHtml(trimmed.slice(2))}</li>`;
+      if (/^\d+\.\s+/.test(trimmed)) return `<li data-ordered="1">${escHtml(trimmed.replace(/^\d+\.\s+/, ''))}</li>`;
+      return `<p>${escHtml(trimmed)}</p>`;
+    });
+
+    let html = htmlLines.join('');
+    html = html.replace(/(<li data-ordered="1">[\s\S]*?<\/li>)+/g, (chunk) => `<ol>${chunk.replace(/ data-ordered="1"/g, '')}</ol>`);
+    html = html.replace(/(<li(?![^>]*data-ordered)[^>]*>[\s\S]*?<\/li>)+/g, (chunk) => `<ul>${chunk}</ul>`);
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    return html;
+  }
+
   function parseStartSeconds(value) {
     const raw = String(value || '').trim();
     if (!raw) return 0;
@@ -614,6 +637,7 @@ function sanitizeForRender(html) {
     setProgressRing,
     parseStartSeconds,
     toYoutubeEmbedUrl,
+    markdownToHtml,
     sanitizeForRender,
     debug,
     nav: KairosNav,

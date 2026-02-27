@@ -103,23 +103,15 @@
         });
     }
 
-    function markdownToHtml(markdown) {
-        const lines = String(markdown || '').split(/\r?\n/);
-        const htmlLines = lines.map((line) => {
-            const trimmed = line.trim();
-            if (!trimmed) return '<p><br></p>';
-            if (trimmed.startsWith('### ')) return '<h3>' + LMS.escHtml(trimmed.slice(4)) + '</h3>';
-            if (trimmed.startsWith('## ')) return '<h2>' + LMS.escHtml(trimmed.slice(3)) + '</h2>';
-            if (trimmed.startsWith('# ')) return '<h1>' + LMS.escHtml(trimmed.slice(2)) + '</h1>';
-            if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) return '<li>' + LMS.escHtml(trimmed.slice(2)) + '</li>';
-            return '<p>' + LMS.escHtml(trimmed) + '</p>';
-        });
-        let html = htmlLines.join('');
-        html = html.replace(/(<li>[\s\S]*?<\/li>)+/g, (chunk) => '<ul>' + chunk + '</ul>');
-        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-        return html;
+    function insertTextAtCursor(text) {
+        const selection = document.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
     }
 
     function htmlToMarkdown(html) {
@@ -176,7 +168,14 @@
                 const editor = $('assignEditDescription');
                 if (!editor) return;
                 editor.focus();
-                document.execCommand(btn.dataset.assignCmd, false, btn.dataset.assignCmdValue || null);
+                if (typeof document.execCommand === 'function') {
+                    document.execCommand(btn.dataset.assignCmd, false, btn.dataset.assignCmdValue || null);
+                    return;
+                }
+                const value = btn.dataset.assignCmdValue || '';
+                if (value) {
+                    insertTextAtCursor(value);
+                }
             });
         });
         $('assignCopyMarkdownBtn')?.addEventListener('click', async () => {
@@ -193,7 +192,12 @@
             const text = event.clipboardData?.getData('text/plain') || '';
             if (!text || !/[#*\-\[\]]/.test(text)) return;
             event.preventDefault();
-            document.execCommand('insertHTML', false, markdownToHtml(text));
+            const html = LMS.markdownToHtml(text);
+            if (typeof document.execCommand === 'function') {
+                document.execCommand('insertHTML', false, html);
+            } else {
+                insertTextAtCursor(text);
+            }
         });
         return modal;
     }

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/_restriction_helpers.php';
 
 lms_require_feature(['lms_assignments', 'assignments']);
 $user = lms_require_roles(['manager', 'admin']);
@@ -78,24 +79,10 @@ if (array_key_exists('max_points', $in)) {
 $status = array_key_exists('status', $in) ? (string)$in['status'] : (string)$existing['status'];
 
 
-$allowedFileExtensions = array_key_exists('allowed_file_extensions', $in)
-    ? trim(strtolower((string)$in['allowed_file_extensions']))
-    : trim(strtolower((string)($existing['allowed_file_extensions'] ?? '')));
-if ($allowedFileExtensions !== '') {
-    $parts = array_filter(array_map(static fn($v) => trim(strtolower((string)$v)), explode(',', $allowedFileExtensions)), static fn($v) => $v !== '');
-    $parts = array_values(array_unique($parts));
-    foreach ($parts as $ext) {
-        if (!preg_match('/^[a-z0-9]{1,10}$/', $ext)) {
-            lms_error('validation_error', 'allowed_file_extensions must be comma-separated extensions', 422);
-        }
-    }
-    $allowedFileExtensions = implode(',', $parts);
-}
-
-$maxFileMb = array_key_exists('max_file_mb', $in) ? (int)$in['max_file_mb'] : (int)($existing['max_file_mb'] ?? 50);
-if ($maxFileMb < 1 || $maxFileMb > 1024) {
-    lms_error('validation_error', 'max_file_mb must be between 1 and 1024', 422);
-}
+$allowedFileExtensions = lms_normalize_allowed_file_extensions(
+    array_key_exists('allowed_file_extensions', $in) ? $in['allowed_file_extensions'] : ($existing['allowed_file_extensions'] ?? null)
+);
+$maxFileMb = lms_clamp_max_file_mb(array_key_exists('max_file_mb', $in) ? $in['max_file_mb'] : ($existing['max_file_mb'] ?? 50), 50);
 
 $pdo->beginTransaction();
 try {
