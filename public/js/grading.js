@@ -285,13 +285,13 @@
         if (!isTA) {
             LMS.renderAccessDenied(
                 $('gradingAccessDenied').querySelector('.k-page'),
-                'Grading is only accessible to TAs and Managers.',
+                'Grading is only accessible to TAs, Managers, and Admins.',
                 `/course.html?course_id=${COURSE_ID}`
             );
             showEl('gradingAccessDenied'); hideEl('gradingSkeleton'); return;
         }
 
-        gradingRole = (caps.roles && caps.roles.manager) ? 'manager' : 'ta';
+        gradingRole = (caps.roles && (caps.roles.manager || caps.roles.admin)) ? 'manager' : 'ta';
         const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);

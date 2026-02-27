@@ -326,6 +326,17 @@
         await loadPage();
     });
 
+
+    function pushCourseEventNotification(payload, fallbackType, fallbackMessage) {
+        if (!payload || String(payload.course_id || '') !== String(COURSE_ID)) return;
+        pushNotification({
+            event_id: payload.event_id || `${fallbackType}:${payload.entity_id || Date.now()}`,
+            type: payload.event_name || fallbackType,
+            message: payload.message || fallbackMessage,
+            created_at: payload.occurred_at || payload.created_at || new Date().toISOString(),
+        });
+    }
+
     // ── WS: live announcements ─────────────────────────────────
     if (window.LmsWS) {
         LmsWS.on('announcement.created', (payload) => {
@@ -339,6 +350,15 @@
                 message: `New announcement: ${payload.title || 'Course update'}`,
                 created_at: payload.created_at || new Date().toISOString(),
             });
+        });
+        LmsWS.on('quiz.published', (payload) => {
+            pushCourseEventNotification(payload, 'quiz.published', `Quiz published: ${payload.title || 'New quiz available'}`);
+        });
+        LmsWS.on('grade.released', (payload) => {
+            pushCourseEventNotification(payload, 'grade.released', payload.message || 'A new grade was released.');
+        });
+        LmsWS.on('assignment.due_soon', (payload) => {
+            pushCourseEventNotification(payload, 'assignment.due_soon', `Assignment due soon: ${payload.title || 'Check deadlines'}`);
         });
     }
 
