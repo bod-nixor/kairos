@@ -58,24 +58,28 @@
 
         // Admin per-item controls
         const adminBtns = isAdmin ? `
-          <span class="k-module-item__admin-actions" onclick="event.preventDefault();event.stopPropagation();">
-            <button class="k-btn-icon" title="Edit" onclick="event.preventDefault();event.stopPropagation();window.location.href='${LMS.escHtml(itemHref(item))}';">
+          <span class="k-module-item__admin-actions">
+            <button class="k-btn-icon" title="Edit" data-href="${LMS.escHtml(itemHref(item))}">
               ✏️
             </button>
           </span>` : '';
 
+        const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
+        const titleMarkup = locked
+            ? `<span>${titleText}</span>`
+            : `<a href="${LMS.escHtml(itemHref(item))}" style="color:inherit;text-decoration:none;">${titleText}</a>`;
+
         return `
       <div 
-         ${!locked ? `onclick="window.location.href='${LMS.escHtml(itemHref(item))}';"` : ''}
+         ${!locked ? `data-href="${LMS.escHtml(itemHref(item))}"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
-         ${locked ? 'tabindex="-1"' : 'tabindex="0"'}
          role="listitem"
          style="${!locked ? 'cursor:pointer;' : ''}">
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
           <div class="k-module-item__title">
-            <a href="${locked ? '#' : LMS.escHtml(itemHref(item))}" onclick="event.stopPropagation();" style="color:inherit;text-decoration:none;">${LMS.escHtml(item.name || item.title || 'Untitled Module')}</a>
+            ${titleMarkup}
             ${statusBadges.join(' ')}
           </div>
           ${metaParts.length ? `<div class="k-module-item__meta">${LMS.escHtml(metaParts.join(' · '))}</div>` : ''}
@@ -159,6 +163,17 @@
                 });
             });
         }
+
+        container.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-href], a');
+            if (target && target.dataset.href) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = target.dataset.href;
+            } else if (target && target.tagName === 'A') {
+                e.stopPropagation();
+            }
+        });
 
         showEl('moduleList');
     }
