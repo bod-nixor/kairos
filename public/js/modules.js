@@ -189,6 +189,7 @@
                         if (!title) { LMS.toast('Title cannot be empty', 'error'); btn.disabled = false; return; }
                         const res = await LMS.api('POST', './api/lms/sections/update.php', {
                             section_id: sectionId,
+                            course_id: COURSE_ID_INT,
                             title,
                             description,
                         });

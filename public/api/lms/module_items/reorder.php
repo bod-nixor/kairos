@@ -64,7 +64,7 @@ if (count($diff1) > 0 || count($diff2) > 0) {
 $pdo->beginTransaction();
 try {
     // Set all items to negative positions first
-    $tmpStmt = $pdo->prepare('UPDATE lms_module_items SET position = :pos WHERE module_item_id = :id AND course_id = :cid AND section_id = :sid');
+    $tmpStmt = $pdo->prepare('UPDATE lms_module_items SET position = :pos, updated_at = CURRENT_TIMESTAMP WHERE module_item_id = :id AND course_id = :cid AND section_id = :sid');
     foreach ($itemIds as $index => $itemId) {
         $tmpStmt->execute([
             ':pos' => -($index + 1),
