@@ -439,7 +439,7 @@ async function openCourse(courseId, courseName) {
   document.getElementById('courseTitle').textContent = `${courseName || 'Course'} (#${activeCourseId})`;
   showView('viewCourseDetail');
   updateNavAvailability();
-  await Promise.all([loadRooms(), loadRoster()]);
+  await Promise.all([loadRooms(), loadRoster(), loadCourseSettings()]);
   const hash = (window.location.hash || '').toLowerCase();
   if (hash.includes('progress')) {
     await openProgressView();
@@ -741,6 +741,54 @@ async function rerunLastSearch() {
   }
 }
 
+
+async function loadCourseSettings() {
+  if (!activeCourseId) return;
+  const visibilitySelect = document.getElementById('courseVisibilitySelect');
+  const allowlistEntries = document.getElementById('allowlistEntries');
+  const preenrollEntries = document.getElementById('preenrollEntries');
+  if (!visibilitySelect || !allowlistEntries || !preenrollEntries) return;
+
+  try {
+    const [courseMeta, allowlistData, preenrollData] = await Promise.all([
+      apiGet(`./api/lms/courses.php?course_id=${encodeURIComponent(activeCourseId)}`),
+      apiGet(`./api/lms/courses/allowlist.php?course_id=${encodeURIComponent(activeCourseId)}`),
+      apiGet(`./api/lms/courses/preenroll.php?course_id=${encodeURIComponent(activeCourseId)}`),
+    ]);
+
+    visibilitySelect.value = (courseMeta?.data?.visibility || courseMeta?.visibility || 'public');
+
+    const allowEntries = Array.isArray(allowlistData?.data?.entries) ? allowlistData.data.entries : [];
+    allowlistEntries.innerHTML = allowEntries.length
+      ? allowEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span></div><button class="btn btn-link" data-remove-allowlist="${Number(entry.id || 0)}">Remove</button></div>`).join('')
+      : '<div class="muted">No allowlisted emails.</div>';
+
+    const preEntries = Array.isArray(preenrollData?.data?.entries) ? preenrollData.data.entries : [];
+    preenrollEntries.innerHTML = preEntries.length
+      ? preEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span><span class="muted small">${escapeHtml(entry.status || 'unclaimed')}</span></div><button class="btn btn-link" data-remove-preenroll="${Number(entry.id || 0)}">Remove</button></div>`).join('')
+      : '<div class="muted">No pre-enroll emails.</div>';
+  } catch (err) {
+    console.warn('Failed to load course settings', err);
+  }
+}
+function showToast(message, { tone = 'info' } = {}) {
+  const stack = document.getElementById('toastStack');
+  if (!stack) {
+    console.log(message);
+    return;
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (tone === 'error') toast.classList.add('toast-error');
+  toast.textContent = message;
+  stack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 220);
+  }, 3200);
+}
+
 function escapeHtml(str) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   return String(str ?? '').replace(/[&<>"']/g, ch => map[ch] || ch);
@@ -773,6 +821,80 @@ function setupEvents() {
     if (event.key === 'Enter') {
       event.preventDefault();
       searchUsers();
+    }
+  });
+
+  document.getElementById('saveCourseVisibilityBtn')?.addEventListener('click', async () => {
+    if (!activeCourseId) return;
+    const visibility = document.getElementById('courseVisibilitySelect')?.value || 'public';
+    try {
+      await apiPost('./api/lms/courses/visibility.php', { course_id: activeCourseId, visibility });
+      showToast('Course visibility updated.', { tone: 'success' });
+      await loadCourseSettings();
+    } catch (err) {
+      showToast(`Failed to update visibility: ${err.message}`, { tone: 'error' });
+    }
+  });
+
+  document.getElementById('addAllowlistBtn')?.addEventListener('click', async () => {
+    if (!activeCourseId) return;
+    const input = document.getElementById('allowlistEmailInput');
+    const email = (input?.value || '').trim();
+    if (!email) return;
+    try {
+      await apiPost('./api/lms/courses/allowlist.php', { course_id: activeCourseId, email });
+      input.value = '';
+      await loadCourseSettings();
+      showToast('Allowlist updated.', { tone: 'success' });
+    } catch (err) {
+      showToast(`Failed to update allowlist: ${err.message}`, { tone: 'error' });
+    }
+  });
+
+  document.getElementById('addPreenrollBtn')?.addEventListener('click', async () => {
+    if (!activeCourseId) return;
+    const input = document.getElementById('preenrollEmailInput');
+    const email = (input?.value || '').trim();
+    if (!email) return;
+    try {
+      await apiPost('./api/lms/courses/preenroll.php', { course_id: activeCourseId, email });
+      input.value = '';
+      await loadCourseSettings();
+      showToast('Pre-enroll updated.', { tone: 'success' });
+    } catch (err) {
+      showToast(`Failed to update pre-enroll: ${err.message}`, { tone: 'error' });
+    }
+  });
+
+  document.getElementById('allowlistEntries')?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-remove-allowlist]');
+    if (!btn || !activeCourseId) return;
+    try {
+      await fetch('./api/lms/courses/allowlist.php', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course_id: activeCourseId, id: Number(btn.getAttribute('data-remove-allowlist')) })
+      });
+      await loadCourseSettings();
+    } catch (err) {
+      showToast(`Failed to remove allowlist entry: ${err.message}`, { tone: 'error' });
+    }
+  });
+
+  document.getElementById('preenrollEntries')?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-remove-preenroll]');
+    if (!btn || !activeCourseId) return;
+    try {
+      await fetch('./api/lms/courses/preenroll.php', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course_id: activeCourseId, id: Number(btn.getAttribute('data-remove-preenroll')) })
+      });
+      await loadCourseSettings();
+    } catch (err) {
+      showToast(`Failed to remove pre-enroll entry: ${err.message}`, { tone: 'error' });
     }
   });
 

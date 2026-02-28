@@ -36,6 +36,7 @@
       <div class="brand-text">Kairos Manager</div>
     </div>
     <nav class="nav">
+      <a class="nav-item" href="/signoff/"><span class="nav-ico">🏠</span><span>All Courses / Home</span></a>
       <button class="nav-item active" id="navCourses">
         <span class="nav-ico">📚</span><span>All Courses</span>
       </button>
@@ -135,6 +136,42 @@
       </section>
     </section>
 
+      <section class="card" id="courseSettingsPanel">
+        <div class="section-head">
+          <h3 class="title-reset">Course settings</h3>
+        </div>
+        <div class="grid-two align-end">
+          <div>
+            <label class="muted">Visibility</label>
+            <select id="courseVisibilitySelect">
+              <option value="public">Public</option>
+              <option value="restricted">Restricted</option>
+            </select>
+          </div>
+          <div>
+            <button id="saveCourseVisibilityBtn" class="btn btn-primary" type="button">Save visibility</button>
+          </div>
+        </div>
+        <div class="enrollment-columns" style="margin-top:12px;">
+          <div>
+            <h4>Allowlist emails</h4>
+            <div class="enroll-search">
+              <input type="email" id="allowlistEmailInput" placeholder="name@nixorcollege.edu.pk" />
+              <button id="addAllowlistBtn" class="btn btn-secondary" type="button">Add</button>
+            </div>
+            <div id="allowlistEntries" class="list-stack"></div>
+          </div>
+          <div>
+            <h4>Pre-enroll emails</h4>
+            <div class="enroll-search">
+              <input type="email" id="preenrollEmailInput" placeholder="name@nixorcollege.edu.pk" />
+              <button id="addPreenrollBtn" class="btn btn-secondary" type="button">Add</button>
+            </div>
+            <div id="preenrollEntries" class="list-stack"></div>
+          </div>
+        </div>
+      </section>
+
     <section id="viewProgress" class="view hidden">
       <div class="section-head">
         <h2 class="section-title" id="progressTitle">Student progress</h2>
@@ -177,6 +214,8 @@
       <div id="progressModalBody" class="progress-modal-body"></div>
     </div>
   </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
   <script src="./js/theme.js"></script>
   <script src="./js/ws.js"></script>

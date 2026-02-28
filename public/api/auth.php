@@ -60,16 +60,21 @@ function apply_pending_pre_enrollments(PDO $pdo, int $userId, string $email): vo
 
   if (!$coursePreEnrollExists) return;
 
-  $st = $pdo->prepare('SELECT course_id FROM course_pre_enroll WHERE LOWER(email)=LOWER(:email)');
+  $st = $pdo->prepare('SELECT id, course_id FROM course_pre_enroll WHERE LOWER(email)=LOWER(:email)');
   $st->execute([':email'=>$email]);
-  $courseIds = $st->fetchAll(PDO::FETCH_COLUMN);
-  if (!$courseIds) return;
+  $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+  if (!$rows) return;
 
   $enrollStmt = $pdo->prepare('INSERT INTO student_courses (course_id, user_id) VALUES (:cid, :uid) ON DUPLICATE KEY UPDATE user_id = user_id');
-  foreach ($courseIds as $cid) {
-    $cid = (int)$cid;
+  $claimStmt = $pdo->prepare('UPDATE course_pre_enroll SET claimed_user_id = :uid WHERE id = :id');
+  foreach ($rows as $row) {
+    $cid = (int)($row['course_id'] ?? 0);
+    $preEnrollId = (int)($row['id'] ?? 0);
     if ($cid <= 0) continue;
     $enrollStmt->execute([':cid'=>$cid, ':uid'=>$userId]);
+    if ($preEnrollId > 0) {
+      $claimStmt->execute([':uid' => $userId, ':id' => $preEnrollId]);
+    }
   }
 }
 
