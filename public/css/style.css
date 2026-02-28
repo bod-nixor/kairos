@@ -2688,3 +2688,39 @@ body.k-page-body {
     padding: 0 var(--space-4);
   }
 }
+.k-topbar__icon-btn.theme-toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.k-topbar__icon-btn.theme-toggle:hover {
+  background: var(--surface-subtle);
+}
+.k-topbar__icon-btn.theme-toggle .theme-toggle__icon {
+  position: static;
+  font-size: 18px;
+}
+
+/* ── Global Brand Badge ───────────────────────────────────── */
+.k-brand-badge {
+    background: #ffffff;
+    border-radius: 50%;
+    padding: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    box-sizing: border-box;
+}
+img.k-brand-badge {
+    object-fit: contain;
+}
