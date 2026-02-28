@@ -818,8 +818,13 @@ async function renderCourseCards() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ course_id: courseId })
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok || payload?.ok === false) {
+        let payload = {};
+        try {
+          payload = await res.json();
+        } catch (parseErr) {
+          payload = {};
+        }
+        if (!res.ok || payload?.ok !== true) {
           const message = payload?.error?.message || payload?.message || `Join failed (${res.status})`;
           throw new Error(message);
         }

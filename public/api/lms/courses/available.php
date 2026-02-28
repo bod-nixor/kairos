@@ -41,12 +41,16 @@ foreach ($courseRows as $row) {
         $canJoin = true;
     }
 
+    if (!$canJoin) {
+        continue;
+    }
+
     $available[] = [
         'course_id' => $courseId,
         'name' => (string)$row['name'],
         'code' => (string)$row['code'],
         'visibility' => (string)$row['visibility'],
-        'can_self_enroll' => $canJoin,
+        'can_self_enroll' => true,
         'restricted' => !$isPublic,
         'allowlisted' => isset($allowlistedIds[$courseId]),
     ];

@@ -49,8 +49,12 @@ foreach ($courseRows as $row) {
         $canJoin = true;
     }
 
+    if (!$canJoin) {
+        continue;
+    }
+
     $item['enrolled'] = false;
-    $item['can_self_enroll'] = $canJoin;
+    $item['can_self_enroll'] = true;
     $item['allowlisted'] = isset($allowlistedIds[$courseId]);
     $available[] = $item;
 }

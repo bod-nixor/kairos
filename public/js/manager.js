@@ -20,6 +20,19 @@ function updateAllowedDomainCopy() {
   document.querySelectorAll('[data-allowed-domain-text]').forEach((el) => {
     el.textContent = display;
   });
+  updateCourseSettingsPlaceholders();
+}
+
+
+function updateCourseSettingsPlaceholders() {
+  const domain = (typeof ALLOWED_DOMAIN === 'string' && ALLOWED_DOMAIN)
+    ? ALLOWED_DOMAIN.replace(/^@+/, '')
+    : 'example.com';
+  const placeholder = `name@${domain}`;
+  const allow = document.getElementById('allowlistEmailInput');
+  const pre = document.getElementById('preenrollEmailInput');
+  if (allow) allow.placeholder = placeholder;
+  if (pre) pre.placeholder = placeholder;
 }
 
 function showSignin() {
