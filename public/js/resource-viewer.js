@@ -29,30 +29,57 @@
         }
     }
 
-    function applySafeExternalLink(linkEl, rawUrl, label) {
+    function toOfficeViewerUrl(rawUrl) {
+        return LMS.toOfficeViewerUrl(rawUrl);
+    }
+
+    function toDrivePreviewUrl(rawUrl) {
+        return LMS.toDrivePreviewUrl ? LMS.toDrivePreviewUrl(rawUrl) : '';
+    }
+
+    function toDriveDownloadUrl(rawUrl) {
+        return LMS.toDriveDownloadUrl ? LMS.toDriveDownloadUrl(rawUrl) : '';
+    }
+
+    function confirmExternalNavigation(url, isDownload) {
+        if (!url) return;
+        LMS.openModal({
+            title: 'External Link',
+            body: `<p>You are being redirected to an external link${isDownload ? ' to download this file' : ''}. Continue?</p>`,
+            narrow: true,
+            actions: [
+                { id: 'cancel', label: 'Cancel', class: 'btn-ghost', onClick: LMS.closeModal },
+                {
+                    id: 'continue', label: 'Continue', class: 'btn-primary', onClick: () => {
+                        LMS.closeModal();
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                }
+            ]
+        });
+    }
+
+    function applySafeExternalLink(linkEl, rawUrl, label, isDownload = false) {
         if (!linkEl) return;
         const value = String(rawUrl || '').trim();
         linkEl.textContent = label;
         if (isHttpUrl(value)) {
+            // Keep native href to allow keyboard and screen-reader support
             linkEl.href = value;
             linkEl.setAttribute('target', '_blank');
             linkEl.setAttribute('rel', 'noopener noreferrer');
+            linkEl.style.cursor = 'pointer';
+            linkEl.onclick = (e) => {
+                e.preventDefault();
+                confirmExternalNavigation(value, isDownload);
+            };
             return;
         }
         linkEl.removeAttribute('href');
         linkEl.removeAttribute('target');
         linkEl.removeAttribute('rel');
+        linkEl.onclick = null;
     }
-
-    // Use shared Drive URL helpers from lms-core.js
-    function toDrivePreviewUrl(inputUrl) {
-        return LMS.toDrivePreviewUrl(inputUrl);
-    }
-
-    function toOfficeViewerUrl(rawUrl) {
-        return LMS.toOfficeViewerUrl(rawUrl);
-    }
-
 
     function hardenPreviewIframe(iframe) {
         if (!iframe) return;
@@ -118,11 +145,31 @@
         // Download + open buttons
         if (rawUrl && type !== 'link' && isHttpUrl(rawUrl)) {
             const dlBtn = $('downloadBtn');
-            if (dlBtn) { dlBtn.href = rawUrl; dlBtn.classList.remove('hidden'); }
+            if (dlBtn) {
+                // If it's a Drive file, try to get a direct download URL, otherwise generic download action is not supported cleanly so we hide it.
+                // Or we can just use the rawUrl as a fallback but that just opens the file.
+                // The requirements say "If export is straightforward, use export endpoints. Otherwise, do NOT fake download — instead route to Open with confirmation."
+                const dlUrl = toDriveDownloadUrl(rawUrl);
+                if (dlUrl) {
+                    dlBtn.removeAttribute('href');
+                    dlBtn.removeAttribute('download');
+                    dlBtn.style.cursor = 'pointer';
+                    dlBtn.classList.remove('hidden');
+                    dlBtn.onclick = (e) => {
+                        e.preventDefault();
+                        confirmExternalNavigation(dlUrl, true);
+                    };
+                } else {
+                    dlBtn.classList.add('hidden'); // Cannot reliably download, keep hidden
+                }
+            }
             const openBtn = $('openNewTabBtn');
             if (openBtn) {
                 openBtn.classList.remove('hidden');
-                openBtn.addEventListener('click', () => window.open(rawUrl, '_blank', 'noopener'));
+                openBtn.onclick = (e) => {
+                    e.preventDefault();
+                    confirmExternalNavigation(rawUrl, false);
+                };
             }
         }
 
@@ -159,9 +206,14 @@
         if (type === 'slides') {
             const iframe = $('resourceIframe');
             const src = toDrivePreviewUrl(rawUrl);
-            if (!isHttpUrl(src)) { showEl('unsupportedWrap'); return; }
+            if (!isHttpUrl(src)) {
+                applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource ↗', false);
+                showEl('unsupportedWrap');
+                return;
+            }
             hardenPreviewIframe(iframe);
             if (!iframe) {
+                applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource ↗', false);
                 showEl('unsupportedWrap');
                 return;
             }
@@ -176,6 +228,7 @@
                 const iframe = $('resourceIframe');
                 hardenPreviewIframe(iframe);
                 if (!iframe) {
+                    applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource ↗', false);
                     showEl('unsupportedWrap');
                     return;
                 }
@@ -183,6 +236,7 @@
                 showEl('iframeWrap');
                 return;
             }
+            applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource ↗', false);
             showEl('unsupportedWrap');
             return;
         }
@@ -190,45 +244,66 @@
         if (type === 'pdf' || type === 'file' || type === 'embed') {
             const iframeSrc = toDrivePreviewUrl(rawUrl);
             if (!isHttpUrl(iframeSrc)) {
+                applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource ↗', false);
                 showEl('unsupportedWrap');
                 return;
             }
             const iframe = $('resourceIframe');
             hardenPreviewIframe(iframe);
             if (!iframe) {
+                applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource ↗', false);
                 showEl('unsupportedWrap');
                 return;
             }
+            // State: loading. Hide fallback.
+            hideEl('externalWrap');
+
             iframe.src = iframeSrc;
-            iframe.onerror = () => {
-                $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
+
+            let failed = false;
+
+            const markFailed = () => {
+                if (failed) return;
+                failed = true;
+                $('externalDesc') && ($('externalDesc').textContent = 'Preview failed to load. Please open the file in Drive.');
                 showEl('externalWrap');
             };
+
+            iframe.onerror = () => {
+                markFailed();
+            };
+
             const onloadTimer = setTimeout(() => {
-                $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
-                showEl('externalWrap');
-            }, 3000);
+                markFailed();
+            }, 7000); // 7 seconds timeout
+
             iframe.onload = () => {
+                if (failed) return; // already failed via timeout
                 clearTimeout(onloadTimer);
+                // We assume success by default since checking cross-origin docs throws errors.
+                // We keep externalWrap hidden.
+                // Optional: subtle hint
+                $('externalDesc') && ($('externalDesc').textContent = 'Having trouble viewing? Open in Drive ↗');
+                // The requirements say "Instead, optionally show a small subtle helper link below the preview. The large fallback banner should ONLY appear on confirmed failure."
+                // I will hide the big fallback wrapper entirely
+                hideEl('externalWrap');
+
+                // If it successfully loads but it's an error page (same origin frame), detect it:
                 try {
                     const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                    const bodyText = String(doc?.body?.innerText || '').toLowerCase();
-                    if (!doc?.body || !doc.body.childElementCount || bodyText.includes('access denied') || bodyText.includes('refused to connect')) {
-                        $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
-                        showEl('externalWrap');
+                    if (doc) {
+                        const bodyText = String(doc.body?.innerText || '').toLowerCase();
+                        if (!doc.body || !doc.body.childElementCount || bodyText.includes('access denied') || bodyText.includes('refused to connect')) {
+                            markFailed();
+                        }
                     }
                 } catch (_) {
-                    $('externalDesc') && ($('externalDesc').textContent = 'Preview may be blocked by provider policy. Open file in Drive.');
-                    showEl('externalWrap');
+                    // Cross-origin error means it loaded Google's page successfully. We assume preview works.
                 }
             };
-            $('externalDesc') && ($('externalDesc').textContent = 'If preview fails, open this file in Drive in a new tab.');
-            if (!isHttpUrl(rawUrl) && $('externalDesc')) {
-                $('externalDesc').textContent += ` URL: ${rawUrl}`;
-            }
+
             applySafeExternalLink($('externalLink'), rawUrl, 'Open in Drive ↗');
             showEl('iframeWrap');
-            showEl('externalWrap');
             return;
         }
 
