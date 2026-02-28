@@ -457,6 +457,8 @@ async function openCourse(courseId, courseName) {
   if (hash.includes('progress')) {
     await openProgressView();
   }
+
+  restoreManagerLayout();
 }
 
 async function loadRooms() {
@@ -758,31 +760,194 @@ async function rerunLastSearch() {
 async function loadCourseSettings() {
   if (!activeCourseId) return;
   const visibilitySelect = document.getElementById('courseVisibilitySelect');
-  const allowlistEntries = document.getElementById('allowlistEntries');
   const preenrollEntries = document.getElementById('preenrollEntries');
-  if (!visibilitySelect || !allowlistEntries || !preenrollEntries) return;
+  if (!visibilitySelect || !preenrollEntries) return;
+
+  let courseMeta = null;
+  let preenrollData = null;
 
   try {
-    const [courseMeta, allowlistData, preenrollData] = await Promise.all([
-      apiGet(`./api/lms/courses.php?course_id=${encodeURIComponent(activeCourseId)}`),
-      apiGet(`./api/lms/courses/allowlist.php?course_id=${encodeURIComponent(activeCourseId)}`),
-      apiGet(`./api/lms/courses/preenroll.php?course_id=${encodeURIComponent(activeCourseId)}`),
-    ]);
-
-    visibilitySelect.value = (courseMeta?.data?.visibility || courseMeta?.visibility || 'public');
-
-    const allowEntries = Array.isArray(allowlistData?.data?.entries) ? allowlistData.data.entries : [];
-    allowlistEntries.innerHTML = allowEntries.length
-      ? allowEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span></div><button class="btn btn-link" data-remove-allowlist="${Number(entry.id || 0)}">Remove</button></div>`).join('')
-      : '<div class="muted">No allowlisted emails.</div>';
-
-    const preEntries = Array.isArray(preenrollData?.data?.entries) ? preenrollData.data.entries : [];
-    preenrollEntries.innerHTML = preEntries.length
-      ? preEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span><span class="muted small">${escapeHtml(entry.status || 'unclaimed')}</span></div><button class="btn btn-link" data-remove-preenroll="${Number(entry.id || 0)}">Remove</button></div>`).join('')
-      : '<div class="muted">No pre-enroll emails.</div>';
+    courseMeta = await apiGet(`./api/lms/courses.php?course_id=${encodeURIComponent(activeCourseId)}`);
   } catch (err) {
     console.warn('Failed to load course settings', err);
+    return; // If course info fails, nothing to render
   }
+
+  try {
+    preenrollData = await apiGet(`./api/lms/courses/preenroll.php?course_id=${encodeURIComponent(activeCourseId)}`);
+  } catch (err) {
+    console.warn('Failed to load preenroll data', err);
+  }
+
+  visibilitySelect.value = (courseMeta?.data?.visibility || courseMeta?.visibility || 'public');
+
+  const preEntries = Array.isArray(preenrollData?.data?.entries) ? preenrollData.data.entries : [];
+  preenrollEntries.innerHTML = preEntries.length
+    ? preEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span><span class="muted small">${escapeHtml(entry.status || 'unclaimed')}</span></div><button class="btn btn-link" data-remove-preenroll="${Number(entry.id || 0)}">Remove</button></div>`).join('')
+    : '<div class="muted">No pre-enroll emails.</div>';
+}
+
+function getManagerLayoutKey() {
+  const uid = currentUser?.user_id || currentUser?.email || 'guest';
+  return `kairos_manager_ui_${uid}_${activeCourseId}`;
+}
+
+function restoreManagerLayout() {
+  const container = document.getElementById('managerCardsContainer');
+  if (!container) return;
+  const sections = Array.from(container.querySelectorAll('.manager-section'));
+
+  const isManager = Boolean(sessionRoles?.admin || sessionRoles?.manager);
+  const hasReorderRights = Boolean(sessionRoles?.admin || sessionRoles?.manager);
+
+  sections.forEach(sec => {
+    const handle = sec.querySelector('.drag-handle');
+    if (handle) handle.style.display = hasReorderRights ? 'inline-block' : 'none';
+  });
+
+  const defaultOrder = ['settings', 'rooms', 'enrollment'];
+  let prefs = { order: defaultOrder, collapsed: {} };
+  try {
+    const stored = localStorage.getItem(getManagerLayoutKey());
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed.order)) prefs.order = parsed.order;
+      if (parsed.collapsed) prefs.collapsed = parsed.collapsed;
+    }
+  } catch (e) { }
+
+  // Restore order
+  const orderMap = {};
+  prefs.order.forEach((id, idx) => { orderMap[id] = idx; });
+
+  sections.sort((a, b) => {
+    const idA = a.dataset.section;
+    const idB = b.dataset.section;
+    const idxA = orderMap[idA] !== undefined ? orderMap[idA] : 999;
+    const idxB = orderMap[idB] !== undefined ? orderMap[idB] : 999;
+    return idxA - idxB;
+  });
+
+  sections.forEach(sec => {
+    container.appendChild(sec);
+  });
+
+  // Restore collapsed
+  sections.forEach(sec => {
+    const sectionId = sec.dataset.section;
+    const isCollapsed = prefs.collapsed[sectionId] || false;
+    sec.classList.toggle('collapsed', isCollapsed);
+    const btn = sec.querySelector('.section-toggle');
+    if (btn) btn.setAttribute('aria-expanded', !isCollapsed);
+
+    const bodyWrapper = sec.querySelector('.section-body');
+    if (bodyWrapper) {
+      bodyWrapper.inert = isCollapsed;
+      bodyWrapper.setAttribute('aria-hidden', String(isCollapsed));
+    }
+  });
+
+  if (!container.dataset.interactionsInit) {
+    setupManagerInteractions(container, hasReorderRights);
+    container.dataset.interactionsInit = "true";
+  }
+}
+
+function saveManagerLayout() {
+  if (!activeCourseId) return;
+  const container = document.getElementById('managerCardsContainer');
+  if (!container) return;
+  const sections = Array.from(container.querySelectorAll('.manager-section'));
+
+  const order = sections.map(s => s.dataset.section);
+  const collapsed = {};
+  sections.forEach(s => {
+    collapsed[s.dataset.section] = s.classList.contains('collapsed');
+  });
+
+  const prefs = { order, collapsed };
+  try {
+    localStorage.setItem(getManagerLayoutKey(), JSON.stringify(prefs));
+  } catch (err) {
+    console.warn('Failed to save manager layout to localStorage', err);
+  }
+}
+
+function setupManagerInteractions(container, hasReorderRights) {
+  container.addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('.section-toggle');
+    const titleObj = e.target.closest('.title-reset');
+
+    // Toggle if they clicked the chevron button or the section title
+    if (toggleBtn || titleObj) {
+      const parentHead = (toggleBtn || titleObj).closest('.draggable-head');
+      if (!parentHead) return;
+
+      const realBtn = parentHead.querySelector('.section-toggle');
+      const section = parentHead.closest('.manager-section');
+
+      if (section && realBtn) {
+        const isCollapsed = section.classList.toggle('collapsed');
+        realBtn.setAttribute('aria-expanded', !isCollapsed);
+
+        const bodyWrapper = section.querySelector('.section-body');
+        if (bodyWrapper) {
+          bodyWrapper.inert = isCollapsed;
+          bodyWrapper.setAttribute('aria-hidden', String(isCollapsed));
+        }
+
+        saveManagerLayout();
+      }
+    }
+  });
+
+  if (!hasReorderRights) return;
+
+  let draggedEl = null;
+
+  container.addEventListener('dragstart', (e) => {
+    const section = e.target.closest('.manager-section');
+    if (!section) return;
+
+    // Ensure only dragging from header
+    if (!e.target.closest('.draggable-head')) {
+      e.preventDefault();
+      return;
+    }
+
+    draggedEl = section;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', section.dataset.section);
+    setTimeout(() => section.classList.add('dragging'), 0);
+  });
+
+  container.addEventListener('dragend', (e) => {
+    if (!draggedEl) return;
+    draggedEl.classList.remove('dragging');
+    draggedEl = null;
+    saveManagerLayout();
+  });
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault(); // Necessary to allow dropping
+    if (!draggedEl) return;
+
+    const targetSection = e.target.closest('.manager-section');
+    if (targetSection && targetSection !== draggedEl) {
+      const rect = targetSection.getBoundingClientRect();
+      const midPoint = rect.top + rect.height / 2;
+      if (e.clientY < midPoint) {
+        container.insertBefore(draggedEl, targetSection);
+      } else {
+        container.insertBefore(draggedEl, targetSection.nextSibling);
+      }
+    }
+  });
+
+  // Make headers draggable
+  container.querySelectorAll('.draggable-head').forEach(head => {
+    head.setAttribute('draggable', 'true');
+  });
 }
 function showToast(message, { tone = 'info' } = {}) {
   const stack = document.getElementById('toastStack');
@@ -849,21 +1014,6 @@ function setupEvents() {
     }
   });
 
-  document.getElementById('addAllowlistBtn')?.addEventListener('click', async () => {
-    if (!activeCourseId) return;
-    const input = document.getElementById('allowlistEmailInput');
-    const email = (input?.value || '').trim();
-    if (!email) return;
-    try {
-      await apiPost('./api/lms/courses/allowlist.php', { course_id: activeCourseId, email });
-      input.value = '';
-      await loadCourseSettings();
-      showToast('Allowlist updated.', { tone: 'success' });
-    } catch (err) {
-      showToast(`Failed to update allowlist: ${err.message}`, { tone: 'error' });
-    }
-  });
-
   document.getElementById('addPreenrollBtn')?.addEventListener('click', async () => {
     if (!activeCourseId) return;
     const input = document.getElementById('preenrollEmailInput');
@@ -876,27 +1026,6 @@ function setupEvents() {
       showToast('Pre-enroll updated.', { tone: 'success' });
     } catch (err) {
       showToast(`Failed to update pre-enroll: ${err.message}`, { tone: 'error' });
-    }
-  });
-
-  document.getElementById('allowlistEntries')?.addEventListener('click', async (event) => {
-    const btn = event.target.closest('[data-remove-allowlist]');
-    if (!btn || !activeCourseId) return;
-    try {
-      const response = await fetch('./api/lms/courses/allowlist.php', {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ course_id: activeCourseId, id: Number(btn.getAttribute('data-remove-allowlist')) })
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || body?.ok === false) {
-        throw new Error(body?.error?.message || body?.message || `Delete failed (${response.status})`);
-      }
-      await loadCourseSettings();
-      showToast('Allowlist entry removed.', { tone: 'success' });
-    } catch (err) {
-      showToast(`Failed to remove allowlist entry: ${err.message}`, { tone: 'error' });
     }
   });
 

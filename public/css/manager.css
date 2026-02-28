@@ -263,3 +263,63 @@
 .queue-footer .queue-labels .muted {
   font-size: 12px;
 }
+
+.manager-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.manager-section {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.manager-section.dragging {
+  opacity: 0.5;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+  transform: scale(0.98);
+}
+
+.draggable-head {
+  cursor: grab;
+  user-select: none;
+}
+
+.draggable-head:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px;
+  display: none;
+}
+
+.drag-handle:hover {
+  color: var(--text);
+}
+
+.section-toggle .chevron {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 12px;
+}
+
+.manager-section.collapsed .section-toggle .chevron {
+  transform: rotate(-90deg);
+}
+
+.manager-section .section-body {
+  overflow: hidden;
+  transition: height 0.3s ease, padding 0.3s ease;
+}
+
+.manager-section.collapsed .section-body {
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: none;
+}
+
