@@ -73,7 +73,7 @@
         const url = (resource.url || resource.file_url || '').toLowerCase();
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
         if (url.match(/\.(ppt|pptx)($|\?)/)) return 'ppt';
-        if (url.includes('docs.google.com/presentation') || url.includes('slides')) return 'slides';
+        if (url.includes('docs.google.com/presentation') || url.includes('slides.google.com')) return 'slides';
         if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
@@ -202,6 +202,10 @@
             }
             const iframe = $('resourceIframe');
             hardenPreviewIframe(iframe);
+            if (!iframe) {
+                showEl('unsupportedWrap');
+                return;
+            }
             iframe.src = iframeSrc;
             iframe.onerror = () => {
                 $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
