@@ -450,6 +450,15 @@
                 itemsContainer.querySelectorAll('.k-module-item').forEach(m => m.classList.remove('k-drag-over'));
                 if (!draggedItemEl) return;
 
+                const originalSectionEl = draggedItemEl.closest('.k-module[data-module-id]');
+                const originalSectionId = parseInt(originalSectionEl?.dataset.moduleId || '0', 10);
+
+                if (originalSectionId !== sectionId) {
+                    draggedItemEl.classList.remove('k-dragging');
+                    LMS.toast('Moving items between modules is not supported yet', 'warning');
+                    return;
+                }
+
                 const afterEl = getDragAfterElement(itemsContainer, e.clientY);
                 if (afterEl) {
                     itemsContainer.insertBefore(draggedItemEl, afterEl);
@@ -572,52 +581,6 @@
                 });
             });
         }
-
-        // Click navigation for items
-        container.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('[data-action="edit-item"]');
-            if (editBtn) {
-                const href = editBtn.dataset.href || '';
-                if (navigateToHref(href)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-                return;
-            }
-            // Don't navigate when clicking other admin buttons
-            if (e.target.closest('[data-action]') || e.target.closest('.k-drag-handle')) return;
-
-            const target = e.target.closest('[data-href], a');
-            if (target && target.dataset.href) {
-                if (navigateToHref(target.dataset.href)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            } else if (target && target.tagName === 'A') {
-                const href = target.getAttribute('href') || '';
-                if (isExternalHttpUrl(href)) {
-                    if (navigateToHref(href)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                } else {
-                    e.stopPropagation();
-                }
-            }
-        });
-
-        container.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                const target = e.target.closest('[data-href], [data-action="edit-item"]');
-                const href = target?.dataset?.href || '';
-                if (href && navigateToHref(href)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }
-        });
-
-        showEl('moduleList');
 
         // Setup drag-and-drop after rendering
         setupModuleDragDrop(container);
@@ -824,6 +787,55 @@
             $('addModuleBtn')?.addEventListener('click', () => openCreateModal('module'));
         }
         setupCreateModal();
+
+        // Setup singleton delegated handlers
+        const container = $('moduleList');
+        if (container) {
+            container.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('[data-action="edit-item"]');
+                if (editBtn) {
+                    const href = editBtn.dataset.href || '';
+                    if (navigateToHref(href)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    return;
+                }
+                // Don't navigate when clicking other admin buttons
+                if (e.target.closest('[data-action]') || e.target.closest('.k-drag-handle')) return;
+
+                const target = e.target.closest('[data-href], a');
+                if (target && target.dataset.href) {
+                    if (navigateToHref(target.dataset.href)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                } else if (target && target.tagName === 'A') {
+                    const href = target.getAttribute('href') || '';
+                    if (isExternalHttpUrl(href)) {
+                        if (navigateToHref(href)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    } else {
+                        e.stopPropagation();
+                    }
+                }
+            });
+
+            container.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    const editBtn = e.target.closest('[data-action="edit-item"]');
+                    const target = e.target.closest('[data-href]');
+                    const href = (editBtn && editBtn.dataset.href) || (target && target.dataset.href) || '';
+                    if (href && navigateToHref(href)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                }
+            });
+        }
+
         await loadPage();
     });
 })();

@@ -501,7 +501,7 @@
 
 /* ── Drag Handles ──────────────────────────────────────────── */
 .k-drag-handle {
-    display: none;
+    display: inline-flex;
     /* hidden for non-admin; shown via .k-drag-handle presence in HTML only for admins */
     align-items: center;
     justify-content: center;
@@ -516,10 +516,6 @@
     transition: background .12s, color .12s;
     letter-spacing: 2px;
     line-height: 1;
-}
-
-.k-drag-handle {
-    display: inline-flex;
 }
 
 .k-drag-handle:hover {

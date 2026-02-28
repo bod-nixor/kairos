@@ -22,8 +22,13 @@ if (!is_array($sectionIds) || count($sectionIds) === 0) {
     lms_error('validation_error', 'section_ids must be a non-empty array', 422);
 }
 
-// Sanitize to ints
 $sectionIds = array_map('intval', $sectionIds);
+foreach ($sectionIds as $id) {
+    if ($id <= 0) {
+        lms_error('validation_error', 'section_ids must contain positive integers', 422);
+    }
+}
+
 if (count(array_unique($sectionIds)) !== count($sectionIds)) {
     lms_error('validation_error', 'section_ids must not contain duplicates', 422);
 }
@@ -32,17 +37,19 @@ lms_course_access($user, $courseId);
 
 $pdo = db();
 
-// Verify all section_ids belong to this course and are not deleted
-$placeholders = implode(',', array_fill(0, count($sectionIds), '?'));
-$verifyStmt = $pdo->prepare(
-    "SELECT section_id FROM lms_course_sections WHERE course_id = ? AND section_id IN ({$placeholders}) AND deleted_at IS NULL"
-);
-$verifyStmt->execute(array_merge([$courseId], $sectionIds));
-$foundIds = array_map('intval', $verifyStmt->fetchAll(PDO::FETCH_COLUMN));
+// Verify the payload includes exactly all active sections in the course exactly once
+$verifyStmt = $pdo->prepare('SELECT section_id FROM lms_course_sections WHERE course_id = :cid AND deleted_at IS NULL');
+$verifyStmt->execute([':cid' => $courseId]);
+$existingIds = array_map('intval', $verifyStmt->fetchAll(PDO::FETCH_COLUMN));
 
-if (count($foundIds) !== count($sectionIds)) {
-    $missing = array_diff($sectionIds, $foundIds);
-    lms_error('validation_error', 'Some section_ids do not belong to this course or are deleted: ' . implode(',', $missing), 400);
+if (count($existingIds) !== count($sectionIds)) {
+    lms_error('validation_error', 'section_ids must include all active sections exactly once', 422);
+}
+
+$diff1 = array_diff($existingIds, $sectionIds);
+$diff2 = array_diff($sectionIds, $existingIds);
+if (count($diff1) > 0 || count($diff2) > 0) {
+    lms_error('validation_error', 'section_ids must include all active sections exactly once', 422);
 }
 
 // Update positions in a transaction

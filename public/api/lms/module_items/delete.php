@@ -24,17 +24,23 @@ lms_course_access($user, $courseId);
 
 $pdo = db();
 
-// Verify the item exists and belongs to the course (prevents IDOR)
-$stmt = $pdo->prepare('SELECT module_item_id, section_id FROM lms_module_items WHERE module_item_id = :id AND course_id = :cid LIMIT 1');
-$stmt->execute([':id' => $moduleItemId, ':cid' => $courseId]);
-$item = $stmt->fetch(PDO::FETCH_ASSOC);
+// Atomic delete within transaction
+try {
+    $pdo->beginTransaction();
+    $delStmt = $pdo->prepare('DELETE FROM lms_module_items WHERE module_item_id = :id AND course_id = :cid');
+    $delStmt->execute([':id' => $moduleItemId, ':cid' => $courseId]);
 
-if (!$item) {
-    lms_error('not_found', 'Module item not found in this course', 404);
+    if ($delStmt->rowCount() === 0) {
+        $pdo->rollBack();
+        lms_error('not_found', 'Module item not found in this course', 404);
+    }
+
+    $pdo->commit();
+    lms_ok(['deleted' => true, 'module_item_id' => $moduleItemId]);
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log('[kairos] module_items/delete failed: ' . $e->getMessage());
+    lms_error('server_error', 'Failed to delete module item', 500);
 }
-
-// Hard delete the module_items row only
-$delStmt = $pdo->prepare('DELETE FROM lms_module_items WHERE module_item_id = :id AND course_id = :cid');
-$delStmt->execute([':id' => $moduleItemId, ':cid' => $courseId]);
-
-lms_ok(['deleted' => true, 'module_item_id' => $moduleItemId]);

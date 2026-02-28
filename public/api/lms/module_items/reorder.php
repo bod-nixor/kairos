@@ -24,6 +24,12 @@ if (!is_array($itemIds) || count($itemIds) === 0) {
 }
 
 $itemIds = array_map('intval', $itemIds);
+foreach ($itemIds as $id) {
+    if ($id <= 0) {
+        lms_error('validation_error', 'module_item_ids must contain positive integers', 422);
+    }
+}
+
 if (count(array_unique($itemIds)) !== count($itemIds)) {
     lms_error('validation_error', 'module_item_ids must not contain duplicates', 422);
 }
@@ -39,17 +45,18 @@ if (!$secStmt->fetch()) {
     lms_error('not_found', 'Section not found in this course', 404);
 }
 
-// Verify all item_ids belong to this section and course
-$placeholders = implode(',', array_fill(0, count($itemIds), '?'));
-$verifyStmt = $pdo->prepare(
-    "SELECT module_item_id FROM lms_module_items WHERE course_id = ? AND section_id = ? AND module_item_id IN ({$placeholders})"
-);
-$verifyStmt->execute(array_merge([$courseId, $sectionId], $itemIds));
-$foundIds = array_map('intval', $verifyStmt->fetchAll(PDO::FETCH_COLUMN));
+// Verify the payload exactly matches the complete set of module_item_ids for this section
+$verifyStmt = $pdo->prepare('SELECT module_item_id FROM lms_module_items WHERE course_id = :cid AND section_id = :sid');
+$verifyStmt->execute([':cid' => $courseId, ':sid' => $sectionId]);
+$existingIds = array_map('intval', $verifyStmt->fetchAll(PDO::FETCH_COLUMN));
 
-if (count($foundIds) !== count($itemIds)) {
-    $missing = array_diff($itemIds, $foundIds);
-    lms_error('validation_error', 'Some module_item_ids do not belong to this section: ' . implode(',', $missing), 400);
+if (count($existingIds) !== count($itemIds)) {
+    lms_error('validation_error', 'module_item_ids must include all active items exactly once', 422);
+}
+$diff1 = array_diff($existingIds, $itemIds);
+$diff2 = array_diff($itemIds, $existingIds);
+if (count($diff1) > 0 || count($diff2) > 0) {
+    lms_error('validation_error', 'module_item_ids must include all active items exactly once', 422);
 }
 
 // Update positions in a transaction
