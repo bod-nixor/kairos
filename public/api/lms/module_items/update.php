@@ -29,11 +29,32 @@ if (!$item) {
 }
 
 $title = isset($in['title']) ? trim((string)$in['title']) : null;
-$publishedFlag = isset($in['published']) ? ((int)$in['published'] === 1 ? 1 : 0) : null;
-$requiredFlag = isset($in['required']) ? ((int)$in['required'] === 1 ? 1 : 0) : null;
+$publishedFlag = null;
+if (array_key_exists('published', $in)) {
+    $raw = $in['published'];
+    if ($raw === 1 || $raw === '1') {
+        $publishedFlag = 1;
+    } elseif ($raw === 0 || $raw === '0') {
+        $publishedFlag = 0;
+    } else {
+        lms_error('validation_error', 'published must be 0 or 1.', 400);
+    }
+}
+
+$requiredFlag = null;
+if (array_key_exists('required', $in)) {
+    $raw = $in['required'];
+    if ($raw === 1 || $raw === '1') {
+        $requiredFlag = 1;
+    } elseif ($raw === 0 || $raw === '0') {
+        $requiredFlag = 0;
+    } else {
+        lms_error('validation_error', 'required must be 0 or 1.', 400);
+    }
+}
 
 $updates = [];
-$params = [':id' => $moduleItemId];
+$params = [':id' => $moduleItemId, ':course_id' => $courseId];
 
 if ($title !== null && $title !== '') {
     $updates[] = 'title = :title';
@@ -52,7 +73,7 @@ if (empty($updates)) {
     lms_error('validation_error', 'No valid fields to update.', 422);
 }
 
-$sql = 'UPDATE lms_module_items SET ' . implode(', ', $updates) . ' WHERE module_item_id = :id';
+$sql = 'UPDATE lms_module_items SET ' . implode(', ', $updates) . ' WHERE module_item_id = :id AND course_id = :course_id';
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 

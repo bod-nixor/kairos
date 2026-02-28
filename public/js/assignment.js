@@ -549,6 +549,14 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
                 LMS.renderAccessDenied(denied, 'You do not have permission to edit this assignment.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
                 denied.classList.remove('hidden');
             }
+
+            hideEl('assignSkeleton');
+            hideEl('assignLoaded');
+            hideEl('assignError');
+
+            document.querySelectorAll('#assignLoaded button, #assignLoaded input, #assignLoaded select, #assignLoaded textarea').forEach((el) => {
+                el.disabled = true;
+            });
             return;
         }
 

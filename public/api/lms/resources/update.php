@@ -4,7 +4,7 @@ require_once dirname(__DIR__) . '/_common.php';
 
 /**
  * POST /api/lms/resources/update.php
- * Update a resource's title, URL, published status.
+ * Update a resource's title and URL.
  * RBAC: Manager/Admin only.
  */
 $user = lms_require_roles(['manager', 'admin']);
@@ -30,7 +30,6 @@ if (!$resource) {
 
 $title = isset($in['title']) ? trim((string)$in['title']) : null;
 $url = isset($in['url']) ? trim((string)$in['url']) : null;
-$published = isset($in['published']) ? (int)$in['published'] : null;
 
 $updates = [];
 $params = [':id' => $resourceId];

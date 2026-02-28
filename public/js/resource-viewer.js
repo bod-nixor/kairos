@@ -10,6 +10,7 @@
 
     let isAdmin = false;
     let currentResource = null;
+    let isSavingResource = false;
 
     const TYPE_ICONS = {
         pdf: '📄', video: '🎬', link: '🔗', text: '📝', page: '📝',
@@ -279,24 +280,32 @@
     }
 
     async function saveResource() {
+        if (isSavingResource) return;
         const title = $('editResTitle')?.value?.trim() || '';
         const url = $('editResUrl')?.value?.trim() || '';
         const published = $('editResPublished')?.value === '1' ? 1 : 0;
         if (!title) { LMS.toast('Title is required.', 'warning'); return; }
 
-        const res = await LMS.api('POST', './api/lms/resources/update.php', {
-            course_id: Number(COURSE_ID),
-            resource_id: Number(RESOURCE_ID),
-            title,
-            url,
-            published,
-        });
-        if (!res.ok) {
-            LMS.toast(res.data?.error?.message || 'Failed to save resource.', 'error');
-            return;
+        isSavingResource = true;
+        try {
+            const res = await LMS.api('POST', './api/lms/resources/update.php', {
+                course_id: Number(COURSE_ID),
+                resource_id: Number(RESOURCE_ID),
+                title,
+                url,
+                published,
+            });
+            if (!res.ok) {
+                LMS.toast(res.data?.error?.message || 'Failed to save resource.', 'error');
+                return;
+            }
+            LMS.toast('Resource updated.', 'success');
+            window.location.href = `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}&mode=view`;
+        } catch (_) {
+            LMS.toast('Failed to save resource.', 'error');
+        } finally {
+            isSavingResource = false;
         }
-        LMS.toast('Resource updated.', 'success');
-        window.location.href = `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}&mode=view`;
     }
 
     document.addEventListener('DOMContentLoaded', async () => {

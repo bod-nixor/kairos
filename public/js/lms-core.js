@@ -718,6 +718,8 @@ function sanitizeForRender(html) {
     try {
       const parsed = new URL(String(rawUrl));
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+      const pathname = String(parsed.pathname || '').toLowerCase();
+      if (!/\.pptx?$/.test(pathname)) return '';
       return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
     } catch (_) {
       return '';
