@@ -48,10 +48,17 @@ function base64url_decode_str(string $s): string {
 
 
 function apply_pending_pre_enrollments(PDO $pdo, int $userId, string $email): void {
+  static $coursePreEnrollExists = null;
+
   if ($userId <= 0 || $email === '') return;
-  $check = $pdo->prepare("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_pre_enroll' LIMIT 1");
-  $check->execute();
-  if (!$check->fetchColumn()) return;
+
+  if ($coursePreEnrollExists === null) {
+    $check = $pdo->prepare("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_pre_enroll' LIMIT 1");
+    $check->execute();
+    $coursePreEnrollExists = (bool)$check->fetchColumn();
+  }
+
+  if (!$coursePreEnrollExists) return;
 
   $st = $pdo->prepare('SELECT course_id FROM course_pre_enroll WHERE LOWER(email)=LOWER(:email)');
   $st->execute([':email'=>$email]);

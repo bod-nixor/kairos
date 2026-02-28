@@ -17,11 +17,19 @@ $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && in_array
 
 try {
     $pdo = db();
-    $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lms_assignments'");
-    $colCheck->execute();
-    $cols = array_flip(array_map('strtolower', $colCheck->fetchAll(PDO::FETCH_COLUMN)));
-    $allowedFileExpr = isset($cols['allowed_file_extensions']) ? 'allowed_file_extensions' : "'' AS allowed_file_extensions";
-    $maxFileExpr = isset($cols['max_file_mb']) ? 'max_file_mb' : '50 AS max_file_mb';
+    static $assignmentColumnSupport = null;
+    if ($assignmentColumnSupport === null) {
+        $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lms_assignments' AND COLUMN_NAME IN ('allowed_file_extensions', 'max_file_mb')");
+        $colCheck->execute();
+        $cols = array_flip(array_map('strtolower', $colCheck->fetchAll(PDO::FETCH_COLUMN)));
+        $assignmentColumnSupport = [
+            'allowed_file_extensions' => isset($cols['allowed_file_extensions']),
+            'max_file_mb' => isset($cols['max_file_mb']),
+        ];
+    }
+
+    $allowedFileExpr = $assignmentColumnSupport['allowed_file_extensions'] ? 'allowed_file_extensions' : "'' AS allowed_file_extensions";
+    $maxFileExpr = $assignmentColumnSupport['max_file_mb'] ? 'max_file_mb' : '50 AS max_file_mb';
     $stmt = $pdo->prepare("SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, {$allowedFileExpr}, {$maxFileExpr}, status
         FROM lms_assignments WHERE assignment_id = :assignment_id AND deleted_at IS NULL LIMIT 1");
     $stmt->execute([':assignment_id' => $assignmentId]);

@@ -15,7 +15,12 @@ $pdo = db();
 $st = $pdo->prepare('INSERT INTO lms_notification_reads (user_id, course_id, event_id) VALUES (:uid, :cid, :event_id) ON DUPLICATE KEY UPDATE seen_at = CURRENT_TIMESTAMP');
 foreach ($eventIds as $eventId) {
     $eventId = trim((string)$eventId);
-    if ($eventId === '') continue;
+    if ($eventId === '') {
+        continue;
+    }
+    if (strlen($eventId) > 128) {
+        lms_error('validation_error', 'event_id length must be <= 128 characters', 422);
+    }
     $st->execute([':uid' => (int)$user['user_id'], ':cid' => $courseId, ':event_id' => $eventId]);
 }
 

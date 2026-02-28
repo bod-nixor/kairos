@@ -36,11 +36,13 @@ CREATE TABLE IF NOT EXISTS lms_notification_reads (
   seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_lms_notification_reads_user_course_event (user_id, course_id, event_id),
-  KEY idx_lms_notification_reads_user_course_seen (user_id, course_id, seen_at)
+  KEY idx_lms_notification_reads_user_course_seen (user_id, course_id, seen_at),
+  CONSTRAINT fk_lms_notification_reads_user_id FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+  CONSTRAINT fk_lms_notification_reads_course_id FOREIGN KEY (course_id) REFERENCES courses (course_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Rollback (manual):
 -- DROP TABLE IF EXISTS lms_notification_reads;
 -- DROP TABLE IF EXISTS course_pre_enroll;
 -- DROP TABLE IF EXISTS course_allowlist;
--- ALTER TABLE courses DROP COLUMN visibility;
+-- ALTER TABLE courses DROP COLUMN visibility, DROP COLUMN code;

@@ -269,7 +269,13 @@
             activeIdx = -1;
             return;
         }
-        const firstVisibleId = visibleSubmissionIds[0] || Number(submissions[0]?.id || 0);
+        if (visibleSubmissionIds.length === 0) {
+            showEl('workspaceEmpty');
+            activeIdx = -1;
+            return;
+        }
+
+        const firstVisibleId = visibleSubmissionIds[0];
         const firstIdx = submissions.findIndex((entry) => Number(entry.id) === Number(firstVisibleId));
         if (firstIdx >= 0) {
             await selectSubmission(firstIdx);

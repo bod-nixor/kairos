@@ -61,6 +61,13 @@
         return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
     }
 
+
+    function hardenPreviewIframe(iframe) {
+        if (!iframe) return;
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    }
+
     function inferType(resource) {
         if (resource.type) return String(resource.type).toLowerCase();
         const url = (resource.url || resource.file_url || '').toLowerCase();
@@ -160,6 +167,7 @@
             const iframe = $('resourceIframe');
             const src = rawUrl.includes('/embed') ? rawUrl : rawUrl.replace('/edit', '/preview');
             if (!isHttpUrl(src)) { showEl('unsupportedWrap'); return; }
+            hardenPreviewIframe(iframe);
             iframe.src = src;
             showEl('iframeWrap');
             return;
@@ -169,6 +177,7 @@
             const officeUrl = toOfficeViewerUrl(rawUrl);
             if (officeUrl) {
                 const iframe = $('resourceIframe');
+                hardenPreviewIframe(iframe);
                 iframe.src = officeUrl;
                 showEl('iframeWrap');
                 return;
@@ -184,9 +193,8 @@
                 return;
             }
             const iframe = $('resourceIframe');
+            hardenPreviewIframe(iframe);
             iframe.src = iframeSrc;
-            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
-            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
             iframe.onerror = () => {
                 $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
                 showEl('externalWrap');

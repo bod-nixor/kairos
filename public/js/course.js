@@ -12,6 +12,8 @@
     const COURSE_ID = params.get('course_id') || '';
     const notifications = [];
     const seenNotificationIds = new Set();
+    let seenNotificationsHydrated = false;
+    const queuedNotifications = [];
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -19,6 +21,10 @@
 
     function pushNotification(entry) {
         if (!entry || !entry.message) return;
+        if (!seenNotificationsHydrated) {
+            queuedNotifications.push(entry);
+            return;
+        }
         const eventId = String(entry.event_id || `${entry.type || 'event'}:${entry.created_at || Date.now()}`);
         if (notifications.some(n => n.event_id === eventId) || seenNotificationIds.has(eventId)) return;
         notifications.unshift({
@@ -77,6 +83,33 @@
             }
         });
     }
+
+    async function hydrateSeenNotificationIds() {
+        try {
+            const res = await LMS.api('GET', `./api/lms/notifications_seen_list.php?course_id=${encodeURIComponent(COURSE_ID)}`);
+            if (!res.ok) return;
+            const payload = res.data?.data || res.data || {};
+            const eventIds = Array.isArray(payload.event_ids) ? payload.event_ids : [];
+            seenNotificationIds.clear();
+            eventIds.forEach((id) => {
+                const normalized = String(id || '').trim();
+                if (normalized) seenNotificationIds.add(normalized);
+            });
+            seenNotificationsHydrated = true;
+            while (queuedNotifications.length > 0) {
+                const pending = queuedNotifications.shift();
+                if (pending) pushNotification(pending);
+            }
+        } catch (err) {
+            console.error('Failed to hydrate seen notifications', err);
+            seenNotificationsHydrated = true;
+            while (queuedNotifications.length > 0) {
+                const pending = queuedNotifications.shift();
+                if (pending) pushNotification(pending);
+            }
+        }
+    }
+
     // ── Module overview rendering ─────────────────────────────
     function renderModuleOverview(modules) {
         const container = $('moduleOverview');
@@ -329,6 +362,8 @@
         setupAnnouncementModal();
         setupNotificationsPanel();
 
+        await hydrateSeenNotificationIds();
+        renderNotifications();
         await loadPage();
     });
 

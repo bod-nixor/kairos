@@ -46,7 +46,11 @@ foreach ($courseRows as $row) {
     $canSelfEnroll = false;
     if ($role === 'student') {
         $canSelfEnroll = $item['visibility'] === 'public' || isset($eligibleRestricted[$cid]);
+        if ($canSelfEnroll === false) {
+            continue;
+        }
     }
+
     $item['can_self_enroll'] = $canSelfEnroll;
     $available[] = $item;
 }

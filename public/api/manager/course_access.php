@@ -13,46 +13,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $courseId = (int)($in['course_id'] ?? 0);
     assert_manager_controls_course($pdo, $userId, $courseId);
 
-    if (isset($in['visibility'])) {
-        $visibility = strtolower((string)$in['visibility']) === 'restricted' ? 'restricted' : 'public';
-        $st = $pdo->prepare('UPDATE courses SET visibility = :v WHERE course_id = :cid');
-        $st->execute([':v' => $visibility, ':cid' => $courseId]);
-    }
+    try {
+        $pdo->beginTransaction();
 
-    if (!empty($in['allowlist_add']) && is_array($in['allowlist_add'])) {
-        $st = $pdo->prepare('INSERT INTO course_allowlist (course_id, email, created_by) VALUES (:cid, :email, :uid) ON DUPLICATE KEY UPDATE created_by = VALUES(created_by)');
-        foreach ($in['allowlist_add'] as $email) {
-            $email = strtolower(trim((string)$email));
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
-            $st->execute([':cid' => $courseId, ':email' => $email, ':uid' => $userId]);
+        if (isset($in['visibility'])) {
+            $visibility = strtolower((string)$in['visibility']) === 'restricted' ? 'restricted' : 'public';
+            $st = $pdo->prepare('UPDATE courses SET visibility = :v WHERE course_id = :cid');
+            $st->execute([':v' => $visibility, ':cid' => $courseId]);
         }
-    }
 
-    if (!empty($in['allowlist_remove']) && is_array($in['allowlist_remove'])) {
-        $st = $pdo->prepare('DELETE FROM course_allowlist WHERE course_id = :cid AND LOWER(email) = LOWER(:email)');
-        foreach ($in['allowlist_remove'] as $email) {
-            $email = trim((string)$email);
-            if ($email === '') continue;
-            $st->execute([':cid' => $courseId, ':email' => $email]);
-        }
-    }
-
-    if (!empty($in['pre_enroll_add']) && is_array($in['pre_enroll_add'])) {
-        $pre = $pdo->prepare('INSERT INTO course_pre_enroll (course_id, email, created_by) VALUES (:cid, :email, :uid) ON DUPLICATE KEY UPDATE created_by = VALUES(created_by)');
-        foreach ($in['pre_enroll_add'] as $email) {
-            $email = strtolower(trim((string)$email));
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
-            $pre->execute([':cid' => $courseId, ':email' => $email, ':uid' => $userId]);
-            $enrollNow = $pdo->prepare('SELECT user_id FROM users WHERE LOWER(email)=LOWER(:email) LIMIT 1');
-            $enrollNow->execute([':email' => $email]);
-            $targetId = (int)($enrollNow->fetchColumn() ?: 0);
-            if ($targetId > 0) {
-                enroll_user_in_course($pdo, $targetId, $courseId);
+        if (!empty($in['allowlist_add']) && is_array($in['allowlist_add'])) {
+            $st = $pdo->prepare('INSERT INTO course_allowlist (course_id, email, created_by) VALUES (:cid, :email, :uid) ON DUPLICATE KEY UPDATE created_by = VALUES(created_by)');
+            foreach ($in['allowlist_add'] as $email) {
+                $email = strtolower(trim((string)$email));
+                if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
+                $st->execute([':cid' => $courseId, ':email' => $email, ':uid' => $userId]);
             }
         }
-    }
 
-    json_out(['success' => true]);
+        if (!empty($in['allowlist_remove']) && is_array($in['allowlist_remove'])) {
+            $st = $pdo->prepare('DELETE FROM course_allowlist WHERE course_id = :cid AND LOWER(email) = LOWER(:email)');
+            foreach ($in['allowlist_remove'] as $email) {
+                $email = trim((string)$email);
+                if ($email === '') continue;
+                $st->execute([':cid' => $courseId, ':email' => $email]);
+            }
+        }
+
+        if (!empty($in['pre_enroll_add']) && is_array($in['pre_enroll_add'])) {
+            $pre = $pdo->prepare('INSERT INTO course_pre_enroll (course_id, email, created_by) VALUES (:cid, :email, :uid) ON DUPLICATE KEY UPDATE created_by = VALUES(created_by)');
+            foreach ($in['pre_enroll_add'] as $email) {
+                $email = strtolower(trim((string)$email));
+                if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
+                $pre->execute([':cid' => $courseId, ':email' => $email, ':uid' => $userId]);
+                $enrollNow = $pdo->prepare('SELECT user_id FROM users WHERE LOWER(email)=LOWER(:email) LIMIT 1');
+                $enrollNow->execute([':email' => $email]);
+                $targetId = (int)($enrollNow->fetchColumn() ?: 0);
+                if ($targetId > 0) {
+                    enroll_user_in_course($pdo, $targetId, $courseId);
+                }
+            }
+        }
+
+        $pdo->commit();
+        json_out(['success' => true]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        json_out(['success' => false, 'error' => 'transaction_failed', 'message' => 'Failed to update course access settings.'], 500);
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
