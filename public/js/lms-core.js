@@ -714,6 +714,34 @@
   }
 
   /**
+   * Generates a direct download URL for a Google Drive file, if possible.
+   *
+   * Drive files: https://drive.google.com/uc?export=download&id=<id>
+   * Docs/Slides: We don't fake download, we return '' to signal fallback to Open.
+   */
+  function toDriveDownloadUrl(inputUrl) {
+    if (!inputUrl) return '';
+    try {
+      const parsed = new URL(String(inputUrl));
+      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+
+      // For Google Docs/Slides/Sheets, direct download is tricky without knowing exact format
+      // Better to return empty and let caller fallback to "Open" behavior
+      if (host === 'docs.google.com') return '';
+
+      // For generic Drive files
+      if (host === 'drive.google.com') {
+        const fileId = extractDriveFileId(inputUrl);
+        if (fileId) return `https://drive.google.com/uc?export=download&id=${fileId}`;
+      }
+
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
    * Check whether a URL can be determined to be a ppt/pptx (Office file),
    * and generate an Office Online embed URL for it.
    * Returns '' if not applicable.
@@ -760,6 +788,7 @@
     toYoutubeEmbedUrl,
     extractDriveFileId,
     toDrivePreviewUrl,
+    toDriveDownloadUrl,
     toOfficeViewerUrl,
     markdownToHtml,
     htmlToMarkdown,

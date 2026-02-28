@@ -64,7 +64,8 @@
                     aria-label="Download resource">⬇ Download</a>
                 <button class="btn btn-ghost btn-sm hidden" id="openNewTabBtn" aria-label="Open in new tab">↗
                     Open</button>
-                <button class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode" data-theme-toggle>
+                <button class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode"
+                    data-theme-toggle>
                     <span class="theme-toggle__icon theme-toggle__icon--sun">☀️</span>
                     <span class="theme-toggle__icon theme-toggle__icon--moon">🌙</span>
                 </button>
@@ -90,12 +91,15 @@
                 </div>
 
                 <!-- Resource viewer -->
-                <div class="k-resource-viewer hidden" id="resourceViewer">
+                <div class="k-resource-viewer hidden" id="resourceViewer"
+                    style="display:flex; flex-direction:column; flex:1; min-height:0;">
 
                     <!-- PDF / file iframe -->
-                    <div class="k-resource-iframe hidden" id="iframeWrap">
+                    <div class="k-resource-iframe hidden" id="iframeWrap"
+                        style="display:flex; flex-direction:column; flex:1; min-height:0;">
                         <iframe id="resourceIframe" title="Resource viewer"
-                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms" allowfullscreen></iframe>
+                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms" allowfullscreen
+                            style="flex:1; width:100%; border:0; min-height:600px;"></iframe>
                     </div>
 
                     <!-- Video player -->
@@ -125,11 +129,11 @@
 
                     <!-- Unsupported type -->
                     <div class="hidden" id="unsupportedWrap">
-                        <div class="k-empty">
+                        <div class="k-empty" style="padding:60px 20px">
                             <div class="k-empty__icon" aria-hidden="true">📎</div>
                             <p class="k-empty__title">Preview not available</p>
                             <p class="k-empty__desc">This file type cannot be previewed in the browser.</p>
-                            <a href="#" id="downloadFallbackBtn" class="btn btn-primary">⬇ Download File</a>
+                            <a href="#" id="downloadFallbackBtn" class="btn btn-primary">Open Resource ↗</a>
                         </div>
                     </div>
                 </div>
