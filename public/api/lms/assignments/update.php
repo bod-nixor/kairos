@@ -4,23 +4,34 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 require_once __DIR__ . '/_restriction_helpers.php';
 
-// Feature flag check — fail-closed
-try {
-    lms_require_feature(['lms_assignments', 'assignments']);
-} catch (Throwable $e) {
-    error_log('[kairos] lms_require_feature check failed in update.php: ' . $e->__toString());
-    lms_error('feature_disabled', 'Feature check failed or disabled', 404);
-}
-
-$user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $id = (int) ($in['assignment_id'] ?? 0);
 if ($id <= 0) {
     lms_error('validation_error', 'assignment_id required', 422);
 }
 
+// Fetch course_id early to pass to feature flags
 $pdo = db();
+$courseId = (int) ($in['course_id'] ?? $_GET['course_id'] ?? 0);
+if ($courseId <= 0) {
+    $stmt = $pdo->prepare('SELECT course_id FROM lms_assignments WHERE assignment_id=:id');
+    $stmt->execute([':id' => $id]);
+    $courseId = (int) $stmt->fetchColumn();
+}
 
+// Feature flag check — fail-closed, course scoped
+try {
+    lms_require_feature(['lms_assignments', 'assignments'], $courseId > 0 ? $courseId : null);
+} catch (Throwable $e) {
+    $courseStr = $courseId > 0 ? "course_id={$courseId}" : 'no course_context';
+    error_log("[kairos] lms_require_feature check failed in update.php ({$courseStr}): " . $e->__toString());
+    lms_error('feature_disabled', 'Feature check failed or disabled', 404);
+}
+
+// Pre-auth via helper if testing manually, but _common's lms_require_roles intercepts execution so we just call it
+$user = lms_require_roles(['manager', 'admin']);
+
+// $pdo already defined above
 // Try to fetch assignment including restriction columns; fall back to core columns
 $existing = null;
 $hasRestrictionCols = true;
@@ -50,19 +61,10 @@ if (!$existing) {
 
 lms_course_access($user, (int) $existing['course_id']);
 
-$allowedStatus = ['draft', 'published', 'archived'];
-$allowedTransitions = [
-    'draft' => ['published', 'archived'],
-    'published' => ['archived'],
-    'archived' => [],
-];
 if (array_key_exists('status', $in)) {
     $targetStatus = (string) $in['status'];
-    if (!in_array($targetStatus, $allowedStatus, true)) {
-        lms_error('validation_error', 'status must be draft, published, or archived', 422);
-    }
     $currentStatus = (string) $existing['status'];
-    if ($targetStatus !== $currentStatus && !in_array($targetStatus, $allowedTransitions[$currentStatus] ?? [], true)) {
+    if (!lms_is_valid_assignment_status_transition($currentStatus, $targetStatus)) {
         lms_error('validation_error', 'invalid status transition', 422);
     }
 }
@@ -128,7 +130,7 @@ try {
             'UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l,
                     max_points=:m, allowed_file_extensions=:afe, max_file_mb=:mfm,
                     status=:st, updated_at=CURRENT_TIMESTAMP
-             WHERE assignment_id=:id'
+             WHERE assignment_id=:id AND deleted_at IS NULL'
         )->execute([
                     ':t' => $title,
                     ':i' => $instructions,
@@ -145,7 +147,7 @@ try {
         $pdo->prepare(
             'UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l,
                     max_points=:m, status=:st, updated_at=CURRENT_TIMESTAMP
-             WHERE assignment_id=:id'
+             WHERE assignment_id=:id AND deleted_at IS NULL'
         )->execute([
                     ':t' => $title,
                     ':i' => $instructions,

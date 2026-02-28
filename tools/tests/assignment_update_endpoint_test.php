@@ -1,35 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// Test assignment status transition logic
-function is_valid_transition(string $current, string $target): bool
-{
-    $allowedStatus = ['draft', 'published', 'archived'];
-    $allowedTransitions = [
-        'draft' => ['published', 'archived'],
-        'published' => ['archived'],
-        'archived' => [],
-    ];
-    if (!in_array($target, $allowedStatus, true)) {
-        return false;
-    }
-    if ($current !== $target && !in_array($target, $allowedTransitions[$current] ?? [], true)) {
-        return false;
-    }
-    return true;
-}
-
-// Test permission logic
-function can_update_assignment(array $roles): bool
-{
-    $allowed = ['manager', 'admin'];
-    foreach ($roles as $role) {
-        if (in_array(strtolower($role), $allowed, true)) {
-            return true;
-        }
-    }
-    return false;
-}
+require_once __DIR__ . '/../../public/api/lms/assignments/_restriction_helpers.php';
 
 $transitions = [
     ['current' => 'draft', 'target' => 'draft', 'expected' => true],
@@ -54,13 +26,13 @@ $roles = [
 $failed = [];
 
 foreach ($transitions as $i => $t) {
-    if (is_valid_transition($t['current'], $t['target']) !== $t['expected']) {
+    if (lms_is_valid_assignment_status_transition($t['current'], $t['target']) !== $t['expected']) {
         $failed[] = "Transition {$t['current']} -> {$t['target']}";
     }
 }
 
 foreach ($roles as $i => $r) {
-    if (can_update_assignment($r['roles']) !== $r['expected']) {
+    if (lms_can_update_assignment($r['roles']) !== $r['expected']) {
         $failed[] = "Roles " . implode(',', $r['roles']);
     }
 }
@@ -73,7 +45,7 @@ if ($failed !== []) {
 echo 'assignment_update_endpoint_test passed' . PHP_EOL;
 
 // Mock event dispatch logic
-function test_mock_event_dispatch(bool $update_success)
+function test_mock_event_dispatch(bool $update_success): ?array
 {
     if (!$update_success) {
         return null; // Ensure event is NOT emitted if DB fails
@@ -86,6 +58,17 @@ function test_mock_event_dispatch(bool $update_success)
 
 if (test_mock_event_dispatch(false) !== null) {
     fwrite(STDERR, 'Failed: Event emitted when update did not succeed.' . PHP_EOL);
+    exit(1);
+}
+
+// Positive-path assertion
+$successPayload = test_mock_event_dispatch(true);
+if ($successPayload === null) {
+    fwrite(STDERR, 'Failed: Event NOT emitted when update succeeded.' . PHP_EOL);
+    exit(1);
+}
+if ($successPayload['event_name'] !== 'assignment.updated' || $successPayload['entity_type'] !== 'assignment') {
+    fwrite(STDERR, 'Failed: Event payload mismatch.' . PHP_EOL);
     exit(1);
 }
 

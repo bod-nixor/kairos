@@ -16,6 +16,8 @@ set_exception_handler(function (Throwable $e): void {
             'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
             'action' => 'uncaught_exception',
             'status' => 'error',
+            'user_id' => $_SESSION['user']['user_id'] ?? null,
+            'course_id' => $_REQUEST['course_id'] ?? null,
             'exception_class' => get_class($e),
             'file' => $e->getFile(),
             'line' => $e->getLine()
@@ -33,6 +35,8 @@ set_exception_handler(function (Throwable $e): void {
             'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
             'action' => 'uncaught_exception',
             'status' => 'error',
+            'user_id' => $_SESSION['user']['user_id'] ?? null,
+            'course_id' => $_REQUEST['course_id'] ?? null,
             'exception_class' => get_class($e),
             'file' => $e->getFile(),
             'line' => $e->getLine()

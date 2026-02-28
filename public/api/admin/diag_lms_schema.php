@@ -13,7 +13,12 @@ require_once dirname(__DIR__) . '/lms/_common.php';
 
 $user = lms_require_roles(['admin']);
 
-$pdo = db();
+try {
+    $pdo = db();
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema db connection failed: ' . $e->__toString());
+    lms_error('db_error', 'Database connection failed', 500);
+}
 $result = [];
 
 // 1. Check lms_event_outbox schema
@@ -94,12 +99,27 @@ try {
 try {
     $testOccurred = gmdate('c');
     $result['event_occurred_format'] = $testOccurred;
-    // Test if lms_event_outbox accepts this format (dry run via PREPARE only)
+
+    $pdo->beginTransaction();
     $stmt = $pdo->prepare('INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)');
+    $stmt->execute([
+        ':event_id' => lms_uuid_v4(),
+        ':event_name' => 'diag.test',
+        ':occurred_at' => $testOccurred,
+        ':actor_user_id' => $user['user_id'] ?? null,
+        ':course_id' => null,
+        ':entity_type' => 'diagnostic',
+        ':entity_id' => null,
+        ':payload_json' => '{}'
+    ]);
+    $pdo->rollBack();
     $result['event_insert_prepare'] = 'OK';
 } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     error_log('[kairos] diag_lms_schema event_insert_prepare: ' . $e->__toString());
-    $result['event_insert_prepare'] = 'ERROR: CHECK_SERVER_LOGS';
+    $result['event_insert_prepare'] = 'ERROR: ' . $e->getMessage();
 }
 
 // 9. Check lms_questions schema (for deleted_at + is_required)
