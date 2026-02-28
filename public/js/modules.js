@@ -10,6 +10,7 @@
 
     let isAdmin = false;
     const expandedModules = new Set();
+    let modulesData = []; // cached for reorder operations
 
     const TYPE_ICONS = { lesson: '📝', assignment: '📤', quiz: '🧪', file: '📄', video: '🎬', link: '🔗', resource: '📎', page: '📘', text: '📝' };
     const TYPE_ICON_CLASS = { lesson: 'lesson', assignment: 'assign', quiz: 'quiz', file: 'file', video: 'video', link: 'link', resource: 'resource', page: 'lesson', text: 'lesson' };
@@ -49,7 +50,6 @@
         if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
         if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
         if (type === 'link') {
-            // Edit mode for links should go to the resource editor, not the external URL
             if (mode === 'edit') {
                 return resourceViewerHref();
             }
@@ -83,6 +83,149 @@
         return true;
     }
 
+    /* =========================================================
+       ADMIN: Edit / Delete Module Item Settings Modal
+       ========================================================= */
+    function openEditItemModal(item) {
+        const mid = parseInt(item.module_item_id || 0, 10);
+        const currentTitle = item.title || item.name || '';
+        const currentPublished = parseInt(item.published_flag ?? 1, 10);
+        const currentRequired = parseInt(item.required_flag ?? 0, 10);
+
+        const body = `
+          <div class="k-form-field">
+            <label for="kEditItemTitle">Title</label>
+            <input id="kEditItemTitle" type="text" value="${LMS.escHtml(currentTitle)}" required>
+          </div>
+          <div class="k-form-field" style="display:flex;gap:16px;margin-top:12px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input id="kEditItemPublished" type="checkbox" ${currentPublished ? 'checked' : ''}> Published
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input id="kEditItemRequired" type="checkbox" ${currentRequired ? 'checked' : ''}> Required
+            </label>
+          </div>`;
+
+        LMS.openModal({
+            title: 'Edit Module Item',
+            body,
+            narrow: true,
+            actions: [
+                { id: 'cancel', label: 'Cancel', class: 'btn-ghost', onClick: () => LMS.closeModal() },
+                {
+                    id: 'save', label: 'Save', class: 'btn-primary', onClick: async (btn) => {
+                        btn.disabled = true;
+                        const title = document.getElementById('kEditItemTitle')?.value?.trim() || '';
+                        const published = document.getElementById('kEditItemPublished')?.checked ? 1 : 0;
+                        const required = document.getElementById('kEditItemRequired')?.checked ? 1 : 0;
+                        if (!title) { LMS.toast('Title cannot be empty', 'error'); btn.disabled = false; return; }
+                        const res = await LMS.api('POST', './api/lms/module_items/update.php', {
+                            module_item_id: mid,
+                            course_id: COURSE_ID_INT,
+                            title,
+                            published,
+                            required,
+                        });
+                        if (res.ok) {
+                            LMS.toast('Item updated', 'success');
+                            LMS.closeModal();
+                            await loadPage();
+                        } else {
+                            LMS.toast(res.data?.error?.message || 'Update failed', 'error');
+                            btn.disabled = false;
+                        }
+                    }
+                },
+            ],
+        });
+    }
+
+    function confirmDeleteItem(item) {
+        const mid = parseInt(item.module_item_id || 0, 10);
+        const title = item.title || item.name || 'this item';
+        LMS.confirm('Delete Module Item', `Are you sure you want to remove "${title}" from this module? The underlying content will not be deleted.`, async () => {
+            const res = await LMS.api('POST', './api/lms/module_items/delete.php', {
+                module_item_id: mid,
+                course_id: COURSE_ID_INT,
+            });
+            if (res.ok) {
+                LMS.toast('Item removed', 'success');
+                await loadPage();
+            } else {
+                LMS.toast(res.data?.error?.message || 'Delete failed', 'error');
+            }
+        }, { okLabel: 'Delete', okClass: 'btn-danger' });
+    }
+
+    /* =========================================================
+       ADMIN: Edit Module (Section) Name Modal
+       ========================================================= */
+    function openEditModuleModal(mod) {
+        const sectionId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
+        const currentTitle = mod.name || mod.title || '';
+        const currentDesc = mod.description || '';
+
+        const body = `
+          <div class="k-form-field">
+            <label for="kEditModTitle">Module Title</label>
+            <input id="kEditModTitle" type="text" value="${LMS.escHtml(currentTitle)}" required>
+          </div>
+          <div class="k-form-field" style="margin-top:12px">
+            <label for="kEditModDesc">Description</label>
+            <textarea id="kEditModDesc" rows="3">${LMS.escHtml(currentDesc)}</textarea>
+          </div>`;
+
+        LMS.openModal({
+            title: 'Edit Module',
+            body,
+            narrow: true,
+            actions: [
+                { id: 'cancel', label: 'Cancel', class: 'btn-ghost', onClick: () => LMS.closeModal() },
+                {
+                    id: 'save', label: 'Save', class: 'btn-primary', onClick: async (btn) => {
+                        btn.disabled = true;
+                        const title = document.getElementById('kEditModTitle')?.value?.trim() || '';
+                        const description = document.getElementById('kEditModDesc')?.value?.trim() || '';
+                        if (!title) { LMS.toast('Title cannot be empty', 'error'); btn.disabled = false; return; }
+                        const res = await LMS.api('POST', './api/lms/sections/update.php', {
+                            section_id: sectionId,
+                            title,
+                            description,
+                        });
+                        if (res.ok) {
+                            LMS.toast('Module updated', 'success');
+                            LMS.closeModal();
+                            await loadPage();
+                        } else {
+                            LMS.toast(res.data?.error?.message || 'Update failed', 'error');
+                            btn.disabled = false;
+                        }
+                    }
+                },
+            ],
+        });
+    }
+
+    function confirmDeleteModule(mod) {
+        const sectionId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
+        const title = mod.name || mod.title || 'this module';
+        LMS.confirm('Delete Module', `Are you sure you want to delete "${title}"? All items inside will be unlinked.`, async () => {
+            const res = await LMS.api('POST', './api/lms/sections/delete.php', {
+                section_id: sectionId,
+            });
+            if (res.ok) {
+                LMS.toast('Module deleted', 'success');
+                expandedModules.delete(sectionId);
+                await loadPage();
+            } else {
+                LMS.toast(res.data?.error?.message || 'Delete failed', 'error');
+            }
+        }, { okLabel: 'Delete', okClass: 'btn-danger' });
+    }
+
+    /* =========================================================
+       Render: Module Item Row
+       ========================================================= */
     function renderModuleItem(item) {
         const typeKey = String(item.type || item.item_type || '').toLowerCase();
         const iconClass = `k-module-item__icon--${LMS.escHtml(TYPE_ICON_CLASS[typeKey] || 'default')}`;
@@ -94,31 +237,40 @@
         if (item.points) metaParts.push(`${item.points} pts`);
         if (item.duration_min) metaParts.push(`${item.duration_min} min`);
 
-        // Status badges for admin visibility
         const isDraft = item.status === 'draft' || item.published === false || item.published === 0;
         const isMandatory = item.mandatory === true || item.mandatory === 1 || item.is_mandatory === true || item.is_mandatory === 1;
         const statusBadges = [];
         if (isDraft) statusBadges.push('<span class="k-badge k-badge--draft" title="Draft">Draft</span>');
         if (isMandatory) statusBadges.push('<span class="k-badge k-badge--mandatory" title="Mandatory">Required</span>');
 
-        // Admin per-item controls
+        const mid = parseInt(item.module_item_id || 0, 10);
         const adminBtns = isAdmin ? `
           <span class="k-module-item__admin-actions">
-            <button class="k-btn-icon" title="Edit" data-action="edit-item" data-href="${LMS.escHtml(itemHref(item, 'edit'))}">
+            <button class="k-btn-icon" title="Edit settings" data-action="edit-item-settings" data-mid="${mid}">
+              ⚙️
+            </button>
+            <button class="k-btn-icon" title="Edit content" data-action="edit-item" data-href="${LMS.escHtml(itemHref(item, 'edit'))}">
               ✏️
             </button>
+            <button class="k-btn-icon k-btn-icon--danger" title="Remove from module" data-action="delete-item" data-mid="${mid}">
+              🗑️
+            </button>
           </span>` : '';
+
+        const dragHandle = isAdmin ? `<span class="k-drag-handle k-drag-handle--item" draggable="true" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span>` : '';
 
         const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
         const titleMarkup = `<span>${titleText}</span>`;
 
         return `
-      <div 
+      <div
+         data-module-item-id="${mid}"
          ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}${!locked ? ' k-module-item--interactive' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
          role="button"
          style="${!locked ? 'cursor:pointer;' : ''}">
+        ${dragHandle}
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
           <div class="k-module-item__title">
@@ -156,6 +308,9 @@
         });
     }
 
+    /* =========================================================
+       Render: Module Section
+       ========================================================= */
     function renderModuleHtml(mod, isExpanded) {
         const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
         const bodyId = `mod-items-${moduleId}`;
@@ -165,12 +320,182 @@
             ? items.map(renderModuleItem).join('')
             : '<div class="k-empty" style="padding:20px"><p class="k-empty__desc">No items in this module.</p></div>';
 
-        const headerHtml = `<div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}"><span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${isAdmin ? `<button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>` : ''}</div></div>`;
+        const dragHandle = isAdmin ? `<span class="k-drag-handle k-drag-handle--module" draggable="true" title="Drag to reorder module" aria-label="Drag to reorder module">⋮⋮</span>` : '';
+
+        const adminHeaderBtns = isAdmin ? `
+          <button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>
+          <button type="button" class="k-btn-icon" title="Edit module" data-action="edit-module" data-module-id="${moduleId}">✏️</button>
+          <button type="button" class="k-btn-icon k-btn-icon--danger" title="Delete module" data-action="delete-module" data-module-id="${moduleId}">🗑️</button>
+        ` : '';
+
+        const headerHtml = `<div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}">${dragHandle}<span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${adminHeaderBtns}</div></div>`;
         const itemsWrapHtml = `<div class="k-module__items" id="${bodyId}" role="list" aria-labelledby="${hdrId}" ${isExpanded ? '' : 'style="display:none"'}>${itemsHtml}</div>`;
 
         return `<section class="k-module${isExpanded ? ' is-open' : ''}" data-module-id="${moduleId}">${headerHtml}${itemsWrapHtml}</section>`;
     }
 
+    /* =========================================================
+       DRAG & DROP: Modules
+       ========================================================= */
+    let draggedModuleEl = null;
+
+    function setupModuleDragDrop(container) {
+        if (!isAdmin) return;
+        container.querySelectorAll('.k-drag-handle--module').forEach(handle => {
+            handle.addEventListener('dragstart', (e) => {
+                draggedModuleEl = handle.closest('.k-module');
+                if (!draggedModuleEl) return;
+                draggedModuleEl.classList.add('k-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', draggedModuleEl.dataset.moduleId);
+                // Stop the event from reaching the header's click toggle
+                e.stopPropagation();
+            });
+            handle.addEventListener('dragend', () => {
+                if (draggedModuleEl) draggedModuleEl.classList.remove('k-dragging');
+                container.querySelectorAll('.k-module').forEach(m => m.classList.remove('k-drag-over'));
+                draggedModuleEl = null;
+            });
+        });
+
+        container.querySelectorAll('.k-module').forEach(moduleEl => {
+            moduleEl.addEventListener('dragover', (e) => {
+                if (!draggedModuleEl || draggedModuleEl === moduleEl) return;
+                // Only accept module drags (not item drags)
+                if (!draggedModuleEl.classList.contains('k-module')) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                moduleEl.classList.add('k-drag-over');
+            });
+            moduleEl.addEventListener('dragleave', (e) => {
+                // Only remove if we're actually leaving the module element
+                if (!moduleEl.contains(e.relatedTarget)) {
+                    moduleEl.classList.remove('k-drag-over');
+                }
+            });
+            moduleEl.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                moduleEl.classList.remove('k-drag-over');
+                if (!draggedModuleEl || draggedModuleEl === moduleEl) return;
+                // Reorder in DOM
+                const rect = moduleEl.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY < midY) {
+                    container.insertBefore(draggedModuleEl, moduleEl);
+                } else {
+                    container.insertBefore(draggedModuleEl, moduleEl.nextSibling);
+                }
+                draggedModuleEl.classList.remove('k-dragging');
+                // Persist the new order
+                const newOrder = Array.from(container.querySelectorAll('.k-module[data-module-id]'))
+                    .map(el => parseInt(el.dataset.moduleId, 10))
+                    .filter(id => id > 0);
+                const res = await LMS.api('POST', './api/lms/sections/reorder.php', {
+                    course_id: COURSE_ID_INT,
+                    section_ids: newOrder,
+                });
+                if (res.ok) {
+                    LMS.toast('Modules reordered', 'success');
+                } else {
+                    LMS.toast(res.data?.error?.message || 'Reorder failed', 'error');
+                    await loadPage(); // revert
+                }
+            });
+        });
+    }
+
+    /* =========================================================
+       DRAG & DROP: Module Items (within a section)
+       ========================================================= */
+    let draggedItemEl = null;
+
+    function setupItemDragDrop(container) {
+        if (!isAdmin) return;
+        container.querySelectorAll('.k-drag-handle--item').forEach(handle => {
+            handle.addEventListener('dragstart', (e) => {
+                draggedItemEl = handle.closest('.k-module-item');
+                if (!draggedItemEl) return;
+                draggedItemEl.classList.add('k-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', draggedItemEl.dataset.moduleItemId || '');
+                e.stopPropagation();
+            });
+            handle.addEventListener('dragend', () => {
+                if (draggedItemEl) draggedItemEl.classList.remove('k-dragging');
+                container.querySelectorAll('.k-module-item').forEach(m => m.classList.remove('k-drag-over'));
+                draggedItemEl = null;
+            });
+        });
+
+        container.querySelectorAll('.k-module__items').forEach(itemsContainer => {
+            const sectionEl = itemsContainer.closest('.k-module[data-module-id]');
+            const sectionId = parseInt(sectionEl?.dataset.moduleId || '0', 10);
+
+            itemsContainer.addEventListener('dragover', (e) => {
+                if (!draggedItemEl) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const afterEl = getDragAfterElement(itemsContainer, e.clientY);
+                if (afterEl) {
+                    afterEl.classList.add('k-drag-over');
+                }
+            });
+            itemsContainer.addEventListener('dragleave', (e) => {
+                if (!itemsContainer.contains(e.relatedTarget)) {
+                    itemsContainer.querySelectorAll('.k-module-item').forEach(m => m.classList.remove('k-drag-over'));
+                }
+            });
+            itemsContainer.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                itemsContainer.querySelectorAll('.k-module-item').forEach(m => m.classList.remove('k-drag-over'));
+                if (!draggedItemEl) return;
+
+                const afterEl = getDragAfterElement(itemsContainer, e.clientY);
+                if (afterEl) {
+                    itemsContainer.insertBefore(draggedItemEl, afterEl);
+                } else {
+                    itemsContainer.appendChild(draggedItemEl);
+                }
+                draggedItemEl.classList.remove('k-dragging');
+
+                // Persist
+                const newOrder = Array.from(itemsContainer.querySelectorAll('.k-module-item[data-module-item-id]'))
+                    .map(el => parseInt(el.dataset.moduleItemId, 10))
+                    .filter(id => id > 0);
+                const res = await LMS.api('POST', './api/lms/module_items/reorder.php', {
+                    course_id: COURSE_ID_INT,
+                    section_id: sectionId,
+                    module_item_ids: newOrder,
+                });
+                if (res.ok) {
+                    LMS.toast('Items reordered', 'success');
+                } else {
+                    LMS.toast(res.data?.error?.message || 'Reorder failed', 'error');
+                    await loadPage();
+                }
+            });
+        });
+    }
+
+    function getDragAfterElement(container, y) {
+        const items = [...container.querySelectorAll('.k-module-item:not(.k-dragging)')];
+        let closest = null;
+        let closestOffset = Number.NEGATIVE_INFINITY;
+        items.forEach(child => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closestOffset) {
+                closestOffset = offset;
+                closest = child;
+            }
+        });
+        return closest;
+    }
+
+
+    /* =========================================================
+       Render: Full Module List
+       ========================================================= */
     function renderModules(modules) {
         const container = $('moduleList');
         if (!container) return;
@@ -181,8 +506,11 @@
             return renderModuleHtml(mod, isExpanded);
         }).join('');
 
+        // Expand/collapse toggle
         container.querySelectorAll('.k-module__header').forEach(header => {
-            const toggle = () => {
+            const toggle = (e) => {
+                // Don't toggle when clicking admin buttons or drag handles
+                if (e.target.closest('[data-action]') || e.target.closest('.k-drag-handle') || e.target.closest('.k-btn-icon') || e.target.closest('.k-admin-btn')) return;
                 const moduleEl = header.closest('[data-module-id]');
                 const moduleId = parseInt(moduleEl?.dataset.moduleId || '0', 10);
                 const expanded = header.getAttribute('aria-expanded') === 'true';
@@ -194,10 +522,11 @@
             };
             header.addEventListener('click', toggle);
             header.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); }
             });
         });
 
+        // Admin: Add Item, Edit Module, Delete Module
         if (isAdmin) {
             container.querySelectorAll('[data-action="open-add-item"]').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -205,8 +534,46 @@
                     openCreateModal('module_item', btn.dataset.moduleId || '');
                 });
             });
+
+            container.querySelectorAll('[data-action="edit-module"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const moduleId = parseInt(btn.dataset.moduleId || '0', 10);
+                    const mod = modulesData.find(m => parseInt(m.section_id ?? m.id ?? 0, 10) === moduleId);
+                    if (mod) openEditModuleModal(mod);
+                });
+            });
+
+            container.querySelectorAll('[data-action="delete-module"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const moduleId = parseInt(btn.dataset.moduleId || '0', 10);
+                    const mod = modulesData.find(m => parseInt(m.section_id ?? m.id ?? 0, 10) === moduleId);
+                    if (mod) confirmDeleteModule(mod);
+                });
+            });
+
+            // Item-level: edit settings, delete
+            container.querySelectorAll('[data-action="edit-item-settings"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const mid = parseInt(btn.dataset.mid || '0', 10);
+                    const item = findItemById(mid);
+                    if (item) openEditItemModal(item);
+                });
+            });
+
+            container.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const mid = parseInt(btn.dataset.mid || '0', 10);
+                    const item = findItemById(mid);
+                    if (item) confirmDeleteItem(item);
+                });
+            });
         }
 
+        // Click navigation for items
         container.addEventListener('click', (e) => {
             const editBtn = e.target.closest('[data-action="edit-item"]');
             if (editBtn) {
@@ -217,6 +584,9 @@
                 }
                 return;
             }
+            // Don't navigate when clicking other admin buttons
+            if (e.target.closest('[data-action]') || e.target.closest('.k-drag-handle')) return;
+
             const target = e.target.closest('[data-href], a');
             if (target && target.dataset.href) {
                 if (navigateToHref(target.dataset.href)) {
@@ -248,8 +618,25 @@
         });
 
         showEl('moduleList');
+
+        // Setup drag-and-drop after rendering
+        setupModuleDragDrop(container);
+        setupItemDragDrop(container);
     }
 
+    function findItemById(moduleItemId) {
+        for (const mod of modulesData) {
+            const items = Array.isArray(mod.items) ? mod.items : [];
+            for (const item of items) {
+                if (parseInt(item.module_item_id || 0, 10) === moduleItemId) return item;
+            }
+        }
+        return null;
+    }
+
+    /* =========================================================
+       CREATE MODAL (existing logic, kept intact)
+       ========================================================= */
     const MODAL_CONFIG = {
         module: {
             title: 'Create New Module',
@@ -350,6 +737,9 @@
         });
     }
 
+    /* =========================================================
+       LOAD PAGE
+       ========================================================= */
     async function loadPage() {
         const [courseRes, modulesRes] = await Promise.all([
             LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
@@ -378,6 +768,7 @@
         }
 
         modules.sort((a, b) => ((a.position || 0) - (b.position || 0)) || (parseInt(a.section_id || 0, 10) - parseInt(b.section_id || 0, 10)));
+        modulesData = modules; // cache for data lookups
 
         $('modulesSubtitle') && ($('modulesSubtitle').textContent = `${course.name || ''} · ${course.code || ''}`);
         const role = String(course.my_role || '').toLowerCase();
@@ -385,6 +776,18 @@
         if (role === 'manager' || role === 'admin') { $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden'); }
         $('kBreadCourse') && ($('kBreadCourse').textContent = course.name || 'Course');
         document.querySelectorAll('[data-course-href]').forEach(el => el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`);
+
+        // Progress
+        let totalItems = 0, completedItems = 0;
+        modules.forEach(m => {
+            totalItems += (m.total_items || 0);
+            completedItems += (m.completed_items || 0);
+        });
+        const pct = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        const fill = $('modulesProgressFill');
+        const txt = $('modulesProgressText');
+        if (fill) fill.style.width = pct + '%';
+        if (txt) txt.textContent = `${pct}% complete`;
 
         if (!modules.length) {
             showEl('modulesEmpty');
@@ -397,6 +800,9 @@
         renderModules(modules);
     }
 
+    /* =========================================================
+       INIT
+       ========================================================= */
     document.addEventListener('DOMContentLoaded', async () => {
         if (!Number.isInteger(COURSE_ID_INT) || COURSE_ID_INT <= 0) {
             hideEl('modulesSkeleton');

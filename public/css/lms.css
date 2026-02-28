@@ -489,6 +489,67 @@
     background: var(--primary-ghost);
 }
 
+.k-btn-icon--danger:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+[data-theme="dark"] .k-btn-icon--danger:hover {
+    background: #450a0a;
+    color: #fca5a5;
+}
+
+/* ── Drag Handles ──────────────────────────────────────────── */
+.k-drag-handle {
+    display: none;
+    /* hidden for non-admin; shown via .k-drag-handle presence in HTML only for admins */
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 28px;
+    font-size: 14px;
+    color: var(--muted);
+    cursor: grab;
+    flex-shrink: 0;
+    user-select: none;
+    border-radius: 4px;
+    transition: background .12s, color .12s;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.k-drag-handle {
+    display: inline-flex;
+}
+
+.k-drag-handle:hover {
+    background: var(--primary-ghost);
+    color: var(--text);
+}
+
+.k-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Drag states */
+.k-dragging {
+    opacity: 0.4;
+}
+
+.k-drag-over {
+    outline: 2px dashed var(--primary);
+    outline-offset: -2px;
+    border-radius: var(--radius);
+}
+
+.k-module.k-drag-over {
+    background: var(--primary-ghost);
+}
+
+.k-module-item.k-drag-over {
+    background: var(--primary-ghost);
+}
+
 /* ── Lesson Layout ──────────────────────────────────────────── */
 .k-lesson-layout {
     display: grid;
@@ -2918,32 +2979,33 @@ dialog.k-modal::backdrop {
 }
 
 .k-embed-16x9 {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--surface-subtle);
-  margin: 12px 0;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface-subtle);
+    margin: 12px 0;
 }
+
 .k-embed-16x9 iframe {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
 }
 
 @supports not (aspect-ratio: 1 / 1) {
-  .k-embed-16x9 {
-    height: auto;
-  }
+    .k-embed-16x9 {
+        height: auto;
+    }
 
-  .k-embed-16x9::before {
-    content: '';
-    display: block;
-    padding-top: 56.25%;
-  }
+    .k-embed-16x9::before {
+        content: '';
+        display: block;
+        padding-top: 56.25%;
+    }
 }
 
 
