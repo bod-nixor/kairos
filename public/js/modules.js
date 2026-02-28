@@ -760,6 +760,7 @@
         }
 
         hideEl('modulesEmpty');
+        showEl('moduleList');
         logModuleDebug(modules);
         renderModules(modules);
     }
