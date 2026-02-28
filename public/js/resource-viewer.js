@@ -55,10 +55,18 @@
         }
     }
 
+
+    function toOfficeViewerUrl(rawUrl) {
+        if (!isHttpUrl(rawUrl)) return '';
+        return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
+    }
+
     function inferType(resource) {
         if (resource.type) return String(resource.type).toLowerCase();
         const url = (resource.url || resource.file_url || '').toLowerCase();
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
+        if (url.match(/\.(ppt|pptx)($|\?)/)) return 'ppt';
+        if (url.includes('docs.google.com/presentation') || url.includes('slides')) return 'slides';
         if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
@@ -145,6 +153,27 @@
             iframe.setAttribute('allowfullscreen', 'true');
             videoWrap.appendChild(iframe);
             showEl('videoWrap');
+            return;
+        }
+
+        if (type === 'slides') {
+            const iframe = $('resourceIframe');
+            const src = rawUrl.includes('/embed') ? rawUrl : rawUrl.replace('/edit', '/preview');
+            if (!isHttpUrl(src)) { showEl('unsupportedWrap'); return; }
+            iframe.src = src;
+            showEl('iframeWrap');
+            return;
+        }
+
+        if (type === 'ppt') {
+            const officeUrl = toOfficeViewerUrl(rawUrl);
+            if (officeUrl) {
+                const iframe = $('resourceIframe');
+                iframe.src = officeUrl;
+                showEl('iframeWrap');
+                return;
+            }
+            showEl('unsupportedWrap');
             return;
         }
 

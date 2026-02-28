@@ -70,6 +70,35 @@ try {
     error_log('lms/activity.php: submissions query failed: ' . $e->getMessage());
 }
 
+
+// Published lessons/quizzes/assignments (course-level feed)
+try {
+    $stmt = $pdo->prepare(
+        'SELECT created_at, title, "lesson_published" AS event_type FROM lms_lessons WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
+'
+        . 'UNION ALL SELECT published_at AS created_at, title, "quiz_published" AS event_type FROM lms_assessments WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
+'
+        . 'UNION ALL SELECT published_at AS created_at, title, "assignment_published" AS event_type FROM lms_assignments WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
+'
+        . 'ORDER BY created_at DESC LIMIT :lim'
+    );
+    $stmt->bindValue(':cid', $courseId, PDO::PARAM_INT);
+    $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $label = (string)($row['event_type'] ?? 'update');
+        $title = (string)($row['title'] ?? 'Item');
+        $msg = $label === 'lesson_published' ? "Lesson published: $title" : ($label === 'quiz_published' ? "Quiz published: $title" : "Assignment published: $title");
+        $events[] = [
+            'type' => $label,
+            'message' => $msg,
+            'created_at' => $row['created_at'],
+        ];
+    }
+} catch (\PDOException $e) {
+    error_log('lms/activity.php: published items query failed: ' . $e->getMessage());
+}
+
 // Sort by date descending and limit
 usort($events, function ($a, $b) {
     return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');

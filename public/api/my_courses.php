@@ -34,7 +34,7 @@ foreach ($links as $lk) {
     }
 
     // Fetch courses from this table
-    $sql = "SELECT c.course_id, c.name
+    $sql = "SELECT c.course_id, c.name, COALESCE(c.code, '') AS code
             FROM courses c
             JOIN `{$lk['table']}` l
               ON l.`{$lk['course_col']}` = c.course_id
@@ -49,6 +49,7 @@ foreach ($links as $lk) {
         $coursesById[$cid] = [
           'course_id' => $cid,
           'name'      => (string)$row['name'],
+          'code'      => (string)($row['code'] ?? ''),
         ];
       }
     }
@@ -57,8 +58,20 @@ foreach ($links as $lk) {
   }
 }
 
-// Sort alphabetically by course name
+function course_sort_key(array $course): array {
+  $code = strtoupper(trim((string)($course['code'] ?? '')));
+  if ($code !== '' && preg_match('/^([A-Z]+)\s*([0-9]+)([A-Z]*)$/', $code, $m)) {
+    return ['group' => $m[1], 'num' => (int)$m[2], 'suffix' => $m[3], 'fallback' => strtoupper((string)$course['name'])];
+  }
+  return ['group' => 'ZZZ', 'num' => PHP_INT_MAX, 'suffix' => '', 'fallback' => strtoupper((string)($course['name'] ?? ''))];
+}
+
+// Sort by course code intelligently (CS101 before CS120), then name
 $courses = array_values($coursesById);
-usort($courses, static fn($a, $b) => strcmp($a['name'], $b['name']));
+usort($courses, static function ($a, $b): int {
+  $ka = course_sort_key((array)$a);
+  $kb = course_sort_key((array)$b);
+  return [$ka['group'], $ka['num'], $ka['suffix'], $ka['fallback']] <=> [$kb['group'], $kb['num'], $kb['suffix'], $kb['fallback']];
+});
 
 json_out($courses);

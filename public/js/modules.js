@@ -35,9 +35,9 @@
     function itemHref(item, mode = 'view') {
         const type = String(item.item_type || item.type || '').toLowerCase();
         const entityId = parseInt(item.entity_id || item.id || 0, 10);
-        if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}${mode === 'edit' ? '&mode=edit' : ''}`;
-        if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}${mode === 'edit' ? '&mode=edit' : ''}`;
-        if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}${mode === 'edit' ? '&mode=edit' : ''}`;
+        if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
+        if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
+        if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
         if (type === 'link') {
             const external = normalizeExternalUrl(item.url || item.resource_url || item.external_url || '');
             if (external) return external;
@@ -354,6 +354,8 @@
         }
 
         const course = courseRes.data?.data || courseRes.data || {};
+        LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+        LMS.nav.setActive('modules');
         const modules = modulesRes.data?.data || modulesRes.data || [];
 
         if (!expandedModules.size && Array.isArray(modules) && modules.length > 0) {
@@ -364,6 +366,9 @@
         modules.sort((a, b) => ((a.position || 0) - (b.position || 0)) || (parseInt(a.section_id || 0, 10) - parseInt(b.section_id || 0, 10)));
 
         $('modulesSubtitle') && ($('modulesSubtitle').textContent = `${course.name || ''} · ${course.code || ''}`);
+        const role = String(course.my_role || '').toLowerCase();
+        if (role === 'ta' || role === 'manager' || role === 'admin') { $('kNavGrading') && $('kNavGrading').classList.remove('hidden'); }
+        if (role === 'manager' || role === 'admin') { $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden'); }
         $('kBreadCourse') && ($('kBreadCourse').textContent = course.name || 'Course');
         document.querySelectorAll('[data-course-href]').forEach(el => el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`);
 

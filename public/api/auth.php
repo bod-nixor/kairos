@@ -46,6 +46,26 @@ function base64url_decode_str(string $s): string {
   return base64_decode($s);
 }
 
+
+function apply_pending_pre_enrollments(PDO $pdo, int $userId, string $email): void {
+  if ($userId <= 0 || $email === '') return;
+  $check = $pdo->prepare("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_pre_enroll' LIMIT 1");
+  $check->execute();
+  if (!$check->fetchColumn()) return;
+
+  $st = $pdo->prepare('SELECT course_id FROM course_pre_enroll WHERE LOWER(email)=LOWER(:email)');
+  $st->execute([':email'=>$email]);
+  $courseIds = $st->fetchAll(PDO::FETCH_COLUMN);
+  if (!$courseIds) return;
+
+  $enrollStmt = $pdo->prepare('INSERT INTO student_courses (course_id, user_id) VALUES (:cid, :uid) ON DUPLICATE KEY UPDATE user_id = user_id');
+  foreach ($courseIds as $cid) {
+    $cid = (int)$cid;
+    if ($cid <= 0) continue;
+    $enrollStmt->execute([':cid'=>$cid, ':uid'=>$userId]);
+  }
+}
+
 function verify_google_id_token(string $idToken, string $clientId): array {
   [$h64, $p64, $s64] = explode('.', $idToken);
   $header = json_decode(base64url_decode_str($h64), true);
@@ -162,6 +182,8 @@ try {
   $u = $pdo->prepare("SELECT user_id, email, name, picture_url, role_id FROM users WHERE email = :email LIMIT 1");
   $u->execute([':email'=>$email]);
   $user = $u->fetch();
+
+  apply_pending_pre_enrollments($pdo, (int)$user['user_id'], (string)$email);
 
   $_SESSION['user'] = $user;
 

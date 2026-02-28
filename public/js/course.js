@@ -11,6 +11,7 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const notifications = [];
+    const seenNotificationIds = new Set();
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -19,7 +20,7 @@
     function pushNotification(entry) {
         if (!entry || !entry.message) return;
         const eventId = String(entry.event_id || `${entry.type || 'event'}:${entry.created_at || Date.now()}`);
-        if (notifications.some(n => n.event_id === eventId)) return;
+        if (notifications.some(n => n.event_id === eventId) || seenNotificationIds.has(eventId)) return;
         notifications.unshift({
             event_id: eventId,
             type: entry.type || 'update',
@@ -59,11 +60,16 @@
                 $('kBellDot')?.classList.add('hidden');
             }
         });
-        $('kNotifClearBtn')?.addEventListener('click', () => {
+        $('kNotifClearBtn')?.addEventListener('click', async () => {
+            const ids = notifications.map((n) => n.event_id).filter(Boolean);
             notifications.length = 0;
+            ids.forEach((id) => seenNotificationIds.add(String(id)));
             renderNotifications();
             $('kBellDot')?.classList.add('hidden');
             panel.classList.add('hidden');
+            if (ids.length) {
+                await LMS.api('POST', './api/lms/notifications_seen.php', { course_id: Number(COURSE_ID), event_ids: ids });
+            }
         });
         document.addEventListener('click', (e) => {
             if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !bell.contains(e.target)) {
@@ -359,6 +365,15 @@
         });
         LmsWS.on('assignment.due_soon', (payload) => {
             pushCourseEventNotification(payload, 'assignment.due_soon', `Assignment due soon: ${payload.title || 'Check deadlines'}`);
+        });
+        LmsWS.on('assignment.submission.created', (payload) => {
+            pushCourseEventNotification(payload, 'assignment.submission.created', payload.message || 'A new assignment submission was added.');
+        });
+        LmsWS.on('quiz.attempt.submitted', (payload) => {
+            pushCourseEventNotification(payload, 'quiz.attempt.submitted', payload.message || 'A quiz attempt was submitted.');
+        });
+        LmsWS.on('lesson.published', (payload) => {
+            pushCourseEventNotification(payload, 'lesson.published', payload.message || 'A lesson was published.');
         });
     }
 

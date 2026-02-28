@@ -269,7 +269,7 @@
             activeIdx = -1;
             return;
         }
-        const firstVisibleId = visibleSubmissionIds[0];
+        const firstVisibleId = visibleSubmissionIds[0] || Number(submissions[0]?.id || 0);
         const firstIdx = submissions.findIndex((entry) => Number(entry.id) === Number(firstVisibleId));
         if (firstIdx >= 0) {
             await selectSubmission(firstIdx);
@@ -312,6 +312,10 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
+            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+            LMS.nav.setActive('grading');
+            const role = String(course.my_role || '').toLowerCase();
+            if (role === 'manager' || role === 'admin') { $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden'); }
         }
 
         // Assignment selector (manager sees all; TA sees assigned only)

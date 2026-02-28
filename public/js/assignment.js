@@ -424,6 +424,8 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
             return;
         }
         if (!assignRes.ok) {
+            console.error('Failed to load assignment', assignRes);
+            LMS.toast(assignRes.error || 'Failed to load assignment', 'error');
             showEl('assignError');
             $('assignRetryBtn') && $('assignRetryBtn').addEventListener('click', loadPage, { once: true });
             return;

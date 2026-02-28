@@ -17,8 +17,13 @@ $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && in_array
 
 try {
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status
-        FROM lms_assignments WHERE assignment_id = :assignment_id AND deleted_at IS NULL LIMIT 1');
+    $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lms_assignments'");
+    $colCheck->execute();
+    $cols = array_flip(array_map('strtolower', $colCheck->fetchAll(PDO::FETCH_COLUMN)));
+    $allowedFileExpr = isset($cols['allowed_file_extensions']) ? 'allowed_file_extensions' : "'' AS allowed_file_extensions";
+    $maxFileExpr = isset($cols['max_file_mb']) ? 'max_file_mb' : '50 AS max_file_mb';
+    $stmt = $pdo->prepare("SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, {$allowedFileExpr}, {$maxFileExpr}, status
+        FROM lms_assignments WHERE assignment_id = :assignment_id AND deleted_at IS NULL LIMIT 1");
     $stmt->execute([':assignment_id' => $assignmentId]);
     $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -39,6 +44,10 @@ try {
         lms_error('forbidden', 'Assignment is not published', 403);
     }
 
+    $courseNameStmt = $pdo->prepare('SELECT name FROM courses WHERE course_id = :cid LIMIT 1');
+    $courseNameStmt->execute([':cid' => (int)$assignment['course_id']]);
+    $courseName = (string)($courseNameStmt->fetchColumn() ?: '');
+
     $payload = [
         'assignment_id' => (int)$assignment['assignment_id'],
         'course_id' => (int)$assignment['course_id'],
@@ -51,6 +60,7 @@ try {
         'allowed_file_extensions' => (string)($assignment['allowed_file_extensions'] ?? ''),
         'max_file_mb' => max(1, (int)($assignment['max_file_mb'] ?? 50)),
         'status' => (string)$assignment['status'],
+        'course_name' => $courseName,
         'published_flag' => (int)$module['published_flag'],
         'required_flag' => (int)$module['required_flag'],
     ];
