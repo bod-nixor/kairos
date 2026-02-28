@@ -7,6 +7,7 @@
   const courseId = params.get('course_id') || '';
   const lessonId = params.get('lesson_id') || '';
   const debugMode = params.get('debug') === '1';
+  const urlMode = params.get('mode') || 'view';
 
   const state = {
     lesson: null,
@@ -108,6 +109,11 @@
     const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;
+
+    // Fix all Drive iframe srcs within rendered lesson content to use /preview
+    document.querySelectorAll('#lessonContent iframe[src], #lessonEditor iframe[src]').forEach((iframe) => {
+      iframe.src = LMS.toDrivePreviewUrl(iframe.src);
+    });
 
     const isPublished = Number(lesson.published_flag || 0) === 1;
     setStatusPill(isPublished);
@@ -414,6 +420,16 @@
     const roles = session.caps?.roles || {};
     state.canEdit = !!(roles.admin || roles.manager);
 
+    // If mode=edit but not admin/manager, deny access
+    if (urlMode === 'edit' && !state.canEdit) {
+      const denied = document.getElementById('lessonAccessDenied');
+      if (denied) {
+        LMS.renderAccessDenied(denied, 'You do not have permission to edit this lesson.', `./modules.html?course_id=${encodeURIComponent(courseId)}`);
+        denied.classList.remove('hidden');
+      }
+      return;
+    }
+
     $('editModeBtn')?.addEventListener('click', () => applyMode(true));
     $('viewModeBtn')?.addEventListener('click', () => applyMode(false));
     $('saveDraftBtn')?.addEventListener('click', saveDraft);
@@ -424,5 +440,10 @@
 
     wireToolbar();
     await loadLesson();
+
+    // Auto-enter edit mode if URL says mode=edit and user has permission
+    if (urlMode === 'edit' && state.canEdit) {
+      applyMode(true);
+    }
   });
 })();

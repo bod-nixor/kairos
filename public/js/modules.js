@@ -35,15 +35,29 @@
     function itemHref(item, mode = 'view') {
         const type = String(item.item_type || item.type || '').toLowerCase();
         const entityId = parseInt(item.entity_id || item.id || 0, 10);
+        const external = normalizeExternalUrl(item.url || item.resource_url || item.external_url || '');
+
+        const resourceViewerHref = () => {
+            if (entityId > 0) {
+                return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
+            }
+            if (external) return external;
+            return `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}&debug=1`;
+        };
+
         if (type === 'assignment') return `./assignment.html?course_id=${encodeURIComponent(COURSE_ID)}&assignment_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
         if (type === 'quiz') return `./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
         if (type === 'lesson') return `./lesson.html?course_id=${encodeURIComponent(COURSE_ID)}&lesson_id=${entityId}&mode=${mode === 'edit' ? 'edit' : 'view'}`;
         if (type === 'link') {
-            const external = normalizeExternalUrl(item.url || item.resource_url || item.external_url || '');
+            // Edit mode for links should go to the resource editor, not the external URL
+            if (mode === 'edit') {
+                return resourceViewerHref();
+            }
             if (external) return external;
         }
-        if (type === 'file' || type === 'video' || type === 'resource' || type === 'link') return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
-        if (entityId > 0) return `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${entityId}`;
+        if (type === 'file' || type === 'video' || type === 'resource' || type === 'link') return resourceViewerHref();
+        if (entityId > 0) return resourceViewerHref();
+        if (external) return external;
         return `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}&debug=1`;
     }
 

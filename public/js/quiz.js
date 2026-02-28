@@ -11,6 +11,7 @@
     const COURSE_ID = params.get('course_id') || '';
     const QUIZ_ID = params.get('quiz_id') || '';
     const DEBUG_MODE = params.get('debug') === '1';
+    const URL_MODE = params.get('mode') || 'view';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -677,6 +678,14 @@
         LMS.nav.updateUserBar(session.me);
         const roles = session.caps?.roles || {};
         canManage = !!(roles.admin || roles.manager);
+
+        // Enforce RBAC: students cannot access edit mode
+        if (URL_MODE === 'edit' && !canManage) {
+            showPanel('quizAccessDenied');
+            LMS.renderAccessDenied($('quizAccessDenied'), 'You do not have permission to edit this quiz.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+            return;
+        }
+
         await loadPage();
     });
 

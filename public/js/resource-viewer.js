@@ -6,6 +6,11 @@
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const RESOURCE_ID = params.get('resource_id') || params.get('id') || '';
+    const URL_MODE = params.get('mode') || 'view';
+
+    let isAdmin = false;
+    let currentResource = null;
+    let isSavingResource = false;
 
     const TYPE_ICONS = {
         pdf: '📄', video: '🎬', link: '🔗', text: '📝', page: '📝',
@@ -39,26 +44,13 @@
         linkEl.removeAttribute('rel');
     }
 
+    // Use shared Drive URL helpers from lms-core.js
     function toDrivePreviewUrl(inputUrl) {
-        if (!inputUrl) return '';
-        try {
-            const parsed = new URL(inputUrl);
-            const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
-            if (host !== 'drive.google.com') return inputUrl;
-            const pathId = parsed.pathname.match(/\/file\/d\/([^/]+)/i)?.[1] || '';
-            const queryId = parsed.searchParams.get('id') || '';
-            const fileId = pathId || queryId;
-            if (!fileId) return inputUrl;
-            return `https://drive.google.com/file/d/${fileId}/preview`;
-        } catch (_) {
-            return inputUrl;
-        }
+        return LMS.toDrivePreviewUrl(inputUrl);
     }
 
-
     function toOfficeViewerUrl(rawUrl) {
-        if (!isHttpUrl(rawUrl)) return '';
-        return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
+        return LMS.toOfficeViewerUrl(rawUrl);
     }
 
 
@@ -104,6 +96,7 @@
         }
 
         const resource = res.data?.data || res.data || {};
+        currentResource = resource;
         const type = inferType(resource);
         const rawUrl = resource.url || resource.drive_preview_url || resource.file_url || '';
         const drivePreviewUrl = toDrivePreviewUrl(rawUrl);
@@ -165,7 +158,7 @@
 
         if (type === 'slides') {
             const iframe = $('resourceIframe');
-            const src = rawUrl.includes('/embed') ? rawUrl : rawUrl.replace('/edit', '/preview');
+            const src = toDrivePreviewUrl(rawUrl);
             if (!isHttpUrl(src)) { showEl('unsupportedWrap'); return; }
             hardenPreviewIframe(iframe);
             if (!iframe) {
@@ -195,7 +188,7 @@
         }
 
         if (type === 'pdf' || type === 'file' || type === 'embed') {
-            const iframeSrc = type === 'pdf' ? drivePreviewUrl : rawUrl;
+            const iframeSrc = toDrivePreviewUrl(rawUrl);
             if (!isHttpUrl(iframeSrc)) {
                 showEl('unsupportedWrap');
                 return;
@@ -253,10 +246,90 @@
         showEl('textWrap');
     }
 
+    function renderEditPanel(resource) {
+        const wrap = $('resourceEditPanel');
+        if (!wrap) return;
+        wrap.classList.remove('hidden');
+        // Normalize published value to handle string '0', numeric 0, and false as Draft
+        const normalizedPublished = (resource.published === 1 || resource.published === '1') ? 1 : 0;
+        wrap.innerHTML = `
+          <div class="k-card" style="padding:var(--space-5);margin-bottom:var(--space-4)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-4)">
+              <span class="k-badge k-badge--edit">Editing</span>
+              <h3 style="margin:0;font-size:var(--font-lg)">Edit Resource</h3>
+            </div>
+            <div class="k-form-field" style="margin-bottom:var(--space-3)">
+              <label for="editResTitle">Title</label>
+              <input class="k-input" id="editResTitle" value="${LMS.escHtml(resource.title || '')}" />
+            </div>
+            <div class="k-form-field" style="margin-bottom:var(--space-3)">
+              <label for="editResUrl">URL / Drive Link</label>
+              <input class="k-input" id="editResUrl" value="${LMS.escHtml(resource.url || resource.drive_preview_url || resource.file_url || '')}" placeholder="https://..." />
+            </div>
+            <div class="k-form-field" style="margin-bottom:var(--space-4)">
+              <label for="editResPublished">Status</label>
+              <select class="k-select" id="editResPublished">
+                <option value="1" ${normalizedPublished === 1 ? 'selected' : ''}>Published</option>
+                <option value="0" ${normalizedPublished === 0 ? 'selected' : ''}>Draft</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" id="saveResourceBtn">Save Changes</button>
+              <a class="btn btn-ghost btn-sm" href="./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}&mode=view">Cancel</a>
+            </div>
+          </div>`;
+        $('saveResourceBtn')?.addEventListener('click', saveResource);
+    }
+
+    async function saveResource() {
+        if (isSavingResource) return;
+        const title = $('editResTitle')?.value?.trim() || '';
+        const url = $('editResUrl')?.value?.trim() || '';
+        const published = $('editResPublished')?.value === '1' ? 1 : 0;
+        if (!title) { LMS.toast('Title is required.', 'warning'); return; }
+
+        isSavingResource = true;
+        try {
+            const res = await LMS.api('POST', './api/lms/resources/update.php', {
+                course_id: Number(COURSE_ID),
+                resource_id: Number(RESOURCE_ID),
+                title,
+                url,
+                published,
+            });
+            if (!res.ok) {
+                LMS.toast(res.data?.error?.message || 'Failed to save resource.', 'error');
+                return;
+            }
+            LMS.toast('Resource updated.', 'success');
+            window.location.href = `./resource-viewer.html?course_id=${encodeURIComponent(COURSE_ID)}&resource_id=${encodeURIComponent(RESOURCE_ID)}&mode=view`;
+        } catch (_) {
+            LMS.toast('Failed to save resource.', 'error');
+        } finally {
+            isSavingResource = false;
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        const roles = session.caps?.roles || {};
+        isAdmin = !!(roles.admin || roles.manager);
+
+        // If mode=edit but not admin, deny access
+        if (URL_MODE === 'edit' && !isAdmin) {
+            hideEl('resourceSkeleton');
+            LMS.renderAccessDenied($('resourceAccessDenied'), 'You do not have permission to edit this resource.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+            showEl('resourceAccessDenied');
+            return;
+        }
+
         await loadPage();
+
+        // Show edit panel if mode=edit and admin
+        if (URL_MODE === 'edit' && isAdmin && currentResource) {
+            renderEditPanel(currentResource);
+        }
     });
 })();

@@ -449,6 +449,18 @@
     border-color: #7f1d1d;
 }
 
+.k-badge--edit {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border: 1px solid #93c5fd;
+}
+
+[data-theme="dark"] .k-badge--edit {
+    background: #1e3a5f;
+    color: #93c5fd;
+    border-color: #1e40af;
+}
+
 .k-module-item--draft {
     opacity: .7;
 }
@@ -1356,8 +1368,8 @@
 .k-grading-layout {
     display: grid;
     grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    /* Fill remaining viewport below the sticky topbar */
     height: calc(100vh - var(--k-topbar-height));
-    margin: calc(-1 * var(--space-8)) calc(-1 * var(--k-content-gutter));
     overflow: hidden;
 }
 
@@ -1826,7 +1838,6 @@
     .k-grading-layout {
         grid-template-columns: 1fr;
         height: auto;
-        margin: 0;
     }
 
     .k-grading-queue {
