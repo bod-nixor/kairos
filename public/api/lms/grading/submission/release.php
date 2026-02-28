@@ -33,10 +33,6 @@ if (!$g) {
     lms_error('not_found', 'Draft grade not found', 404);
 }
 
-if ((string)$g['status'] === 'released') {
-    lms_error('conflict', 'Grade is already released', 409);
-}
-
 // Enforce course-scoped access (prevents IDOR)
 lms_course_access($user, (int)$g['course_id']);
 
@@ -60,6 +56,18 @@ if ($user['role_name'] === 'ta') {
 
 $pdo->beginTransaction();
 try {
+    // Re-check status under row lock to prevent race condition
+    $statusStmt = $pdo->prepare(
+        'SELECT status FROM lms_grades WHERE grade_id = :id LIMIT 1 FOR UPDATE'
+    );
+    $statusStmt->execute([':id' => (int)$g['grade_id']]);
+    $statusRow = $statusStmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($statusRow && (string)$statusRow['status'] === 'released') {
+        $pdo->rollBack();
+        lms_error('conflict', 'Grade is already released', 409);
+    }
+    
     $pdo->prepare(
         'UPDATE lms_grades
          SET status = \'released\',

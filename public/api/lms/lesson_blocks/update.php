@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
-lms_require_roles(['manager', 'admin']);
+$user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $id = (int)($in['block_id'] ?? 0);
 if ($id <= 0) {

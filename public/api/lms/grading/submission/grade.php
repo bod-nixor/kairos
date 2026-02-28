@@ -19,33 +19,16 @@ if ($submissionId <= 0) {
     lms_error('validation_error', 'submission_id required', 422);
 }
 
-// Support both direct score and rubric-based grades from frontend
-if (isset($in['score'])) {
-    // Direct score mode
-    $score = (float)$in['score'];
-    $max = (float)($in['max_score'] ?? 100);
-} elseif (isset($in['grades']) && is_array($in['grades'])) {
-    // Rubric-based: sum criterion scores from the frontend grades object
-    $score = 0.0;
-    foreach ($in['grades'] as $criterionScore) {
-        $score += (float)$criterionScore;
-    }
-    $max = (float)($in['max_score'] ?? 100);
-} else {
-    $score = 0.0;
-    $max = 100.0;
+// Early validation: payload must provide either score or grades
+$hasScore = isset($in['score']);
+$hasGrades = isset($in['grades']) && is_array($in['grades']);
+if (!$hasScore && !$hasGrades) {
+    lms_error('validation_error', 'Missing required grade data: provide either "score" or "grades"', 422);
 }
-
-if ($max <= 0) {
-    lms_error('validation_error', 'max_score must be greater than 0', 422);
-}
-if ($score < 0 || $score > $max) {
-    lms_error('validation_error', 'score must be between 0 and max_score', 422);
-}
-
-$release = !empty($in['release']);
 
 $pdo = db();
+
+// Fetch submission + course context
 $sub = $pdo->prepare('SELECT submission_id, assignment_id, course_id, student_user_id FROM lms_submissions WHERE submission_id=:id');
 $sub->execute([':id' => $submissionId]);
 $s = $sub->fetch();
@@ -56,6 +39,11 @@ if (!$s) {
 // Enforce course-scoped access
 lms_course_access($user, (int)$s['course_id']);
 
+// Feature-gate the grading workflow
+if (!lms_feature_enabled('lms_expansion_grading_modes', (int)$s['course_id'])) {
+    lms_error('not_found', 'Grading via API is not enabled for this course', 404);
+}
+
 if ($user['role_name'] === 'ta') {
     $chk = $pdo->prepare('SELECT 1 FROM lms_assignment_tas WHERE assignment_id=:a AND ta_user_id=:u');
     $chk->execute([':a' => (int)$s['assignment_id'], ':u' => (int)$user['user_id']]);
@@ -63,6 +51,36 @@ if ($user['role_name'] === 'ta') {
         lms_error('forbidden', 'TA not assigned', 403);
     }
 }
+
+// Resolve authoritative max_points from assignment BEFORE payload processing
+$maxStmt = $pdo->prepare('SELECT max_points FROM lms_assignments WHERE assignment_id = :a LIMIT 1');
+$maxStmt->execute([':a' => (int)$s['assignment_id']]);
+$authMaxPoints = $maxStmt->fetchColumn();
+if ($authMaxPoints === false || (float)$authMaxPoints <= 0) {
+    lms_error('validation_error', 'Assignment has no valid max_points', 422);
+}
+$authMax = (float)$authMaxPoints;
+
+// Now resolve payload scores
+if ($hasScore) {
+    // Direct score mode
+    $score = (float)$in['score'];
+    $max = $authMax;
+} else {
+    // Rubric-based: sum criterion scores from the frontend grades object
+    $score = 0.0;
+    foreach ($in['grades'] as $criterionScore) {
+        $score += (float)$criterionScore;
+    }
+    $max = $authMax;
+}
+
+// Validate resolved scores
+if ($score < 0 || $score > $max) {
+    lms_error('validation_error', "score must be between 0 and {$max}", 422);
+}
+
+$release = !empty($in['release']);
 
 $gradeStatus = $release ? 'released' : 'draft';
 
@@ -79,22 +97,6 @@ $params = [
 
 $pdo->beginTransaction();
 try {
-    // Look up max_score from assignment definition if not provided
-    if (!isset($in['max_score'])) {
-        $maxStmt = $pdo->prepare('SELECT max_points FROM lms_assignments WHERE assignment_id = :a LIMIT 1');
-        $maxStmt->execute([':a' => (int)$s['assignment_id']]);
-        $assignMax = $maxStmt->fetchColumn();
-        if ($assignMax !== false && (float)$assignMax > 0) {
-            $max = (float)$assignMax;
-            $params[':max'] = $max;
-            // Re-validate score against actual max
-            if ($score > $max) {
-                $score = $max;
-                $params[':score'] = $score;
-            }
-        }
-    }
-
     $existingStmt = $pdo->prepare(
         'SELECT grade_id, status FROM lms_grades
          WHERE course_id=:c AND student_user_id=:stu AND assignment_id=:a AND submission_id=:s
@@ -107,9 +109,20 @@ try {
         ':s' => $params[':s'],
     ]);
     $existing = $existingStmt->fetch();
-    if ($existing && (string)$existing['status'] === 'released' && !$release) {
+    
+    // Check if re-releasing (released → released)
+    $isOverride = false;
+    if ($existing && (string)$existing['status'] === 'released' && $release) {
+        // Only manager+ can override released grades
+        if (!in_array($user['role_name'], ['manager', 'admin'])) {
+            $pdo->rollBack();
+            lms_error('forbidden', 'Only managers can override released grades', 403);
+        }
+        // Flag as override audit action
+        $isOverride = true;
+    } elseif ($existing && (string)$existing['status'] === 'released' && !$release) {
         $pdo->rollBack();
-        lms_error('conflict', 'Released grades cannot be modified without override', 409);
+        lms_error('conflict', 'Released grades cannot be modified without release flag', 409);
     }
 
     // Upsert grade
@@ -142,7 +155,7 @@ try {
     ]);
 
     // Immutable audit record (action must match ENUM: draft, override, release)
-    $auditAction = $release ? 'release' : 'draft';
+    $auditAction = $isOverride ? 'override' : ($release ? 'release' : 'draft');
     $pdo->prepare(
         'INSERT INTO lms_grade_audit (submission_id, graded_by, score, max_score, feedback, action, created_at)
          VALUES (:submission_id, :graded_by, :score, :max_score, :feedback, :action, NOW())'

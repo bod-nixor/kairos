@@ -29,6 +29,17 @@ lms_course_access($user, $courseId);
 $userId = (int)$user['user_id'];
 $pdo = db();
 
+// Validate that all announcement IDs belong to this course
+$placeholders = implode(',', array_fill(0, count($ids), '?'));
+$validateStmt = $pdo->prepare("SELECT COUNT(*) AS cnt FROM lms_announcements WHERE id IN ($placeholders) AND course_id = ?");
+$validateIds = array_map('intval', $ids);
+$validateIds[] = $courseId;
+$validateStmt->execute($validateIds);
+$result = $validateStmt->fetch(PDO::FETCH_ASSOC);
+if ((int)$result['cnt'] !== count($ids)) {
+    lms_error('validation_error', 'One or more announcement IDs do not belong to this course', 422);
+}
+
 // Mark each announcement id as seen using the notification reads table
 $sql = 'INSERT IGNORE INTO lms_notification_reads (user_id, course_id, event_id, seen_at)
         VALUES (:user_id, :course_id, :event_id, CURRENT_TIMESTAMP)';

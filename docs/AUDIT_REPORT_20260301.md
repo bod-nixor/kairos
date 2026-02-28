@@ -58,12 +58,14 @@ Systematic audit of 50+ backend endpoints, 12 frontend JS controllers, 15 SQL mi
 ## Files Changed
 
 ### New Files
+
 | File | Purpose |
 |------|---------|
 | `public/api/lms/announcements_read.php` | Mark announcements as read (P0-1) |
 | `sql/20260301_0900_add_published_at_columns.sql` | Add `published_at` to assessments + assignments (P2-7) |
 
 ### Modified Files (15)
+
 | File | Changes |
 |------|---------|
 | `public/api/lms/activity.php` | Fixed non-existent column references in UNION query |
@@ -86,7 +88,7 @@ Systematic audit of 50+ backend endpoints, 12 frontend JS controllers, 15 SQL mi
 
 ## Recommended Commit Messages
 
-```
+```text
 fix(grading): fix broken grade save — correct audit enum, payload mismatch, and release flow
 
 - grade_submission.php: accept {grades, score, max_score, release} from frontend
@@ -97,7 +99,7 @@ fix(grading): fix broken grade save — correct audit enum, payload mismatch, an
 - release.php: add course RBAC, TA check, audit record
 ```
 
-```
+```text
 fix(rbac): add missing lms_course_access() to 8 endpoints
 
 Prevents cross-course IDOR attacks where a manager/TA of one course
@@ -110,14 +112,14 @@ could read/write data in another course:
 - lesson_blocks/create.php, update.php, delete.php
 ```
 
-```
+```text
 fix(api): create missing announcements_read.php endpoint
 
 announcements.js called POST /api/lms/announcements_read.php to mark
 announcements as read, but the file didn't exist → 404.
 ```
 
-```
+```text
 fix(api): fix activity feed query referencing non-existent columns
 
 - lms_lessons has no 'status' column — remove filter
@@ -125,14 +127,14 @@ fix(api): fix activity feed query referencing non-existent columns
 - Add migration for published_at columns (future accuracy)
 ```
 
-```
+```text
 fix(api): courses/list.php include staff users, not just enrolled students
 
 Admins/managers see all active courses. TAs see courses they're
 assigned to via course_staff in addition to student_courses.
 ```
 
-```
+```text
 fix(js): announcements.js response format unwrapping
 
 res.data contains {ok, data: [...]} not the raw array.

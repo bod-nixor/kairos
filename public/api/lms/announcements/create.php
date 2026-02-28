@@ -20,6 +20,31 @@ if ($courseId <= 0 || empty($in['title']) || empty($in['body'])) {
 lms_course_access($user, $courseId);
 
 $pdo = db();
-$pdo->prepare('INSERT INTO lms_announcements (course_id,title,body,created_by) VALUES (:c,:t,:b,:u)')->execute([':c'=>$courseId,':t'=>$in['title'],':b'=>$in['body'],':u'=>(int)$user['user_id']]); $id=(int)$pdo->lastInsertId();
-$event=['event_name'=>'announcement.created','event_id'=>lms_uuid_v4(),'occurred_at'=>gmdate('c'),'actor_id'=>(int)$user['user_id'],'entity_type'=>'announcement','entity_id'=>$id,'course_id'=>$courseId,'title'=>$in['title']]; lms_emit_event($pdo,'announcement.created',$event);
-lms_ok(['announcement_id'=>$id]);
+
+// Insert announcement
+$stmt = $pdo->prepare(
+    'INSERT INTO lms_announcements (course_id, title, body, created_by)
+     VALUES (:c, :t, :b, :u)'
+);
+$stmt->execute([
+    ':c' => $courseId,
+    ':t' => $in['title'],
+    ':b' => $in['body'],
+    ':u' => (int)$user['user_id'],
+]);
+$id = (int)$pdo->lastInsertId();
+
+// Emit event for realtime subscribers
+$event = [
+    'event_name' => 'announcement.created',
+    'event_id' => lms_uuid_v4(),
+    'occurred_at' => gmdate('c'),
+    'actor_id' => (int)$user['user_id'],
+    'entity_type' => 'announcement',
+    'entity_id' => $id,
+    'course_id' => $courseId,
+    'title' => $in['title'],
+];
+lms_emit_event($pdo, 'announcement.created', $event);
+
+lms_ok(['announcement_id' => $id]);

@@ -77,6 +77,14 @@
     }
 
     // ── Rubric form ────────────────────────────────────────────
+    function computeRubricTotal() {
+        let sum = 0;
+        document.querySelectorAll('.k-rubric-row__input').forEach(inp => {
+            sum += Number(inp.value) || 0;
+        });
+        return sum;
+    }
+
     function renderRubricForm(rubric, existingGrades) {
         const container = $('rubricRows');
         if (!container) return;
@@ -107,9 +115,7 @@
     }
 
     function recalcTotal() {
-        const inputs = document.querySelectorAll('.k-rubric-row__input');
-        let sum = 0;
-        inputs.forEach(inp => { sum += Number(inp.value) || 0; });
+        const sum = computeRubricTotal();
         $('totalScore') && ($('totalScore').textContent = sum.toFixed(1).replace(/\.0$/, ''));
     }
 
@@ -220,11 +226,8 @@
         if (!sub) return;
         const grades = collectGrades();
 
-        // Compute total score from rubric inputs (same as recalcTotal display)
-        let score = 0;
-        document.querySelectorAll('.k-rubric-row__input').forEach(inp => {
-            score += Number(inp.value) || 0;
-        });
+        // Compute total score from rubric inputs
+        const score = computeRubricTotal();
         // Read max_score from display (set by renderRubricForm)
         const maxEl = $('totalMax');
         const maxText = maxEl ? maxEl.textContent.replace(/[^0-9.]/g, '') : '';
