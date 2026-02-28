@@ -106,70 +106,84 @@
         <button id="backToCourses" class="btn btn-link">← Back</button>
       </div>
 
-      <section class="card" id="roomsPanel">
-        <div class="section-head">
-          <h3 class="title-reset">Rooms</h3>
-          <div class="spacer"></div>
-          <button id="addRoomBtn" class="btn btn-primary">+ New room</button>
-        </div>
-        <div id="roomsList" class="rooms-list"></div>
-      </section>
-
-      <section class="card" id="enrollmentPanel">
-        <div class="section-head">
-          <h3 class="title-reset">Enrollment</h3>
-        </div>
-        <div class="enroll-search">
-          <input type="search" id="userSearchInput" placeholder="Search by name or email" />
-          <button id="searchUsersBtn" class="btn btn-primary">Search</button>
-        </div>
-        <div class="enrollment-columns">
-          <div>
-            <h4>Results</h4>
-            <div id="userSearchResults" class="list-stack"></div>
+      <div id="managerCardsContainer" class="manager-cards">
+        <section class="card manager-section" id="courseSettingsPanel" data-section="settings">
+          <div class="section-head draggable-head">
+            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+            <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="courseSettingsBody"
+              aria-label="Toggle section">
+              <span class="chevron">▼</span>
+            </button>
+            <h3 class="title-reset" style="flex:1; cursor:pointer; user-select:none;">Course settings</h3>
           </div>
-          <div>
-            <h4>Current roster</h4>
-            <div id="courseRoster" class="list-stack"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card" id="courseSettingsPanel">
-        <div class="section-head">
-          <h3 class="title-reset">Course settings</h3>
-        </div>
-        <div class="grid-two align-end">
-          <div>
-            <label class="muted">Visibility</label>
-            <select id="courseVisibilitySelect">
-              <option value="public">Public</option>
-              <option value="restricted">Restricted</option>
-            </select>
-          </div>
-          <div>
-            <button id="saveCourseVisibilityBtn" class="btn btn-primary" type="button">Save visibility</button>
-          </div>
-        </div>
-        <div class="enrollment-columns" style="margin-top:12px;">
-          <div>
-            <h4>Allowlist emails</h4>
-            <div class="enroll-search">
-              <input type="email" id="allowlistEmailInput" placeholder="name@example.com" />
-              <button id="addAllowlistBtn" class="btn btn-secondary" type="button">Add</button>
+          <div class="section-body" id="courseSettingsBody">
+            <div class="grid-two align-end">
+              <div>
+                <label class="muted">Visibility</label>
+                <select id="courseVisibilitySelect">
+                  <option value="public">Public</option>
+                  <option value="restricted">Restricted</option>
+                </select>
+              </div>
+              <div>
+                <button id="saveCourseVisibilityBtn" class="btn btn-primary" type="button">Save visibility</button>
+              </div>
             </div>
-            <div id="allowlistEntries" class="list-stack"></div>
-          </div>
-          <div>
-            <h4>Pre-enroll emails</h4>
-            <div class="enroll-search">
-              <input type="email" id="preenrollEmailInput" placeholder="name@example.com" />
-              <button id="addPreenrollBtn" class="btn btn-secondary" type="button">Add</button>
+            <div class="enrollment-columns" style="margin-top:12px;">
+              <div>
+                <h4>Pre-enroll emails</h4>
+                <div class="enroll-search">
+                  <input type="email" id="preenrollEmailInput" placeholder="name@example.com" />
+                  <button id="addPreenrollBtn" class="btn btn-secondary" type="button">Add</button>
+                </div>
+                <div id="preenrollEntries" class="list-stack"></div>
+              </div>
             </div>
-            <div id="preenrollEntries" class="list-stack"></div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section class="card manager-section" id="roomsPanel" data-section="rooms">
+          <div class="section-head draggable-head">
+            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+            <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="roomsBody"
+              aria-label="Toggle section">
+              <span class="chevron">▼</span>
+            </button>
+            <h3 class="title-reset" style="flex:1; cursor:pointer; user-select:none;">Rooms</h3>
+            <button id="addRoomBtn" class="btn btn-primary">+ New room</button>
+          </div>
+          <div class="section-body" id="roomsBody">
+            <div id="roomsList" class="rooms-list"></div>
+          </div>
+        </section>
+
+        <section class="card manager-section" id="enrollmentPanel" data-section="enrollment">
+          <div class="section-head draggable-head">
+            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+            <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="enrollmentBody"
+              aria-label="Toggle section">
+              <span class="chevron">▼</span>
+            </button>
+            <h3 class="title-reset" style="flex:1; cursor:pointer; user-select:none;">Enrollment</h3>
+          </div>
+          <div class="section-body" id="enrollmentBody">
+            <div class="enroll-search">
+              <input type="search" id="userSearchInput" placeholder="Search by name or email" />
+              <button id="searchUsersBtn" class="btn btn-primary">Search</button>
+            </div>
+            <div class="enrollment-columns">
+              <div>
+                <h4>Results</h4>
+                <div id="userSearchResults" class="list-stack"></div>
+              </div>
+              <div>
+                <h4>Current roster</h4>
+                <div id="courseRoster" class="list-stack"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </section>
 
     <section id="viewProgress" class="view hidden">

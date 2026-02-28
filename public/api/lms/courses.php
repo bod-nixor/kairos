@@ -26,12 +26,20 @@ try {
 } catch (\PDOException $e) {
 }
 
-// Fetch course basic info
-if ($hasDesc) {
-    $stmt = $pdo->prepare("SELECT CAST(course_id AS UNSIGNED) AS id, name, COALESCE(code, '') AS code, COALESCE(description, '') AS description FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
-} else {
-    $stmt = $pdo->prepare("SELECT CAST(course_id AS UNSIGNED) AS id, name, COALESCE(code, '') AS code, '' AS description FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
+// Check if visibility column exists
+$hasVisibility = false;
+try {
+    $chk = $pdo->prepare('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c LIMIT 1');
+    $chk->execute([':t' => 'courses', ':c' => 'visibility']);
+    $hasVisibility = (bool) $chk->fetchColumn();
+} catch (\PDOException $e) {
 }
+
+$columns = "CAST(course_id AS UNSIGNED) AS id, name, COALESCE(code, '') AS code";
+$columns .= $hasDesc ? ", COALESCE(description, '') AS description" : ", '' AS description";
+$columns .= $hasVisibility ? ", visibility" : ", 'public' AS visibility";
+
+$stmt = $pdo->prepare("SELECT $columns FROM courses WHERE course_id = CAST(:cid AS UNSIGNED) LIMIT 1");
 $stmt->execute([':cid' => $courseId]);
 $course = $stmt->fetch(PDO::FETCH_ASSOC);
 
