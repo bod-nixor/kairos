@@ -40,6 +40,10 @@ if (!$attempt) {
 if ((int)$attempt['user_id'] !== (int)$user['user_id']) {
     lms_error('forbidden', 'Cannot submit another student attempt', 403);
 }
+
+// Verify enrollment is still valid (defense-in-depth)
+lms_course_access($user, (int)$attempt['course_id']);
+
 if ((string)$attempt['status'] !== 'in_progress') {
     lms_error('conflict', 'Attempt is not in progress', 409);
 }

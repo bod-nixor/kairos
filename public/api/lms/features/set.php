@@ -15,6 +15,9 @@ if ($courseId <= 0 || $flagKey === '') {
     lms_error('validation_error', 'course_id and flag_key are required', 422);
 }
 
+// Enforce course-scoped access (prevents cross-course feature flag manipulation)
+lms_course_access($user, $courseId);
+
 $pdo = db();
 $stmt = $pdo->prepare('INSERT INTO lms_feature_flags (course_id, flag_key, enabled, rollout_json, updated_by) VALUES (:course_id,:flag_key,:enabled,:rollout,:updated_by) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), rollout_json=VALUES(rollout_json), updated_by=VALUES(updated_by)');
 $stmt->execute([

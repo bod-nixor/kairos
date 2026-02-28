@@ -219,8 +219,21 @@
         const sub = submissions[activeIdx];
         if (!sub) return;
         const grades = collectGrades();
+
+        // Compute total score from rubric inputs (same as recalcTotal display)
+        let score = 0;
+        document.querySelectorAll('.k-rubric-row__input').forEach(inp => {
+            score += Number(inp.value) || 0;
+        });
+        // Read max_score from display (set by renderRubricForm)
+        const maxEl = $('totalMax');
+        const maxText = maxEl ? maxEl.textContent.replace(/[^0-9.]/g, '') : '';
+        const max_score = Number(maxText) || 100;
+
         const payload = {
             submission_id: sub.id,
+            score,
+            max_score,
             grades,
             feedback: ($('feedbackText') && $('feedbackText').value) || '',
             private_note: ($('privateNote') && $('privateNote').value) || '',

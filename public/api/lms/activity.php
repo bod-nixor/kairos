@@ -72,13 +72,16 @@ try {
 
 
 // Published lessons/quizzes/assignments (course-level feed)
+// Notes:
+//  - lms_lessons has no 'status' or 'published_at' column; use created_at and skip status filter.
+//  - lms_assessments / lms_assignments have 'status' but no 'published_at'; use updated_at as proxy.
 try {
     $stmt = $pdo->prepare(
-        'SELECT created_at, title, "lesson_published" AS event_type FROM lms_lessons WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
+        'SELECT created_at, title, "lesson_published" AS event_type FROM lms_lessons WHERE course_id = :cid AND deleted_at IS NULL
 '
-        . 'UNION ALL SELECT published_at AS created_at, title, "quiz_published" AS event_type FROM lms_assessments WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
+        . 'UNION ALL SELECT updated_at AS created_at, title, "quiz_published" AS event_type FROM lms_assessments WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
 '
-        . 'UNION ALL SELECT published_at AS created_at, title, "assignment_published" AS event_type FROM lms_assignments WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
+        . 'UNION ALL SELECT updated_at AS created_at, title, "assignment_published" AS event_type FROM lms_assignments WHERE course_id = :cid AND status = "published" AND deleted_at IS NULL
 '
         . 'ORDER BY created_at DESC LIMIT :lim'
     );
