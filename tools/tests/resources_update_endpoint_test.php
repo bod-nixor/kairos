@@ -44,6 +44,7 @@ function simulate_resources_update(array $actor, array $in, array &$state): arra
 
     $title = array_key_exists('title', $in) ? trim((string)$in['title']) : null;
     $url = array_key_exists('url', $in) ? trim((string)$in['url']) : null;
+    $published = array_key_exists('published', $in) ? $in['published'] : null;
 
     $updated = false;
     if ($title !== null && $title !== '') {
@@ -62,6 +63,19 @@ function simulate_resources_update(array $actor, array $in, array &$state): arra
         }
         $meta['url'] = $url;
         $state['resources'][$resourceIndex]['metadata_json'] = $meta;
+        $updated = true;
+    }
+
+    if ($published !== null) {
+        $normalizedPublished = null;
+        if ($published === 1 || $published === '1') {
+            $normalizedPublished = 1;
+        } elseif ($published === 0 || $published === '0') {
+            $normalizedPublished = 0;
+        } else {
+            return ['status' => 422, 'error' => 'validation_error'];
+        }
+        $state['resources'][$resourceIndex]['published'] = $normalizedPublished;
         $updated = true;
     }
 
@@ -98,6 +112,7 @@ $baseState = [
             'title' => 'Original Resource',
             'drive_preview_url' => 'https://drive.google.com/file/d/abc/view',
             'metadata_json' => ['url' => 'https://drive.google.com/file/d/abc/view'],
+            'published' => 1,
             'deleted_at' => null,
         ],
     ],
@@ -183,6 +198,34 @@ $cases = [
         'name' => 'no fields to update returns validation error',
         'actor' => ['user_id' => 1, 'role_name' => 'admin'],
         'payload' => ['resource_id' => 900, 'course_id' => 301],
+        'expect_status' => 422,
+    ],
+    [
+        'name' => 'manager can update published to draft (numeric 0)',
+        'actor' => ['user_id' => 20, 'role_name' => 'manager'],
+        'payload' => ['resource_id' => 900, 'course_id' => 301, 'published' => 0],
+        'expect_status' => 200,
+        'assert' => static function (array $state): void {
+            if ((int)$state['resources'][0]['published'] !== 0) {
+                throw new RuntimeException('published not updated to 0');
+            }
+        },
+    ],
+    [
+        'name' => 'manager can update published to published (string "1")',
+        'actor' => ['user_id' => 20, 'role_name' => 'manager'],
+        'payload' => ['resource_id' => 900, 'course_id' => 301, 'published' => '1'],
+        'expect_status' => 200,
+        'assert' => static function (array $state): void {
+            if ((int)$state['resources'][0]['published'] !== 1) {
+                throw new RuntimeException('published not updated to 1');
+            }
+        },
+    ],
+    [
+        'name' => 'invalid published value returns validation error',
+        'actor' => ['user_id' => 1, 'role_name' => 'admin'],
+        'payload' => ['resource_id' => 900, 'course_id' => 301, 'published' => 'invalid'],
         'expect_status' => 422,
     ],
 ];

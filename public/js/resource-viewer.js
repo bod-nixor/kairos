@@ -250,6 +250,8 @@
         const wrap = $('resourceEditPanel');
         if (!wrap) return;
         wrap.classList.remove('hidden');
+        // Normalize published value to handle string '0', numeric 0, and false as Draft
+        const normalizedPublished = (resource.published === 1 || resource.published === '1') ? 1 : 0;
         wrap.innerHTML = `
           <div class="k-card" style="padding:var(--space-5);margin-bottom:var(--space-4)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--space-4)">
@@ -267,8 +269,8 @@
             <div class="k-form-field" style="margin-bottom:var(--space-4)">
               <label for="editResPublished">Status</label>
               <select class="k-select" id="editResPublished">
-                <option value="1" ${resource.published !== false && resource.published !== 0 ? 'selected' : ''}>Published</option>
-                <option value="0" ${resource.published === false || resource.published === 0 ? 'selected' : ''}>Draft</option>
+                <option value="1" ${normalizedPublished === 1 ? 'selected' : ''}>Published</option>
+                <option value="0" ${normalizedPublished === 0 ? 'selected' : ''}>Draft</option>
               </select>
             </div>
             <div style="display:flex;gap:8px">
