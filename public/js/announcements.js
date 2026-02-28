@@ -27,7 +27,8 @@
             container.innerHTML = '<div class="k-empty"><div class="k-empty__icon">⚠️</div><p class="k-empty__title">Could not load announcements</p></div>';
             return;
         }
-        const announcements = res.data || [];
+        const rawPayload = res.data?.data || res.data || [];
+        const announcements = Array.isArray(rawPayload) ? rawPayload : (rawPayload.items || []);
         if (!announcements.length) {
             container.innerHTML = '<div class="k-empty" style="padding:32px 16px"><div class="k-empty__icon">📢</div><p class="k-empty__title">No announcements yet</p><p class="k-empty__desc">Check back later for course updates.</p></div>';
             return;

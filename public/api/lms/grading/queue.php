@@ -12,6 +12,10 @@ $assignmentId = (int) ($_GET['assignment_id'] ?? 0);
 if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
+
+// Enforce course-scoped access (prevents IDOR across courses)
+lms_course_access($user, $courseId);
+
 $pdo = db();
 
 $sql = 'SELECT s.submission_id AS id, s.assignment_id, s.student_user_id,

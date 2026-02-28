@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 
-lms_require_roles(['manager', 'admin']);
+$user = lms_require_roles(['manager', 'admin']);
 $in = lms_json_input();
 $id = (int)($in['block_id'] ?? 0);
 if ($id <= 0) {
@@ -11,12 +11,21 @@ if ($id <= 0) {
 }
 
 $pdo = db();
-$existingStmt = $pdo->prepare('SELECT block_id, position, block_type, content_json, resource_id FROM lms_lesson_blocks WHERE block_id=:id AND deleted_at IS NULL LIMIT 1');
+$existingStmt = $pdo->prepare('SELECT block_id, lesson_id, position, block_type, content_json, resource_id FROM lms_lesson_blocks WHERE block_id=:id AND deleted_at IS NULL LIMIT 1');
 $existingStmt->execute([':id' => $id]);
 $existing = $existingStmt->fetch();
 if (!$existing) {
     lms_error('not_found', 'Lesson block not found', 404);
 }
+
+// Enforce course-scoped access via the parent lesson
+$lessonStmt = $pdo->prepare('SELECT course_id FROM lms_lessons WHERE lesson_id = :lid AND deleted_at IS NULL LIMIT 1');
+$lessonStmt->execute([':lid' => (int)$existing['lesson_id']]);
+$lessonRow = $lessonStmt->fetch(PDO::FETCH_ASSOC);
+if (!$lessonRow) {
+    lms_error('not_found', 'Parent lesson not found', 404);
+}
+lms_course_access($user, (int)$lessonRow['course_id']);
 
 $position = array_key_exists('position', $in) ? (int)$in['position'] : (int)$existing['position'];
 $blockType = array_key_exists('block_type', $in) ? (string)$in['block_type'] : (string)$existing['block_type'];
