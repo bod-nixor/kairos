@@ -71,9 +71,27 @@ function apply_pending_pre_enrollments(PDO $pdo, int $userId, string $email): vo
     $cid = (int)($row['course_id'] ?? 0);
     $preEnrollId = (int)($row['id'] ?? 0);
     if ($cid <= 0) continue;
-    $enrollStmt->execute([':cid'=>$cid, ':uid'=>$userId]);
-    if ($preEnrollId > 0) {
-      $claimStmt->execute([':uid' => $userId, ':id' => $preEnrollId]);
+
+    $startedTx = false;
+    try {
+      if (!$pdo->inTransaction()) {
+        $pdo->beginTransaction();
+        $startedTx = true;
+      }
+
+      $enrollStmt->execute([':cid'=>$cid, ':uid'=>$userId]);
+      if ($preEnrollId > 0) {
+        $claimStmt->execute([':uid' => $userId, ':id' => $preEnrollId]);
+      }
+
+      if ($startedTx) {
+        $pdo->commit();
+      }
+    } catch (Throwable $txErr) {
+      if ($startedTx && $pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      throw $txErr;
     }
   }
 }

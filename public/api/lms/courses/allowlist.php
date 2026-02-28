@@ -11,6 +11,8 @@ $courseId = (int)($_GET['course_id'] ?? 0);
 if ($method !== 'GET') {
     $in = lms_json_input();
     $courseId = (int)($in['course_id'] ?? $courseId);
+} else {
+    $in = [];
 }
 if ($courseId <= 0) {
     lms_error('validation_error', 'course_id is required.', 422);
@@ -27,7 +29,6 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    $in = lms_json_input();
     $email = lms_normalize_email((string)($in['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         lms_error('validation_error', 'Valid email is required.', 422);
@@ -43,7 +44,6 @@ if ($method === 'POST') {
 }
 
 if ($method === 'DELETE') {
-    $in = lms_json_input();
     $entryId = (int)($in['id'] ?? 0);
     $email = lms_normalize_email((string)($in['email'] ?? ''));
     if ($entryId <= 0 && $email === '') {
@@ -58,7 +58,8 @@ if ($method === 'DELETE') {
         $stmt->execute([':cid' => $courseId, ':email' => $email]);
     }
 
-    lms_ok(['course_id' => $courseId, 'deleted' => true]);
+    $deleted = $stmt->rowCount() > 0;
+    lms_ok(['course_id' => $courseId, 'deleted' => $deleted]);
 }
 
 lms_error('method_not_allowed', 'Method not allowed', 405);

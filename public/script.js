@@ -255,6 +255,7 @@ const changeStreamSubscriptions = {
   rooms: null,
   progress: null,
 };
+let renderCourseCardsNonce = 0;
 let notifyQueueSubscription = null;
 let APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
 let CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
@@ -673,6 +674,7 @@ function showToast(message, { tone = 'info' } = {}) {
   const toast = document.createElement('div');
   toast.className = 'toast';
   if (tone === 'error') toast.classList.add('toast-error');
+  if (tone === 'success') toast.classList.add('toast-success');
   toast.textContent = message;
   stack.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('show'));
@@ -722,7 +724,10 @@ function setRoomsNavState(enabled) {
 
 // COURSES (cards: enrolled only)
 async function renderCourseCards() {
+  const nonce = ++renderCourseCardsNonce;
+  const isStale = () => nonce !== renderCourseCardsNonce;
   const debugMode = new URLSearchParams(window.location.search).get('debug') === '1';
+
   selectedCourse = null;
   setRoomsNavState(false);
   selectedRoomId = null;
@@ -730,6 +735,8 @@ async function renderCourseCards() {
   if (window.SignoffWS) {
     window.SignoffWS.updateFilters({ courseId: null, roomId: null });
   }
+  if (isStale()) return;
+
   setCrumbs('Courses');
   showView('viewDashboard');
   const progressSection = document.getElementById('progressSection');
@@ -743,6 +750,7 @@ async function renderCourseCards() {
   let coursesError = null;
   try {
     const discovery = await apiGet('./api/lms/courses_discovery.php');
+    if (isStale()) return;
     const payload = discovery.data || discovery;
     courses = Array.isArray(payload.enrolled) ? payload.enrolled : [];
     availableCourses = Array.isArray(payload.available) ? payload.available : [];
@@ -750,10 +758,12 @@ async function renderCourseCards() {
       console.info('[courses] discovery payload', payload);
     }
   } catch (err) {
+    if (isStale()) return;
     console.error('Failed to load courses', err);
     coursesError = err;
     showToast(`Failed to load courses${err?.message ? `: ${err.message}` : ''}`, { tone: 'error' });
   }
+  if (isStale()) return;
 
   if (!Array.isArray(courses)) courses = [];
   if (!Array.isArray(availableCourses)) availableCourses = [];
@@ -773,6 +783,7 @@ async function renderCourseCards() {
     });
   }
 
+  if (isStale()) return;
   if (coursesError && !courses.length) {
     if (grid) grid.innerHTML = `<div class="card"><strong>Unable to load courses.</strong><div class="muted small">Please check your connection and try again.</div></div>`;
     return;
@@ -825,6 +836,7 @@ async function renderCourseCards() {
     };
   });
 
+  if (isStale()) return;
   if (!courses.length) {
     if (grid) grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You're not enrolled in any courses.</div></div>`;
     return;

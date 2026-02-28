@@ -870,13 +870,18 @@ function setupEvents() {
     const btn = event.target.closest('[data-remove-allowlist]');
     if (!btn || !activeCourseId) return;
     try {
-      await fetch('./api/lms/courses/allowlist.php', {
+      const response = await fetch('./api/lms/courses/allowlist.php', {
         method: 'DELETE',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ course_id: activeCourseId, id: Number(btn.getAttribute('data-remove-allowlist')) })
       });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.ok === false) {
+        throw new Error(body?.error?.message || body?.message || `Delete failed (${response.status})`);
+      }
       await loadCourseSettings();
+      showToast('Allowlist entry removed.', { tone: 'success' });
     } catch (err) {
       showToast(`Failed to remove allowlist entry: ${err.message}`, { tone: 'error' });
     }
@@ -886,13 +891,18 @@ function setupEvents() {
     const btn = event.target.closest('[data-remove-preenroll]');
     if (!btn || !activeCourseId) return;
     try {
-      await fetch('./api/lms/courses/preenroll.php', {
+      const response = await fetch('./api/lms/courses/preenroll.php', {
         method: 'DELETE',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ course_id: activeCourseId, id: Number(btn.getAttribute('data-remove-preenroll')) })
       });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.ok === false) {
+        throw new Error(body?.error?.message || body?.message || `Delete failed (${response.status})`);
+      }
       await loadCourseSettings();
+      showToast('Pre-enroll entry removed.', { tone: 'success' });
     } catch (err) {
       showToast(`Failed to remove pre-enroll entry: ${err.message}`, { tone: 'error' });
     }

@@ -37,7 +37,7 @@ foreach ($courseRows as $row) {
     $isPublic = ((string)$row['visibility']) === 'public';
     $canJoin = $isPublic || isset($allowlistedIds[$courseId]);
 
-    if (in_array($role, ['admin', 'manager'], true)) {
+    if ($role === 'admin') {
         $canJoin = true;
     }
 

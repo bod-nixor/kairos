@@ -4,9 +4,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../_common.php';
 
 $user = require_login();
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    lms_error('method_not_allowed', 'POST required', 405);
+}
 $role = lms_user_role($user);
 if (!in_array($role, ['student', 'manager', 'admin'], true)) {
-    lms_error('forbidden', 'Only enrolled users can join courses.', 403);
+    lms_error('forbidden', 'Insufficient permissions to join course.', 403);
 }
 
 $in = lms_json_input();
@@ -31,7 +34,7 @@ if (!$canJoin && $email !== '') {
     $canJoin = (bool)$allowStmt->fetchColumn();
 }
 
-if (in_array($role, ['admin', 'manager'], true)) {
+if ($role === 'admin') {
     $canJoin = true;
 }
 
