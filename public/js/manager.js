@@ -790,9 +790,8 @@ function restoreManagerLayout() {
   if (!container) return;
   const sections = Array.from(container.querySelectorAll('.manager-section'));
 
-  const isManager = Boolean(sessionRoles?.admin || sessionRoles?.manager || true); // Allow based on the fact only managers see this page anyway, but we check if we want
-  // Wait, the prompt says "Only Manager/Admin should see drag handles" but everyone on this page is a manager or admin. But just checking sessionRoles is fine.
-  const hasReorderRights = Boolean(sessionRoles?.admin || sessionRoles?.manager || true);
+  const isManager = Boolean(sessionRoles?.admin || sessionRoles?.manager);
+  const hasReorderRights = Boolean(sessionRoles?.admin || sessionRoles?.manager);
 
   sections.forEach(sec => {
     const handle = sec.querySelector('.drag-handle');
@@ -822,7 +821,9 @@ function restoreManagerLayout() {
     return idxA - idxB;
   });
 
-  sections.forEach(sec => container.appendChild(sec));
+  sections.forEach(sec => {
+    container.appendChild(sec);
+  });
 
   // Restore collapsed
   sections.forEach(sec => {
@@ -831,6 +832,12 @@ function restoreManagerLayout() {
     sec.classList.toggle('collapsed', isCollapsed);
     const btn = sec.querySelector('.section-toggle');
     if (btn) btn.setAttribute('aria-expanded', !isCollapsed);
+
+    const bodyWrapper = sec.querySelector('.section-body');
+    if (bodyWrapper) {
+      bodyWrapper.inert = isCollapsed;
+      bodyWrapper.setAttribute('aria-hidden', String(isCollapsed));
+    }
   });
 
   if (!container.dataset.interactionsInit) {
@@ -871,6 +878,13 @@ function setupManagerInteractions(container, hasReorderRights) {
       if (section && realBtn) {
         const isCollapsed = section.classList.toggle('collapsed');
         realBtn.setAttribute('aria-expanded', !isCollapsed);
+
+        const bodyWrapper = section.querySelector('.section-body');
+        if (bodyWrapper) {
+          bodyWrapper.inert = isCollapsed;
+          bodyWrapper.setAttribute('aria-hidden', String(isCollapsed));
+        }
+
         saveManagerLayout();
       }
     }
