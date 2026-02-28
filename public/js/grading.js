@@ -178,7 +178,9 @@
         // Render submission view
         ['submissionFileView', 'submissionTextView', 'submissionUrlView', 'submissionAttachments'].forEach(hideEl);
         if (detail.type === 'file' && detail.file_url) {
-            $('submissionPDFFrame') && ($('submissionPDFFrame').src = detail.file_url);
+            // Normalize Drive URLs to /preview for proper embedding
+            const previewUrl = LMS.toDrivePreviewUrl ? LMS.toDrivePreviewUrl(detail.file_url) : detail.file_url;
+            $('submissionPDFFrame') && ($('submissionPDFFrame').src = previewUrl);
             showEl('submissionFileView');
         } else if (detail.type === 'text') {
             $('submissionTextContent') && ($('submissionTextContent').textContent = detail.text_content || '');

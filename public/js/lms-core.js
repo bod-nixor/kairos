@@ -635,6 +635,95 @@ function sanitizeForRender(html) {
     fill.style.strokeDashoffset = dashoffset;
   }
 
+  /* ── Drive URL helpers ─────────────────────────────────── */
+
+  /**
+   * Extract a Google Drive file ID from a variety of URL formats:
+   *   /file/d/<id>/view, /file/d/<id>/preview, /file/d/<id>/edit
+   *   open?id=<id>, uc?id=<id>, shared link variants, /d/<id>
+   * Returns the file ID string or '' if not detected.
+   */
+  function extractDriveFileId(url) {
+    if (!url) return '';
+    try {
+      const parsed = new URL(String(url));
+      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+      if (host !== 'drive.google.com' && host !== 'docs.google.com' && host !== 'slides.google.com') return '';
+      // /file/d/<id>/...
+      const fileMatch = parsed.pathname.match(/\/(?:file\/)?d\/([A-Za-z0-9_-]{10,})/);
+      if (fileMatch) return fileMatch[1];
+      // open?id=<id> or uc?id=<id>
+      const qid = parsed.searchParams.get('id');
+      if (qid && /^[A-Za-z0-9_-]{10,}$/.test(qid)) return qid;
+      // /presentation/d/<id>, /document/d/<id>, /spreadsheets/d/<id>
+      const docMatch = parsed.pathname.match(/\/(?:presentation|document|spreadsheets)\/d\/([A-Za-z0-9_-]{10,})/);
+      if (docMatch) return docMatch[1];
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * Convert any Drive/Docs/Slides URL to the best embeddable preview URL.
+   *
+   * Google Drive files: https://drive.google.com/file/d/<id>/preview
+   * Google Slides:      https://docs.google.com/presentation/d/<id>/embed?start=false&loop=false
+   * Google Docs:        https://docs.google.com/document/d/<id>/preview
+   * Google Sheets:      https://docs.google.com/spreadsheets/d/<id>/preview
+   *
+   * For non-Drive URLs, returns the original URL unchanged.
+   */
+  function toDrivePreviewUrl(inputUrl) {
+    if (!inputUrl) return '';
+    try {
+      const parsed = new URL(String(inputUrl));
+      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+
+      // Google Slides
+      if (host === 'docs.google.com' && parsed.pathname.includes('/presentation/')) {
+        const m = parsed.pathname.match(/\/presentation\/d\/([A-Za-z0-9_-]+)/);
+        if (m) return `https://docs.google.com/presentation/d/${m[1]}/embed?start=false&loop=false`;
+      }
+      // Google Docs
+      if (host === 'docs.google.com' && parsed.pathname.includes('/document/')) {
+        const m = parsed.pathname.match(/\/document\/d\/([A-Za-z0-9_-]+)/);
+        if (m) return `https://docs.google.com/document/d/${m[1]}/preview`;
+      }
+      // Google Sheets
+      if (host === 'docs.google.com' && parsed.pathname.includes('/spreadsheets/')) {
+        const m = parsed.pathname.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+        if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/preview`;
+      }
+
+      // Drive file URLs
+      if (host === 'drive.google.com') {
+        const fileId = extractDriveFileId(inputUrl);
+        if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`;
+      }
+
+      return inputUrl;
+    } catch (_) {
+      return inputUrl;
+    }
+  }
+
+  /**
+   * Check whether a URL can be determined to be a ppt/pptx (Office file),
+   * and generate an Office Online embed URL for it.
+   * Returns '' if not applicable.
+   */
+  function toOfficeViewerUrl(rawUrl) {
+    if (!rawUrl) return '';
+    try {
+      const parsed = new URL(String(rawUrl));
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
+    } catch (_) {
+      return '';
+    }
+  }
+
   /* ── Export ──────────────────────────────────────────────── */
   global.KairosLMS = {
     api,
@@ -662,6 +751,9 @@ function sanitizeForRender(html) {
     setProgressRing,
     parseStartSeconds,
     toYoutubeEmbedUrl,
+    extractDriveFileId,
+    toDrivePreviewUrl,
+    toOfficeViewerUrl,
     markdownToHtml,
     htmlToMarkdown,
     sanitizeForRender,

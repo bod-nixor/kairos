@@ -10,6 +10,7 @@
     const COURSE_ID = params.get('course_id') || '';
     const ASSIGN_ID = params.get('assignment_id') || '';
     const DEBUG_MODE = params.get('debug') === '1';
+    const URL_MODE = params.get('mode') || 'view';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -540,6 +541,17 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         LMS.nav.updateUserBar(session.me);
         const roles = session.caps?.roles || {};
         canManage = !!(roles.admin || roles.manager);
+
+        // Enforce RBAC: students cannot access edit mode
+        if (URL_MODE === 'edit' && !canManage) {
+            const denied = $('assignAccessDenied');
+            if (denied) {
+                LMS.renderAccessDenied(denied, 'You do not have permission to edit this assignment.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+                denied.classList.remove('hidden');
+            }
+            return;
+        }
+
         await loadPage();
     });
 
