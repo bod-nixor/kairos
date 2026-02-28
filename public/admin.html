@@ -33,6 +33,7 @@
     <img src="https://kairos.nixorcorporate.com/signoff/images/logo-full.png" alt="Kairos" class="admin-brand" />
     <h1>Admin Dashboard</h1>
     <nav class="admin-nav" aria-label="Admin navigation">
+      <a class="admin-nav-link" href="/signoff/" data-admin-nav="home">All Courses / Home</a>
       <a class="admin-nav-link" href="./admin.html" data-admin-nav="courses">All Courses</a>
       <a class="admin-nav-link" href="./admin.html#assignCard" data-admin-nav="assignments">TA assignment</a>
       <a class="admin-nav-link" href="./manager.html" data-admin-nav="roster" data-role="manager">Course roster</a>
@@ -104,6 +105,44 @@
             <button type="button" id="deleteCourseBtn" class="delete" disabled>Delete</button>
           </div>
         </form>
+      </div>
+    </section>
+
+
+    <section class="card" id="courseSettingsCard">
+      <div class="flex-wrap-row align-center justify-between">
+        <h2>Course settings</h2>
+        <span class="muted" id="courseSettingsTitle">Select a course to edit settings</span>
+      </div>
+      <div class="grid-two align-end">
+        <div>
+          <label class="muted">Visibility</label>
+          <select id="adminCourseVisibilitySelect" disabled>
+            <option value="public">Public</option>
+            <option value="restricted">Restricted</option>
+          </select>
+        </div>
+        <div>
+          <button type="button" id="adminSaveCourseVisibilityBtn" disabled>Save visibility</button>
+        </div>
+      </div>
+      <div class="grid-two" style="margin-top:12px;">
+        <div>
+          <label class="muted">Allowlist email</label>
+          <div class="flex-wrap-row">
+            <input type="email" id="adminAllowlistEmail" placeholder="name@nixorcollege.edu.pk" disabled />
+            <button type="button" id="adminAddAllowlistBtn" disabled>Add</button>
+          </div>
+          <div id="adminAllowlistEntries" class="list-stack"></div>
+        </div>
+        <div>
+          <label class="muted">Pre-enroll email</label>
+          <div class="flex-wrap-row">
+            <input type="email" id="adminPreenrollEmail" placeholder="name@nixorcollege.edu.pk" disabled />
+            <button type="button" id="adminAddPreenrollBtn" disabled>Add</button>
+          </div>
+          <div id="adminPreenrollEntries" class="list-stack"></div>
+        </div>
       </div>
     </section>
 

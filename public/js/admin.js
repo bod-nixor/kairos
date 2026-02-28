@@ -32,6 +32,15 @@ const els = {
   assignments: document.getElementById('assignments'),
   assignmentTitle: document.getElementById('assignmentTitle'),
   adminNavLinks: document.querySelectorAll('.admin-nav-link'),
+  courseSettingsTitle: document.getElementById('courseSettingsTitle'),
+  visibilitySelect: document.getElementById('adminCourseVisibilitySelect'),
+  saveVisibilityBtn: document.getElementById('adminSaveCourseVisibilityBtn'),
+  allowlistEmail: document.getElementById('adminAllowlistEmail'),
+  addAllowlistBtn: document.getElementById('adminAddAllowlistBtn'),
+  allowlistEntries: document.getElementById('adminAllowlistEntries'),
+  preenrollEmail: document.getElementById('adminPreenrollEmail'),
+  addPreenrollBtn: document.getElementById('adminAddPreenrollBtn'),
+  preenrollEntries: document.getElementById('adminPreenrollEntries'),
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -226,6 +235,85 @@ function bindEvents() {
     }
   });
 
+
+  els.saveVisibilityBtn?.addEventListener('click', async () => {
+    if (!state.selectedId) return;
+    try {
+      await fetchJSON('./api/lms/courses/visibility.php', {
+        method: 'POST',
+        body: { course_id: state.selectedId, visibility: els.visibilitySelect?.value || 'public' },
+      });
+      showStatus('Course visibility updated.', 'success');
+      await loadCourseSettings(state.selectedId);
+    } catch (err) {
+      reportError(err, 'Failed to update course visibility');
+    }
+  });
+
+  els.addAllowlistBtn?.addEventListener('click', async () => {
+    if (!state.selectedId) return;
+    const email = (els.allowlistEmail?.value || '').trim();
+    if (!email) return;
+    try {
+      await fetchJSON('./api/lms/courses/allowlist.php', {
+        method: 'POST',
+        body: { course_id: state.selectedId, email },
+      });
+      if (els.allowlistEmail) els.allowlistEmail.value = '';
+      showStatus('Allowlist updated.', 'success');
+      await loadCourseSettings(state.selectedId);
+    } catch (err) {
+      reportError(err, 'Failed to update allowlist');
+    }
+  });
+
+  els.addPreenrollBtn?.addEventListener('click', async () => {
+    if (!state.selectedId) return;
+    const email = (els.preenrollEmail?.value || '').trim();
+    if (!email) return;
+    try {
+      await fetchJSON('./api/lms/courses/preenroll.php', {
+        method: 'POST',
+        body: { course_id: state.selectedId, email },
+      });
+      if (els.preenrollEmail) els.preenrollEmail.value = '';
+      showStatus('Pre-enroll updated.', 'success');
+      await loadCourseSettings(state.selectedId);
+    } catch (err) {
+      reportError(err, 'Failed to update pre-enroll');
+    }
+  });
+
+  els.allowlistEntries?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-remove-allowlist]');
+    if (!btn || !state.selectedId) return;
+    try {
+      await fetchJSON('./api/lms/courses/allowlist.php', {
+        method: 'DELETE',
+        body: { course_id: state.selectedId, id: Number(btn.getAttribute('data-remove-allowlist') || '0') },
+      });
+      await loadCourseSettings(state.selectedId);
+      showStatus('Allowlist entry removed.', 'success');
+    } catch (err) {
+      reportError(err, 'Failed to remove allowlist entry');
+    }
+  });
+
+  els.preenrollEntries?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-remove-preenroll]');
+    if (!btn || !state.selectedId) return;
+    try {
+      await fetchJSON('./api/lms/courses/preenroll.php', {
+        method: 'DELETE',
+        body: { course_id: state.selectedId, id: Number(btn.getAttribute('data-remove-preenroll') || '0') },
+      });
+      await loadCourseSettings(state.selectedId);
+      showStatus('Pre-enroll entry removed.', 'success');
+    } catch (err) {
+      reportError(err, 'Failed to remove pre-enroll entry');
+    }
+  });
+
   window.addEventListener('hashchange', () => {
     updateAdminNavActive();
   });
@@ -289,6 +377,7 @@ function disableInterface() {
   toggleEditForm(false);
   toggleAssignForm(false);
   els.createCourseForm?.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+  toggleCourseSettings(false);
 }
 
 function showForbidden() {
@@ -353,6 +442,7 @@ function selectCourse(courseId, options = {}) {
     renderCourses();
     els.assignmentTitle.textContent = 'Select a course to view staff';
     toggleAssignForm(false);
+    toggleCourseSettings(false);
     if (!options.skipAssignments) {
       clearAssignments();
     }
@@ -371,6 +461,7 @@ function selectCourse(courseId, options = {}) {
   updateEditForm(course);
   els.assignmentTitle.textContent = `Course #${course.course_id} – ${course.name}`;
   toggleAssignForm(true);
+  loadCourseSettings(course.course_id).catch((err) => reportError(err, "Failed to load course settings"));
   if (!options.skipReload) {
     loadAssignments(course.course_id).catch((err) => {
       reportError(err, 'Failed to load assignments');
@@ -498,6 +589,63 @@ async function loadAssignments(courseId) {
   const data = await fetchJSON(`./api/admin/assign.php?course_id=${encodeURIComponent(courseId)}`);
   const assignments = Array.isArray(data?.assignments) ? data.assignments : Array.isArray(data) ? data : [];
   renderAssignments(assignments);
+}
+
+
+function toggleCourseSettings(enabled) {
+  [
+    els.visibilitySelect,
+    els.saveVisibilityBtn,
+    els.allowlistEmail,
+    els.addAllowlistBtn,
+    els.preenrollEmail,
+    els.addPreenrollBtn,
+  ].forEach((el) => {
+    if (el) el.disabled = !enabled;
+  });
+
+  if (!enabled) {
+    if (els.allowlistEntries) els.allowlistEntries.innerHTML = '<div class="muted small">Select a course to manage allowlist.</div>';
+    if (els.preenrollEntries) els.preenrollEntries.innerHTML = '<div class="muted small">Select a course to manage pre-enroll.</div>';
+    if (els.courseSettingsTitle) els.courseSettingsTitle.textContent = 'Select a course to edit settings';
+  }
+}
+
+async function loadCourseSettings(courseId) {
+  if (!courseId) {
+    toggleCourseSettings(false);
+    return;
+  }
+  toggleCourseSettings(true);
+  const course = state.courses.find((c) => c.course_id === courseId);
+  if (els.courseSettingsTitle && course) {
+    els.courseSettingsTitle.textContent = `Course #${course.course_id} – ${course.name}`;
+  }
+
+  const [courseMeta, allowData, preData] = await Promise.all([
+    fetchJSON(`./api/lms/courses.php?course_id=${encodeURIComponent(courseId)}`),
+    fetchJSON(`./api/lms/courses/allowlist.php?course_id=${encodeURIComponent(courseId)}`),
+    fetchJSON(`./api/lms/courses/preenroll.php?course_id=${encodeURIComponent(courseId)}`),
+  ]);
+
+  if (els.visibilitySelect) {
+    const visibility = courseMeta?.data?.visibility || courseMeta?.visibility || 'public';
+    els.visibilitySelect.value = visibility;
+  }
+
+  const allowEntries = Array.isArray(allowData?.data?.entries) ? allowData.data.entries : [];
+  if (els.allowlistEntries) {
+    els.allowlistEntries.innerHTML = allowEntries.length
+      ? allowEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span></div><button type="button" class="btn btn-link" data-remove-allowlist="${Number(entry.id || 0)}">Remove</button></div>`).join('')
+      : '<div class="muted small">No allowlisted emails yet.</div>';
+  }
+
+  const preEntries = Array.isArray(preData?.data?.entries) ? preData.data.entries : [];
+  if (els.preenrollEntries) {
+    els.preenrollEntries.innerHTML = preEntries.length
+      ? preEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span><span class="muted small">${escapeHtml(entry.status || 'unclaimed')}</span></div><button type="button" class="btn btn-link" data-remove-preenroll="${Number(entry.id || 0)}">Remove</button></div>`).join('')
+      : '<div class="muted small">No pre-enroll entries yet.</div>';
+  }
 }
 
 function clearAssignments() {

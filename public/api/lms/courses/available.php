@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/_common.php';
+
+require_once __DIR__ . '/../_common.php';
 
 $user = require_login();
 $pdo = db();
@@ -26,25 +27,16 @@ if ($email !== '') {
     }
 }
 
-$enrolled = [];
 $available = [];
 foreach ($courseRows as $row) {
     $courseId = (int)$row['course_id'];
-    $item = [
-        'course_id' => $courseId,
-        'name' => (string)$row['name'],
-        'code' => (string)$row['code'],
-        'visibility' => (string)$row['visibility'],
-    ];
-
     if (isset($enrolledIds[$courseId])) {
-        $item['enrolled'] = true;
-        $enrolled[] = $item;
         continue;
     }
 
-    $isPublic = $item['visibility'] === 'public';
+    $isPublic = ((string)$row['visibility']) === 'public';
     $canJoin = $isPublic || isset($allowlistedIds[$courseId]);
+
     if ($role === 'admin') {
         $canJoin = true;
     }
@@ -53,13 +45,15 @@ foreach ($courseRows as $row) {
         continue;
     }
 
-    $item['enrolled'] = false;
-    $item['can_self_enroll'] = true;
-    $item['allowlisted'] = isset($allowlistedIds[$courseId]);
-    $available[] = $item;
+    $available[] = [
+        'course_id' => $courseId,
+        'name' => (string)$row['name'],
+        'code' => (string)$row['code'],
+        'visibility' => (string)$row['visibility'],
+        'can_self_enroll' => true,
+        'restricted' => !$isPublic,
+        'allowlisted' => isset($allowlistedIds[$courseId]),
+    ];
 }
 
-lms_ok([
-    'enrolled' => $enrolled,
-    'available' => $available,
-]);
+lms_ok(['courses' => $available]);

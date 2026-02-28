@@ -255,6 +255,7 @@ const changeStreamSubscriptions = {
   rooms: null,
   progress: null,
 };
+let renderCourseCardsNonce = 0;
 let notifyQueueSubscription = null;
 let APP_CONFIG = window.SignoffConfig || window.SIGNOFF_CONFIG || {};
 let CLIENT_ID = typeof APP_CONFIG.googleClientId === 'string' ? APP_CONFIG.googleClientId : '';
@@ -667,6 +668,22 @@ async function apiGet(url) {
   return r.json();
 }
 
+function showToast(message, { tone = 'info' } = {}) {
+  const stack = document.getElementById('toastStack');
+  if (!stack) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (tone === 'error') toast.classList.add('toast-error');
+  if (tone === 'success') toast.classList.add('toast-success');
+  toast.textContent = message;
+  stack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 220);
+  }, 3200);
+}
+
 // nav state
 function setCrumbs(text) {
   const el = document.getElementById('breadcrumbs');
@@ -707,40 +724,71 @@ function setRoomsNavState(enabled) {
 
 // COURSES (cards: enrolled only)
 async function renderCourseCards() {
+  const nonce = ++renderCourseCardsNonce;
+  const isStale = () => nonce !== renderCourseCardsNonce;
+  const debugMode = new URLSearchParams(window.location.search).get('debug') === '1';
+
   selectedCourse = null;
   setRoomsNavState(false);
-  selectedRoomId = null;                                 // reset room selection when leaving rooms view
+  selectedRoomId = null;
   stopQueueLiveUpdates();
   if (window.SignoffWS) {
     window.SignoffWS.updateFilters({ courseId: null, roomId: null });
   }
+  if (isStale()) return;
+
   setCrumbs('Courses');
-  // Show the dashboard view (coursesGrid lives inside viewDashboard)
   showView('viewDashboard');
   const progressSection = document.getElementById('progressSection');
   if (progressSection) progressSection.classList.add('hidden');
-  // Populate both grids (dashboard + standalone courses view)
+
   const grid = document.getElementById('coursesGrid');
   if (grid) grid.innerHTML = skeletonCards(3);
 
   let courses = [];
   let availableCourses = [];
-  let coursesError = false;
+  let coursesError = null;
   try {
     const discovery = await apiGet('./api/lms/courses_discovery.php');
+    if (isStale()) return;
     const payload = discovery.data || discovery;
     courses = Array.isArray(payload.enrolled) ? payload.enrolled : [];
     availableCourses = Array.isArray(payload.available) ? payload.available : [];
+    if (debugMode) {
+      console.info('[courses] discovery payload', payload);
+    }
   } catch (err) {
+    if (isStale()) return;
     console.error('Failed to load courses', err);
-    coursesError = true;
+    coursesError = err;
+    showToast(`Failed to load courses${err?.message ? `: ${err.message}` : ''}`, { tone: 'error' });
   }
-  if (!Array.isArray(courses)) courses = [];
+  if (isStale()) return;
 
+  if (!Array.isArray(courses)) courses = [];
+  if (!Array.isArray(availableCourses)) availableCourses = [];
+
+  const enrolledIds = new Set(courses.map((course) => Number(course.course_id || 0)).filter(Boolean));
+  availableCourses = availableCourses.filter((course) => {
+    const cid = Number(course.course_id || 0);
+    return cid > 0 && !enrolledIds.has(cid);
+  });
+
+  if (debugMode) {
+    console.info('[courses] computed', {
+      enrolled_ids: Array.from(enrolledIds),
+      enrolled_count: courses.length,
+      available_count: availableCourses.length,
+      available_ids: availableCourses.map((course) => Number(course.course_id || 0)),
+    });
+  }
+
+  if (isStale()) return;
   if (coursesError && !courses.length) {
     if (grid) grid.innerHTML = `<div class="card"><strong>Unable to load courses.</strong><div class="muted small">Please check your connection and try again.</div></div>`;
     return;
   }
+
   const availableGrids = document.querySelectorAll('[data-available-courses-grid]');
   availableGrids.forEach((availableGrid) => {
     if (!availableCourses.length) {
@@ -749,25 +797,42 @@ async function renderCourseCards() {
       return;
     }
 
-    availableGrid.innerHTML = availableCourses.map((c) => `<div class="course-card"><span class="badge">${escapeHtml(c.visibility || 'public')}</span><h3 class="course-title">${escapeHtml(c.name || '')}</h3><div class="mt-8"><button class="btn btn-primary" data-join-course="${Number(c.course_id || 0)}" ${c.can_self_enroll ? "" : "disabled title=\"Restricted by enrollment policy\""}>Join Course</button></div></div>`).join('');
+    availableGrid.innerHTML = availableCourses.map((c) => {
+      const canJoin = Boolean(c.can_self_enroll);
+      const joinTitle = canJoin ? 'Join this course' : 'Restricted by enrollment policy';
+      return `<div class="course-card"><span class="badge">${escapeHtml(c.visibility || 'public')}</span><h3 class="course-title">${escapeHtml(c.name || '')}</h3><div class="mt-8"><button class="btn btn-primary" data-join-course="${Number(c.course_id || 0)}" ${canJoin ? '' : 'disabled'} title="${escapeHtml(joinTitle)}">Join Course</button></div></div>`;
+    }).join('');
+
     availableGrid.onclick = async (e) => {
       const btn = e.target.closest('[data-join-course]');
       if (!btn) return;
       const courseId = Number(btn.getAttribute('data-join-course') || 0);
       if (!courseId) return;
+
       const wasDisabled = btn.disabled;
       btn.disabled = true;
       try {
-        const res = await fetch('./api/lms/courses_join.php', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ course_id: courseId }) });
-        if (res.ok) {
-          showToast('Joined course successfully');
-          await renderCourseCards();
-          return;
+        const res = await fetch('./api/lms/courses/join.php', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course_id: courseId })
+        });
+        let payload = {};
+        try {
+          payload = await res.json();
+        } catch (parseErr) {
+          payload = {};
         }
-        showToast('Unable to join course');
+        if (!res.ok || payload?.ok !== true) {
+          const message = payload?.error?.message || payload?.message || `Join failed (${res.status})`;
+          throw new Error(message);
+        }
+        showToast('Joined course successfully', { tone: 'success' });
+        await renderCourseCards();
       } catch (err) {
         console.error('Join course failed', err);
-        showToast('Unable to join course');
+        showToast(`Unable to join course${err?.message ? `: ${err.message}` : ''}`, { tone: 'error' });
       } finally {
         if (!wasDisabled) {
           btn.disabled = false;
@@ -776,7 +841,7 @@ async function renderCourseCards() {
     };
   });
 
-
+  if (isStale()) return;
   if (!courses.length) {
     if (grid) grid.innerHTML = `<div class="card"><strong>No courses yet.</strong><div class="muted small">You're not enrolled in any courses.</div></div>`;
     return;
@@ -785,7 +850,6 @@ async function renderCourseCards() {
   if (!grid) return;
   grid.innerHTML = '';
   courses.forEach(c => {
-    const safeId = escapeHtml(String(c.course_id ?? ''));
     const card = document.createElement('div');
     card.className = 'course-card';
 
@@ -819,15 +883,16 @@ async function renderCourseCards() {
     card.appendChild(wrap);
     grid.appendChild(card);
   });
+
   grid.onclick = async (e) => {
     const btn = e.target.closest('button[data-course]');
     if (!btn) return;
     const id = btn.getAttribute('data-course');
+    if (!id) return;
     await showCourse(id);
   };
 }
 
-// ROOMS (cards) + PROGRESS (bottom)
 async function showCourse(courseId) {
   selectedCourse = String(courseId);
   setRoomsNavState(true);
