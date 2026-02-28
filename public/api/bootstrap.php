@@ -1,15 +1,44 @@
 <?php
 declare(strict_types=1);
 
+// Global exception handler: ensures API always returns structured JSON, never empty 500.
+set_exception_handler(function (Throwable $e): void {
+    $isApi = (
+        stripos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false ||
+        (isset($_SERVER['HTTP_ACCEPT']) && stripos($_SERVER['HTTP_ACCEPT'], 'json') !== false)
+    );
+    if ($isApi) {
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        error_log('[kairos] Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        echo json_encode([
+            'ok' => false,
+            'error' => [
+                'code' => 'internal_error',
+                'message' => 'An internal error occurred. Please try again or contact support.',
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } else {
+        error_log('[kairos] Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        if (!headers_sent()) {
+            http_response_code(500);
+        }
+        echo 'Internal Server Error';
+    }
+    exit(1);
+});
+
 require_once dirname(__DIR__, 2) . '/config/app.php';
 
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
 $cookieParams = [
     'lifetime' => 0,
-    'path'     => (string)(env('SESSION_COOKIE_PATH', '/')),
-    'secure'   => $secure,
+    'path' => (string) (env('SESSION_COOKIE_PATH', '/')),
+    'secure' => $secure,
     'httponly' => true,
-    'samesite' => (string)(env('SESSION_COOKIE_SAMESITE', 'Lax')),
+    'samesite' => (string) (env('SESSION_COOKIE_SAMESITE', 'Lax')),
 ];
 
 $cookieDomain = env('SESSION_COOKIE_DOMAIN');
