@@ -122,9 +122,10 @@ announcements as read, but the file didn't exist → 404.
 ```text
 fix(api): fix activity feed query referencing non-existent columns
 
-- lms_lessons has no 'status' column — remove filter
-- lms_assessments/assignments have no 'published_at' — use updated_at
-- Add migration for published_at columns (future accuracy)
+- lms_lessons: no 'status' or 'published_at' column — use created_at, remove status filter
+- lms_assessments/assignments: add published_at column via migration 20260301_0900,
+  backfilled from updated_at, then query using published_at instead of proxies
+- New migration: 20260301_0900_add_published_at_columns.sql (idempotent, backfill safe)
 ```
 
 ```text

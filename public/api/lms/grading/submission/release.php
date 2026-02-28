@@ -45,10 +45,14 @@ if ($user['role_name'] === 'ta') {
     $subDetailStmt->execute([':s' => $submissionId]);
     $subDetail = $subDetailStmt->fetch(PDO::FETCH_ASSOC);
     if ($subDetail) {
+        $assignmentId = (int)($subDetail['assignment_id'] ?? 0);
+        if ($assignmentId <= 0) {
+            lms_error('bad_request', 'Submission is not linked to an assignment', 400);
+        }
         $chk = $pdo->prepare(
             'SELECT 1 FROM lms_assignment_tas WHERE assignment_id = :a AND ta_user_id = :u LIMIT 1'
         );
-        $chk->execute([':a' => (int)$subDetail['assignment_id'], ':u' => (int)$user['user_id']]);
+        $chk->execute([':a' => $assignmentId, ':u' => (int)$user['user_id']]);
         if (!$chk->fetchColumn()) {
             lms_error('forbidden', 'TA not assigned to this assignment', 403);
         }
