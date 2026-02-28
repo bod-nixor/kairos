@@ -1,4 +1,4 @@
-(function() {
+(function () {
   const STORAGE_KEY = 'kairos-theme';
   const SETTINGS_KEY = 'kairos-ui-settings';
   const HOME_PATH = '/signoff/';
@@ -81,15 +81,15 @@
   };
 
   const syncToggle = (theme) => {
-    const toggle = document.querySelector('[data-theme-toggle]');
-    if (!toggle) return;
     const isDark = theme === 'dark';
-    toggle.classList.toggle('is-dark', isDark);
-    toggle.setAttribute('aria-pressed', String(isDark));
-    const label = toggle.querySelector('[data-theme-label]');
-    if (label) {
-      label.textContent = isDark ? 'Dark' : 'Light';
-    }
+    document.querySelectorAll('[data-theme-toggle]').forEach(toggle => {
+      toggle.classList.toggle('is-dark', isDark);
+      toggle.setAttribute('aria-pressed', String(isDark));
+      const label = toggle.querySelector('[data-theme-label]');
+      if (label) {
+        label.textContent = isDark ? 'Dark' : 'Light';
+      }
+    });
   };
 
   const applyTheme = (theme, persist = true) => {
@@ -198,10 +198,6 @@
     panel.querySelector('#kCompactMode')?.addEventListener('change', (e) => applyUiSettings(saveSettings({ compactMode: e.target.checked })));
     panel.querySelector('#kReduceMotion')?.addEventListener('change', (e) => applyUiSettings(saveSettings({ reduceMotion: e.target.checked })));
 
-    document.querySelectorAll('[data-theme-toggle]').forEach((el) => {
-      if (el.closest('#kSettingsPanel')) return;
-      el.remove();
-    });
     syncToggle(resolvePreferredTheme());
     panel.classList.add('hidden');
     btn.setAttribute('aria-expanded', 'false');
@@ -265,10 +261,7 @@
     });
   });
 
-  window.addEventListener('resize', () => {
-    syncThemeState();
-    applyUiSettings(readSettings());
-  });
+
 
   window.addEventListener('pageshow', () => {
     syncThemeState();
