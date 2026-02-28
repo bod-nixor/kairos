@@ -29,23 +29,12 @@
         }
     }
 
-    function applySafeExternalLink(linkEl, rawUrl, label) {
-        if (!linkEl) return;
-        const value = String(rawUrl || '').trim();
-        linkEl.textContent = label;
-        if (isHttpUrl(value)) {
-            linkEl.href = value;
-            linkEl.setAttribute('target', '_blank');
-            linkEl.setAttribute('rel', 'noopener noreferrer');
-            return;
-        }
-        linkEl.removeAttribute('href');
-        linkEl.removeAttribute('target');
-        linkEl.removeAttribute('rel');
-    }
-
     function toOfficeViewerUrl(rawUrl) {
         return LMS.toOfficeViewerUrl(rawUrl);
+    }
+
+    function toDrivePreviewUrl(rawUrl) {
+        return LMS.toDrivePreviewUrl ? LMS.toDrivePreviewUrl(rawUrl) : '';
     }
 
     function toDriveDownloadUrl(rawUrl) {
@@ -75,10 +64,10 @@
         const value = String(rawUrl || '').trim();
         linkEl.textContent = label;
         if (isHttpUrl(value)) {
-            // Remove native href navigation to intercept with JS modal
-            linkEl.removeAttribute('href');
-            linkEl.removeAttribute('target');
-            linkEl.removeAttribute('rel');
+            // Keep native href to allow keyboard and screen-reader support
+            linkEl.href = value;
+            linkEl.setAttribute('target', '_blank');
+            linkEl.setAttribute('rel', 'noopener noreferrer');
             linkEl.style.cursor = 'pointer';
             linkEl.onclick = (e) => {
                 e.preventDefault();
