@@ -54,6 +54,13 @@ $cases = [
         'status' => 403,
     ],
     [
+        'name' => 'public course enrollment succeeds',
+        'session' => ['user_id' => 4, 'role_name' => 'student', 'email' => 'any@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 10],
+        'status' => 200,
+        'idempotent' => true,
+    ],
+    [
         'name' => 'restricted course denied when not allowlisted',
         'session' => ['user_id' => 2, 'role_name' => 'student', 'email' => 'blocked@nixorcollege.edu.pk'],
         'payload' => ['course_id' => 20],

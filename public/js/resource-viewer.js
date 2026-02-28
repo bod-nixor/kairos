@@ -168,6 +168,10 @@
             const src = rawUrl.includes('/embed') ? rawUrl : rawUrl.replace('/edit', '/preview');
             if (!isHttpUrl(src)) { showEl('unsupportedWrap'); return; }
             hardenPreviewIframe(iframe);
+            if (!iframe) {
+                showEl('unsupportedWrap');
+                return;
+            }
             iframe.src = src;
             showEl('iframeWrap');
             return;
@@ -178,6 +182,10 @@
             if (officeUrl) {
                 const iframe = $('resourceIframe');
                 hardenPreviewIframe(iframe);
+                if (!iframe) {
+                    showEl('unsupportedWrap');
+                    return;
+                }
                 iframe.src = officeUrl;
                 showEl('iframeWrap');
                 return;
