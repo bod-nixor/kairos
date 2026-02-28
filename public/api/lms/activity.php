@@ -79,11 +79,11 @@ try {
     $stmt = $pdo->prepare(
         'SELECT created_at, title, \'lesson_published\' AS event_type FROM lms_lessons WHERE course_id = :cid AND deleted_at IS NULL
 '
-        . 'UNION ALL SELECT published_at, title, \'quiz_published\' AS event_type FROM lms_assessments WHERE course_id = :cid AND status = \'published\' AND deleted_at IS NULL AND published_at IS NOT NULL
+        . 'UNION ALL SELECT published_at AS created_at, title, \'quiz_published\' AS event_type FROM lms_assessments WHERE course_id = :cid AND status = \'published\' AND deleted_at IS NULL AND published_at IS NOT NULL
 '
-        . 'UNION ALL SELECT published_at, title, \'assignment_published\' AS event_type FROM lms_assignments WHERE course_id = :cid AND status = \'published\' AND deleted_at IS NULL AND published_at IS NOT NULL
+        . 'UNION ALL SELECT published_at AS created_at, title, \'assignment_published\' AS event_type FROM lms_assignments WHERE course_id = :cid AND status = \'published\' AND deleted_at IS NULL AND published_at IS NOT NULL
 '
-        . 'ORDER BY published_at DESC, created_at DESC LIMIT :lim'
+        . 'ORDER BY created_at DESC LIMIT :lim'
     );
     $stmt->bindValue(':cid', $courseId, PDO::PARAM_INT);
     $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);

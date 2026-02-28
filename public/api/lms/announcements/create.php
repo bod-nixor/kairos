@@ -19,6 +19,18 @@ if ($courseId <= 0 || empty($in['title']) || empty($in['body'])) {
 // Enforce course-scoped access (prevents cross-course announcement injection)
 lms_course_access($user, $courseId);
 
+// Managers must be explicitly verified as course staff (not just global managers)
+if ($user['role_name'] === 'manager') {
+    $pdo = db();
+    $staffStmt = $pdo->prepare(
+        'SELECT 1 FROM course_staff WHERE user_id = :uid AND course_id = :cid LIMIT 1'
+    );
+    $staffStmt->execute([':uid' => (int)$user['user_id'], ':cid' => $courseId]);
+    if (!$staffStmt->fetchColumn()) {
+        lms_error('forbidden', 'You are not staff in this course', 403);
+    }
+}
+
 $pdo = db();
 
 // Insert announcement

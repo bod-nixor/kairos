@@ -18,36 +18,37 @@ if ($submissionId <= 0) {
 
 $pdo = db();
 
-// Fetch grade with course context for RBAC
-$st = $pdo->prepare(
-    'SELECT g.grade_id, g.course_id, g.score, g.max_score, g.feedback, g.status
-     FROM lms_grades g
-     WHERE g.submission_id = :s
-     ORDER BY g.updated_at DESC, g.grade_id DESC
-     LIMIT 1'
-);
-$st->execute([':s' => $submissionId]);
-$g = $st->fetch(PDO::FETCH_ASSOC);
+// Fetch submission for course context (for RBAC + feature flag check before transaction)
+$subStmt = $pdo->prepare('SELECT course_id FROM lms_submissions WHERE submission_id = :s LIMIT 1');
+$subStmt->execute([':s' => $submissionId]);
+$sub = $subStmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$g) {
-    lms_error('not_found', 'Draft grade not found', 404);
+if (!$sub) {
+    lms_error('not_found', 'Submission not found', 404);
 }
 
-// Enforce course-scoped access (prevents IDOR)
-lms_course_access($user, (int)$g['course_id']);
+$courseId = (int)$sub['course_id'];
+
+// Pre-check course access
+lms_course_access($user, $courseId);
+
+// Pre-check feature flag before transaction
+if (!lms_feature_enabled('lms_expansion_grading_modes', $courseId)) {
+    lms_error('not_found', 'Grading via API is not enabled for this course', 404);
+}
 
 // TA restriction: only assigned submissions
 if ($user['role_name'] === 'ta') {
-    $subStmt = $pdo->prepare(
+    $subDetailStmt = $pdo->prepare(
         'SELECT assignment_id FROM lms_submissions WHERE submission_id = :s LIMIT 1'
     );
-    $subStmt->execute([':s' => $submissionId]);
-    $sub = $subStmt->fetch(PDO::FETCH_ASSOC);
-    if ($sub) {
+    $subDetailStmt->execute([':s' => $submissionId]);
+    $subDetail = $subDetailStmt->fetch(PDO::FETCH_ASSOC);
+    if ($subDetail) {
         $chk = $pdo->prepare(
             'SELECT 1 FROM lms_assignment_tas WHERE assignment_id = :a AND ta_user_id = :u LIMIT 1'
         );
-        $chk->execute([':a' => (int)$sub['assignment_id'], ':u' => (int)$user['user_id']]);
+        $chk->execute([':a' => (int)$subDetail['assignment_id'], ':u' => (int)$user['user_id']]);
         if (!$chk->fetchColumn()) {
             lms_error('forbidden', 'TA not assigned to this assignment', 403);
         }
@@ -56,14 +57,24 @@ if ($user['role_name'] === 'ta') {
 
 $pdo->beginTransaction();
 try {
-    // Re-check status under row lock to prevent race condition
-    $statusStmt = $pdo->prepare(
-        'SELECT status FROM lms_grades WHERE grade_id = :id LIMIT 1 FOR UPDATE'
+    // Fetch grade with FOR UPDATE lock to ensure consistent read of all fields
+    $st = $pdo->prepare(
+        'SELECT g.grade_id, g.course_id, g.score, g.max_score, g.feedback, g.status
+         FROM lms_grades g
+         WHERE g.submission_id = :s
+         ORDER BY g.updated_at DESC, g.grade_id DESC
+         LIMIT 1 FOR UPDATE'
     );
-    $statusStmt->execute([':id' => (int)$g['grade_id']]);
-    $statusRow = $statusStmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($statusRow && (string)$statusRow['status'] === 'released') {
+    $st->execute([':s' => $submissionId]);
+    $g = $st->fetch(PDO::FETCH_ASSOC);
+
+    if (!$g) {
+        $pdo->rollBack();
+        lms_error('not_found', 'Draft grade not found', 404);
+    }
+
+    // Check status under lock
+    if ((string)$g['status'] === 'released') {
         $pdo->rollBack();
         lms_error('conflict', 'Grade is already released', 409);
     }

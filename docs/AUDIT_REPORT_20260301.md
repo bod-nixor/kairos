@@ -25,7 +25,7 @@ Systematic audit of 50+ backend endpoints, 12 frontend JS controllers, 15 SQL mi
 | # | Issue | File(s) | Root Cause | Fix |
 |---|-------|---------|------------|-----|
 | P0-1 | Missing `announcements_read.php` endpoint — frontend calls it, returns 404 | `announcements.js` → (missing file) | Endpoint never created | Created `public/api/lms/announcements_read.php` with course-scoped RBAC |
-| P0-2 | `activity.php` references non-existent columns (`lms_lessons.status`, `*.published_at`) — published items feed silently fails | `public/api/lms/activity.php` | Schema doesn't have `status` on lessons or `published_at` on assessments/assignments | Changed queries to use `created_at` for lessons, `updated_at` for assessments/assignments. Added migration for future `published_at` columns |
+| P0-2 | `activity.php` references non-existent columns (`lms_lessons.status`, `*.published_at`) — published items feed silently fails | `public/api/lms/activity.php` | Schema lacked `published_at` on assessments/assignments; lessons have no `status` column | Lessons use `created_at` (immutable); assessments/assignments use `published_at` (via migration 20260301_0900, backfilled from `updated_at`). UNION aliases all to `created_at` for consistent ORDER BY. Includes `published_at IS NOT NULL` guard to ensure only backfilled records appear. |
 | P0-3 | Grade audit INSERT uses `'draft_saved'` but enum is `('draft','override','release')` — transaction rolls back, **all grade saves fail in strict SQL mode** | `grading/submission/grade.php` | Typo in enum value | Changed to `'draft'` (for save) or `'release'` (for release) |
 | P0-4 | Frontend sends `{grades: {...}, release: bool}` but backend expects `{score, max_score}` — grades always saved as 0/100, release flag ignored | `grading.js` + `grading/submission/grade.php` | Payload contract mismatch | Frontend now sends computed `score` + `max_score` from rubric; backend accepts both formats; `release` flag now handled |
 | P0-5 | "Release All" button posts to proxy that includes single-submission handler (expects `submission_id`) — always returns validation error | `grade_release_all.php` | Proxy pointed to wrong handler | Replaced proxy with proper bulk release handler with audit trail |
@@ -189,6 +189,20 @@ Every mutating endpoint and every read endpoint returning course-scoped data now
 | Migration | Purpose | Safe for Production |
 |-----------|---------|---------------------|
 | `20260301_0900_add_published_at_columns.sql` | Add `published_at` to `lms_assessments` + `lms_assignments` | ✅ Additive, idempotent, backfills from `updated_at` |
+
+---
+
+## Feature Flags
+
+All LMS expansion features are gated by server-evaluated feature flags for safe staged rollout.
+
+| Flag Name | Owner | Purpose | Default | Rollout Scope | Retirement Criteria |
+|-----------|-------|---------|---------|---------------|---------------------|
+| `lms_expansion_grading_modes` | LMS Team | Enable grading workflow (grade save, release, bulk release, audit). Controls access to `grading/submission/grade.php` and `grading/submission/release.php` endpoints. | `off` (feature incomplete) | Per-course allowlist | When all courses upgraded to new grading UI + 1 week stability window; removed by LMS leads after signoff |
+| `lms_expansion_announcements` | LMS Team | Enable announcement creation/reading via API (`announcements/create.php`, `announcements_read.php`). | `off` (backwards compat) | Per-course allowlist | When all clients updated to support realtime announcements; removed by LMS leads after feature adoption > 95% |
+| `lms_expansion_lessons` | LMS Team | Enable lesson blocks API (create, update, delete `lesson_blocks/*` endpoints). | `off` | Per-course allowlist | When legacy lesson manager deprecated; removed after cloud migration |
+
+**Enforcement:** All gated endpoints check flag via `lms_feature_enabled('flag_name', $courseId)` early, before business logic. Flags are course-scoped via allowlist table `feature_flags` or in-memory server config (TBD: implement allowlist table in next migration).
 
 ---
 

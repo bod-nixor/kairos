@@ -26,14 +26,16 @@ if (!is_array($ids) || empty($ids)) {
 
 lms_course_access($user, $courseId);
 
+// Deduplicate and normalize IDs
+$ids = array_values(array_unique(array_map('intval', $ids)));
+
 $userId = (int)$user['user_id'];
 $pdo = db();
 
 // Validate that all announcement IDs belong to this course
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
 $validateStmt = $pdo->prepare("SELECT COUNT(*) AS cnt FROM lms_announcements WHERE id IN ($placeholders) AND course_id = ?");
-$validateIds = array_map('intval', $ids);
-$validateIds[] = $courseId;
+$validateIds = array_merge($ids, [$courseId]);
 $validateStmt->execute($validateIds);
 $result = $validateStmt->fetch(PDO::FETCH_ASSOC);
 if ((int)$result['cnt'] !== count($ids)) {
@@ -47,13 +49,15 @@ $stmt = $pdo->prepare($sql);
 
 $marked = 0;
 foreach ($ids as $id) {
-    $eventId = 'announcement:' . (int)$id;
+    $eventId = 'announcement:' . $id;
     $stmt->execute([
         ':user_id' => $userId,
         ':course_id' => $courseId,
         ':event_id' => $eventId,
     ]);
-    $marked++;
+    if ($stmt->rowCount() > 0) {
+        $marked++;
+    }
 }
 
 lms_ok(['marked' => $marked]);

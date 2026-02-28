@@ -61,15 +61,21 @@ if ($authMaxPoints === false || (float)$authMaxPoints <= 0) {
 }
 $authMax = (float)$authMaxPoints;
 
-// Now resolve payload scores
+// Now resolve payload scores with strict validation
 if ($hasScore) {
-    // Direct score mode
+    // Direct score mode: validate is_numeric first
+    if (!is_numeric($in['score'])) {
+        lms_error('validation_error', 'score must be numeric', 422);
+    }
     $score = (float)$in['score'];
     $max = $authMax;
 } else {
-    // Rubric-based: sum criterion scores from the frontend grades object
+    // Rubric-based: validate each criterion score is numeric
     $score = 0.0;
     foreach ($in['grades'] as $criterionScore) {
+        if (!is_numeric($criterionScore)) {
+            lms_error('validation_error', 'All criterion scores must be numeric', 422);
+        }
         $score += (float)$criterionScore;
     }
     $max = $authMax;
@@ -80,7 +86,13 @@ if ($score < 0 || $score > $max) {
     lms_error('validation_error', "score must be between 0 and {$max}", 422);
 }
 
-$release = !empty($in['release']);
+// Validate release flag with strict type checking
+$releaseRaw = $in['release'] ?? null;
+$release = filter_var($releaseRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+if ($release === null && $releaseRaw !== null) {
+    lms_error('validation_error', 'release must be a boolean', 422);
+}
+$release = (bool)$release;
 
 $gradeStatus = $release ? 'released' : 'draft';
 
