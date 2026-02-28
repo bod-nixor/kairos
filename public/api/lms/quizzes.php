@@ -12,14 +12,14 @@ if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
 
-// Feature flag check — treat missing flag as enabled so quiz listing never 500s
+// Feature flag check — fail-closed
 try {
     if (!lms_feature_enabled('lms_expansion_quizzes', $courseId)) {
         lms_error('feature_disabled', 'quizzes feature not enabled', 404);
     }
 } catch (Throwable $e) {
-    // Feature flag table issue should not block quiz listing
-    error_log('[kairos] lms_feature_enabled check failed: ' . $e->getMessage());
+    error_log('[kairos] lms_feature_enabled check failed: ' . $e->__toString());
+    lms_error('feature_disabled', 'quizzes feature not enabled', 404);
 }
 
 lms_course_access($user, $courseId);

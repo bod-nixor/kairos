@@ -4,11 +4,12 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 require_once __DIR__ . '/_restriction_helpers.php';
 
-// Feature flag check — wrapped so flag issues don't block assignment saves
+// Feature flag check — fail-closed
 try {
     lms_require_feature(['lms_assignments', 'assignments']);
 } catch (Throwable $e) {
-    error_log('[kairos] lms_require_feature check failed in update.php: ' . $e->getMessage());
+    error_log('[kairos] lms_require_feature check failed in update.php: ' . $e->__toString());
+    lms_error('feature_disabled', 'Feature check failed or disabled', 404);
 }
 
 $user = lms_require_roles(['manager', 'admin']);

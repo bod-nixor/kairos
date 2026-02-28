@@ -22,7 +22,8 @@ try {
     $row = $stmt->fetch();
     $result['lms_event_outbox_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
 } catch (Throwable $e) {
-    $result['lms_event_outbox_schema'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_event_outbox_schema: ' . $e->__toString());
+    $result['lms_event_outbox_schema'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 2. Check lms_feature_flags schema
@@ -31,7 +32,8 @@ try {
     $row = $stmt->fetch();
     $result['lms_feature_flags_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
 } catch (Throwable $e) {
-    $result['lms_feature_flags_schema'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_feature_flags_schema: ' . $e->__toString());
+    $result['lms_feature_flags_schema'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 3. Feature flag rows
@@ -39,7 +41,8 @@ try {
     $stmt = $pdo->query('SELECT * FROM lms_feature_flags ORDER BY feature_flag_id ASC LIMIT 50');
     $result['lms_feature_flags_rows'] = $stmt->fetchAll();
 } catch (Throwable $e) {
-    $result['lms_feature_flags_rows'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_feature_flags_rows: ' . $e->__toString());
+    $result['lms_feature_flags_rows'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 4. Last 5 event outbox rows
@@ -47,7 +50,8 @@ try {
     $stmt = $pdo->query('SELECT event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, created_at FROM lms_event_outbox ORDER BY created_at DESC LIMIT 5');
     $result['lms_event_outbox_recent'] = $stmt->fetchAll();
 } catch (Throwable $e) {
-    $result['lms_event_outbox_recent'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_event_outbox_recent: ' . $e->__toString());
+    $result['lms_event_outbox_recent'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 5. Check lms_assessments schema (for time_limit column name)
@@ -56,7 +60,8 @@ try {
     $row = $stmt->fetch();
     $result['lms_assessments_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
 } catch (Throwable $e) {
-    $result['lms_assessments_schema'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_assessments_schema: ' . $e->__toString());
+    $result['lms_assessments_schema'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 6. Check lms_assignments schema
@@ -65,14 +70,15 @@ try {
     $row = $stmt->fetch();
     $result['lms_assignments_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
 } catch (Throwable $e) {
-    $result['lms_assignments_schema'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_assignments_schema: ' . $e->__toString());
+    $result['lms_assignments_schema'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 7. Test the exact quizzes query path
 try {
     $stmt = $pdo->prepare(
-        "SELECT assessment_id AS id, title, description,
-                time_limit_min, max_attempts, due_at AS due_date, status
+        "SELECT assessment_id AS id, title, instructions AS description,
+                time_limit_minutes AS time_limit_min, max_attempts, due_at AS due_date, status
          FROM lms_assessments
          WHERE course_id = :course_id AND deleted_at IS NULL
          ORDER BY due_at ASC, assessment_id ASC"
@@ -80,7 +86,8 @@ try {
     $stmt->execute([':course_id' => 3]);
     $result['quizzes_test_query'] = 'OK — returned ' . count($stmt->fetchAll()) . ' rows';
 } catch (Throwable $e) {
-    $result['quizzes_test_query'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema quizzes_test_query: ' . $e->__toString());
+    $result['quizzes_test_query'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 8. Test the exact assignment update event emit path
@@ -91,7 +98,8 @@ try {
     $stmt = $pdo->prepare('INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)');
     $result['event_insert_prepare'] = 'OK';
 } catch (Throwable $e) {
-    $result['event_insert_prepare'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema event_insert_prepare: ' . $e->__toString());
+    $result['event_insert_prepare'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 // 9. Check lms_questions schema (for deleted_at + is_required)
@@ -100,7 +108,8 @@ try {
     $row = $stmt->fetch();
     $result['lms_questions_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
 } catch (Throwable $e) {
-    $result['lms_questions_schema'] = 'ERROR: ' . $e->getMessage();
+    error_log('[kairos] diag_lms_schema lms_questions_schema: ' . $e->__toString());
+    $result['lms_questions_schema'] = 'ERROR: CHECK_SERVER_LOGS';
 }
 
 lms_ok($result);

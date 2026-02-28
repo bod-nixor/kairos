@@ -127,6 +127,12 @@ function lms_emit_event(PDO $pdo, string $eventName, array $event): void
             $occurredAt = gmdate('Y-m-d H:i:s', strtotime($occurredAt));
         }
 
+        $payload_json = json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($payload_json === false) {
+            error_log('[kairos] lms_emit_event json_encode failed for event: ' . $eventName);
+            return;
+        }
+
         $sql = 'INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)';
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
@@ -137,7 +143,7 @@ function lms_emit_event(PDO $pdo, string $eventName, array $event): void
             ':course_id' => $event['course_id'] ?? null,
             ':entity_type' => $event['entity_type'] ?? 'unknown',
             ':entity_id' => $event['entity_id'] ?? null,
-            ':payload_json' => json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ':payload_json' => $payload_json,
         ]);
     } catch (Throwable $e) {
         // Event emission must never block the calling operation.

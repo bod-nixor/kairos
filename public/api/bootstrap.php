@@ -12,7 +12,15 @@ set_exception_handler(function (Throwable $e): void {
             http_response_code(500);
             header('Content-Type: application/json; charset=utf-8');
         }
-        error_log('[kairos] Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        $logEntry = json_encode([
+            'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+            'action' => 'uncaught_exception',
+            'status' => 'error',
+            'exception_class' => get_class($e),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        error_log('[kairos] Structured Error Log: ' . $logEntry);
         echo json_encode([
             'ok' => false,
             'error' => [
@@ -21,7 +29,15 @@ set_exception_handler(function (Throwable $e): void {
             ],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
-        error_log('[kairos] Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        $logEntry = json_encode([
+            'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+            'action' => 'uncaught_exception',
+            'status' => 'error',
+            'exception_class' => get_class($e),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        error_log('[kairos] Structured Error Log: ' . $logEntry);
         if (!headers_sent()) {
             http_response_code(500);
         }
