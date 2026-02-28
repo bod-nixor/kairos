@@ -2709,7 +2709,7 @@ body.k-page-body {
 
 /* ── Global Brand Badge ───────────────────────────────────── */
 .k-brand-badge {
-    background: #ffffff;
+    background: var(--k-brand-badge-bg, #ffffff);
     border-radius: 50%;
     padding: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);

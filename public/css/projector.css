@@ -144,3 +144,22 @@ body.projector {
   color: var(--projector-muted);
   font-size: 18px;
 }
+
+/* ── Global Brand Badge ───────────────────────────────────── */
+.k-brand-badge {
+  background: var(--k-brand-badge-bg, #ffffff);
+  border-radius: 50%;
+  padding: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+img.k-brand-badge {
+  object-fit: contain;
+}

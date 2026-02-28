@@ -2,3 +2,6 @@
 .env.*
 !.env.example
 public/logs/queues.log
+
+# One-time DOM tools
+scripts/
