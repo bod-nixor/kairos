@@ -55,10 +55,25 @@
         }
     }
 
+
+    function toOfficeViewerUrl(rawUrl) {
+        if (!isHttpUrl(rawUrl)) return '';
+        return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
+    }
+
+
+    function hardenPreviewIframe(iframe) {
+        if (!iframe) return;
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    }
+
     function inferType(resource) {
         if (resource.type) return String(resource.type).toLowerCase();
         const url = (resource.url || resource.file_url || '').toLowerCase();
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
+        if (url.match(/\.(ppt|pptx)($|\?)/)) return 'ppt';
+        if (url.includes('docs.google.com/presentation') || url.includes('slides.google.com')) return 'slides';
         if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
@@ -148,6 +163,37 @@
             return;
         }
 
+        if (type === 'slides') {
+            const iframe = $('resourceIframe');
+            const src = rawUrl.includes('/embed') ? rawUrl : rawUrl.replace('/edit', '/preview');
+            if (!isHttpUrl(src)) { showEl('unsupportedWrap'); return; }
+            hardenPreviewIframe(iframe);
+            if (!iframe) {
+                showEl('unsupportedWrap');
+                return;
+            }
+            iframe.src = src;
+            showEl('iframeWrap');
+            return;
+        }
+
+        if (type === 'ppt') {
+            const officeUrl = toOfficeViewerUrl(rawUrl);
+            if (officeUrl) {
+                const iframe = $('resourceIframe');
+                hardenPreviewIframe(iframe);
+                if (!iframe) {
+                    showEl('unsupportedWrap');
+                    return;
+                }
+                iframe.src = officeUrl;
+                showEl('iframeWrap');
+                return;
+            }
+            showEl('unsupportedWrap');
+            return;
+        }
+
         if (type === 'pdf' || type === 'file' || type === 'embed') {
             const iframeSrc = type === 'pdf' ? drivePreviewUrl : rawUrl;
             if (!isHttpUrl(iframeSrc)) {
@@ -155,9 +201,12 @@
                 return;
             }
             const iframe = $('resourceIframe');
+            hardenPreviewIframe(iframe);
+            if (!iframe) {
+                showEl('unsupportedWrap');
+                return;
+            }
             iframe.src = iframeSrc;
-            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
-            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
             iframe.onerror = () => {
                 $('externalDesc') && ($('externalDesc').textContent = 'Preview failed. Your account may not have access to this file.');
                 showEl('externalWrap');

@@ -43,7 +43,7 @@
           <span class="k-nav-item__text">Dashboard</span>
         </button>
         <!-- Rooms shortcut -->
-        <button class="k-nav-item" data-nav-key="rooms" data-view="rooms">
+        <button class="k-nav-item" data-nav-key="rooms" data-view="rooms" id="kRoomsNavBtn" disabled title="Select a course first">
           <span class="k-nav-item__icon" aria-hidden="true">🏫</span>
           <span class="k-nav-item__text">Rooms</span>
         </button>
@@ -141,6 +141,16 @@
               </div>
             </div>
           </div>
+
+          <div class="k-card" style="margin-top:16px">
+            <div class="k-card__header">
+              <h2 class="k-card__title">Available Courses</h2>
+            </div>
+            <div class="k-card__body">
+              <div data-available-courses-grid="1" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+            </div>
+          </div>
+
         </section>
 
         <!-- Courses view (kept for nav compatibility) -->
@@ -152,6 +162,16 @@
             style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
             <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
           </div>
+
+          <div class="k-card" style="margin-top:16px">
+            <div class="k-card__header">
+              <h2 class="k-card__title">Available Courses</h2>
+            </div>
+            <div class="k-card__body">
+              <div data-available-courses-grid="1" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+            </div>
+          </div>
+
         </section>
 
         <!-- Rooms view -->
