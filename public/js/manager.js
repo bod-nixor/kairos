@@ -763,21 +763,28 @@ async function loadCourseSettings() {
   const preenrollEntries = document.getElementById('preenrollEntries');
   if (!visibilitySelect || !preenrollEntries) return;
 
+  let courseMeta = null;
+  let preenrollData = null;
+
   try {
-    const [courseMeta, preenrollData] = await Promise.all([
-      apiGet(`./api/lms/courses.php?course_id=${encodeURIComponent(activeCourseId)}`),
-      apiGet(`./api/lms/courses/preenroll.php?course_id=${encodeURIComponent(activeCourseId)}`),
-    ]);
-
-    visibilitySelect.value = (courseMeta?.data?.visibility || courseMeta?.visibility || 'public');
-
-    const preEntries = Array.isArray(preenrollData?.data?.entries) ? preenrollData.data.entries : [];
-    preenrollEntries.innerHTML = preEntries.length
-      ? preEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span><span class="muted small">${escapeHtml(entry.status || 'unclaimed')}</span></div><button class="btn btn-link" data-remove-preenroll="${Number(entry.id || 0)}">Remove</button></div>`).join('')
-      : '<div class="muted">No pre-enroll emails.</div>';
+    courseMeta = await apiGet(`./api/lms/courses.php?course_id=${encodeURIComponent(activeCourseId)}`);
   } catch (err) {
     console.warn('Failed to load course settings', err);
+    return; // If course info fails, nothing to render
   }
+
+  try {
+    preenrollData = await apiGet(`./api/lms/courses/preenroll.php?course_id=${encodeURIComponent(activeCourseId)}`);
+  } catch (err) {
+    console.warn('Failed to load preenroll data', err);
+  }
+
+  visibilitySelect.value = (courseMeta?.data?.visibility || courseMeta?.visibility || 'public');
+
+  const preEntries = Array.isArray(preenrollData?.data?.entries) ? preenrollData.data.entries : [];
+  preenrollEntries.innerHTML = preEntries.length
+    ? preEntries.map((entry) => `<div class="list-row"><div class="meta"><span>${escapeHtml(entry.email || '')}</span><span class="muted small">${escapeHtml(entry.status || 'unclaimed')}</span></div><button class="btn btn-link" data-remove-preenroll="${Number(entry.id || 0)}">Remove</button></div>`).join('')
+    : '<div class="muted">No pre-enroll emails.</div>';
 }
 
 function getManagerLayoutKey() {
@@ -859,7 +866,11 @@ function saveManagerLayout() {
   });
 
   const prefs = { order, collapsed };
-  localStorage.setItem(getManagerLayoutKey(), JSON.stringify(prefs));
+  try {
+    localStorage.setItem(getManagerLayoutKey(), JSON.stringify(prefs));
+  } catch (err) {
+    console.warn('Failed to save manager layout to localStorage', err);
+  }
 }
 
 function setupManagerInteractions(container, hasReorderRights) {
