@@ -10,7 +10,7 @@ function lms_user_role(array $user): string
     }
 
     static $cache = [];
-    $userId = (int)($user['user_id'] ?? 0);
+    $userId = (int) ($user['user_id'] ?? 0);
     if ($userId > 0 && isset($cache[$userId])) {
         return $cache[$userId];
     }
@@ -18,7 +18,7 @@ function lms_user_role(array $user): string
     $pdo = db();
     $stmt = $pdo->prepare('SELECT r.name FROM roles r JOIN users u ON u.role_id = r.role_id WHERE u.user_id = :uid LIMIT 1');
     $stmt->execute([':uid' => $userId]);
-    $role = strtolower((string)($stmt->fetchColumn() ?: 'student'));
+    $role = strtolower((string) ($stmt->fetchColumn() ?: 'student'));
 
     if ($userId > 0) {
         $cache[$userId] = $role;
@@ -77,13 +77,13 @@ function lms_feature_enabled(string $flagKey, ?int $courseId = null): bool
     if ($value === false) {
         return false;
     }
-    return ((int)$value) === 1;
+    return ((int) $value) === 1;
 }
 
 function lms_require_feature(array $flags, ?int $courseId = null): void
 {
     foreach ($flags as $flag) {
-        if (lms_feature_enabled((string)$flag, $courseId)) {
+        if (lms_feature_enabled((string) $flag, $courseId)) {
             return;
         }
     }
@@ -100,14 +100,14 @@ function lms_course_access(array $user, int $courseId, bool $allowStaff = true):
     $pdo = db();
     if ($allowStaff && $role === 'ta') {
         $stmt = $pdo->prepare('SELECT 1 FROM course_staff WHERE user_id = :uid AND course_id = :cid AND role IN (\'ta\',\'manager\') LIMIT 1');
-        $stmt->execute([':uid' => (int)$user['user_id'], ':cid' => $courseId]);
+        $stmt->execute([':uid' => (int) $user['user_id'], ':cid' => $courseId]);
         if ($stmt->fetchColumn()) {
             return;
         }
     }
 
     $stmt = $pdo->prepare('SELECT 1 FROM student_courses WHERE user_id = :uid AND course_id = :cid LIMIT 1');
-    $stmt->execute([':uid' => (int)$user['user_id'], ':cid' => $courseId]);
+    $stmt->execute([':uid' => (int) $user['user_id'], ':cid' => $courseId]);
     if (!$stmt->fetchColumn()) {
         lms_error('forbidden', 'You are not enrolled in this course.', 403);
     }
@@ -120,18 +120,36 @@ function lms_is_staff_role(string $role): bool
 
 function lms_emit_event(PDO $pdo, string $eventName, array $event): void
 {
-    $sql = 'INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)';
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':event_id' => $event['event_id'],
-        ':event_name' => $eventName,
-        ':occurred_at' => $event['occurred_at'],
-        ':actor_user_id' => $event['actor_id'] ?? null,
-        ':course_id' => $event['course_id'] ?? null,
-        ':entity_type' => $event['entity_type'] ?? 'unknown',
-        ':entity_id' => $event['entity_id'] ?? null,
-        ':payload_json' => json_encode($event, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    ]);
+    try {
+        // Normalize occurred_at to MySQL DATETIME format (Y-m-d H:i:s)
+        $occurredAt = $event['occurred_at'] ?? gmdate('Y-m-d H:i:s');
+        if (strtotime($occurredAt) !== false) {
+            $occurredAt = gmdate('Y-m-d H:i:s', strtotime($occurredAt));
+        }
+
+        $payload_json = json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($payload_json === false) {
+            error_log('[kairos] lms_emit_event json_encode failed for event: ' . $eventName);
+            return;
+        }
+
+        $sql = 'INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':event_id' => $event['event_id'],
+            ':event_name' => $eventName,
+            ':occurred_at' => $occurredAt,
+            ':actor_user_id' => $event['actor_id'] ?? null,
+            ':course_id' => $event['course_id'] ?? null,
+            ':entity_type' => $event['entity_type'] ?? 'unknown',
+            ':entity_id' => $event['entity_id'] ?? null,
+            ':payload_json' => $payload_json,
+        ]);
+    } catch (Throwable $e) {
+        // Event emission must never block the calling operation.
+        // Log the error but allow the primary transaction to succeed.
+        error_log('[kairos] lms_emit_event failed (' . $eventName . '): ' . $e->getMessage());
+    }
 }
 
 function lms_uuid_v4(): string

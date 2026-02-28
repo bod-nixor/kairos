@@ -1,15 +1,64 @@
 <?php
 declare(strict_types=1);
 
+// Global exception handler: ensures API always returns structured JSON, never empty 500.
+set_exception_handler(function (Throwable $e): void {
+    $isApi = (
+        stripos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false ||
+        (isset($_SERVER['HTTP_ACCEPT']) && stripos($_SERVER['HTTP_ACCEPT'], 'json') !== false)
+    );
+    if ($isApi) {
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        $logEntry = json_encode([
+            'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+            'action' => 'uncaught_exception',
+            'status' => 'error',
+            'user_id' => $_SESSION['user']['user_id'] ?? null,
+            'course_id' => $_REQUEST['course_id'] ?? null,
+            'exception_class' => get_class($e),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        error_log('[kairos] Structured Error Log: ' . $logEntry);
+        echo json_encode([
+            'ok' => false,
+            'error' => [
+                'code' => 'internal_error',
+                'message' => 'An internal error occurred. Please try again or contact support.',
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } else {
+        $logEntry = json_encode([
+            'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+            'action' => 'uncaught_exception',
+            'status' => 'error',
+            'user_id' => $_SESSION['user']['user_id'] ?? null,
+            'course_id' => $_REQUEST['course_id'] ?? null,
+            'exception_class' => get_class($e),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        error_log('[kairos] Structured Error Log: ' . $logEntry);
+        if (!headers_sent()) {
+            http_response_code(500);
+        }
+        echo 'Internal Server Error';
+    }
+    exit(1);
+});
+
 require_once dirname(__DIR__, 2) . '/config/app.php';
 
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
 $cookieParams = [
     'lifetime' => 0,
-    'path'     => (string)(env('SESSION_COOKIE_PATH', '/')),
-    'secure'   => $secure,
+    'path' => (string) (env('SESSION_COOKIE_PATH', '/')),
+    'secure' => $secure,
     'httponly' => true,
-    'samesite' => (string)(env('SESSION_COOKIE_SAMESITE', 'Lax')),
+    'samesite' => (string) (env('SESSION_COOKIE_SAMESITE', 'Lax')),
 ];
 
 $cookieDomain = env('SESSION_COOKIE_DOMAIN');

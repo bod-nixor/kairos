@@ -1,0 +1,135 @@
+<?php
+/**
+ * Admin-only diagnostic endpoint for LMS schema inspection.
+ * Protected by admin RBAC — requires active session with admin role.
+ * TEMPORARY: remove after schema issues are resolved.
+ *
+ * GET /api/admin/diag_lms_schema.php
+ */
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/bootstrap.php';
+require_once dirname(__DIR__) . '/lms/_common.php';
+
+$user = lms_require_roles(['admin']);
+
+try {
+    $pdo = db();
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema db connection failed: ' . $e->__toString());
+    lms_error('db_error', 'Database connection failed', 500);
+}
+$result = [];
+
+// 1. Check lms_event_outbox schema
+try {
+    $stmt = $pdo->query('SHOW CREATE TABLE lms_event_outbox');
+    $row = $stmt->fetch();
+    $result['lms_event_outbox_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_event_outbox_schema: ' . $e->__toString());
+    $result['lms_event_outbox_schema'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 2. Check lms_feature_flags schema
+try {
+    $stmt = $pdo->query('SHOW CREATE TABLE lms_feature_flags');
+    $row = $stmt->fetch();
+    $result['lms_feature_flags_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_feature_flags_schema: ' . $e->__toString());
+    $result['lms_feature_flags_schema'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 3. Feature flag rows
+try {
+    $stmt = $pdo->query('SELECT * FROM lms_feature_flags ORDER BY feature_flag_id ASC LIMIT 50');
+    $result['lms_feature_flags_rows'] = $stmt->fetchAll();
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_feature_flags_rows: ' . $e->__toString());
+    $result['lms_feature_flags_rows'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 4. Last 5 event outbox rows
+try {
+    $stmt = $pdo->query('SELECT event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, created_at FROM lms_event_outbox ORDER BY created_at DESC LIMIT 5');
+    $result['lms_event_outbox_recent'] = $stmt->fetchAll();
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_event_outbox_recent: ' . $e->__toString());
+    $result['lms_event_outbox_recent'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 5. Check lms_assessments schema (for time_limit column name)
+try {
+    $stmt = $pdo->query('SHOW CREATE TABLE lms_assessments');
+    $row = $stmt->fetch();
+    $result['lms_assessments_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_assessments_schema: ' . $e->__toString());
+    $result['lms_assessments_schema'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 6. Check lms_assignments schema
+try {
+    $stmt = $pdo->query('SHOW CREATE TABLE lms_assignments');
+    $row = $stmt->fetch();
+    $result['lms_assignments_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_assignments_schema: ' . $e->__toString());
+    $result['lms_assignments_schema'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 7. Test the exact quizzes query path
+try {
+    $stmt = $pdo->prepare(
+        "SELECT assessment_id AS id, title, instructions AS description,
+                time_limit_minutes AS time_limit_min, max_attempts, due_at AS due_date, status
+         FROM lms_assessments
+         WHERE course_id = :course_id AND deleted_at IS NULL
+         ORDER BY due_at ASC, assessment_id ASC"
+    );
+    $stmt->execute([':course_id' => 3]);
+    $result['quizzes_test_query'] = 'OK — returned ' . count($stmt->fetchAll()) . ' rows';
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema quizzes_test_query: ' . $e->__toString());
+    $result['quizzes_test_query'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+// 8. Test the exact assignment update event emit path
+try {
+    $testOccurred = gmdate('c');
+    $result['event_occurred_format'] = $testOccurred;
+
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('INSERT INTO lms_event_outbox (event_id, event_name, occurred_at, actor_user_id, course_id, entity_type, entity_id, payload_json) VALUES (:event_id,:event_name,:occurred_at,:actor_user_id,:course_id,:entity_type,:entity_id,:payload_json)');
+    $stmt->execute([
+        ':event_id' => lms_uuid_v4(),
+        ':event_name' => 'diag.test',
+        ':occurred_at' => $testOccurred,
+        ':actor_user_id' => $user['user_id'] ?? null,
+        ':course_id' => null,
+        ':entity_type' => 'diagnostic',
+        ':entity_id' => null,
+        ':payload_json' => '{}'
+    ]);
+    $pdo->rollBack();
+    $result['event_insert_prepare'] = 'OK';
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log('[kairos] diag_lms_schema event_insert_prepare: ' . $e->__toString());
+    $result['event_insert_prepare'] = 'ERROR: ' . $e->getMessage();
+}
+
+// 9. Check lms_questions schema (for deleted_at + is_required)
+try {
+    $stmt = $pdo->query('SHOW CREATE TABLE lms_questions');
+    $row = $stmt->fetch();
+    $result['lms_questions_schema'] = $row['Create Table'] ?? $row[1] ?? 'could not read';
+} catch (Throwable $e) {
+    error_log('[kairos] diag_lms_schema lms_questions_schema: ' . $e->__toString());
+    $result['lms_questions_schema'] = 'ERROR: CHECK_SERVER_LOGS';
+}
+
+lms_ok($result);

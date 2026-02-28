@@ -12,7 +12,13 @@ if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
 
-if (!lms_feature_enabled('lms_expansion_quizzes', $courseId)) {
+// Feature flag check — fail-closed
+try {
+    if (!lms_feature_enabled('lms_expansion_quizzes', $courseId)) {
+        lms_error('feature_disabled', 'quizzes feature not enabled', 404);
+    }
+} catch (Throwable $e) {
+    error_log('[kairos] lms_feature_enabled check failed: ' . $e->__toString());
     lms_error('feature_disabled', 'quizzes feature not enabled', 404);
 }
 
@@ -22,12 +28,17 @@ $role = strtolower($user['role_name'] ?? lms_user_role($user));
 $statusFilter = ($role === 'student') ? "AND status = 'published'" : "";
 
 $pdo = db();
-$stmt = $pdo->prepare(
-    "SELECT assessment_id AS id, title, description,
-            time_limit_min, max_attempts, due_at AS due_date, status
-     FROM lms_assessments
-     WHERE course_id = :course_id AND deleted_at IS NULL $statusFilter
-     ORDER BY due_at ASC, assessment_id ASC"
-);
-$stmt->execute([':course_id' => $courseId]);
-lms_ok($stmt->fetchAll());
+try {
+    $stmt = $pdo->prepare(
+        "SELECT assessment_id AS id, title, instructions AS description,
+                time_limit_minutes AS time_limit_min, max_attempts, due_at AS due_date, status
+         FROM lms_assessments
+         WHERE course_id = :course_id AND deleted_at IS NULL $statusFilter
+         ORDER BY due_at ASC, assessment_id ASC"
+    );
+    $stmt->execute([':course_id' => $courseId]);
+    lms_ok($stmt->fetchAll());
+} catch (Throwable $e) {
+    error_log('[kairos] quizzes listing failed: ' . $e->getMessage());
+    lms_error('query_failed', 'Failed to load quizzes.', 500);
+}

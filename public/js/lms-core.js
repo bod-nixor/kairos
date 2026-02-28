@@ -99,6 +99,11 @@
 
   /* ── API wrapper ─────────────────────────────────────────── */
   async function api(method, path, body) {
+    // Defensive: never fetch undefined/null/empty paths
+    if (!path || path === 'undefined' || path === 'null') {
+      console.warn('[LMS] api() called with invalid path:', path);
+      return { ok: false, status: 0, error: 'Invalid API path', data: null };
+    }
     const opts = {
       method: method.toUpperCase(),
       credentials: 'same-origin',
@@ -440,7 +445,7 @@
       const avatar = document.getElementById('kSidebarAvatar');
       const name = document.getElementById('kSidebarName');
       const roleEl = document.getElementById('kSidebarRole');
-      if (avatar) avatar.src = me.picture_url || '';
+      if (avatar) avatar.src = me.picture_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><circle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%236c63ff%22/><text x=%2220%22 y=%2226%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2218%22>?</text></svg>';
       if (name) name.textContent = me.name || me.email || '';
       // Derive display role from session capabilities
       const r = _caps && _caps.roles ? _caps.roles : {};
@@ -553,8 +558,8 @@
       return null;
     }
   }
-  
-function sanitizeForRender(html) {
+
+  function sanitizeForRender(html) {
     if (!html || typeof html !== 'string') return '';
 
     const div = document.createElement('div');
@@ -565,22 +570,22 @@ function sanitizeForRender(html) {
 
     // Remove inline event handlers (onclick, onerror, etc.)
     div.querySelectorAll('*').forEach(el => {
-        [...el.attributes].forEach(attr => {
-            if (attr.name.startsWith('on')) {
-                el.removeAttribute(attr.name);
-            }
-            // Block javascript: URLs
-            if (['href', 'src'].includes(attr.name)) {
-                const value = attr.value.trim().toLowerCase();
-                if (value.startsWith('javascript:')) {
-                    el.removeAttribute(attr.name);
-                }
-            }
-        });
+      [...el.attributes].forEach(attr => {
+        if (attr.name.startsWith('on')) {
+          el.removeAttribute(attr.name);
+        }
+        // Block javascript: URLs
+        if (['href', 'src'].includes(attr.name)) {
+          const value = attr.value.trim().toLowerCase();
+          if (value.startsWith('javascript:')) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      });
     });
 
     return div.innerHTML;
-}
+  }
 
   function debug(entry, options = {}) {
     const isDebugMode = new URLSearchParams(global.location.search).get('debug') === '1';
