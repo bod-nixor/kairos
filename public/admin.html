@@ -75,7 +75,7 @@
   <!-- ── Main Layout ───────────────────────────────────────── -->
   <div class="k-layout">
     <header class="k-topbar" role="banner">
-      <div class="k-topbar__left" style="display:flex;align-items:center;">
+      <div class="k-topbar__left">
         <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu"
           style="margin-right:12px;background:transparent;border:0;font-size:20px;cursor:pointer;">☰</button>
         <nav class="k-breadcrumb" aria-label="Breadcrumb">
@@ -284,7 +284,9 @@
       const sidebar = document.getElementById("kSidebar");
       if (btn && sidebar) {
         btn.addEventListener("click", () => {
-          sidebar.classList.toggle("is-open");
+          const isOpen = sidebar.classList.toggle("is-open");
+          btn.setAttribute("aria-expanded", isOpen);
+          sidebar.setAttribute("aria-hidden", !isOpen);
         });
       }
     });

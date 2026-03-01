@@ -45,7 +45,7 @@ A standard `.k-card` provides a white/slate container for discrete chunks of dat
 
 - **Breakpoints:** 
   - `<= 1024px:` Sidebar condenses or shifts to allow content breathing room. Hamburger toggles enabled.
-  - `<= 640px:` Sidebar becomes an absolute modal slide-in `transform: translateX(0)`. Tap targets (`min-height: 48px`) are enforced so fingers don't double click links. Modal dialogs snap to `100%` width with minimal `12px` margins.
+  - `<= 640px:` Sidebar becomes an absolute modal slide-in `transform: translateX(0)`. Tap targets (`min-height: 48px`) are enforced so fingers don't double-click links. Modal dialogs snap to `100%` width with minimal `12px` margins.
 
 ## Accessibility (A11y)
 - **ARIA Labeling:** Interactive toggles (like the hamburger or `.theme-toggle`) mandate `aria-label`. Use `aria-hidden="true"` on non-semantic icons.
