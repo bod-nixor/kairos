@@ -1,86 +1,226 @@
-# Kairos Queue Management Portal
+# Kairos
 
-Kairos is a role-aware help-queue and room management portal for courses. It combines a PHP REST API, a lightweight JavaScript single-page UI, and a Python-based WebSocket relay to keep students, teaching assistants, managers, and administrators in sync in real time.
+Kairos is Nixor College’s production academic operations platform, combining queue workflows with a growing LMS experience under `/signoff/`.
 
-## Features
+- **Live URL (canonical):** https://kairos.nixorcorporate.com/signoff/
+- **Primary stack:** vanilla PHP API + vanilla JS/CSS frontend + Python WebSocket relay + MariaDB/MySQL
+- **Identity model:** Google OAuth with hosted-domain restriction (typically `nixorcollege.edu.pk`)
 
-- **Google OAuth sign-in with domain enforcement**: Users authenticate with Google Identity and are restricted to the configured email domain via `ALLOWED_DOMAIN`. The API upserts users on first login and assigns a default role.
-- **Role-based access control**: Roles (student, TA, manager, admin) flow through the PHP API and helper utilities in `src/rbac.php` to scope which courses, rooms, and queues a user can view or mutate.
-- **Course, room, and queue directory**: Students can browse courses and the rooms within them, while queues are filtered based on their enrollments or staff assignments.
-- **Queue participation**: Students join or leave queues atomically; TA actions move students into service and stop sessions while keeping auditability through `ta_assignments` and optional `ta_audit_log` entries.
-- **WebSocket updates**: `ws_server.py` relays queue and projector events over Socket.IO so the front-end can update without polling. Server-sent change notifications can also be persisted through the `change_log` table.
-- **Configurable environment**: The PHP layer reads `.env` values defined in `config/app.php`, and the WebSocket relay mirrors that behaviour to keep both services aligned.
+---
 
-## Architecture
+## What is Kairos?
 
-- **PHP REST API (`public/api/`)**: Handles authentication, course/room/queue lookups, queue joins/leaves, TA workflows, and capability checks. Shared bootstrap and role helpers live in `config/app.php`, `public/api/bootstrap.php`, and `public/api/_helpers.php`.
-- **Role utilities (`src/rbac.php`)**: Centralizes RBAC checks for course, room, and queue access, including helper lookups for student/TA/manager mappings.
-- **Front-end (`public/`)**: Static HTML/CSS/JS shell that consumes the API and WebSocket events. JavaScript configuration is loaded from `public/api/config.php` and normalized in `public/js/config.js`.
-- **WebSocket relay (`ws_server.py`)**: Flask-SocketIO app that accepts signed tokens, rooms clients into per-channel namespaces, and broadcasts queue/projector events emitted by the PHP API.
+Kairos started as a queue + room management portal and has expanded into a Canvas-like LMS while preserving role-aware operational workflows.
+
+Current/active domains include:
+- Course discovery and course home experience
+- Rooms, TA queues, and signoff sessions
+- Modules and lessons (including rich lesson content)
+- Resource management and previews (Drive/docs/slides/video/external links)
+- Quizzes, assignments, submissions, rubrics, and grading views
+- Analytics and notification surfaces
+- Role-gated navigation for students, TAs, managers, and admins
+
+---
+
+## Architecture at a glance
+
+- **PHP API (`public/api/`)**
+  - Authoritative for all state transitions.
+  - Enforces authentication, RBAC, validation, and DB transactions.
+- **Frontend (`public/`)**
+  - Vanilla JS/CSS application shell under `/signoff/`.
+  - Consumes REST endpoints and realtime events.
+- **Python WebSocket relay (`ws_server.py`)**
+  - Handles connection lifecycle, subscriptions, and broadcast fanout.
+  - Not authoritative for business state.
+- **MariaDB/MySQL (`db/migrations/`)**
+  - Canonical business state, constraints, and audit-critical records.
+
+---
+
+## Environment and deployment assumptions
+
+Kairos is currently deployed in a cPanel-style environment and code should be written with those constraints in mind:
+
+- No framework/composer assumptions for core runtime flows.
+- Public entrypoints live under `public/`.
+- Relative URLs can break when moving between nested pages; prefer well-defined base paths.
+- Session/auth requests rely on same-origin credentials/cookie behavior.
+- OAuth callback and allowed origins must match deployed URL shape (`/signoff/`).
+
+---
 
 ## Prerequisites
 
-- PHP 8.1+ with `pdo_mysql`, `curl`, and `openssl` extensions enabled.
-- MariaDB/MySQL 10.6+ with InnoDB.
-- Python 3.10+ for the WebSocket relay (`pip install -r requirements.txt`).
-- A Google Cloud OAuth client ID for the front-end sign-in flow.
+- PHP 8.1+ with `pdo_mysql`, `curl`, `openssl`.
+- MariaDB/MySQL 10.6+.
+- Python 3.10+ (`pip install -r requirements.txt`) for websocket relay.
+- Google OAuth Client ID configured for Kairos hosts.
 
-## Configuration
+---
 
-Create a `.env` file in the project root (loaded by both PHP and `ws_server.py`) with values similar to:
+## Configuration (`.env`)
 
-```
+Create `.env` at repo root (read by both PHP and websocket relay):
+
+```env
 APP_DEBUG=true
 APP_TIMEZONE=UTC
-ALLOWED_DOMAIN=example.edu
-DEFAULT_ROLE_NAME=student
 
-DB_DATABASE=kairos
+ALLOWED_DOMAIN=nixorcollege.edu.pk
+DEFAULT_ROLE_NAME=student
+GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+
 DB_HOST=127.0.0.1
 DB_PORT=3306
+DB_DATABASE=kairos
 DB_USERNAME=kairos
 DB_PASSWORD=secret
 DB_CHARSET=utf8mb4
-
-GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+# Optional: DB_DSN=mysql:host=127.0.0.1;port=3306;dbname=kairos;charset=utf8mb4
 
 WS_SHARED_SECRET=replace-with-random-hex
 WS_SOCKET_PATH=/websocket/socket.io
 WS_PUBLIC_URL=wss://your-host.example.edu
+
 SESSION_COOKIE_NAME=kairos_session
 SESSION_COOKIE_PATH=/
 ```
 
-The PHP layer also honours `DB_DSN` if you prefer a full DSN string, while the WebSocket relay reads the same `.env` for Socket.IO configuration.
+### OAuth + local dev caveat
 
-## Database setup
+If your Google OAuth app is locked down to production domains and `nixorcollege.edu.pk`, localhost sign-in may not fully work. In that case:
+- Use staging/live for full auth verification, or
+- Temporarily configure a permitted dev OAuth client/domain in a safe environment.
 
-Run the schema script to provision the database:
+---
 
+## Database + migrations
+
+All schema changes must be applied via manual SQL migrations in `db/migrations/`.
+
+### Migration rules
+
+1. File name format: `YYYYMMDD_HHMM_desc.sql`
+2. Use guarded MySQL/MariaDB-compatible patterns where possible (`IF NOT EXISTS`, `IF EXISTS`).
+3. Include forward migration SQL.
+4. Include rollback SQL section when feasible.
+5. Include idempotent backfill steps when required.
+6. Add indexes for new lookup paths and foreign keys.
+
+### Applying migrations
+
+Use your MariaDB/MySQL client to apply scripts in order:
+
+```bash
+mariadb -u <user> -p < db/migrations/<migration_file>.sql
 ```
-mariadb -u <user> -p < sql/initialize_schema.sql
+
+For first-time setup, run baseline schema/bootstrap script(s) first, then remaining migrations.
+
+---
+
+## Running locally
+
+### 1) Start PHP app (web root = `public/`)
+
+```bash
+php -S 0.0.0.0:8000 -t public
 ```
 
-The script creates core tables for roles, users, courses, rooms, queues, queue entries, TA assignments/audit records, enrollment mappings used by the RBAC helpers, a `queues_info` view for queue metadata, and supporting indexes for queue lookups.
+Visit:
+- App home: `http://localhost:8000/signoff/`
 
-## Running the stack locally
+### 2) Start WebSocket relay
 
-1. **Install PHP dependencies** (none beyond built-in extensions) and ensure the web root points to `public/`. For quick testing you can use PHP's built-in server:
-   ```
-   php -S 0.0.0.0:8000 -t public
-   ```
-2. **Start the WebSocket relay** in another terminal after installing Python dependencies:
-   ```
-   pip install -r requirements.txt
-   WS_SHARED_SECRET=replace-with-random-hex python ws_server.py
-   ```
-3. **Sign in via the browser** at `http://localhost:8000/` using a Google account on the allowed domain. Create courses/rooms/queues in the database so they appear in the UI.
+```bash
+pip install -r requirements.txt
+WS_SHARED_SECRET=replace-with-random-hex python ws_server.py
+```
 
-## Data flow highlights
+### 3) Verify DB + OAuth
 
-- Authentication populates the `users` table and stores the session in PHP; REST endpoints guard access with `require_login()`.
-- RBAC helpers derive course access from enrollment/staff mapping tables and short-circuit admin/manager privileges.
-- Queue actions (`public/api/queues.php`) update `queue_entries`, emit `change_log` rows when available, and broadcast WebSocket events via `_ws_notify.php` to connected clients.
-- TA actions (`public/api/ta/*.php`) move students into `ta_assignments`, mark sessions complete, and log optional audit rows for traceability.
+- Confirm database connectivity.
+- Confirm OAuth client and allowed domain config.
+- Confirm browser cookie/session behavior with same-origin requests.
 
-Refer to `CHANGES_KAIROS.md` for deployment-specific notes and additional migration suggestions.
+---
+
+## Python WS relay expectations
+
+`ws_server.py` expects environment configuration that mirrors API auth assumptions:
+- Shared secret/token validation config (`WS_SHARED_SECRET`)
+- Socket path/public URL alignment with frontend config
+- Events emitted by API after successful DB transactions
+
+Realtime consumers should treat events as advisory (idempotent and potentially out of order).
+
+---
+
+## Developer workflows
+
+### Add a new LMS page safely
+
+1. Define page scope and RBAC access matrix (student/TA/manager/admin).
+2. Reuse existing UI shell/nav components to preserve theme + layout consistency.
+3. Identify required API reads/writes and expected response contracts.
+4. Ensure backend endpoints enforce RBAC server-side.
+5. Emit/consume realtime events only after DB commit where applicable.
+6. Validate dark/light mode and responsive behavior.
+7. Provide manual QA checklist in PR/hand-off.
+
+### Add a new API endpoint safely
+
+1. Search for existing endpoints/contracts before creating a new one.
+2. If frontend/backend path shapes differ (flat vs nested), either:
+   - update frontend to canonical backend endpoint, or
+   - add a documented compatibility/proxy endpoint.
+3. Keep response shape consistent for the API area (including `lms_ok` wrappers where used).
+4. Return sanitized, stable errors (`4xx` for user issues, `5xx` for system faults).
+5. Enforce RBAC and entity context scoping (IDOR-safe).
+6. Add/update migrations if schema changes are needed.
+
+### Test locally vs staging/live
+
+- **Local:** layout/UI behavior, non-OAuth flows, endpoint wiring, DB migrations, websocket connectivity.
+- **Staging/live:** full OAuth domain restrictions, production-like role/capability behavior, integration with Drive/file previews.
+
+---
+
+## Troubleshooting (recurring issues)
+
+- Theme toggle mismatches on resize.
+- Modal open but non-clickable (z-index / pointer-events).
+- Resource iframe preview failures; ensure fallback strategy:
+  - Drive `/preview` where applicable
+  - YouTube watch URL to embed conversion
+  - Office viewer fallback for office docs.
+- Endpoint path mismatch or JSON shape mismatch between UI and API.
+- Role/capability caching leading to stale nav or permissions.
+- Course context nav disappearing on some pages.
+- Notifications “mark seen” not persisting server-side.
+- Grade UI regressions due to CSS grid/stacking updates.
+
+---
+
+## Contributing
+
+Humans and AI agents follow the same baseline process:
+
+1. Read `AGENTS.md` and this `README.md` before implementing changes.
+2. Check for existing APIs/components before adding new ones.
+3. Enforce RBAC server-side on every protected action/read.
+4. Use SQL migrations for schema changes; never mutate schema silently in runtime code.
+5. Keep commits small and logical with clear commit messages.
+6. Include a short manual QA checklist in your hand-off/PR.
+7. Preserve visual quality and dark/light mode consistency.
+8. Document endpoint compatibility choices and resource-embedding decisions.
+9. Respect cPanel deployment constraints.
+
+---
+
+## Additional references
+
+- Engineering guardrails and architecture policy: `AGENTS.md`
+- Deployment/migration notes: `CHANGES_KAIROS.md` and `docs/runbooks/` (add when introducing operationally significant changes)
