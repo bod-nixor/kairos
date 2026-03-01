@@ -249,6 +249,12 @@ Use this checklist on every task:
      - update frontend to canonical backend paths, or
      - add documented proxy/compat endpoints.
    - Never leave path inconsistencies undocumented.
+
+### UI/UX Requirements
+When building or updating UI for Kairos, agents MUST follow the guidelines documented in **`DESIGN_GUIDELINES.md`** and verify work against **`UI_UX_CHECKLIST.md`**.
+*   **Responsive First:** All pages must support mobile viewports (`<= 640px`) utilizing `.k-layout` and the hamburger slide-in drawer mechanism. 
+*   **Unified Shell:** Use `.k-sidebar`, `.k-topbar`, `.k-main` wrappers for all pages. Do not create new ad-hoc shells.
+*   **Accessibility:** Demand `aria-label`s on icon buttons. Don't strip focus outlines unless replacing with custom `:focus-visible`.
 3. **Enforce RBAC on server-side for all protected data/actions.**
    - Frontend gating is UX convenience only.
 4. **Create SQL migrations for schema changes.**

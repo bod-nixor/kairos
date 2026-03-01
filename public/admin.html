@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
   <meta charset="utf-8" />
@@ -23,167 +23,272 @@
     })();
   </script>
   <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/lms.css" />
   <link rel="stylesheet" href="./css/admin.css" />
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
 </head>
 
-<body class="admin-page">
-  <header class="admin-header">
-    <img src="./images/logo-full.png" alt="Kairos" class="k-brand-badge admin-brand" />
-    <h1>Admin Dashboard</h1>
-    <nav class="admin-nav" aria-label="Admin navigation">
-      <a class="admin-nav-link" href="/signoff/" data-admin-nav="home">All Courses / Home</a>
-      <a class="admin-nav-link" href="./admin.html" data-admin-nav="courses">All Courses</a>
-      <a class="admin-nav-link" href="./admin.html#assignCard" data-admin-nav="assignments">TA assignment</a>
-      <a class="admin-nav-link" href="./manager.html" data-admin-nav="roster" data-role="manager">Course roster</a>
-      <a class="admin-nav-link" href="./manager.html#progress" data-admin-nav="progress" data-role="manager">Student
-        progress</a>
-    </nav>
-    <span class="muted" id="userInfo"></span>
-    <div class="spacer"></div>
-    <button type="button" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
-      <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
-      <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
-      <span class="theme-toggle__thumb"></span>
-    </button>
-    <button id="logoutBtn" type="button">Logout</button>
-  </header>
-  <main class="admin-main">
-    <section id="statusCard" class="card hidden">
-      <h2>Status</h2>
-      <p id="message" class="status"></p>
-    </section>
+<body class="k-page-body">
 
-    <section id="forbiddenCard" class="card hidden">
-      <h2>Access denied</h2>
-      <p class="muted">Admin tools are restricted to administrators.</p>
-      <p><a class="btn btn-primary" href="/signoff/">Return home</a></p>
-    </section>
+  <!-- ── Sidebar ──────────────────────────────────────────── -->
+  <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Main navigation">
+    <a class="k-sidebar__brand" href="/signoff/" data-home-link="true" aria-label="Kairos home">
+      <div class="k-sidebar__logo">
+        <img class="k-brand-badge" src="./images/logo.png" alt="" />
+      </div>
+      <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+    </a>
 
-    <section class="card" id="coursesCard">
-      <div class="flex-wrap-row justify-between align-center">
-        <h2>All Courses</h2>
-        <span class="muted" id="courseCount"></span>
-      </div>
-      <div class="table-wrap">
-        <table id="coursesTable">
-          <thead>
-            <tr>
-              <th class="col-id">ID</th>
-              <th>Name</th>
-              <th>Description</th>
-              <th class="col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
+    <div class="k-sidebar__scroll">
+      <!-- Global nav -->
+      <nav class="k-nav-group" id="kNavGlobal" aria-label="Global">
+        <a class="k-nav-item" href="/signoff/">
+          <span class="k-nav-item__icon" aria-hidden="true">🏠</span>
+          <span class="k-nav-item__text">All Courses</span>
+        </a>
+        <a class="k-nav-item is-active" href="./admin.html" aria-current="page">
+          <span class="k-nav-item__icon" aria-hidden="true">⚙️</span>
+          <span class="k-nav-item__text">Admin Tools</span>
+        </a>
+      </nav>
+      <nav class="k-nav-group" aria-label="Manager link">
+        <div class="k-nav-group__label">Other Tools</div>
+        <a class="k-nav-item hidden" id="navManager" href="./manager.html" data-role="manager">
+          <span class="k-nav-item__icon" aria-hidden="true">📋</span>
+          <span class="k-nav-item__text">Manager</span>
+        </a>
+      </nav>
+    </div>
 
-    <section class="card grid-two" id="formsCard">
-      <div>
-        <h2>Create course</h2>
-        <form id="createCourseForm">
-          <label class="muted">Name</label>
-          <input type="text" name="name" required placeholder="Course name" />
-          <label class="muted">Description</label>
-          <textarea name="description" placeholder="Optional description"></textarea>
-          <button type="submit" class="mt-16">Create</button>
-        </form>
+    <!-- User footer -->
+    <div class="k-sidebar__user">
+      <img class="k-sidebar__avatar" id="kSidebarAvatar" src="" alt="Your avatar" />
+      <div class="k-sidebar__user-info">
+        <div class="k-sidebar__user-name" id="kSidebarName">—</div>
+        <div class="k-sidebar__user-role" id="kSidebarRole">Admin</div>
       </div>
-      <div>
-        <h2>Edit selected course</h2>
-        <form id="editCourseForm">
-          <input type="hidden" name="course_id" />
-          <label class="muted">Name</label>
-          <input type="text" name="name" placeholder="Select a course above" disabled />
-          <label class="muted">Description</label>
-          <textarea name="description" placeholder="Select a course" disabled></textarea>
-          <div class="form-actions">
-            <button type="submit" id="saveCourseBtn" disabled>Save</button>
-            <button type="button" id="deleteCourseBtn" class="delete" disabled>Delete</button>
+      <button class="k-sidebar__logout" id="kLogoutBtn" aria-label="Logout" title="Logout">↩</button>
+    </div>
+  </aside>
+
+  <!-- ── Main Layout ───────────────────────────────────────── -->
+  <div class="k-layout">
+    <header class="k-topbar" role="banner">
+      <div class="k-topbar__left">
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">☰</button>
+        <nav class="k-breadcrumb" aria-label="Breadcrumb">
+          <a class="k-breadcrumb__item" href="/signoff/">Home</a>
+          <span class="k-breadcrumb__sep" aria-hidden="true">›</span>
+          <span class="k-breadcrumb__item is-current">Admin</span>
+        </nav>
+      </div>
+      <div class="k-topbar__actions">
+        <span class="muted small" id="userInfo" style="margin-right:16px"></span>
+        <button class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode"
+          data-theme-toggle>
+          <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
+          <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="k-main" id="appRoot">
+      <div class="k-page">
+        <div class="k-page-header">
+          <div>
+            <h1 class="k-page-header__title">Admin Dashboard</h1>
+            <p class="k-page-header__subtitle">Manage global platform courses and settings.</p>
           </div>
-        </form>
-      </div>
-    </section>
-
-
-    <section class="card" id="courseSettingsCard">
-      <div class="flex-wrap-row align-center justify-between">
-        <h2>Course settings</h2>
-        <span class="muted" id="courseSettingsTitle">Select a course to edit settings</span>
-      </div>
-      <div class="grid-two align-end">
-        <div>
-          <label class="muted">Visibility</label>
-          <select id="adminCourseVisibilitySelect" disabled>
-            <option value="public">Public</option>
-            <option value="restricted">Restricted</option>
-          </select>
         </div>
-        <div>
-          <button type="button" id="adminSaveCourseVisibilityBtn" disabled>Save visibility</button>
-        </div>
-      </div>
-      <div class="grid-two" style="margin-top:12px;">
-        <div>
-          <label class="muted">Allowlist email</label>
-          <div class="flex-wrap-row">
-            <input type="email" id="adminAllowlistEmail" placeholder="name@nixorcollege.edu.pk" disabled />
-            <button type="button" id="adminAddAllowlistBtn" disabled>Add</button>
+
+        <section id="statusCard" class="k-card hidden" style="margin-bottom:16px">
+          <div class="k-card__header">
+            <h2 class="k-card__title">Status</h2>
           </div>
-          <div id="adminAllowlistEntries" class="list-stack"></div>
-        </div>
-        <div>
-          <label class="muted">Pre-enroll email</label>
-          <div class="flex-wrap-row">
-            <input type="email" id="adminPreenrollEmail" placeholder="name@nixorcollege.edu.pk" disabled />
-            <button type="button" id="adminAddPreenrollBtn" disabled>Add</button>
+          <div class="k-card__body">
+            <p id="message" class="k-status"></p>
           </div>
-          <div id="adminPreenrollEntries" class="list-stack"></div>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <section class="card" id="assignCard">
-      <div class="flex-wrap-row align-center justify-between">
-        <h2>Course staff</h2>
-        <span class="muted" id="assignmentTitle">Select a course to view staff</span>
+        <section id="forbiddenCard" class="k-card hidden" style="margin-bottom:16px">
+          <div class="k-card__header">
+            <h2 class="k-card__title">Access denied</h2>
+          </div>
+          <div class="k-card__body">
+            <p class="muted">Admin tools are restricted to administrators.</p>
+            <p style="margin-top:16px"><a class="btn btn-primary" href="/signoff/">Return home</a></p>
+          </div>
+        </section>
+
+        <section class="k-card" id="coursesCard" style="margin-bottom:24px">
+          <div class="k-card__header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h2 class="k-card__title">All Courses</h2>
+            <span class="k-badge k-badge--edit" id="courseCount"></span>
+          </div>
+          <div class="table-wrap">
+            <table id="coursesTable" class="k-table" style="width:100%;text-align:left;border-collapse:collapse;">
+              <thead style="background:var(--surface-subtle);">
+                <tr style="border-bottom:1px solid var(--border);">
+                  <th style="padding:12px 16px" class="col-id">ID</th>
+                  <th style="padding:12px 16px">Name</th>
+                  <th style="padding:12px 16px">Description</th>
+                  <th style="padding:12px 16px" class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="grid-two" id="formsCard" style="margin-bottom:24px; gap:24px;">
+          <section class="k-card">
+            <div class="k-card__header">
+              <h2 class="k-card__title">Create course</h2>
+            </div>
+            <div class="k-card__body">
+              <form id="createCourseForm" class="flex-column gap-12">
+                <div class="k-form-field">
+                  <label class="muted">Name</label>
+                  <input type="text" name="name" required placeholder="Course name" class="k-input" />
+                </div>
+                <div class="k-form-field">
+                  <label class="muted">Description</label>
+                  <textarea name="description" placeholder="Optional description" class="k-input" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary mt-16">Create</button>
+              </form>
+            </div>
+          </section>
+
+          <section class="k-card">
+            <div class="k-card__header">
+              <h2 class="k-card__title">Edit selected course</h2>
+            </div>
+            <div class="k-card__body">
+              <form id="editCourseForm" class="flex-column gap-12">
+                <input type="hidden" name="course_id" />
+                <div class="k-form-field">
+                  <label class="muted">Name</label>
+                  <input type="text" name="name" placeholder="Select a course above" disabled class="k-input" />
+                </div>
+                <div class="k-form-field">
+                  <label class="muted">Description</label>
+                  <textarea name="description" placeholder="Select a course" disabled class="k-input"
+                    rows="3"></textarea>
+                </div>
+                <div class="flex gap-12 mt-16">
+                  <button type="submit" id="saveCourseBtn" class="btn btn-primary" disabled>Save</button>
+                  <button type="button" id="deleteCourseBtn" class="btn btn-danger" disabled>Delete</button>
+                </div>
+              </form>
+            </div>
+          </section>
+        </div>
+
+        <section class="k-card" id="courseSettingsCard" style="margin-bottom:24px">
+          <div class="k-card__header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h2 class="k-card__title">Course settings</h2>
+            <span class="muted small" id="courseSettingsTitle">Select a course to edit settings</span>
+          </div>
+          <div class="k-card__body">
+            <div class="flex gap-16 align-end">
+              <div class="k-form-field flex-1">
+                <label class="muted">Visibility</label>
+                <select id="adminCourseVisibilitySelect" disabled class="k-select"
+                  style="max-width:300px;width:100%;display:block;">
+                  <option value="public">Public</option>
+                  <option value="restricted">Restricted</option>
+                </select>
+              </div>
+              <div>
+                <button type="button" class="btn btn-primary" id="adminSaveCourseVisibilityBtn" disabled>Save
+                  visibility</button>
+              </div>
+            </div>
+            <div class="grid-two" style="margin-top:24px; gap:24px;">
+              <div class="k-form-field">
+                <label class="muted">Allowlist email</label>
+                <div class="flex gap-8">
+                  <input type="email" id="adminAllowlistEmail" placeholder="name@nixorcollege.edu.pk" disabled
+                    class="k-input flex-1" />
+                  <button type="button" id="adminAddAllowlistBtn" class="btn btn-secondary" disabled>Add</button>
+                </div>
+                <div id="adminAllowlistEntries" class="list-stack mt-8"></div>
+              </div>
+              <div class="k-form-field">
+                <label class="muted">Pre-enroll email</label>
+                <div class="flex gap-8">
+                  <input type="email" id="adminPreenrollEmail" placeholder="name@nixorcollege.edu.pk" disabled
+                    class="k-input flex-1" />
+                  <button type="button" id="adminAddPreenrollBtn" class="btn btn-secondary" disabled>Add</button>
+                </div>
+                <div id="adminPreenrollEntries" class="list-stack mt-8"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="k-card" id="assignCard">
+          <div class="k-card__header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h2 class="k-card__title">Course staff</h2>
+            <span class="muted small" id="assignmentTitle">Select a course to view staff</span>
+          </div>
+          <div class="k-card__body">
+            <div class="flex gap-16 align-end" style="max-width:400px;margin-bottom:16px;">
+              <div class="k-form-field flex-1">
+                <label class="muted">Search enrolled users</label>
+                <input type="text" id="assignSearchInput" placeholder="Search by name or email" disabled
+                  class="k-input" />
+              </div>
+              <div>
+                <button type="button" id="assignSearchBtn" class="btn btn-secondary" disabled>Search</button>
+              </div>
+            </div>
+            <div id="assignSearchResults" class="list-stack mb-24"></div>
+
+            <form id="assignForm" class="flex gap-16 align-end flex-wrap" style="margin-top:16px;">
+              <div class="k-form-field flex-1" style="min-width:200px;">
+                <label class="muted">User ID or email</label>
+                <input type="text" name="user" data-allowed-domain-placeholder="e.g. 42 or alex@{domain}"
+                  placeholder="e.g. 42 or alex@example.edu" disabled class="k-input" />
+              </div>
+              <div class="k-form-field" style="min-width:140px;">
+                <label class="muted">Role</label>
+                <select name="role" disabled class="k-select">
+                  <option value="manager">Manager</option>
+                  <option value="ta">TA</option>
+                </select>
+              </div>
+              <div>
+                <button type="submit" class="btn btn-primary" disabled>Assign</button>
+              </div>
+            </form>
+            <div id="assignments" class="assignments list-stack" style="margin-top:24px;"></div>
+          </div>
+        </section>
+
       </div>
-      <div class="grid-two align-end">
-        <div>
-          <label class="muted">Search enrolled users</label>
-          <input type="text" id="assignSearchInput" placeholder="Search by name or email" disabled />
-        </div>
-        <div>
-          <button type="button" id="assignSearchBtn" disabled>Search</button>
-        </div>
-      </div>
-      <div id="assignSearchResults" class="list-stack"></div>
-      <form id="assignForm" class="grid-two align-end">
-        <div>
-          <label class="muted">User ID or email</label>
-          <input type="text" name="user" data-allowed-domain-placeholder="e.g. 42 or alex@{domain}"
-            placeholder="e.g. 42 or alex@example.edu" disabled />
-        </div>
-        <div>
-          <label class="muted">Role</label>
-          <select name="role" disabled>
-            <option value="manager">Manager</option>
-            <option value="ta">TA</option>
-          </select>
-        </div>
-        <div>
-          <button type="submit" disabled>Assign</button>
-        </div>
-      </form>
-      <div id="assignments" class="assignments"></div>
-    </section>
-  </main>
+    </main>
+  </div>
+
+  <button id="logoutBtn" class="hidden"></button>
+
   <script src="./js/theme.js"></script>
   <script src="./js/session-roles.js"></script>
   <script src="./js/admin.js" type="module"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById("kMobileMenuBtn");
+      const sidebar = document.getElementById("kSidebar");
+      if (btn && sidebar) {
+        btn.addEventListener("click", () => {
+          const isOpen = sidebar.classList.toggle("is-open");
+          btn.setAttribute("aria-expanded", isOpen);
+        });
+      }
+    });
+  </script>
 </body>
 
 </html>
