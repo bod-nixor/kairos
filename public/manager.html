@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
   <meta charset="utf-8" />
@@ -23,211 +23,257 @@
     })();
   </script>
   <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/lms.css" />
   <link rel="stylesheet" href="./css/manager.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
 </head>
 
-<body>
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="logo"><img class="k-brand-badge" src="./images/logo.png" alt="Kairos" /></div>
-      <div class="brand-text">Kairos Manager</div>
+<body class="k-page-body">
+
+  <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Main navigation">
+    <a class="k-sidebar__brand" href="/signoff/" data-home-link="true" aria-label="Kairos home">
+      <div class="k-sidebar__logo">
+        <img class="k-brand-badge" src="./images/logo.png" alt="" />
+      </div>
+      <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+    </a>
+
+    <div class="k-sidebar__scroll">
+      <nav class="k-nav-group" aria-label="Global">
+        <a class="k-nav-item" href="/signoff/">
+          <span class="k-nav-item__icon" aria-hidden="true">🏠</span>
+          <span class="k-nav-item__text">All Courses</span>
+        </a>
+      </nav>
+      <nav class="k-nav-group" aria-label="Manager tools">
+        <div class="k-nav-group__label">Manager Tools</div>
+        <button class="k-nav-item is-active" id="navCourses">
+          <span class="k-nav-item__icon" aria-hidden="true">📋</span>
+          <span class="k-nav-item__text">Courses</span>
+        </button>
+        <button class="k-nav-item" id="navRoster" disabled>
+          <span class="k-nav-item__icon" aria-hidden="true">👥</span>
+          <span class="k-nav-item__text">Course roster</span>
+        </button>
+        <button class="k-nav-item" id="navProgress" disabled>
+          <span class="k-nav-item__icon" aria-hidden="true">📈</span>
+          <span class="k-nav-item__text">Student progress</span>
+        </button>
+        <a class="k-nav-item hidden" id="navAssignments" href="./admin.html#assignCard">
+          <span class="k-nav-item__icon" aria-hidden="true">🧑‍🏫</span>
+          <span class="k-nav-item__text">TA assignment</span>
+        </a>
+      </nav>
     </div>
-    <nav class="nav">
-      <a class="nav-item" href="/signoff/"><span class="nav-ico">🏠</span><span>All Courses / Home</span></a>
-      <button class="nav-item active" id="navCourses">
-        <span class="nav-ico">📚</span><span>All Courses</span>
-      </button>
-      <button class="nav-item" id="navRoster" disabled>
-        <span class="nav-ico">👥</span><span>Course roster</span>
-      </button>
-      <button class="nav-item" id="navProgress" disabled>
-        <span class="nav-ico">📈</span><span>Student progress</span>
-      </button>
-      <a class="nav-item hidden" id="navAssignments" href="./admin.html#assignCard">
-        <span class="nav-ico">🧑‍🏫</span><span>TA assignment</span>
-      </a>
-    </nav>
-    <div class="nav-bottom">
-      <button class="nav-item" id="logoutBtn">
-        <span class="nav-ico">↩️</span><span>Logout</span>
-      </button>
+
+    <!-- User footer -->
+    <div class="k-sidebar__user">
+      <img class="k-sidebar__avatar" id="avatar" src="" alt="Your avatar" />
+      <div class="k-sidebar__user-info">
+        <div class="k-sidebar__user-name" id="name">—</div>
+        <div class="k-sidebar__user-role" id="email" style="font-size:11px;color:var(--muted)">Manager</div>
+      </div>
+      <button class="k-sidebar__logout" id="logoutBtn" aria-label="Logout" title="Logout">↩</button>
     </div>
   </aside>
 
-  <header class="app-header">
-    <a class="app-brand" href="/signoff/" aria-label="Kairos home">
-      <div class="app-brand-logo-wrapper">
-        <img src="./images/logo-full.png" alt="Kairos" class="k-brand-badge app-brand-logo" />
+  <div class="k-layout">
+    <header class="k-topbar" role="banner">
+      <div class="k-topbar__left" style="display:flex;align-items:center;">
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu"
+          style="margin-right:12px;background:transparent;border:0;font-size:20px;cursor:pointer;">☰</button>
+        <nav class="k-breadcrumb" aria-label="Breadcrumb">
+          <a class="k-breadcrumb__item" href="/signoff/">Home</a>
+          <span class="k-breadcrumb__sep" aria-hidden="true">›</span>
+          <span class="k-breadcrumb__item is-current" id="breadcrumbs">All Courses</span>
+        </nav>
       </div>
-    </a>
-    <div class="crumbs" id="breadcrumbs">All Courses</div>
-    <div class="spacer"></div>
-    <button type="button" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
-      <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
-      <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
-      <span class="theme-toggle__thumb"></span>
-    </button>
-    <div class="userbar hidden" id="userbar">
-      <img id="avatar" alt="" class="avatar" />
-      <div class="user-meta">
-        <div id="name"></div>
-        <div id="email" class="muted"></div>
+      <div class="k-topbar__actions">
+        <button class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode"
+          data-theme-toggle>
+          <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
+          <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
+        </button>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <main class="app-main" id="appRoot">
-    <section id="signin" class="centerbox card">
-      <h2 class="title">Manager access</h2>
-      <div id="googleBtn"></div>
-      <p class="muted small">Sign in with your <strong data-allowed-domain-text>@example.edu</strong> account.</p>
-    </section>
+    <main class="k-main" id="appRoot">
+      <div class="k-page">
 
-    <section id="managerForbidden" class="centerbox card hidden">
-      <h2>Access denied</h2>
-      <p class="muted">This dashboard is restricted to managers.</p>
-      <p><a class="btn btn-primary" href="/signoff/">Return home</a></p>
-    </section>
-
-    <section id="viewCourses" class="view">
-      <div class="section-head">
-        <h2 class="section-title">Managed courses</h2>
-      </div>
-      <div id="coursesGrid" class="grid cards"></div>
-    </section>
-
-    <section id="viewCourseDetail" class="view hidden">
-      <div class="section-head">
-        <h2 class="section-title" id="courseTitle">Course</h2>
-        <div class="spacer"></div>
-        <button id="backToCourses" class="btn btn-link">← Back</button>
-      </div>
-
-      <div id="managerCardsContainer" class="manager-cards">
-        <section class="card manager-section" id="courseSettingsPanel" data-section="settings">
-          <div class="section-head draggable-head">
-            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
-            <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="courseSettingsBody"
-              aria-label="Toggle section">
-              <span class="chevron">▼</span>
-            </button>
-            <h3 class="title-reset" style="flex:1; cursor:pointer; user-select:none;">Course settings</h3>
+        <section id="signin" class="k-card centerbox" style="margin-top:40px">
+          <div class="k-card__body">
+            <h2 class="k-card__title" style="text-align:center;margin-bottom:16px;">Manager access</h2>
+            <div id="googleBtn" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
+            <p class="muted small" style="text-align:center;">Sign in with your <strong
+                data-allowed-domain-text>@example.edu</strong> account.</p>
           </div>
-          <div class="section-body" id="courseSettingsBody">
-            <div class="grid-two align-end">
-              <div>
-                <label class="muted">Visibility</label>
-                <select id="courseVisibilitySelect">
-                  <option value="public">Public</option>
-                  <option value="restricted">Restricted</option>
-                </select>
+        </section>
+
+        <section id="managerForbidden" class="k-card centerbox hidden" style="margin-top:40px">
+          <div class="k-card__body" style="text-align:center;">
+            <h2 class="k-card__title" style="margin-bottom:8px;">Access denied</h2>
+            <p class="muted" style="margin-bottom:24px;">This dashboard is restricted to managers.</p>
+            <a class="btn btn-primary" href="/signoff/">Return home</a>
+          </div>
+        </section>
+
+        <!-- Managed Courses View -->
+        <section id="viewCourses" class="view">
+          <div class="k-page-header">
+            <h1 class="k-page-header__title">Managed courses</h1>
+          </div>
+          <div id="coursesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+          </div>
+        </section>
+
+        <!-- Course Detail View -->
+        <section id="viewCourseDetail" class="view hidden">
+          <div class="k-page-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h1 class="k-page-header__title" id="courseTitle">Course</h1>
+            <button id="backToCourses" class="btn btn-ghost">← Back</button>
+          </div>
+
+          <div id="managerCardsContainer" class="manager-cards list-stack" style="gap:24px;">
+
+            <section class="k-card manager-section" id="courseSettingsPanel" data-section="settings">
+              <div class="k-card__header draggable-head"
+                style="cursor:pointer;user-select:none;display:flex;align-items:center;">
+                <span class="drag-handle" aria-hidden="true" title="Drag to reorder"
+                  style="margin-right:12px;color:var(--muted)">⋮⋮</span>
+                <h2 class="k-card__title" style="flex:1;margin:0">Course settings</h2>
+                <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true"
+                  aria-controls="courseSettingsBody" aria-label="Toggle section">
+                  <span class="chevron">▼</span>
+                </button>
               </div>
-              <div>
-                <button id="saveCourseVisibilityBtn" class="btn btn-primary" type="button">Save visibility</button>
-              </div>
-            </div>
-            <div class="enrollment-columns" style="margin-top:12px;">
-              <div>
-                <h4>Pre-enroll emails</h4>
-                <div class="enroll-search">
-                  <input type="email" id="preenrollEmailInput" placeholder="name@example.com" />
-                  <button id="addPreenrollBtn" class="btn btn-secondary" type="button">Add</button>
+              <div class="k-card__body section-body" id="courseSettingsBody">
+                <div class="flex-wrap gap-16 align-end" style="margin-bottom:24px;">
+                  <div class="k-form-field flex-1" style="min-width:200px;">
+                    <label class="muted">Visibility</label>
+                    <select id="courseVisibilitySelect" class="k-select">
+                      <option value="public">Public</option>
+                      <option value="restricted">Restricted</option>
+                    </select>
+                  </div>
+                  <div>
+                    <button id="saveCourseVisibilityBtn" class="btn btn-primary" type="button">Save visibility</button>
+                  </div>
                 </div>
-                <div id="preenrollEntries" class="list-stack"></div>
+                <div>
+                  <h4 style="margin:0 0 12px 0;">Pre-enroll emails</h4>
+                  <div class="flex gap-8">
+                    <input type="email" id="preenrollEmailInput" placeholder="name@example.com"
+                      class="k-input flex-1" />
+                    <button id="addPreenrollBtn" class="btn btn-secondary" type="button">Add</button>
+                  </div>
+                  <div id="preenrollEntries" class="list-stack" style="margin-top:12px;"></div>
+                </div>
               </div>
-            </div>
+            </section>
+
+            <section class="k-card manager-section" id="roomsPanel" data-section="rooms">
+              <div class="k-card__header draggable-head"
+                style="cursor:pointer;user-select:none;display:flex;align-items:center;">
+                <span class="drag-handle" aria-hidden="true" title="Drag to reorder"
+                  style="margin-right:12px;color:var(--muted)">⋮⋮</span>
+                <h2 class="k-card__title" style="flex:1;margin:0">Rooms</h2>
+                <div style="display:flex;gap:8px;">
+                  <button id="addRoomBtn" class="btn btn-primary btn-sm">+ New room</button>
+                  <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="roomsBody"
+                    aria-label="Toggle section">
+                    <span class="chevron">▼</span>
+                  </button>
+                </div>
+              </div>
+              <div class="k-card__body section-body" id="roomsBody">
+                <div id="roomsList" class="rooms-list list-stack"></div>
+              </div>
+            </section>
+
+            <section class="k-card manager-section" id="enrollmentPanel" data-section="enrollment">
+              <div class="k-card__header draggable-head"
+                style="cursor:pointer;user-select:none;display:flex;align-items:center;">
+                <span class="drag-handle" aria-hidden="true" title="Drag to reorder"
+                  style="margin-right:12px;color:var(--muted)">⋮⋮</span>
+                <h2 class="k-card__title" style="flex:1;margin:0">Enrollment</h2>
+                <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="enrollmentBody"
+                  aria-label="Toggle section">
+                  <span class="chevron">▼</span>
+                </button>
+              </div>
+              <div class="k-card__body section-body" id="enrollmentBody">
+                <div class="flex gap-8 mb-24" style="margin-bottom:24px;">
+                  <input type="search" id="userSearchInput" placeholder="Search by name or email"
+                    class="k-input flex-1" />
+                  <button id="searchUsersBtn" class="btn btn-primary">Search</button>
+                </div>
+                <div class="grid-two" style="gap:24px; align-items:start;">
+                  <div>
+                    <h4 style="margin:0 0 12px 0;">Results</h4>
+                    <div id="userSearchResults" class="list-stack"></div>
+                  </div>
+                  <div>
+                    <h4 style="margin:0 0 12px 0;">Current roster</h4>
+                    <div id="courseRoster" class="list-stack"></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
           </div>
         </section>
 
-        <section class="card manager-section" id="roomsPanel" data-section="rooms">
-          <div class="section-head draggable-head">
-            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
-            <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="roomsBody"
-              aria-label="Toggle section">
-              <span class="chevron">▼</span>
-            </button>
-            <h3 class="title-reset" style="flex:1; cursor:pointer; user-select:none;">Rooms</h3>
-            <button id="addRoomBtn" class="btn btn-primary">+ New room</button>
+        <!-- Progress View -->
+        <section id="viewProgress" class="view hidden">
+          <div class="k-page-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h1 class="k-page-header__title" id="progressTitle">Student progress</h1>
+            <button id="backToCourseDetail" class="btn btn-ghost">← Back</button>
           </div>
-          <div class="section-body" id="roomsBody">
-            <div id="roomsList" class="rooms-list"></div>
-          </div>
-        </section>
-
-        <section class="card manager-section" id="enrollmentPanel" data-section="enrollment">
-          <div class="section-head draggable-head">
-            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
-            <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="enrollmentBody"
-              aria-label="Toggle section">
-              <span class="chevron">▼</span>
-            </button>
-            <h3 class="title-reset" style="flex:1; cursor:pointer; user-select:none;">Enrollment</h3>
-          </div>
-          <div class="section-body" id="enrollmentBody">
-            <div class="enroll-search">
-              <input type="search" id="userSearchInput" placeholder="Search by name or email" />
-              <button id="searchUsersBtn" class="btn btn-primary">Search</button>
+          <section class="k-card">
+            <div class="k-card__header">
+              <h2 class="k-card__title">Roster progress</h2>
+              <div class="muted small mt-8" id="progressCourseMeta"></div>
             </div>
-            <div class="enrollment-columns">
-              <div>
-                <h4>Results</h4>
-                <div id="userSearchResults" class="list-stack"></div>
-              </div>
-              <div>
-                <h4>Current roster</h4>
-                <div id="courseRoster" class="list-stack"></div>
+            <div class="k-card__body" style="padding:0;">
+              <div class="table-wrap">
+                <table id="progressTable" class="k-table" style="width:100%;text-align:left;border-collapse:collapse;">
+                  <thead style="background:var(--surface-subtle);">
+                    <tr style="border-bottom:1px solid var(--border);">
+                      <th style="padding:12px 16px;">Student</th>
+                      <th style="padding:12px 16px;">Email</th>
+                      <th style="padding:12px 16px;">Progress</th>
+                      <th style="padding:12px 16px;">Last updated</th>
+                      <th style="padding:12px 16px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
               </div>
             </div>
-          </div>
+          </section>
         </section>
-      </div>
-    </section>
 
-    <section id="viewProgress" class="view hidden">
-      <div class="section-head">
-        <h2 class="section-title" id="progressTitle">Student progress</h2>
-        <div class="spacer"></div>
-        <button id="backToCourseDetail" class="btn btn-link">← Back</button>
       </div>
-      <section class="card">
-        <div class="section-head">
-          <div>
-            <h3 class="title-reset">Roster progress</h3>
-            <div class="muted small" id="progressCourseMeta"></div>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table id="progressTable">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Email</th>
-                <th>Progress</th>
-                <th>Last updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-    </section>
-  </main>
-
-  <div class="modal hidden" id="progressModal" aria-hidden="true">
-    <div class="modal-backdrop" data-modal-close></div>
-    <div class="modal-card progress-modal-card" role="dialog" aria-modal="true" aria-labelledby="progressModalTitle">
-      <div class="progress-modal-header">
-        <h3 id="progressModalTitle">Student progress</h3>
-        <button type="button" class="btn btn-ghost btn-sm" data-modal-close>Close</button>
-      </div>
-      <div class="muted small" id="progressModalMeta"></div>
-      <div id="progressModalBody" class="progress-modal-body"></div>
-    </div>
+    </main>
   </div>
+
+  <dialog class="k-modal" id="progressModal">
+    <div class="k-modal__panel" style="max-width:600px; width:100%;">
+      <div class="k-modal__header">
+        <h3 class="k-modal__title" id="progressModalTitle">Student progress</h3>
+        <button class="k-modal__close" data-modal-close aria-label="Close">✕</button>
+      </div>
+      <div class="k-modal__body">
+        <div class="muted small mb-16" id="progressModalMeta" style="margin-bottom:16px;"></div>
+        <div id="progressModalBody" class="progress-modal-body"></div>
+      </div>
+      <div class="k-modal__footer">
+        <button type="button" class="btn btn-ghost" data-modal-close>Close</button>
+      </div>
+    </div>
+  </dialog>
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
@@ -235,6 +281,28 @@
   <script src="./js/ws.js"></script>
   <script src="./js/session-roles.js"></script>
   <script src="./js/manager.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById("kMobileMenuBtn");
+      const sidebar = document.getElementById("kSidebar");
+      if (btn && sidebar) {
+        btn.addEventListener("click", () => {
+          sidebar.classList.toggle("is-open");
+        });
+      }
+    });
+
+    // Fix for dialog modal using old classes in script
+    const pm = document.getElementById('progressModal');
+    if (pm) {
+      // Overwrite manager.js handling of showing/hiding this, or rely on .showModal()
+      const closeBtns = pm.querySelectorAll('[data-modal-close]');
+      closeBtns.forEach(b => b.addEventListener('click', () => {
+        if (pm.close) pm.close();
+        else pm.classList.remove('is-open');
+      }));
+    }
+  </script>
 </body>
 
 </html>
