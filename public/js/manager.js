@@ -144,6 +144,7 @@ async function bootstrap() {
       const rawCaps = await apiGet('./api/session_capabilities.php');
       sessionRoles = normalizeSessionRoles(rawCaps);
     } catch (err) {
+      if (err?.status === 401 || err?.status === 403) throw err;
       sessionRoles = {};
     }
     updateNavAvailability();
@@ -425,6 +426,7 @@ async function loadCourses() {
   showView('viewCourses');
   updateNavAvailability();
   const grid = document.getElementById('coursesGrid');
+  if (!grid) return;
   grid.innerHTML = '<div class="card">Loading…</div>';
   try {
     const courses = await apiGet('./api/manager/courses.php');
@@ -469,7 +471,8 @@ async function openCourse(courseId, courseName) {
     window.SignoffWS.updateFilters({ courseId: activeCourseId });
   }
   setBreadcrumbs(`Course #${activeCourseId}`);
-  document.getElementById('courseTitle').textContent = `${courseName || 'Course'} (#${activeCourseId})`;
+  const courseTitleEl = document.getElementById('courseTitle');
+  if (courseTitleEl) courseTitleEl.textContent = `${courseName || 'Course'} (#${activeCourseId})`;
   showView('viewCourseDetail');
   updateNavAvailability();
   await Promise.all([loadRooms(), loadRoster(), loadCourseSettings()]);
@@ -484,6 +487,7 @@ async function openCourse(courseId, courseName) {
 async function loadRooms() {
   if (!activeCourseId) return;
   const container = document.getElementById('roomsList');
+  if (!container) return;
   container.innerHTML = '<div class="muted">Loading rooms…</div>';
   try {
     const rooms = await apiGet(`./api/rooms.php?course_id=${encodeURIComponent(activeCourseId)}`);
@@ -654,6 +658,7 @@ async function createRoom() {
 async function loadRoster() {
   if (!activeCourseId) return;
   const rosterEl = document.getElementById('courseRoster');
+  if (!rosterEl) return;
   rosterEl.innerHTML = '<div class="muted">Loading roster…</div>';
   rosterEl.onclick = null;
   try {
@@ -997,25 +1002,25 @@ function escapeHtmlAttr(str) {
 }
 
 function setupEvents() {
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
     showSignin();
     renderGoogleButton();
   });
-  document.getElementById('navCourses').addEventListener('click', () => loadCourses());
-  document.getElementById('navRoster').addEventListener('click', () => openRosterView());
-  document.getElementById('navProgress').addEventListener('click', () => openProgressView());
-  document.getElementById('backToCourses').addEventListener('click', () => loadCourses());
-  document.getElementById('backToCourseDetail').addEventListener('click', () => openRosterView());
-  document.getElementById('addRoomBtn').addEventListener('click', async () => {
+  document.getElementById('navCourses')?.addEventListener('click', () => loadCourses());
+  document.getElementById('navRoster')?.addEventListener('click', () => openRosterView());
+  document.getElementById('navProgress')?.addEventListener('click', () => openProgressView());
+  document.getElementById('backToCourses')?.addEventListener('click', () => loadCourses());
+  document.getElementById('backToCourseDetail')?.addEventListener('click', () => openRosterView());
+  document.getElementById('addRoomBtn')?.addEventListener('click', async () => {
     try {
       await createRoom();
     } catch (err) {
       alert(err.message);
     }
   });
-  document.getElementById('searchUsersBtn').addEventListener('click', () => searchUsers());
-  document.getElementById('userSearchInput').addEventListener('keydown', (event) => {
+  document.getElementById('searchUsersBtn')?.addEventListener('click', () => searchUsers());
+  document.getElementById('userSearchInput')?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       searchUsers();
