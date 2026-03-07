@@ -100,7 +100,7 @@
             <button class="btn btn-primary btn-sm hidden" id="saveDraftBtn" type="button">Save Draft</button>
             <button class="btn btn-secondary btn-sm hidden" id="publishBtn" type="button">Publish</button>
             <button class="btn btn-ghost btn-sm hidden" id="unpublishBtn" type="button">Unpublish</button>
-            <a class="btn btn-ghost btn-sm" id="backToModules" href="./modules.html">Back to Modules</a>
+            <a class="btn btn-ghost btn-sm" id="backToModules" href="#">Back to Modules</a>
           </div>
         </div>
 
@@ -133,14 +133,20 @@
     </main>
   </div>
 
-  <dialog id="resourceModal" class="k-modal">
+  <dialog id="resourceModal" class="k-modal" aria-labelledby="resourceModalTitle">
     <form method="dialog" id="resourceModalForm" class="k-modal__card k-modal__content--sm">
       <header class="k-modal__header">
         <h3 class="k-modal__title" id="resourceModalTitle">Insert Resource</h3>
       </header>
       <div class="k-modal__body k-stack-sm">
-        <input id="resourceTitle" type="text" placeholder="Resource title" required />
-        <input id="resourceUrl" type="url" placeholder="https://..." required />
+        <div class="k-form-field">
+          <label for="resourceTitle">Title</label>
+          <input id="resourceTitle" type="text" placeholder="Resource title" required />
+        </div>
+        <div class="k-form-field">
+          <label for="resourceUrl">URL</label>
+          <input id="resourceUrl" type="url" placeholder="https://..." required />
+        </div>
       </div>
       <footer class="k-modal__footer">
         <button type="button" id="resourceModalCancel" class="btn btn-ghost btn-sm">Cancel</button>

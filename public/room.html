@@ -27,30 +27,60 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
 </head>
-<body class="room-page">
-  <header class="room-header">
-    <a class="brand" href="/signoff/" aria-label="Kairos home">
-      <div class="logo"><img class="k-brand-badge" src="./images/logo.png" alt="Kairos" /></div>
-      <img src="./images/logo-full.png" alt="Kairos" class="k-brand-badge brand-lockup" />
+<body class="k-page-body room-view">
+  <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Room navigation">
+    <a class="k-sidebar__brand" href="/signoff/" data-home-link="true" aria-label="Kairos home">
+      <div class="k-sidebar__logo"><img class="k-brand-badge" src="./images/logo.png" alt="" /></div>
+      <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
     </a>
-    <div class="spacer"></div>
-    <button type="button" class="theme-toggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
-      <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
-      <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
-      <span class="theme-toggle__thumb"></span>
-    </button>
-    <a href="/signoff/" class="btn btn-ghost">← Back to dashboard</a>
-  </header>
-  <main class="room-main" id="roomMain">
-    <section class="room-card" id="roomCard">
-      <div class="room-card-header">
-        <span class="badge" id="roomBadge">Room</span>
-        <h1 id="roomTitle">Room</h1>
+    <div class="k-sidebar__scroll">
+      <nav class="k-nav-group" aria-label="Global">
+        <a class="k-nav-item" href="/signoff/" data-home-link="true">
+          <span class="k-nav-item__icon" aria-hidden="true">←</span>
+          <span class="k-nav-item__text">Back to dashboard</span>
+        </a>
+      </nav>
+      <nav class="k-nav-group" aria-label="Room">
+        <div class="k-nav-group__label">Room</div>
+        <div class="k-nav-item is-active" aria-current="page">
+          <span class="k-nav-item__icon" aria-hidden="true">#</span>
+          <span class="k-nav-item__text">Live queues</span>
+        </div>
+      </nav>
+    </div>
+  </aside>
+
+  <div class="k-layout">
+    <header class="k-topbar" role="banner">
+      <div class="k-topbar__left">
+        <button type="button" class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">☰</button>
+        <nav class="k-breadcrumb" aria-label="Breadcrumb">
+          <a class="k-breadcrumb__item" href="/signoff/" data-home-link="true">Home</a>
+          <span class="k-breadcrumb__sep" aria-hidden="true">›</span>
+          <span class="k-breadcrumb__item is-current">Room</span>
+        </nav>
       </div>
-      <div id="roomMeta" class="muted"></div>
-      <div id="queuesContainer" class="queues-list"></div>
-    </section>
-  </main>
+      <div class="k-topbar__actions">
+        <a href="/signoff/" data-home-link="true" class="btn btn-ghost btn-sm">Back to dashboard</a>
+        <button type="button" class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
+          <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
+          <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="k-main room-main" id="roomMain">
+      <section class="room-card" id="roomCard">
+        <div class="room-card-header">
+          <span class="badge" id="roomBadge">Room</span>
+          <h1 id="roomTitle">Room</h1>
+        </div>
+        <div id="roomMeta" class="muted"></div>
+        <div id="queuesContainer" class="queues-list"></div>
+      </section>
+    </main>
+  </div>
+
   <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
   <script src="./js/theme.js"></script>
   <script src="./js/ws.js"></script>

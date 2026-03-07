@@ -62,21 +62,34 @@
         }
 
         $('resourceTitle') && ($('resourceTitle').textContent = resourceTitle);
-        $('kBreadCourse') && ($('kBreadCourse').textContent = courseName);
-        $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`);
-        $('kBreadResource') && ($('kBreadResource').textContent = resourceTitle);
         document.title = `${resourceTitle} - ${courseName} - Kairos`;
     }
 
     function inferType(resource) {
-        if (resource.type) return String(resource.type).toLowerCase();
-        const url = (resource.url || resource.file_url || '').toLowerCase();
+        if (resource && typeof resource === 'object' && resource.type) return String(resource.type).toLowerCase();
+        const url = typeof resource === 'string'
+            ? String(resource).toLowerCase()
+            : String(resource?.url || resource?.file_url || '').toLowerCase();
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
         if (url.match(/\.(ppt|pptx)($|\?)/)) return 'ppt';
         if (url.includes('docs.google.com/presentation') || url.includes('slides.google.com')) return 'slides';
         if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
+    }
+
+    function videoMimeFromUrl(rawUrl) {
+        try {
+            const pathname = new URL(String(rawUrl || '')).pathname.toLowerCase();
+            if (pathname.endsWith('.mp4')) return 'video/mp4';
+            if (pathname.endsWith('.webm')) return 'video/webm';
+            if (pathname.endsWith('.mov')) return 'video/quicktime';
+            if (pathname.endsWith('.ogv')) return 'video/ogg';
+            if (pathname.endsWith('.m4v')) return 'video/x-m4v';
+        } catch (_) {
+            return '';
+        }
+        return '';
     }
 
     function hardenPreviewIframe(iframe) {
@@ -194,29 +207,48 @@
 
     function renderVideo(rawUrl) {
         const embedUrl = LMS.toYoutubeEmbedUrl(rawUrl);
-        if (!embedUrl) {
-            setExternalDescription('This video URL cannot be embedded safely.');
-            if (!isHttpUrl(rawUrl)) {
-                setExternalDescription(`This video URL cannot be opened: ${rawUrl}`);
-            }
-            applySafeExternalLink($('externalLink'), rawUrl, 'Open video in new tab');
-            showViewerState('externalWrap');
+        const videoWrap = $('videoWrap');
+        if (!videoWrap) return;
+        videoWrap.innerHTML = '';
+
+        if (embedUrl) {
+            videoWrap.classList.add('k-embed-16x9');
+            const iframe = document.createElement('iframe');
+            iframe.setAttribute('src', embedUrl);
+            iframe.setAttribute('title', 'Embedded video');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
+            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+            iframe.setAttribute('allowfullscreen', 'true');
+            videoWrap.appendChild(iframe);
+            showViewerState('videoWrap');
             return;
         }
 
-        const videoWrap = $('videoWrap');
-        if (!videoWrap) return;
-        videoWrap.classList.add('k-embed-16x9');
-        videoWrap.innerHTML = '';
-        const iframe = document.createElement('iframe');
-        iframe.setAttribute('src', embedUrl);
-        iframe.setAttribute('title', 'Embedded video');
-        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
-        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
-        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-        iframe.setAttribute('allowfullscreen', 'true');
-        videoWrap.appendChild(iframe);
-        showViewerState('videoWrap');
+        if (inferType(rawUrl) === 'video' && isHttpUrl(rawUrl)) {
+            videoWrap.classList.remove('k-embed-16x9');
+            const video = document.createElement('video');
+            video.className = 'k-resource-video';
+            video.controls = true;
+            video.playsInline = true;
+            video.preload = 'metadata';
+            const source = document.createElement('source');
+            source.src = rawUrl;
+            const mime = videoMimeFromUrl(rawUrl);
+            if (mime) source.type = mime;
+            video.appendChild(source);
+            video.appendChild(document.createTextNode('Your browser does not support the video tag.'));
+            videoWrap.appendChild(video);
+            showViewerState('videoWrap');
+            return;
+        }
+
+        setExternalDescription('This video URL cannot be embedded safely.');
+        if (!isHttpUrl(rawUrl)) {
+            setExternalDescription(`This video URL cannot be opened: ${rawUrl}`);
+        }
+        applySafeExternalLink($('externalLink'), rawUrl, 'Open video in new tab');
+        showViewerState('externalWrap');
     }
 
     function renderExternal(rawUrl) {

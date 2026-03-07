@@ -15,6 +15,24 @@
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
+    function resolveCourseRoleFlags(value) {
+        if (value && typeof value === 'object') {
+            return {
+                student: !!value.student,
+                ta: !!value.ta,
+                manager: !!value.manager,
+                admin: !!value.admin,
+            };
+        }
+        const role = String(value || '').toLowerCase();
+        return {
+            student: role === 'student',
+            ta: role === 'ta',
+            manager: role === 'manager',
+            admin: role === 'admin',
+        };
+    }
+
     let assignData = null;
     let uploadedFiles = [];
     let canManage = false;
@@ -445,10 +463,11 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         });
         LMS.nav.setCourseContext(COURSE_ID, assignData.course_name || 'Course');
         LMS.nav.setActive('assignments');
-        if (canManage || (window.KairosLMS.getRole().ta && $('kNavGrading'))) {
+        const courseRole = resolveCourseRoleFlags(assignData.course_role || assignData.my_role || assignData.role || window.KairosLMS.getRole());
+        if (courseRole.ta || courseRole.manager || courseRole.admin) {
             $('kNavGrading')?.classList.remove('hidden');
         }
-        if (window.KairosLMS.getRole().manager || window.KairosLMS.getRole().admin) {
+        if (courseRole.manager || courseRole.admin) {
             $('kNavAnalytics')?.classList.remove('hidden');
         }
         $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = assignData.course_name || '');

@@ -352,6 +352,11 @@
           compactMode: serverSettings.compactMode,
           reduceMotion: serverSettings.reduceMotion,
         }));
+        if (serverSettings.theme) {
+          localStorage.setItem(STORAGE_KEY, serverSettings.theme);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       } catch (_) {
         // ignore
       }

@@ -83,13 +83,14 @@
     const currentCourseId = courseId || lesson.course_id || '';
     const courseName = course.name || course.code || 'Course';
     const lessonTitle = lesson.title || 'Lesson';
+    const modulesHref = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`;
 
     LMS.nav.setCourseContext(currentCourseId, courseName);
     LMS.nav.setActive('modules');
     LMS.nav.setBreadcrumb([
       { name: 'All Courses', href: '/signoff/' },
       { name: courseName, href: `./course.html?course_id=${encodeURIComponent(currentCourseId)}` },
-      { name: 'Modules', href: `./modules.html?course_id=${encodeURIComponent(currentCourseId)}` },
+      { name: 'Modules', href: modulesHref },
       { name: lessonTitle },
     ]);
 
@@ -102,7 +103,8 @@
     }
 
     $('kBreadCourse') && ($('kBreadCourse').textContent = courseName);
-    $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`);
+    $('kBreadModules') && ($('kBreadModules').href = modulesHref);
+    $('backToModules') && ($('backToModules').href = modulesHref);
     $('kBreadLesson') && ($('kBreadLesson').textContent = lessonTitle);
     document.title = `${lessonTitle} - ${courseName} - Kairos`;
   }
@@ -135,8 +137,6 @@
     const lesson = state.lesson || {};
     $('lessonTitle').textContent = lesson.title || 'Lesson';
     $('lessonSubtitle').textContent = lesson.summary || '';
-    $('backToModules').href = `./modules.html?course_id=${encodeURIComponent(courseId || lesson.course_id || '')}`;
-
     const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;

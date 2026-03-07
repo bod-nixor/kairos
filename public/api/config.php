@@ -19,10 +19,32 @@ $config = [
     'wsSocketPath' => is_string($wsSocketPath) && $wsSocketPath !== ''
         ? '/' . ltrim($wsSocketPath, '/')
         : '/websocket/socket.io',
+    'branding' => [
+        'productName' => 'Kairos',
+        'homeLabel' => 'Kairos home',
+        'logoUrl' => './images/logo.png',
+        'logoAlt' => 'Kairos',
+    ],
 ];
 
 if ($config['wsBaseUrl'] === '') {
     $config['wsBaseUrl'] = 'wss://kairos.nixorcorporate.com';
+}
+
+try {
+    $branding = db()->query('SELECT institution_name, logo_url FROM lms_branding_config ORDER BY id DESC LIMIT 1')->fetch();
+    if ($branding) {
+        if (!empty($branding['logo_url']) && is_string($branding['logo_url'])) {
+            $config['branding']['logoUrl'] = $branding['logo_url'];
+        }
+        if (!empty($branding['institution_name']) && is_string($branding['institution_name'])) {
+            $config['branding']['productName'] = $branding['institution_name'];
+            $config['branding']['homeLabel'] = $branding['institution_name'] . ' home';
+            $config['branding']['logoAlt'] = $branding['institution_name'];
+        }
+    }
+} catch (Throwable $e) {
+    // Branding is optional for the public config payload.
 }
 
 try {
