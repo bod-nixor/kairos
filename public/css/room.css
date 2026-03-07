@@ -2,7 +2,7 @@ body.room-view {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 ui-sans-serif, system-ui, Segoe UI, Roboto, Arial;
+  font: 14px/1.45 ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial;
 }
 
 .room-main {

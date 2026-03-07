@@ -44,7 +44,13 @@ try {
         }
     }
 } catch (Throwable $e) {
-    // Branding is optional for the public config payload.
+    error_log(json_encode([
+        'context' => 'public_config.branding_query',
+        'action' => 'db()->query(lms_branding_config)',
+        'status' => 'failed',
+        'exception_message' => $e->getMessage(),
+        'exception_code' => $e->getCode(),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
 
 try {

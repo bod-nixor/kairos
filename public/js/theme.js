@@ -161,6 +161,52 @@
     });
   };
 
+  const readBranding = () => {
+    const fallback = {
+      productName: 'Kairos',
+      homeLabel: 'Kairos home',
+      logoUrl: './images/logo.png',
+      logoAlt: 'Kairos',
+    };
+    try {
+      const cfg = typeof window.getAppConfig === 'function'
+        ? window.getAppConfig()
+        : (window.SignoffConfig || window.SIGNOFF_CONFIG || {});
+      const branding = cfg && typeof cfg.branding === 'object' ? cfg.branding : {};
+      const productName = typeof branding.productName === 'string' && branding.productName.trim()
+        ? branding.productName.trim()
+        : fallback.productName;
+      return {
+        productName,
+        homeLabel: typeof branding.homeLabel === 'string' && branding.homeLabel.trim()
+          ? branding.homeLabel.trim()
+          : `${productName} home`,
+        logoUrl: typeof branding.logoUrl === 'string' && branding.logoUrl.trim()
+          ? branding.logoUrl.trim()
+          : fallback.logoUrl,
+        logoAlt: typeof branding.logoAlt === 'string' && branding.logoAlt.trim()
+          ? branding.logoAlt.trim()
+          : productName,
+      };
+    } catch (_) {
+      return fallback;
+    }
+  };
+
+  const hydrateBranding = () => {
+    const branding = readBranding();
+    document.querySelectorAll('.k-sidebar__brand').forEach((link) => {
+      link.setAttribute('aria-label', branding.homeLabel);
+    });
+    document.querySelectorAll('.k-brand-badge').forEach((img) => {
+      img.setAttribute('src', branding.logoUrl);
+      img.setAttribute('alt', branding.logoAlt);
+    });
+    document.querySelectorAll('.k-sidebar__wordmark').forEach((wordmark) => {
+      wordmark.textContent = branding.productName;
+    });
+  };
+
   const ensureShellOverlay = () => {
     if (shellOverlay && document.body.contains(shellOverlay)) {
       return shellOverlay;
@@ -340,6 +386,14 @@
   document.addEventListener('DOMContentLoaded', async () => {
     syncThemeState();
     applyUiSettings(readSettings());
+    if (typeof window.waitForAppConfig === 'function') {
+      try {
+        await window.waitForAppConfig();
+      } catch (_) {
+        // ignore
+      }
+    }
+    hydrateBranding();
     normalizeHomeLinks();
     ensureSettingsLauncher();
     bindShell();
@@ -398,6 +452,7 @@
   window.addEventListener('pageshow', () => {
     syncThemeState();
     applyUiSettings(readSettings());
+    hydrateBranding();
     normalizeHomeLinks();
     ensureSettingsLauncher();
     bindShell();

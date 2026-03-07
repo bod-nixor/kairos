@@ -81,11 +81,11 @@
             });
             LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
             LMS.nav.setActive('quizzes');
-            const courseRole = String(course.my_role || '').toLowerCase();
-            if (courseRole === 'ta' || courseRole === 'manager' || courseRole === 'admin') {
+            const courseRole = LMS.resolveCourseRoleFlags(course.my_role || course.course_role || course.role);
+            if (courseRole.ta || courseRole.manager || courseRole.admin) {
                 $('kNavGrading')?.classList.remove('hidden');
             }
-            if (courseRole === 'manager' || courseRole === 'admin') {
+            if (courseRole.manager || courseRole.admin) {
                 $('kNavAnalytics')?.classList.remove('hidden');
             }
         }

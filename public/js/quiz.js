@@ -15,23 +15,6 @@
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
-    function resolveCourseRoleFlags(value) {
-        if (value && typeof value === 'object') {
-            return {
-                student: !!value.student,
-                ta: !!value.ta,
-                manager: !!value.manager,
-                admin: !!value.admin,
-            };
-        }
-        const role = String(value || '').toLowerCase();
-        return {
-            student: role === 'student',
-            ta: role === 'ta',
-            manager: role === 'manager',
-            admin: role === 'admin',
-        };
-    }
     function showPanel(id) {
         ['quizIntroPanel', 'quizAttemptPanel', 'quizResultPanel', 'quizHistoryPanel',
             'quizError', 'quizAccessDenied', 'quizSkeleton'].forEach(hideEl);
@@ -619,7 +602,7 @@
         }
         LMS.nav.setCourseContext(COURSE_ID, quizData.course_name || 'Course');
         LMS.nav.setActive('quizzes');
-        const courseRole = resolveCourseRoleFlags(quizData.course_role || quizData.my_role || quizData.role || window.KairosLMS.getRole());
+        const courseRole = LMS.resolveCourseRoleFlags(quizData.course_role || quizData.my_role || quizData.role || window.KairosLMS.getRole());
         if (courseRole.ta || courseRole.manager || courseRole.admin) {
             $('kNavGrading')?.classList.remove('hidden');
         }

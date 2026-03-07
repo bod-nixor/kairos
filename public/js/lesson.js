@@ -106,7 +106,7 @@
     $('kBreadModules') && ($('kBreadModules').href = modulesHref);
     $('backToModules') && ($('backToModules').href = modulesHref);
     $('kBreadLesson') && ($('kBreadLesson').textContent = lessonTitle);
-    document.title = `${lessonTitle} - ${courseName} - Kairos`;
+    document.title = `${lessonTitle} - ${courseName} - ${LMS.getProductName()}`;
   }
 
   function applyMode(isEditMode) {

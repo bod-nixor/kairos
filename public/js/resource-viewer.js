@@ -62,7 +62,7 @@
         }
 
         $('resourceTitle') && ($('resourceTitle').textContent = resourceTitle);
-        document.title = `${resourceTitle} - ${courseName} - Kairos`;
+        document.title = `${resourceTitle} - ${courseName} - ${LMS.getProductName()}`;
     }
 
     function inferType(resource) {
@@ -90,6 +90,15 @@
             return '';
         }
         return '';
+    }
+
+    function isDirectVideoUrl(rawUrl) {
+        try {
+            const pathname = new URL(String(rawUrl || '')).pathname.toLowerCase();
+            return /\.(mp4|webm|mov|avi|ogv|m4v)($|\?)/.test(pathname);
+        } catch (_) {
+            return false;
+        }
     }
 
     function hardenPreviewIframe(iframe) {
@@ -225,7 +234,7 @@
             return;
         }
 
-        if (inferType(rawUrl) === 'video' && isHttpUrl(rawUrl)) {
+        if (isDirectVideoUrl(rawUrl) && isHttpUrl(rawUrl)) {
             videoWrap.classList.remove('k-embed-16x9');
             const video = document.createElement('video');
             video.className = 'k-resource-video';

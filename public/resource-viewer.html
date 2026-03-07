@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <title>Resource - Kairos</title>
+  <title>Resource</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="View course resource." />
   <link rel="icon" type="image/png" href="./images/logo.png" />
@@ -11,49 +11,6 @@
   <link rel="stylesheet" href="./css/lms.css" />
   <link rel="stylesheet" href="./css/kairos-ui.css" />
   <script src="./js/config.js"></script>
-  <script>
-    (function () {
-      const fallback = {
-        productName: 'Kairos',
-        homeLabel: 'Kairos home',
-        logoUrl: './images/logo.png',
-        logoAlt: 'Kairos',
-      };
-
-      function readBranding() {
-        const cfg = typeof window.getAppConfig === 'function'
-          ? window.getAppConfig()
-          : (window.SignoffConfig || window.SIGNOFF_CONFIG || {});
-        const branding = (cfg && cfg.branding) || {};
-        const productName = branding.productName || fallback.productName;
-        return {
-          productName,
-          homeLabel: branding.homeLabel || (productName + ' home'),
-          logoUrl: branding.logoUrl || fallback.logoUrl,
-          logoAlt: branding.logoAlt || productName,
-        };
-      }
-
-      function applyBranding() {
-        const branding = readBranding();
-        document.title = `Resource - ${branding.productName}`;
-        const brandLink = document.querySelector('.k-sidebar__brand');
-        const brandImage = document.querySelector('.k-brand-badge');
-        const brandWordmark = document.querySelector('.k-sidebar__wordmark');
-        if (brandLink) brandLink.setAttribute('aria-label', branding.homeLabel);
-        if (brandImage) {
-          brandImage.setAttribute('src', branding.logoUrl);
-          brandImage.setAttribute('alt', branding.logoAlt);
-        }
-        if (brandWordmark) brandWordmark.textContent = branding.productName;
-      }
-
-      if (typeof window.waitForAppConfig === 'function') {
-        window.waitForAppConfig().then(applyBranding).catch(applyBranding);
-      }
-      document.addEventListener('DOMContentLoaded', applyBranding);
-    })();
-  </script>
 </head>
 <body class="k-page-body">
   <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Course navigation">
