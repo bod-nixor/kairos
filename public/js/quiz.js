@@ -602,7 +602,7 @@
         }
         LMS.nav.setCourseContext(COURSE_ID, quizData.course_name || 'Course');
         LMS.nav.setActive('quizzes');
-        const courseRole = LMS.resolveCourseRoleFlags(quizData.course_role || quizData.my_role || quizData.role || window.KairosLMS.getRole());
+        const courseRole = LMS.resolveCourseRoleFlags(quizData.course_role || quizData.my_role || quizData.role);
         if (courseRole.ta || courseRole.manager || courseRole.admin) {
             $('kNavGrading')?.classList.remove('hidden');
         }

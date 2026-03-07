@@ -161,6 +161,13 @@
     });
   };
 
+  const syncTopbarOffset = () => {
+    const topbar = document.querySelector('.k-topbar');
+    const fallback = getComputedStyle(root).getPropertyValue('--k-topbar-height').trim() || '64px';
+    const height = topbar ? Math.ceil(topbar.getBoundingClientRect().height) : 0;
+    root.style.setProperty('--k-topbar-offset', height > 0 ? `${height}px` : fallback);
+  };
+
   const readBranding = () => {
     const fallback = {
       productName: 'Kairos',
@@ -397,6 +404,7 @@
     normalizeHomeLinks();
     ensureSettingsLauncher();
     bindShell();
+    syncTopbarOffset();
 
     const serverSettings = await loadSettingsServer();
     if (serverSettings) {
@@ -456,6 +464,7 @@
     normalizeHomeLinks();
     ensureSettingsLauncher();
     bindShell();
+    syncTopbarOffset();
     closeSettingsPanel();
     closeShellDrawer();
   });
@@ -482,9 +491,12 @@
   if (shellDrawerQuery && typeof shellDrawerQuery.addEventListener === 'function') {
     shellDrawerQuery.addEventListener('change', () => {
       bindShell();
+      syncTopbarOffset();
       if (!shellDrawerQuery.matches) {
         closeShellDrawer();
       }
     });
   }
+
+  window.addEventListener('resize', syncTopbarOffset);
 })();

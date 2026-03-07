@@ -94,11 +94,11 @@
       { name: lessonTitle },
     ]);
 
-    const role = String(course.my_role || '').toLowerCase();
-    if (role === 'ta' || role === 'manager' || role === 'admin') {
+    const courseRole = LMS.resolveCourseRoleFlags(course);
+    if (courseRole.ta || courseRole.manager || courseRole.admin) {
       $('kNavGrading')?.classList.remove('hidden');
     }
-    if (role === 'manager' || role === 'admin') {
+    if (courseRole.manager || courseRole.admin) {
       $('kNavAnalytics')?.classList.remove('hidden');
     }
 

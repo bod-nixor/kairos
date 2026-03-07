@@ -95,7 +95,7 @@
     function isDirectVideoUrl(rawUrl) {
         try {
             const pathname = new URL(String(rawUrl || '')).pathname.toLowerCase();
-            return /\.(mp4|webm|mov|avi|ogv|m4v)($|\?)/.test(pathname);
+            return /\.(mp4|webm|mov|ogv|m4v)($|\?)/.test(pathname);
         } catch (_) {
             return false;
         }

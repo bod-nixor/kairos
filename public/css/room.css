@@ -55,7 +55,7 @@ body.room-view {
 
 .toast-stack {
   position: fixed;
-  top: calc(var(--k-topbar-height) + 20px);
+  top: calc(var(--k-topbar-offset, var(--k-topbar-height)) + 20px);
   right: 20px;
   display: flex;
   flex-direction: column;

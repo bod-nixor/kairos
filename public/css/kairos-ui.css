@@ -1,6 +1,7 @@
 :root {
   --k-sidebar-width: 272px;
   --k-topbar-height: 64px;
+  --k-topbar-offset: var(--k-topbar-height);
   --k-content-max: 1280px;
   --k-content-gutter: clamp(16px, 2.4vw, 32px);
   --k-drawer-width: min(320px, 88vw);
@@ -477,7 +478,7 @@ body.k-shell-drawer-open .k-shell-overlay {
 
 .k-sticky-card {
   position: sticky;
-  top: calc(var(--k-topbar-height) + 20px);
+  top: calc(var(--k-topbar-offset, var(--k-topbar-height)) + 20px);
 }
 
 .k-section-link {
@@ -1455,7 +1456,7 @@ body.k-shell-drawer-open .k-shell-overlay {
 
   .k-notification-pop {
     position: fixed;
-    top: calc(var(--k-topbar-height) + 10px);
+    top: calc(var(--k-topbar-offset, var(--k-topbar-height)) + 10px);
     left: 12px;
     right: 12px;
     width: auto;

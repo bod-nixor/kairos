@@ -445,7 +445,7 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         });
         LMS.nav.setCourseContext(COURSE_ID, assignData.course_name || 'Course');
         LMS.nav.setActive('assignments');
-        const courseRole = LMS.resolveCourseRoleFlags(assignData.course_role || assignData.my_role || assignData.role || window.KairosLMS.getRole());
+        const courseRole = LMS.resolveCourseRoleFlags(assignData.course_role || assignData.my_role || assignData.role);
         if (courseRole.ta || courseRole.manager || courseRole.admin) {
             $('kNavGrading')?.classList.remove('hidden');
         }
