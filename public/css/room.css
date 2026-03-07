@@ -6,8 +6,6 @@ body.room-view {
 }
 
 .room-main {
-  width: min(960px, 100%);
-  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -56,9 +54,12 @@ body.room-view {
 .toast-stack {
   position: fixed;
   top: calc(var(--k-topbar-offset, var(--k-topbar-height)) + 20px);
+  left: 20px;
   right: 20px;
+  max-width: min(320px, calc(100% - 40px));
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 12px;
   z-index: 2000;
 }

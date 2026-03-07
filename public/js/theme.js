@@ -425,6 +425,8 @@
 
       if (serverSettings.theme) {
         applyTheme(serverSettings.theme, false);
+      } else {
+        applyTheme(resolvePreferredTheme(), false);
       }
 
       applyUiSettings({

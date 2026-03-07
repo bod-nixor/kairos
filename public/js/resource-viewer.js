@@ -8,7 +8,6 @@
     const RESOURCE_ID = params.get('resource_id') || params.get('id') || '';
     const URL_MODE = params.get('mode') || 'view';
 
-    let isAdmin = false;
     let currentCourse = null;
     let currentResource = null;
     let isSavingResource = false;
@@ -39,6 +38,10 @@
         }
     }
 
+    function getCurrentCourseRoleFlags() {
+        return LMS.resolveCourseRoleFlags(currentCourse || {});
+    }
+
     function syncShell(resource = currentResource) {
         const courseName = currentCourse?.name || currentCourse?.code || 'Course';
         const currentCourseId = COURSE_ID || resource?.course_id || '';
@@ -53,11 +56,11 @@
             { name: resourceTitle },
         ]);
 
-        const role = String(currentCourse?.my_role || '').toLowerCase();
-        if (role === 'ta' || role === 'manager' || role === 'admin') {
+        const courseRole = getCurrentCourseRoleFlags();
+        if (courseRole.ta || courseRole.manager || courseRole.admin) {
             $('kNavGrading')?.classList.remove('hidden');
         }
-        if (role === 'manager' || role === 'admin') {
+        if (courseRole.manager || courseRole.admin) {
             $('kNavAnalytics')?.classList.remove('hidden');
         }
 
@@ -72,6 +75,8 @@
             : String(resource?.url || resource?.file_url || '').toLowerCase();
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
         if (url.match(/\.(ppt|pptx)($|\?)/)) return 'ppt';
+        if (url.match(/\.(png|jpe?g|gif|webp|svg|bmp|avif)($|\?)/)) return 'image';
+        if (url.match(/\.(mp3|wav|m4a|aac|flac|oga|ogg)($|\?)/)) return 'audio';
         if (url.includes('docs.google.com/presentation') || url.includes('slides.google.com')) return 'slides';
         if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
@@ -269,6 +274,25 @@
         showViewerState('externalWrap');
     }
 
+    function renderMediaExternal(resource, kind) {
+        const rawUrl = resource?.url || resource?.drive_preview_url || resource?.file_url || '';
+        const mime = resource?.mime_type || resource?.mime || '';
+        setExternalDescription(`This ${kind} resource${mime ? ` (${mime})` : ''} opens in an external viewer.`);
+        if (!isHttpUrl(rawUrl)) {
+            setExternalDescription(`This ${kind} resource has an unsafe URL and cannot be opened: ${rawUrl}`);
+        }
+        applySafeExternalLink($('externalLink'), rawUrl, `Open ${kind}`);
+        showViewerState('externalWrap');
+    }
+
+    function renderImage(resource) {
+        renderMediaExternal(resource, 'image');
+    }
+
+    function renderAudio(resource) {
+        renderMediaExternal(resource, 'audio');
+    }
+
     function renderSlides(rawUrl) {
         const iframe = $('resourceIframe');
         const src = LMS.toDrivePreviewUrl(rawUrl);
@@ -448,6 +472,14 @@
             renderExternal(rawUrl);
             return;
         }
+        if (type === 'image') {
+            renderImage(currentResource);
+            return;
+        }
+        if (type === 'audio') {
+            renderAudio(currentResource);
+            return;
+        }
 
         renderText(currentResource);
     }
@@ -456,19 +488,20 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
-        const roles = session.caps?.roles || {};
-        isAdmin = !!(roles.admin || roles.manager);
 
-        if (URL_MODE === 'edit' && !isAdmin) {
-            hideEl('resourceSkeleton');
+        await Promise.all([loadCourse(), loadPage()]);
+
+        const courseRole = getCurrentCourseRoleFlags();
+        const canEditResource = !!(courseRole.manager || courseRole.admin);
+        if (URL_MODE === 'edit' && !canEditResource) {
+            hideEl('resourceViewer');
+            hideEl('resourceEditPanel');
             LMS.renderAccessDenied($('resourceAccessDenied'), 'You do not have permission to edit this resource.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
             showEl('resourceAccessDenied');
             return;
         }
 
-        await Promise.all([loadCourse(), loadPage()]);
-
-        if (URL_MODE === 'edit' && isAdmin && currentResource) {
+        if (URL_MODE === 'edit' && canEditResource && currentResource) {
             renderEditPanel(currentResource);
         }
     });

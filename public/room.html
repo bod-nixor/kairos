@@ -57,7 +57,7 @@
         <nav class="k-breadcrumb" aria-label="Breadcrumb">
           <a class="k-breadcrumb__item" href="/signoff/" data-home-link="true">Home</a>
           <span class="k-breadcrumb__sep" aria-hidden="true">&rsaquo;</span>
-          <span class="k-breadcrumb__item is-current">Room</span>
+          <span class="k-breadcrumb__item is-current" aria-current="page">Room</span>
         </nav>
       </div>
       <div class="k-topbar__actions">
@@ -69,16 +69,18 @@
       </div>
     </header>
 
-    <main class="k-main room-main" id="roomMain">
-      <section class="room-card" id="roomCard">
-        <div class="room-card-header">
-          <span class="badge" id="roomBadge">Room</span>
-          <h1 id="roomTitle">Room</h1>
-        </div>
-        <div id="roomMeta" class="muted"></div>
-        <div id="queuesContainer" class="queues-list"></div>
-      </section>
-    </main>
+    <div class="k-page">
+      <main class="k-main room-main" id="roomMain">
+        <section class="room-card" id="roomCard">
+          <div class="room-card-header">
+            <span class="badge" id="roomBadge">Room</span>
+            <h1 id="roomTitle">Room</h1>
+          </div>
+          <div id="roomMeta" class="muted"></div>
+          <div id="queuesContainer" class="queues-list"></div>
+        </section>
+      </main>
+    </div>
   </div>
 
   <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>

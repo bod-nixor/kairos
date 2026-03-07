@@ -104,6 +104,17 @@
       if (typeof value.course_role === 'string' || typeof value.my_role === 'string' || typeof value.role === 'string') {
         return resolveCourseRoleFlags(value.course_role || value.my_role || value.role);
       }
+      if ('is_admin' in value || 'is_manager' in value || 'is_ta' in value || 'is_staff' in value) {
+        const admin = !!value.is_admin;
+        const manager = !!value.is_manager;
+        const ta = !!value.is_ta || !!value.is_staff || manager || admin;
+        return {
+          student: false,
+          ta,
+          manager,
+          admin,
+        };
+      }
     }
     const role = String(value || '').toLowerCase();
     return {
