@@ -42,7 +42,7 @@ function showSignin() {
   if (userbar) userbar.classList.add('hidden');
   const sidebarUser = document.querySelector('.k-sidebar__user');
   if (sidebarUser) sidebarUser.classList.add('hidden');
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.querySelectorAll('.view').forEach(v => { v.classList.add('hidden'); });
   const btn = document.getElementById('googleBtn');
   if (btn) btn.innerHTML = '';
   renderGoogleButton();
@@ -64,7 +64,7 @@ function showApp() {
 function showForbidden() {
   const signin = document.getElementById('signin');
   if (signin) signin.classList.add('hidden');
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.querySelectorAll('.view').forEach(v => { v.classList.add('hidden'); });
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.remove('hidden');
   const userbar = document.getElementById('userbar');
@@ -350,7 +350,7 @@ function setBreadcrumbs(text) {
 }
 
 function showView(id) {
-  document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== id));
+  document.querySelectorAll('.view').forEach(v => { v.classList.toggle('hidden', v.id !== id); });
   const navCourses = document.getElementById('navCourses');
   const navRoster = document.getElementById('navRoster');
   const navProgress = document.getElementById('navProgress');
