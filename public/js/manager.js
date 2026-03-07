@@ -48,6 +48,7 @@ function showSignin() {
   renderGoogleButton();
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.add('hidden');
+  closeProgressModal();
 }
 
 function showApp() {
@@ -71,6 +72,7 @@ function showForbidden() {
   if (userbar) userbar.classList.remove('hidden');
   const sidebarUser = document.querySelector('.k-sidebar__user');
   if (sidebarUser) sidebarUser.classList.remove('hidden');
+  closeProgressModal();
 }
 
 async function handleCredentialResponse(resp) {
@@ -354,9 +356,9 @@ function showView(id) {
   const navCourses = document.getElementById('navCourses');
   const navRoster = document.getElementById('navRoster');
   const navProgress = document.getElementById('navProgress');
-  if (navCourses) navCourses.classList.toggle('active', id === 'viewCourses');
-  if (navRoster) navRoster.classList.toggle('active', id === 'viewCourseDetail');
-  if (navProgress) navProgress.classList.toggle('active', id === 'viewProgress');
+  if (navCourses) navCourses.classList.toggle('is-active', id === 'viewCourses');
+  if (navRoster) navRoster.classList.toggle('is-active', id === 'viewCourseDetail');
+  if (navProgress) navProgress.classList.toggle('is-active', id === 'viewProgress');
 }
 
 async function apiGet(url) {
