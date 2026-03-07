@@ -78,7 +78,7 @@
         if (url.match(/\.(png|jpe?g|gif|webp|svg|bmp|avif)($|\?)/)) return 'image';
         if (url.match(/\.(mp3|wav|m4a|aac|flac|oga|ogg)($|\?)/)) return 'audio';
         if (url.includes('docs.google.com/presentation') || url.includes('slides.google.com')) return 'slides';
-        if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
+        if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
     }

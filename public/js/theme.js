@@ -176,6 +176,9 @@
       logoAlt: 'Kairos',
     };
     try {
+      if (window.KairosLMS && typeof window.KairosLMS.getBranding === 'function') {
+        return window.KairosLMS.getBranding();
+      }
       const cfg = typeof window.getAppConfig === 'function'
         ? window.getAppConfig()
         : (window.SignoffConfig || window.SIGNOFF_CONFIG || {});
