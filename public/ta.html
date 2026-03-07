@@ -24,44 +24,9 @@
   </script>
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/lms.css" />
+  <link rel="stylesheet" href="./css/kairos-ui.css" />
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
-  <style>
-    /* Specific TA styles translated to k-classes format */
-    .k-ta-toolbar {
-      display: flex;
-      gap: 16px;
-      align-items: flex-end;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
-    }
-
-    .k-ta-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      align-items: start;
-    }
-
-    @media (max-width: 800px) {
-      .k-ta-layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .k-ta-queue-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .ta-comment-list {
-      margin: 16px 0;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-  </style>
 </head>
 
 <body class="k-page-body">
@@ -95,7 +60,7 @@
       <img class="k-sidebar__avatar" id="taAvatar" src="" alt="Your avatar" />
       <div class="k-sidebar__user-info">
         <div class="k-sidebar__user-name" id="taName">—</div>
-        <div class="k-sidebar__user-role" id="taEmail" style="font-size:11px;color:var(--muted)">TA</div>
+        <div class="k-sidebar__user-role" id="taEmail">TA</div>
       </div>
       <button class="k-sidebar__logout" id="taLogoutBtn" aria-label="Logout" title="Logout">↩</button>
     </div>
@@ -123,20 +88,24 @@
     <main class="k-main">
       <div class="k-page">
 
-        <section id="taAuthRequired" class="k-card centerbox hidden" style="margin-top:40px">
-          <div class="k-card__body" style="text-align:center;">
-            <h2 class="k-card__title" style="margin-bottom:8px;">Sign in required</h2>
-            <p class="muted" style="margin-bottom:24px;">Please log in via the main portal before accessing the TA
+        <section id="taAuthRequired" class="k-card centerbox k-state-card hidden">
+          <div class="k-card__body">
+            <h2 class="k-card__title">Sign in required</h2>
+            <p class="muted">Please log in via the main portal before accessing the TA
               dashboard.</p>
-            <a class="btn btn-primary" href="/signoff/">Go to login</a>
+            <div class="k-state-card__actions">
+              <a class="btn btn-primary" href="/signoff/">Go to login</a>
+            </div>
           </div>
         </section>
 
-        <section id="taForbidden" class="k-card centerbox hidden" style="margin-top:40px">
-          <div class="k-card__body" style="text-align:center;">
-            <h2 class="k-card__title" style="margin-bottom:8px;">Access denied</h2>
+        <section id="taForbidden" class="k-card centerbox k-state-card hidden">
+          <div class="k-card__body">
+            <h2 class="k-card__title">Access denied</h2>
             <p class="muted">This dashboard is restricted to teaching assistants.</p>
-            <a class="btn btn-primary" href="/signoff/" style="margin-top:24px">Return home</a>
+            <div class="k-state-card__actions">
+              <a class="btn btn-primary" href="/signoff/">Return home</a>
+            </div>
           </div>
         </section>
 
@@ -145,35 +114,35 @@
             <h1 class="k-page-header__title">TA Dashboard</h1>
           </div>
 
-          <div class="k-card k-ta-toolbar" style="padding:16px;">
+          <div class="k-card k-card__body k-ta-toolbar">
             <div class="k-form-field">
               <label for="taCourseSelect">Course</label>
-              <select id="taCourseSelect" class="k-select" style="min-width:200px;">
+              <select id="taCourseSelect" class="k-select k-control-md">
                 <option value="">Select a course…</option>
               </select>
             </div>
             <div class="k-form-field">
               <label for="taRoomSelect">Room</label>
-              <select id="taRoomSelect" class="k-select" disabled style="min-width:200px;">
+              <select id="taRoomSelect" class="k-select k-control-md" disabled>
                 <option value="">Select a room…</option>
               </select>
             </div>
-            <div style="margin-bottom:4px;">
+            <div>
               <button type="button" id="taProjectorBtn" class="btn btn-secondary" disabled>Projector View</button>
             </div>
             <div class="spacer"></div>
-            <div id="taServingNotice" class="k-status k-status--info" style="display:none;"></div>
+            <div id="taServingNotice" class="k-status k-status--info hidden"></div>
           </div>
 
           <div class="k-ta-layout">
             <div>
-              <h3 style="margin:0 0 16px 0;">Student Queue</h3>
+              <h3 class="k-section-heading">Student Queue</h3>
               <div id="taQueueList" class="k-ta-queue-list"></div>
             </div>
             <div>
               <div id="taEmptyPanel" class="k-card">
-                <div class="k-card__body" style="text-align:center;padding:40px 20px;">
-                  <h3 style="margin:0 0 8px 0;">No student selected</h3>
+                <div class="k-card__body">
+                  <h3 class="k-section-heading">No student selected</h3>
                   <p class="muted">Pick a student from a queue to review their progress.</p>
                 </div>
               </div>
@@ -185,14 +154,14 @@
                   </div>
                 </div>
                 <div class="k-card__body">
-                  <div id="taProgressArea" style="margin-bottom:24px;"></div>
+                  <div id="taProgressArea" class="k-panel-gap"></div>
                   <div>
-                    <h4 style="margin:0;">Comments</h4>
-                    <div id="taCommentList" class="ta-comment-list"></div>
-                    <form id="taCommentForm" style="display:flex;flex-direction:column;gap:12px;">
+                    <h4 class="k-section-heading">Comments</h4>
+                    <div id="taCommentList" class="k-ta-comment-list"></div>
+                    <form id="taCommentForm" class="k-comment-form">
                       <textarea id="taCommentText" class="k-input" placeholder="Add a note for other TAs..."
                         rows="3"></textarea>
-                      <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Add comment</button>
+                      <button type="submit" class="btn btn-primary">Add comment</button>
                     </form>
                   </div>
                 </div>
@@ -211,27 +180,14 @@
   <script src="./js/ws.js"></script>
   <script src="./js/ta.js"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const btn = document.getElementById("kMobileMenuBtn");
-      const sidebar = document.getElementById("kSidebar");
-      if (btn && sidebar) {
-        btn.addEventListener("click", () => {
-          
-          const isOpen = sidebar.classList.toggle("is-open");
-          btn.setAttribute("aria-expanded", isOpen);
-
-        });
-      }
-    });
-
     // Helper to make the ServingNotice behave well
     const notice = document.getElementById('taServingNotice');
     if (notice) {
       const observer = new MutationObserver(() => {
         if (notice.textContent.trim() === '') {
-          notice.style.display = 'none';
+          notice.classList.add('hidden');
         } else {
-          notice.style.display = 'inline-flex';
+          notice.classList.remove('hidden');
         }
       });
       observer.observe(notice, { childList: true, characterData: true, subtree: true });

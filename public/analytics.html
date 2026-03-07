@@ -11,6 +11,7 @@
     <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
+    <link rel="stylesheet" href="./css/kairos-ui.css" />
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./js/config.js"></script>
 </head>
@@ -25,18 +26,18 @@
         <div class="k-sidebar__scroll">
             <div class="k-nav-group"><a class="k-nav-item" href="/signoff/" data-home-link="true"><span class="k-nav-item__icon">←</span><span
                         class="k-nav-item__text">All Courses</span></a></div>
-            <div class="k-sidebar__course-header">
+            <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
             <nav class="k-nav-group">
                 <a class="k-nav-item" data-course-href="./course.html" href="#"><span
                         class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
-                <a class="k-nav-item hidden" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                <a class="k-nav-item" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
                     id="kNavQuizzes">
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
                 </a>
-                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                <a class="k-nav-item" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
                     id="kNavAssignments"><span class="k-nav-item__icon">📤</span><span
                         class="k-nav-item__text">Assignments</span></a>
                 <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
@@ -87,7 +88,7 @@
                         <p class="k-page-header__subtitle" id="analyticsSubtitle">Manager view</p>
                     </div>
                     <div class="k-page-header__actions">
-                        <select class="k-select" id="periodSelect" aria-label="Time period" style="width:160px">
+                        <select class="k-select k-control-sm" id="periodSelect" aria-label="Time period">
                             <option value="all">All time</option>
                             <option value="7">Last 7 days</option>
                             <option value="30" selected>Last 30 days</option>
@@ -169,7 +170,7 @@
                         <div class="k-card">
                             <div class="k-card__header">
                                 <h2 class="k-card__title">Grade Distribution</h2>
-                                <select class="k-select" id="gradeAssignSelect" style="width:200px"
+                                <select class="k-select k-control-md" id="gradeAssignSelect"
                                     aria-label="Select assignment">
                                     <option value="">All assignments</option>
                                 </select>
@@ -209,8 +210,8 @@
                         <div class="k-card">
                             <div class="k-card__header">
                                 <h2 class="k-card__title">All Students</h2>
-                                <input class="k-input" type="search" id="studentSearch"
-                                    placeholder="Search by name or email…" style="max-width:220px"
+                                <input class="k-input k-student-table-search" type="search" id="studentSearch"
+                                    placeholder="Search by name or email…"
                                     aria-label="Search students" />
                             </div>
                             <div class="k-table-wrap">
@@ -227,7 +228,7 @@
                                     </thead>
                                     <tbody id="studentTableBody">
                                         <tr>
-                                            <td colspan="6" style="text-align:center;color:var(--muted);padding:32px">
+                                            <td colspan="6" class="k-table-note">
                                                 Loading…</td>
                                         </tr>
                                     </tbody>

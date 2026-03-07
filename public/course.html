@@ -10,6 +10,7 @@
     <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
+    <link rel="stylesheet" href="./css/kairos-ui.css" />
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./js/config.js"></script>
 </head>
@@ -49,12 +50,12 @@
                     <span class="k-nav-item__icon" aria-hidden="true">📦</span>
                     <span class="k-nav-item__text">Modules</span>
                 </a>
-                <a class="k-nav-item hidden" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                <a class="k-nav-item" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
                     id="kNavQuizzes">
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
                 </a>
-                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                <a class="k-nav-item" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
                     id="kNavAssignments">
                     <span class="k-nav-item__icon" aria-hidden="true">📤</span>
                     <span class="k-nav-item__text">Assignments</span>
@@ -122,8 +123,10 @@
                         <div class="k-skeleton k-skeleton--card" style="height:80px"></div>
                         <div class="k-skeleton k-skeleton--card" style="height:80px"></div>
                     </div>
-                    <div class="k-skeleton k-skeleton--card" style="height:200px;margin-bottom:16px"></div>
-                    <div class="k-skeleton k-skeleton--card" style="height:300px"></div>
+                    <div class="k-skeleton-grid--sidebar">
+                        <div class="k-skeleton k-skeleton--card" style="height:320px"></div>
+                        <div class="k-skeleton k-skeleton--card" style="height:300px"></div>
+                    </div>
                 </div>
 
                 <!-- Loaded content (hidden until ready) -->
@@ -173,12 +176,11 @@
                     </div>
 
                     <!-- Two-column layout: main + announcements -->
-                    <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start"
-                        id="courseBody">
+                    <div class="k-course-home-grid" id="courseBody">
 
                         <!-- Module overview -->
                         <div>
-                            <div class="k-card" style="margin-bottom:20px">
+                            <div class="k-card">
                                 <div class="k-card__header">
                                     <h2 class="k-card__title">📦 Modules</h2>
                                     <a href="#" id="viewAllModules" class="btn btn-ghost btn-sm">View all</a>
@@ -209,16 +211,16 @@
                         </div>
 
                         <!-- Announcements -->
-                        <div class="k-card" style="position:sticky;top:calc(var(--k-topbar-height) + 20px)">
+                        <div class="k-card k-sticky-card">
                             <div class="k-card__header">
                                 <h2 class="k-card__title">📢 Announcements</h2>
-                                <div style="display:flex;align-items:center;gap:8px">
+                                <div class="k-card__header-actions">
                                     <button class="k-admin-btn k-admin-btn--sm hidden" id="postAnnBtn">+ Post</button>
                                     <span class="k-status k-status--info hidden" id="newAnnBadge">New</span>
                                 </div>
                             </div>
                             <div id="announcementsFeed">
-                                <div class="k-empty" style="padding:32px 16px">
+                                <div class="k-empty k-empty--compact">
                                     <div class="k-empty__icon" aria-hidden="true">📢</div>
                                     <p class="k-empty__title">No announcements</p>
                                     <p class="k-empty__desc">Check back later for course updates.</p>

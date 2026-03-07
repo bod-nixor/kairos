@@ -70,13 +70,11 @@ function updateAllowedDomainCopy() {
   document.querySelectorAll('[data-allowed-domain-text]').forEach((el) => {
     el.textContent = replacement;
   });
-  const placeholderInput = document.querySelector('[data-allowed-domain-placeholder]');
-  if (placeholderInput) {
+  document.querySelectorAll('[data-allowed-domain-placeholder]').forEach((placeholderInput) => {
     const template = placeholderInput.getAttribute('data-allowed-domain-placeholder') || '';
-    if (template) {
-      placeholderInput.setAttribute('placeholder', template.replace('{domain}', domain || 'example.edu'));
-    }
-  }
+    if (!template) return;
+    placeholderInput.setAttribute('placeholder', template.replace('{domain}', domain || 'example.edu'));
+  });
 }
 
 function bindEvents() {

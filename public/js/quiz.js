@@ -35,8 +35,7 @@
         if (!debugEl) {
             debugEl = document.createElement('pre');
             debugEl.id = 'quizDebug';
-            debugEl.className = 'k-card';
-            debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            debugEl.className = 'k-card k-debug-panel';
             document.querySelector('.k-page')?.appendChild(debugEl);
         }
         debugEl.textContent = safeStringify(debugLogs);
@@ -196,8 +195,8 @@
         const nextBtn = $('quizNextBtn');
         const submitBtn = $('quizSubmitBtn');
         if (prevBtn) prevBtn.disabled = current === 0;
-        if (nextBtn) nextBtn.style.display = current < questions.length - 1 ? '' : 'none';
-        if (submitBtn) submitBtn.style.display = current === questions.length - 1 ? '' : 'none';
+        if (nextBtn) nextBtn.classList.toggle('hidden', current >= questions.length - 1);
+        if (submitBtn) submitBtn.classList.toggle('hidden', current !== questions.length - 1);
     }
 
     function updateDots() {
@@ -272,12 +271,12 @@
             feedbackList.innerHTML = result.feedback.map((f, i) => {
                 const cls = f.correct ? 'is-correct' : 'is-wrong';
                 const icon = f.correct ? '✅' : '❌';
-                return `<div class="k-question-card" style="margin-bottom:12px">
-          <div class="k-question-card__head" style="padding-bottom:12px">
+                return `<div class="k-question-card k-question-card--compact">
+          <div class="k-question-card__head k-question-card__head--compact">
             <div class="k-question-card__num">Question ${i + 1} ${icon}</div>
             <p class="k-question-card__text">${LMS.escHtml(f.question_text || '')}</p>
           </div>
-          ${f.explanation ? `<div class="k-question-card__body"><p style="color:var(--muted);font-size:14px">${LMS.escHtml(f.explanation)}</p></div>` : ''}
+          ${f.explanation ? `<div class="k-question-card__body"><p class="k-text-meta-sm">${LMS.escHtml(f.explanation)}</p></div>` : ''}
         </div>`;
             }).join('');
         }
@@ -306,7 +305,7 @@
         <span class="k-status ${a.score_pct >= 80 ? 'k-status--success' : a.score_pct >= 50 ? 'k-status--warning' : 'k-status--danger'}" aria-label="Score">
           ${a.score_pct}%
         </span>
-        <span style="font-size:12px;color:var(--muted)">${a.score}/${a.max_score} pts</span>
+        <span class="k-attempt-meta">${a.score}/${a.max_score} pts</span>
       </div>`).join('');
     }
 
@@ -318,17 +317,17 @@
         modal = document.createElement('dialog');
         modal.id = 'quizQuestionModal';
         modal.className = 'k-modal';
-        modal.innerHTML = `<form method="dialog" class="k-modal__content" id="quizQuestionForm" style="max-width:640px">
-            <h3 style="margin:0 0 12px">Add question</h3>
-            <label style="display:grid;gap:6px;margin-bottom:8px"><span>Prompt</span><textarea id="quizQPrompt" rows="3" required></textarea></label>
-            <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;margin-bottom:8px">
-              <label style="display:grid;gap:6px"><span>Type</span><select id="quizQType"><option value="mcq">Multiple choice</option><option value="multiple_select">Multi-select</option><option value="true_false">True/False</option><option value="short_answer">Short answer</option><option value="long_answer">Long answer</option></select></label>
-              <label style="display:grid;gap:6px"><span>Points</span><input id="quizQPoints" type="number" min="1" value="1" /></label>
+        modal.innerHTML = `<form method="dialog" class="k-modal__content k-modal__content--md" id="quizQuestionForm">
+            <h3>Add question</h3>
+            <label class="k-field-stack"><span>Prompt</span><textarea id="quizQPrompt" rows="3" required></textarea></label>
+            <div class="k-form-two-col">
+              <label class="k-field-stack"><span>Type</span><select id="quizQType"><option value="mcq">Multiple choice</option><option value="multiple_select">Multi-select</option><option value="true_false">True/False</option><option value="short_answer">Short answer</option><option value="long_answer">Long answer</option></select></label>
+              <label class="k-field-stack"><span>Points</span><input id="quizQPoints" type="number" min="1" value="1" /></label>
             </div>
-            <label style="display:grid;gap:6px;margin-bottom:8px"><span>Options (comma-separated, optional)</span><input id="quizQOptions" type="text" placeholder="Option A, Option B" /></label>
-            <label style="display:grid;gap:6px;margin-bottom:8px"><span>Correct answer (value or comma list)</span><input id="quizQAnswer" type="text" /></label>
-            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><input id="quizQRequired" type="checkbox" /><span>Required question</span></label>
-            <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" id="quizQuestionCancel">Cancel</button><button class="btn btn-primary" type="submit">Add question</button></div>
+            <label class="k-field-stack"><span>Options (comma-separated, optional)</span><input id="quizQOptions" type="text" placeholder="Option A, Option B" /></label>
+            <label class="k-field-stack"><span>Correct answer (value or comma list)</span><input id="quizQAnswer" type="text" /></label>
+            <label class="k-inline-checkbox"><input id="quizQRequired" type="checkbox" /><span>Required question</span></label>
+            <div class="k-modal__footer"><button class="btn btn-ghost" type="button" id="quizQuestionCancel">Cancel</button><button class="btn btn-primary" type="submit">Add question</button></div>
           </form>`;
         document.body.appendChild(modal);
         $('quizQuestionCancel')?.addEventListener('click', () => modal.close());
@@ -429,10 +428,8 @@
         if (existingPanel) existingPanel.remove();
         const panel = document.createElement('section');
         panel.id = 'quizStaffPanel';
-        panel.className = 'k-card';
-        panel.style.marginTop = '16px';
-        panel.style.padding = '16px';
-        panel.innerHTML = `<h3>Staff Quiz Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions"></div><div id="staffAttempts"></div>`;
+        panel.className = 'k-card k-staff-panel';
+        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Quiz Management</h3><div class="k-staff-panel__actions"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions" class="k-staff-panel__list"></div><div id="staffAttempts" class="k-staff-panel__list"></div>`;
         intro.appendChild(panel);
 
         const staffMandatoryBtn = $('staffMandatoryBtn');
@@ -494,7 +491,7 @@
         const questions = qRes.ok ? (qRes.data?.data?.items || qRes.data?.items || []) : [];
         const wrap = $('staffQuestions');
         if (!wrap) return;
-        wrap.innerHTML = `<h4>Questions (${questions.length})</h4>` + questions.map((q, idx) => `<div class="k-card" style="padding:8px;margin-bottom:8px"><div><strong>Q${idx + 1}.</strong> ${LMS.escHtml(q.prompt || '')} (${LMS.escHtml(q.question_type || '')})${Number(q.is_required||0)===1 ? ' <span class="k-status k-status--warning">Required</span>' : ''}</div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="move-up" data-id="${q.question_id}" ${idx===0?'disabled':''}>Move Up</button><button class="btn btn-ghost btn-sm" data-act="move-down" data-id="${q.question_id}" ${idx===questions.length-1?'disabled':''}>Move Down</button><button class="btn btn-ghost btn-sm" data-act="toggle-required" data-id="${q.question_id}" data-required="${Number(q.is_required||0)}">${Number(q.is_required||0)===1?'Set Optional':'Set Required'}</button><button class="btn btn-ghost btn-sm" data-act="edit" data-id="${q.question_id}">Edit</button> <button class="btn btn-ghost btn-sm" data-act="delete" data-id="${q.question_id}">Delete</button></div></div>`).join('');
+        wrap.innerHTML = `<h4>Questions (${questions.length})</h4>` + questions.map((q, idx) => `<div class="k-card k-card__body--compact k-panel-gap"><div><strong>Q${idx + 1}.</strong> ${LMS.escHtml(q.prompt || '')} (${LMS.escHtml(q.question_type || '')})${Number(q.is_required||0)===1 ? ' <span class="k-status k-status--warning">Required</span>' : ''}</div><div class="k-inline-actions k-inline-actions--compact k-list-spacer"><button class="btn btn-ghost btn-sm" data-act="move-up" data-id="${q.question_id}" ${idx===0?'disabled':''}>Move Up</button><button class="btn btn-ghost btn-sm" data-act="move-down" data-id="${q.question_id}" ${idx===questions.length-1?'disabled':''}>Move Down</button><button class="btn btn-ghost btn-sm" data-act="toggle-required" data-id="${q.question_id}" data-required="${Number(q.is_required||0)}">${Number(q.is_required||0)===1?'Set Optional':'Set Required'}</button><button class="btn btn-ghost btn-sm" data-act="edit" data-id="${q.question_id}">Edit</button> <button class="btn btn-ghost btn-sm" data-act="delete" data-id="${q.question_id}">Delete</button></div></div>`).join('');
 
         for (const btn of wrap.querySelectorAll('button[data-act="move-up"]')) {
             btn.addEventListener('click', async () => {
@@ -602,6 +599,15 @@
         if (bc) {
             bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
             bc.textContent = quizData.course_name || 'Course';
+        }
+        LMS.nav.setCourseContext(COURSE_ID, quizData.course_name || 'Course');
+        LMS.nav.setActive('quizzes');
+        const courseRole = LMS.resolveCourseRoleFlags(quizData.course_role || quizData.my_role || quizData.role);
+        if (courseRole.ta || courseRole.manager || courseRole.admin) {
+            $('kNavGrading')?.classList.remove('hidden');
+        }
+        if (courseRole.manager || courseRole.admin) {
+            $('kNavAnalytics')?.classList.remove('hidden');
         }
         $('quizStickyTitle') && ($('quizStickyTitle').textContent = quizData.title || 'Quiz');
 

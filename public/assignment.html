@@ -10,6 +10,7 @@
     <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
+    <link rel="stylesheet" href="./css/kairos-ui.css" />
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./js/config.js"></script>
 </head>
@@ -24,7 +25,7 @@
         <div class="k-sidebar__scroll">
             <div class="k-nav-group"><a class="k-nav-item" href="/signoff/" data-home-link="true"><span class="k-nav-item__icon">←</span><span
                         class="k-nav-item__text">All Courses</span></a></div>
-            <div class="k-sidebar__course-header">
+            <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
             <nav class="k-nav-group">
@@ -32,7 +33,7 @@
                         class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
                 <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
                         class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
-                <a class="k-nav-item hidden" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                <a class="k-nav-item" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
                     id="kNavQuizzes">
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
@@ -86,7 +87,7 @@
                 <div id="assignSkeleton">
                     <div class="k-skeleton k-skeleton--title" style="width:60%;margin-bottom:12px"></div>
                     <div class="k-skeleton k-skeleton--text" style="width:35%;margin-bottom:24px"></div>
-                    <div style="display:grid;grid-template-columns:1fr 380px;gap:24px">
+                    <div class="k-assignment-skeleton">
                         <div class="k-skeleton k-skeleton--card" style="height:400px"></div>
                         <div class="k-skeleton k-skeleton--card" style="height:320px"></div>
                     </div>
@@ -112,13 +113,13 @@
                         <!-- Left: Details -->
                         <div>
                             <!-- Description -->
-                            <div class="k-card" style="margin-bottom:20px">
+                            <div class="k-card k-card--spaced">
                                 <div class="k-card__header">
                                     <h2 class="k-card__title">Assignment Details</h2>
                                 </div>
                                 <div class="k-card__body">
                                     <div class="k-assign-description" id="assignDescription">
-                                        <div class="k-empty" style="padding:32px 0">
+                                        <div class="k-empty k-card-empty">
                                             <div class="k-empty__icon">📝</div>
                                             <p class="k-empty__title">No description provided</p>
                                         </div>
@@ -127,7 +128,7 @@
                             </div>
 
                             <!-- Rubric (collapsible) -->
-                            <div class="k-card" id="rubricCard" style="display:none">
+                            <div class="k-card hidden" id="rubricCard">
                                 <details class="k-rubric-details" id="rubricDetails" open>
                                     <summary>
                                         <span>📋 Grading Rubric</span>
@@ -157,11 +158,10 @@
                             </div>
 
                             <!-- Grade feedback (shown after grading) -->
-                            <div class="k-card hidden" id="gradeFeedbackCard" style="margin-top:20px">
+                            <div class="k-card hidden k-card--spaced" id="gradeFeedbackCard">
                                 <div class="k-card__header">
                                     <h2 class="k-card__title">Grade Feedback</h2>
-                                    <span class="k-stat-card__value" id="gradeScoreDisplay"
-                                        style="color:var(--primary)">—</span>
+                                    <span class="k-stat-card__value" id="gradeScoreDisplay">—</span>
                                 </div>
                                 <div class="k-card__body">
                                     <div id="gradeFeedbackText" class="k-assign-description"></div>
@@ -214,18 +214,16 @@
 
                                 <!-- Actions -->
                                 <div id="submissionActions">
-                                    <button class="btn btn-primary" id="submitBtn" style="width:100%">Submit</button>
-                                    <p class="k-field-hint" id="submissionNote"
-                                        style="text-align:center;margin-top:8px"></p>
+                                    <button class="btn btn-primary k-button-block" id="submitBtn">Submit</button>
+                                    <p class="k-field-hint k-note-center" id="submissionNote"></p>
                                 </div>
 
                                 <!-- Already submitted state -->
                                 <div id="submittedState" class="hidden">
-                                    <div class="k-status k-status--success"
-                                        style="display:flex;justify-content:center;margin-bottom:16px">
+                                    <div class="k-status k-status--success k-status-banner">
                                         <span class="k-status__dot"></span> Submitted
                                     </div>
-                                    <button class="btn btn-ghost" id="resubmitBtn" style="width:100%">Submit New
+                                    <button class="btn btn-ghost k-button-block" id="resubmitBtn">Submit New
                                         Version</button>
                                 </div>
                             </div>
@@ -233,13 +231,13 @@
                     </div><!-- /k-assign-layout -->
 
                     <!-- Submission history -->
-                    <div class="k-card" style="margin-top:24px" id="historyCard">
+                    <div class="k-card k-panel-gap-lg" id="historyCard">
                         <div class="k-card__header">
                             <h2 class="k-card__title">Submission History</h2>
                         </div>
                         <div class="k-card__body">
                             <div class="k-timeline" id="submissionTimeline">
-                                <div class="k-empty" style="padding:16px 0">
+                                <div class="k-empty k-card-empty--sm">
                                     <div class="k-empty__icon">📋</div>
                                     <p class="k-empty__title">No submissions yet</p>
                                 </div>
