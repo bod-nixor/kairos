@@ -70,7 +70,7 @@
     </div>
 
     <!-- User footer -->
-    <div class="k-sidebar__user">
+    <div class="k-sidebar__user hidden">
       <img class="k-sidebar__avatar" id="avatar" alt="Your avatar" />
       <div class="k-sidebar__user-info">
         <div class="k-sidebar__user-name" id="name">—</div>
@@ -83,7 +83,8 @@
   <div class="k-layout">
     <header class="k-topbar" role="banner">
       <div class="k-topbar__left">
-        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">☰</button>
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false"
+          aria-controls="kSidebar">☰</button>
         <nav class="k-breadcrumb" aria-label="Breadcrumb">
           <a class="k-breadcrumb__item" href="/signoff/">Home</a>
           <span class="k-breadcrumb__sep" aria-hidden="true">›</span>
@@ -102,12 +103,11 @@
     <main class="k-main" id="appRoot">
       <div class="k-page">
 
-        <section id="signin" class="k-card centerbox k-state-card">
+        <section id="signin" class="k-card centerbox k-state-card hidden">
           <div class="k-card__body">
             <h2 class="k-card__title">Manager access</h2>
             <div id="googleBtn" class="k-center"></div>
-            <p class="muted small">Sign in with your <strong
-                data-allowed-domain-text>@example.edu</strong> account.</p>
+            <p class="muted small">Sign in with your <strong data-allowed-domain-text>@example.edu</strong> account.</p>
           </div>
         </section>
 
@@ -122,7 +122,7 @@
         </section>
 
         <!-- Managed Courses View -->
-        <section id="viewCourses" class="view">
+        <section id="viewCourses" class="view hidden">
           <div class="k-page-header">
             <h1 class="k-page-header__title">Managed courses</h1>
           </div>

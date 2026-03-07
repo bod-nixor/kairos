@@ -36,29 +36,43 @@ function updateCourseSettingsPlaceholders() {
 }
 
 function showSignin() {
-  document.getElementById('signin').classList.remove('hidden');
-  document.getElementById('userbar').classList.add('hidden');
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.remove('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.add('hidden');
+  const sidebarUser = document.querySelector('.k-sidebar__user');
+  if (sidebarUser) sidebarUser.classList.add('hidden');
+  document.querySelectorAll('.view').forEach(v => { v.classList.add('hidden'); });
   const btn = document.getElementById('googleBtn');
   if (btn) btn.innerHTML = '';
   renderGoogleButton();
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.add('hidden');
+  closeProgressModal();
 }
 
 function showApp() {
-  document.getElementById('signin').classList.add('hidden');
-  document.getElementById('userbar').classList.remove('hidden');
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.add('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.remove('hidden');
+  const sidebarUser = document.querySelector('.k-sidebar__user');
+  if (sidebarUser) sidebarUser.classList.remove('hidden');
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.add('hidden');
 }
 
 function showForbidden() {
-  document.getElementById('signin').classList.add('hidden');
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.add('hidden');
+  document.querySelectorAll('.view').forEach(v => { v.classList.add('hidden'); });
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.remove('hidden');
-  document.getElementById('userbar').classList.remove('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.remove('hidden');
+  const sidebarUser = document.querySelector('.k-sidebar__user');
+  if (sidebarUser) sidebarUser.classList.remove('hidden');
+  closeProgressModal();
 }
 
 async function handleCredentialResponse(resp) {
@@ -110,7 +124,6 @@ function renderGoogleButton() {
 }
 
 async function bootstrap() {
-  showSignin();
   try {
     const r = await fetch('./api/me.php', { credentials: 'same-origin' });
     if (!r.ok) throw new Error('me.php ' + r.status);
@@ -120,14 +133,18 @@ async function bootstrap() {
       return;
     }
     currentUser = me;
-    document.getElementById('avatar').src = me.picture_url || '';
-    document.getElementById('name').textContent = me.name || '';
-    document.getElementById('email').textContent = me.email || '';
+    const avatarEl = document.getElementById('avatar');
+    const nameEl = document.getElementById('name');
+    const emailEl = document.getElementById('email');
+    if (avatarEl) avatarEl.src = me.picture_url || '';
+    if (nameEl) nameEl.textContent = me.name || '';
+    if (emailEl) emailEl.textContent = me.email || '';
     showApp();
     try {
       const rawCaps = await apiGet('./api/session_capabilities.php');
       sessionRoles = normalizeSessionRoles(rawCaps);
     } catch (err) {
+      if (err?.status === 401 || err?.status === 403) throw err;
       sessionRoles = {};
     }
     updateNavAvailability();
@@ -331,14 +348,18 @@ function formatTimestamp(value) {
 }
 
 function setBreadcrumbs(text) {
-  document.getElementById('breadcrumbs').textContent = text;
+  const el = document.getElementById('breadcrumbs');
+  if (el) el.textContent = text;
 }
 
 function showView(id) {
-  document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== id));
-  document.getElementById('navCourses').classList.toggle('active', id === 'viewCourses');
-  document.getElementById('navRoster').classList.toggle('active', id === 'viewCourseDetail');
-  document.getElementById('navProgress').classList.toggle('active', id === 'viewProgress');
+  document.querySelectorAll('.view').forEach(v => { v.classList.toggle('hidden', v.id !== id); });
+  const navCourses = document.getElementById('navCourses');
+  const navRoster = document.getElementById('navRoster');
+  const navProgress = document.getElementById('navProgress');
+  if (navCourses) navCourses.classList.toggle('is-active', id === 'viewCourses');
+  if (navRoster) navRoster.classList.toggle('is-active', id === 'viewCourseDetail');
+  if (navProgress) navProgress.classList.toggle('is-active', id === 'viewProgress');
 }
 
 async function apiGet(url) {
@@ -405,6 +426,7 @@ async function loadCourses() {
   showView('viewCourses');
   updateNavAvailability();
   const grid = document.getElementById('coursesGrid');
+  if (!grid) return;
   grid.innerHTML = '<div class="card">Loading…</div>';
   try {
     const courses = await apiGet('./api/manager/courses.php');
@@ -449,7 +471,8 @@ async function openCourse(courseId, courseName) {
     window.SignoffWS.updateFilters({ courseId: activeCourseId });
   }
   setBreadcrumbs(`Course #${activeCourseId}`);
-  document.getElementById('courseTitle').textContent = `${courseName || 'Course'} (#${activeCourseId})`;
+  const courseTitleEl = document.getElementById('courseTitle');
+  if (courseTitleEl) courseTitleEl.textContent = `${courseName || 'Course'} (#${activeCourseId})`;
   showView('viewCourseDetail');
   updateNavAvailability();
   await Promise.all([loadRooms(), loadRoster(), loadCourseSettings()]);
@@ -464,6 +487,7 @@ async function openCourse(courseId, courseName) {
 async function loadRooms() {
   if (!activeCourseId) return;
   const container = document.getElementById('roomsList');
+  if (!container) return;
   container.innerHTML = '<div class="muted">Loading rooms…</div>';
   try {
     const rooms = await apiGet(`./api/rooms.php?course_id=${encodeURIComponent(activeCourseId)}`);
@@ -634,6 +658,7 @@ async function createRoom() {
 async function loadRoster() {
   if (!activeCourseId) return;
   const rosterEl = document.getElementById('courseRoster');
+  if (!rosterEl) return;
   rosterEl.innerHTML = '<div class="muted">Loading roster…</div>';
   rosterEl.onclick = null;
   try {
@@ -977,25 +1002,25 @@ function escapeHtmlAttr(str) {
 }
 
 function setupEvents() {
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
     showSignin();
     renderGoogleButton();
   });
-  document.getElementById('navCourses').addEventListener('click', () => loadCourses());
-  document.getElementById('navRoster').addEventListener('click', () => openRosterView());
-  document.getElementById('navProgress').addEventListener('click', () => openProgressView());
-  document.getElementById('backToCourses').addEventListener('click', () => loadCourses());
-  document.getElementById('backToCourseDetail').addEventListener('click', () => openRosterView());
-  document.getElementById('addRoomBtn').addEventListener('click', async () => {
+  document.getElementById('navCourses')?.addEventListener('click', () => loadCourses());
+  document.getElementById('navRoster')?.addEventListener('click', () => openRosterView());
+  document.getElementById('navProgress')?.addEventListener('click', () => openProgressView());
+  document.getElementById('backToCourses')?.addEventListener('click', () => loadCourses());
+  document.getElementById('backToCourseDetail')?.addEventListener('click', () => openRosterView());
+  document.getElementById('addRoomBtn')?.addEventListener('click', async () => {
     try {
       await createRoom();
     } catch (err) {
       alert(err.message);
     }
   });
-  document.getElementById('searchUsersBtn').addEventListener('click', () => searchUsers());
-  document.getElementById('userSearchInput').addEventListener('keydown', (event) => {
+  document.getElementById('searchUsersBtn')?.addEventListener('click', () => searchUsers());
+  document.getElementById('userSearchInput')?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       searchUsers();
@@ -1061,7 +1086,6 @@ function setupEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   const startApp = () => {
     updateAllowedDomainCopy();
-    renderGoogleButton();
     setupEvents();
     bootstrap();
   };
