@@ -36,8 +36,12 @@ function updateCourseSettingsPlaceholders() {
 }
 
 function showSignin() {
-  document.getElementById('signin').classList.remove('hidden');
-  document.getElementById('userbar').classList.add('hidden');
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.remove('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.add('hidden');
+  const sidebarUser = document.querySelector('.k-sidebar__user');
+  if (sidebarUser) sidebarUser.classList.add('hidden');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   const btn = document.getElementById('googleBtn');
   if (btn) btn.innerHTML = '';
@@ -47,18 +51,26 @@ function showSignin() {
 }
 
 function showApp() {
-  document.getElementById('signin').classList.add('hidden');
-  document.getElementById('userbar').classList.remove('hidden');
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.add('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.remove('hidden');
+  const sidebarUser = document.querySelector('.k-sidebar__user');
+  if (sidebarUser) sidebarUser.classList.remove('hidden');
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.add('hidden');
 }
 
 function showForbidden() {
-  document.getElementById('signin').classList.add('hidden');
+  const signin = document.getElementById('signin');
+  if (signin) signin.classList.add('hidden');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   const forbidden = document.getElementById('managerForbidden');
   if (forbidden) forbidden.classList.remove('hidden');
-  document.getElementById('userbar').classList.remove('hidden');
+  const userbar = document.getElementById('userbar');
+  if (userbar) userbar.classList.remove('hidden');
+  const sidebarUser = document.querySelector('.k-sidebar__user');
+  if (sidebarUser) sidebarUser.classList.remove('hidden');
 }
 
 async function handleCredentialResponse(resp) {
@@ -110,7 +122,6 @@ function renderGoogleButton() {
 }
 
 async function bootstrap() {
-  showSignin();
   try {
     const r = await fetch('./api/me.php', { credentials: 'same-origin' });
     if (!r.ok) throw new Error('me.php ' + r.status);
@@ -120,9 +131,12 @@ async function bootstrap() {
       return;
     }
     currentUser = me;
-    document.getElementById('avatar').src = me.picture_url || '';
-    document.getElementById('name').textContent = me.name || '';
-    document.getElementById('email').textContent = me.email || '';
+    const avatarEl = document.getElementById('avatar');
+    const nameEl = document.getElementById('name');
+    const emailEl = document.getElementById('email');
+    if (avatarEl) avatarEl.src = me.picture_url || '';
+    if (nameEl) nameEl.textContent = me.name || '';
+    if (emailEl) emailEl.textContent = me.email || '';
     showApp();
     try {
       const rawCaps = await apiGet('./api/session_capabilities.php');
@@ -331,14 +345,18 @@ function formatTimestamp(value) {
 }
 
 function setBreadcrumbs(text) {
-  document.getElementById('breadcrumbs').textContent = text;
+  const el = document.getElementById('breadcrumbs');
+  if (el) el.textContent = text;
 }
 
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== id));
-  document.getElementById('navCourses').classList.toggle('active', id === 'viewCourses');
-  document.getElementById('navRoster').classList.toggle('active', id === 'viewCourseDetail');
-  document.getElementById('navProgress').classList.toggle('active', id === 'viewProgress');
+  const navCourses = document.getElementById('navCourses');
+  const navRoster = document.getElementById('navRoster');
+  const navProgress = document.getElementById('navProgress');
+  if (navCourses) navCourses.classList.toggle('active', id === 'viewCourses');
+  if (navRoster) navRoster.classList.toggle('active', id === 'viewCourseDetail');
+  if (navProgress) navProgress.classList.toggle('active', id === 'viewProgress');
 }
 
 async function apiGet(url) {
@@ -1061,7 +1079,6 @@ function setupEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   const startApp = () => {
     updateAllowedDomainCopy();
-    renderGoogleButton();
     setupEvents();
     bootstrap();
   };
