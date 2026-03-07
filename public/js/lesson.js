@@ -83,28 +83,30 @@
     const currentCourseId = courseId || lesson.course_id || '';
     const courseName = course.name || course.code || 'Course';
     const lessonTitle = lesson.title || 'Lesson';
+    const modulesHref = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`;
 
     LMS.nav.setCourseContext(currentCourseId, courseName);
     LMS.nav.setActive('modules');
     LMS.nav.setBreadcrumb([
       { name: 'All Courses', href: '/signoff/' },
       { name: courseName, href: `./course.html?course_id=${encodeURIComponent(currentCourseId)}` },
-      { name: 'Modules', href: `./modules.html?course_id=${encodeURIComponent(currentCourseId)}` },
+      { name: 'Modules', href: modulesHref },
       { name: lessonTitle },
     ]);
 
-    const role = String(course.my_role || '').toLowerCase();
-    if (role === 'ta' || role === 'manager' || role === 'admin') {
+    const courseRole = LMS.resolveCourseRoleFlags(course);
+    if (courseRole.ta || courseRole.manager || courseRole.admin) {
       $('kNavGrading')?.classList.remove('hidden');
     }
-    if (role === 'manager' || role === 'admin') {
+    if (courseRole.manager || courseRole.admin) {
       $('kNavAnalytics')?.classList.remove('hidden');
     }
 
     $('kBreadCourse') && ($('kBreadCourse').textContent = courseName);
-    $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`);
+    $('kBreadModules') && ($('kBreadModules').href = modulesHref);
+    $('backToModules') && ($('backToModules').href = modulesHref);
     $('kBreadLesson') && ($('kBreadLesson').textContent = lessonTitle);
-    document.title = `${lessonTitle} - ${courseName} - Kairos`;
+    document.title = `${lessonTitle} - ${courseName} - ${LMS.getProductName()}`;
   }
 
   function applyMode(isEditMode) {
@@ -135,8 +137,6 @@
     const lesson = state.lesson || {};
     $('lessonTitle').textContent = lesson.title || 'Lesson';
     $('lessonSubtitle').textContent = lesson.summary || '';
-    $('backToModules').href = `./modules.html?course_id=${encodeURIComponent(courseId || lesson.course_id || '')}`;
-
     const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;

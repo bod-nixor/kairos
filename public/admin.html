@@ -129,7 +129,7 @@
             <h2 class="k-card__title">All Courses</h2>
             <span class="k-badge k-badge--edit" id="courseCount"></span>
           </div>
-          <div class="table-wrap">
+          <div class="k-table-wrap">
             <table id="coursesTable" class="k-table">
               <thead>
                 <tr>
@@ -212,7 +212,7 @@
               <div class="k-form-field">
                 <label class="muted">Allowlist email</label>
                 <div class="flex gap-8">
-                  <input type="email" id="adminAllowlistEmail" placeholder="name@nixorcollege.edu.pk" disabled
+                  <input type="email" id="adminAllowlistEmail" data-allowed-domain-placeholder="name@{domain}" placeholder="" disabled
                     class="k-input flex-1" />
                   <button type="button" id="adminAddAllowlistBtn" class="btn btn-secondary" disabled>Add</button>
                 </div>
@@ -221,7 +221,7 @@
               <div class="k-form-field">
                 <label class="muted">Pre-enroll email</label>
                 <div class="flex gap-8">
-                  <input type="email" id="adminPreenrollEmail" placeholder="name@nixorcollege.edu.pk" disabled
+                  <input type="email" id="adminPreenrollEmail" data-allowed-domain-placeholder="name@{domain}" placeholder="" disabled
                     class="k-input flex-1" />
                   <button type="button" id="adminAddPreenrollBtn" class="btn btn-secondary" disabled>Add</button>
                 </div>

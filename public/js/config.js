@@ -6,11 +6,18 @@
     allowedDomain: '',
     wsBaseUrl: '',
     wsSocketPath: '/websocket/socket.io',
+    branding: Object.freeze({
+      productName: 'Kairos',
+      homeLabel: 'Kairos home',
+      logoUrl: './images/logo.png',
+      logoAlt: 'Kairos',
+    }),
   });
 
   function normalizeConfig(raw) {
     const base = { ...DEFAULT_CONFIG };
     const cfg = { ...base, ...(raw || {}) };
+    const rawBranding = raw && typeof raw.branding === 'object' ? raw.branding : {};
 
     cfg.allowedDomain = typeof cfg.allowedDomain === 'string'
       ? cfg.allowedDomain.replace(/^@+/, '')
@@ -28,6 +35,26 @@
       const scheme = window.location.protocol === 'http:' ? 'ws:' : 'wss:';
       cfg.wsBaseUrl = `${scheme}//${window.location.host}`;
     }
+
+    const productName = typeof rawBranding.productName === 'string' && rawBranding.productName.trim()
+      ? rawBranding.productName.trim()
+      : DEFAULT_CONFIG.branding.productName;
+    const homeLabel = typeof rawBranding.homeLabel === 'string' && rawBranding.homeLabel.trim()
+      ? rawBranding.homeLabel.trim()
+      : `${productName} home`;
+    const logoUrl = typeof rawBranding.logoUrl === 'string' && rawBranding.logoUrl.trim()
+      ? rawBranding.logoUrl.trim()
+      : DEFAULT_CONFIG.branding.logoUrl;
+    const logoAlt = typeof rawBranding.logoAlt === 'string' && rawBranding.logoAlt.trim()
+      ? rawBranding.logoAlt.trim()
+      : productName;
+
+    cfg.branding = Object.freeze({
+      productName,
+      homeLabel,
+      logoUrl,
+      logoAlt,
+    });
 
     return Object.freeze(cfg);
   }

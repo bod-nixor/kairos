@@ -54,6 +54,78 @@
     return ((id - 1) % 8) + 1;
   }
 
+  function getBranding() {
+    const defaults = {
+      productName: 'Kairos',
+      homeLabel: 'Kairos home',
+      logoUrl: './images/logo.png',
+      logoAlt: 'Kairos',
+    };
+    try {
+      const cfg = typeof global.getAppConfig === 'function'
+        ? global.getAppConfig()
+        : (global.SignoffConfig || global.SIGNOFF_CONFIG || {});
+      const branding = cfg && typeof cfg.branding === 'object' ? cfg.branding : {};
+      const productName = typeof branding.productName === 'string' && branding.productName.trim()
+        ? branding.productName.trim()
+        : defaults.productName;
+      return {
+        productName,
+        homeLabel: typeof branding.homeLabel === 'string' && branding.homeLabel.trim()
+          ? branding.homeLabel.trim()
+          : `${productName} home`,
+        logoUrl: typeof branding.logoUrl === 'string' && branding.logoUrl.trim()
+          ? branding.logoUrl.trim()
+          : defaults.logoUrl,
+        logoAlt: typeof branding.logoAlt === 'string' && branding.logoAlt.trim()
+          ? branding.logoAlt.trim()
+          : productName,
+      };
+    } catch (_) {
+      return defaults;
+    }
+  }
+
+  function getProductName() {
+    return getBranding().productName;
+  }
+
+  function resolveCourseRoleFlags(value) {
+    const base = { student: false, ta: false, manager: false, admin: false };
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if ('student' in value || 'ta' in value || 'manager' in value || 'admin' in value) {
+        return {
+          student: !!value.student,
+          ta: !!value.ta,
+          manager: !!value.manager,
+          admin: !!value.admin,
+        };
+      }
+      if (typeof value.course_role === 'string' || typeof value.my_role === 'string' || typeof value.role === 'string') {
+        return resolveCourseRoleFlags(value.course_role || value.my_role || value.role);
+      }
+      if ('is_admin' in value || 'is_manager' in value || 'is_ta' in value || 'is_staff' in value) {
+        const admin = !!value.is_admin;
+        const manager = !!value.is_manager;
+        const ta = !!value.is_ta || !!value.is_staff || manager || admin;
+        return {
+          student: false,
+          ta,
+          manager,
+          admin,
+        };
+      }
+    }
+    const role = String(value || '').toLowerCase();
+    return {
+      ...base,
+      student: role === 'student',
+      ta: role === 'ta',
+      manager: role === 'manager',
+      admin: role === 'admin',
+    };
+  }
+
 
   function normalizePathname(pathname) {
     const raw = String(pathname || '').replace(/\/+$/, '');
@@ -778,10 +850,13 @@
     fmtDateTime,
     timeAgo,
     courseAccent,
+    getBranding,
+    getProductName,
     featureEnabled,
     loadMe,
     loadCaps,
     getRole,
+    resolveCourseRoleFlags,
     boot,
     setProgressRing,
     parseStartSeconds,

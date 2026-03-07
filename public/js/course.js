@@ -160,10 +160,11 @@
         }
         container.innerHTML = `<div class="k-announcements">${announcements.slice(0, 6).map(ann => {
             const initials = (ann.author_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            const safeInitials = LMS.escHtml(initials);
             return `
         <div class="k-announcement${!ann.read_at ? ' k-announcement--unread' : ''}">
           <div class="k-announcement__avatar">
-            ${initials}
+            ${safeInitials}
           </div>
           <div class="k-announcement__body">
             <div class="k-announcement__meta">
@@ -262,12 +263,6 @@
         $('statCompleted') && ($('statCompleted').textContent = stats.completed_items ?? '—');
         $('statAssignments') && ($('statAssignments').textContent = stats.assignments ?? '—');
         $('statQuizzes') && ($('statQuizzes').textContent = stats.quizzes ?? '—');
-
-        // Sidebar nav links
-        document.querySelectorAll('[data-course-href]').forEach(el => {
-            const base = el.dataset.courseHref;
-            el.href = `${base}?course_id=${encodeURIComponent(COURSE_ID)}`;
-        });
 
         // Show role-specific nav items (TA/Manager/Admin see grading + analytics)
         const role = String(course.my_role || '').toLowerCase();

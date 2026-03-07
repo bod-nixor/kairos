@@ -8,7 +8,6 @@
     const RESOURCE_ID = params.get('resource_id') || params.get('id') || '';
     const URL_MODE = params.get('mode') || 'view';
 
-    let isAdmin = false;
     let currentCourse = null;
     let currentResource = null;
     let isSavingResource = false;
@@ -39,6 +38,10 @@
         }
     }
 
+    function getCurrentCourseRoleFlags() {
+        return LMS.resolveCourseRoleFlags(currentCourse || {});
+    }
+
     function syncShell(resource = currentResource) {
         const courseName = currentCourse?.name || currentCourse?.code || 'Course';
         const currentCourseId = COURSE_ID || resource?.course_id || '';
@@ -53,30 +56,54 @@
             { name: resourceTitle },
         ]);
 
-        const role = String(currentCourse?.my_role || '').toLowerCase();
-        if (role === 'ta' || role === 'manager' || role === 'admin') {
+        const courseRole = getCurrentCourseRoleFlags();
+        if (courseRole.ta || courseRole.manager || courseRole.admin) {
             $('kNavGrading')?.classList.remove('hidden');
         }
-        if (role === 'manager' || role === 'admin') {
+        if (courseRole.manager || courseRole.admin) {
             $('kNavAnalytics')?.classList.remove('hidden');
         }
 
         $('resourceTitle') && ($('resourceTitle').textContent = resourceTitle);
-        $('kBreadCourse') && ($('kBreadCourse').textContent = courseName);
-        $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`);
-        $('kBreadResource') && ($('kBreadResource').textContent = resourceTitle);
-        document.title = `${resourceTitle} - ${courseName} - Kairos`;
+        document.title = `${resourceTitle} - ${courseName} - ${LMS.getProductName()}`;
     }
 
     function inferType(resource) {
-        if (resource.type) return String(resource.type).toLowerCase();
-        const url = (resource.url || resource.file_url || '').toLowerCase();
+        if (resource && typeof resource === 'object' && resource.type) return String(resource.type).toLowerCase();
+        const url = typeof resource === 'string'
+            ? String(resource).toLowerCase()
+            : String(resource?.url || resource?.file_url || '').toLowerCase();
         if (url.match(/\.pdf($|\?)/)) return 'pdf';
         if (url.match(/\.(ppt|pptx)($|\?)/)) return 'ppt';
+        if (url.match(/\.(png|jpe?g|gif|webp|svg|bmp|avif)($|\?)/)) return 'image';
+        if (url.match(/\.(mp3|wav|m4a|aac|flac|oga|ogg)($|\?)/)) return 'audio';
         if (url.includes('docs.google.com/presentation') || url.includes('slides.google.com')) return 'slides';
-        if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov|avi)($|\?)/)) return 'video';
+        if (url.match(/youtube\.com|youtu\.be|\.(mp4|webm|mov)($|\?)/)) return 'video';
         if (url.startsWith('http')) return 'link';
         return 'file';
+    }
+
+    function videoMimeFromUrl(rawUrl) {
+        try {
+            const pathname = new URL(String(rawUrl || '')).pathname.toLowerCase();
+            if (pathname.endsWith('.mp4')) return 'video/mp4';
+            if (pathname.endsWith('.webm')) return 'video/webm';
+            if (pathname.endsWith('.mov')) return 'video/quicktime';
+            if (pathname.endsWith('.ogv')) return 'video/ogg';
+            if (pathname.endsWith('.m4v')) return 'video/x-m4v';
+        } catch (_) {
+            return '';
+        }
+        return '';
+    }
+
+    function isDirectVideoUrl(rawUrl) {
+        try {
+            const pathname = new URL(String(rawUrl || '')).pathname.toLowerCase();
+            return /\.(mp4|webm|mov|ogv|m4v)($|\?)/.test(pathname);
+        } catch (_) {
+            return false;
+        }
     }
 
     function hardenPreviewIframe(iframe) {
@@ -194,29 +221,48 @@
 
     function renderVideo(rawUrl) {
         const embedUrl = LMS.toYoutubeEmbedUrl(rawUrl);
-        if (!embedUrl) {
-            setExternalDescription('This video URL cannot be embedded safely.');
-            if (!isHttpUrl(rawUrl)) {
-                setExternalDescription(`This video URL cannot be opened: ${rawUrl}`);
-            }
-            applySafeExternalLink($('externalLink'), rawUrl, 'Open video in new tab');
-            showViewerState('externalWrap');
+        const videoWrap = $('videoWrap');
+        if (!videoWrap) return;
+        videoWrap.innerHTML = '';
+
+        if (embedUrl) {
+            videoWrap.classList.add('k-embed-16x9');
+            const iframe = document.createElement('iframe');
+            iframe.setAttribute('src', embedUrl);
+            iframe.setAttribute('title', 'Embedded video');
+            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
+            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+            iframe.setAttribute('allowfullscreen', 'true');
+            videoWrap.appendChild(iframe);
+            showViewerState('videoWrap');
             return;
         }
 
-        const videoWrap = $('videoWrap');
-        if (!videoWrap) return;
-        videoWrap.classList.add('k-embed-16x9');
-        videoWrap.innerHTML = '';
-        const iframe = document.createElement('iframe');
-        iframe.setAttribute('src', embedUrl);
-        iframe.setAttribute('title', 'Embedded video');
-        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
-        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
-        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-        iframe.setAttribute('allowfullscreen', 'true');
-        videoWrap.appendChild(iframe);
-        showViewerState('videoWrap');
+        if (isDirectVideoUrl(rawUrl) && isHttpUrl(rawUrl)) {
+            videoWrap.classList.remove('k-embed-16x9');
+            const video = document.createElement('video');
+            video.className = 'k-resource-video';
+            video.controls = true;
+            video.playsInline = true;
+            video.preload = 'metadata';
+            const source = document.createElement('source');
+            source.src = rawUrl;
+            const mime = videoMimeFromUrl(rawUrl);
+            if (mime) source.type = mime;
+            video.appendChild(source);
+            video.appendChild(document.createTextNode('Your browser does not support the video tag.'));
+            videoWrap.appendChild(video);
+            showViewerState('videoWrap');
+            return;
+        }
+
+        setExternalDescription('This video URL cannot be embedded safely.');
+        if (!isHttpUrl(rawUrl)) {
+            setExternalDescription(`This video URL cannot be opened: ${rawUrl}`);
+        }
+        applySafeExternalLink($('externalLink'), rawUrl, 'Open video in new tab');
+        showViewerState('externalWrap');
     }
 
     function renderExternal(rawUrl) {
@@ -226,6 +272,25 @@
         }
         applySafeExternalLink($('externalLink'), rawUrl, 'Open Resource');
         showViewerState('externalWrap');
+    }
+
+    function renderMediaExternal(resource, kind) {
+        const rawUrl = resource?.url || resource?.drive_preview_url || resource?.file_url || '';
+        const mime = resource?.mime_type || resource?.mime || '';
+        setExternalDescription(`This ${kind} resource${mime ? ` (${mime})` : ''} opens in an external viewer.`);
+        if (!isHttpUrl(rawUrl)) {
+            setExternalDescription(`This ${kind} resource has an unsafe URL and cannot be opened: ${rawUrl}`);
+        }
+        applySafeExternalLink($('externalLink'), rawUrl, `Open ${kind}`);
+        showViewerState('externalWrap');
+    }
+
+    function renderImage(resource) {
+        renderMediaExternal(resource, 'image');
+    }
+
+    function renderAudio(resource) {
+        renderMediaExternal(resource, 'audio');
     }
 
     function renderSlides(rawUrl) {
@@ -407,6 +472,14 @@
             renderExternal(rawUrl);
             return;
         }
+        if (type === 'image') {
+            renderImage(currentResource);
+            return;
+        }
+        if (type === 'audio') {
+            renderAudio(currentResource);
+            return;
+        }
 
         renderText(currentResource);
     }
@@ -415,19 +488,20 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
-        const roles = session.caps?.roles || {};
-        isAdmin = !!(roles.admin || roles.manager);
 
-        if (URL_MODE === 'edit' && !isAdmin) {
-            hideEl('resourceSkeleton');
+        await Promise.all([loadCourse(), loadPage()]);
+
+        const courseRole = getCurrentCourseRoleFlags();
+        const canEditResource = !!(courseRole.manager || courseRole.admin);
+        if (URL_MODE === 'edit' && !canEditResource) {
+            hideEl('resourceViewer');
+            hideEl('resourceEditPanel');
             LMS.renderAccessDenied($('resourceAccessDenied'), 'You do not have permission to edit this resource.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
             showEl('resourceAccessDenied');
             return;
         }
 
-        await Promise.all([loadCourse(), loadPage()]);
-
-        if (URL_MODE === 'edit' && isAdmin && currentResource) {
+        if (URL_MODE === 'edit' && canEditResource && currentResource) {
             renderEditPanel(currentResource);
         }
     });

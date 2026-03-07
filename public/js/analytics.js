@@ -12,6 +12,12 @@
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
+    function updateStudentCount(count) {
+        const countEl = $('studentTableCount');
+        if (!countEl) return;
+        countEl.textContent = `${count} student${count !== 1 ? 's' : ''}`;
+    }
+
     // ── Tab logic ───────────────────────────────────────────────
     function initTabs() {
         const tabBtns = document.querySelectorAll('.k-tab-btn[role="tab"]');
@@ -85,13 +91,13 @@
     // ── Student table ──────────────────────────────────────────
     function renderStudentTable(students) {
         const tbody = $('studentTableBody');
-        const countEl = $('studentTableCount');
         if (!tbody) return;
         if (!students || !students.length) {
             tbody.innerHTML = '<tr><td colspan="6" class="k-table-note">No students found.</td></tr>';
+            updateStudentCount(0);
             return;
         }
-        if (countEl) countEl.textContent = `${students.length} student${students.length !== 1 ? 's' : ''}`;
+        updateStudentCount(students.length);
         tbody.innerHTML = students.map(s => {
             const compPct = s.completion_pct || 0;
             const grade = s.avg_grade !== undefined ? s.avg_grade : '—';
@@ -180,6 +186,13 @@
             });
             LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
             LMS.nav.setActive('analytics');
+            const role = String(course.my_role || '').toLowerCase();
+            if (role === 'ta' || role === 'manager' || role === 'admin') {
+                $('kNavGrading')?.classList.remove('hidden');
+            }
+            if (role === 'manager' || role === 'admin') {
+                $('kNavAnalytics')?.classList.remove('hidden');
+            }
         }
 
         // Metrics

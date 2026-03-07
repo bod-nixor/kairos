@@ -247,13 +247,13 @@
         const mid = parseInt(item.module_item_id || 0, 10);
         const adminBtns = isAdmin ? `
           <span class="k-module-item__admin-actions">
-            <button class="k-btn-icon" title="Edit settings" data-action="edit-item-settings" data-mid="${mid}">
+            <button class="k-btn-icon" title="Edit settings" aria-label="Edit settings" data-action="edit-item-settings" data-mid="${mid}">
               ⚙️
             </button>
-            <button class="k-btn-icon" title="Edit content" data-action="edit-item" data-href="${LMS.escHtml(itemHref(item, 'edit'))}">
+            <button class="k-btn-icon" title="Edit content" aria-label="Edit content" data-action="edit-item" data-href="${LMS.escHtml(itemHref(item, 'edit'))}">
               ✏️
             </button>
-            <button class="k-btn-icon k-btn-icon--danger" title="Remove from module" data-action="delete-item" data-mid="${mid}">
+            <button class="k-btn-icon k-btn-icon--danger" title="Remove from module" aria-label="Remove from module" data-action="delete-item" data-mid="${mid}">
               🗑️
             </button>
           </span>` : '';

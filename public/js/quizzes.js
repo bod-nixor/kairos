@@ -81,10 +81,11 @@
             });
             LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
             LMS.nav.setActive('quizzes');
-            if (window.KairosLMS.getRole().ta || window.KairosLMS.getRole().manager || window.KairosLMS.getRole().admin) {
+            const courseRole = LMS.resolveCourseRoleFlags(course.my_role || course.course_role || course.role);
+            if (courseRole.ta || courseRole.manager || courseRole.admin) {
                 $('kNavGrading')?.classList.remove('hidden');
             }
-            if (window.KairosLMS.getRole().manager || window.KairosLMS.getRole().admin) {
+            if (courseRole.manager || courseRole.admin) {
                 $('kNavAnalytics')?.classList.remove('hidden');
             }
         }
