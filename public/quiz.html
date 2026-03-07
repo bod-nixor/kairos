@@ -10,6 +10,7 @@
     <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
+    <link rel="stylesheet" href="./css/kairos-ui.css" />
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./js/config.js"></script>
 </head>
@@ -24,7 +25,7 @@
         <div class="k-sidebar__scroll">
             <div class="k-nav-group"><a class="k-nav-item" href="/signoff/" data-home-link="true"><span class="k-nav-item__icon">←</span><span
                         class="k-nav-item__text">All Courses</span></a></div>
-            <div class="k-sidebar__course-header">
+            <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
             <nav class="k-nav-group" id="kNavCourse">
@@ -37,7 +38,7 @@
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
                 </a>
-                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                <a class="k-nav-item" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
                     id="kNavAssignments"><span class="k-nav-item__icon">📤</span><span
                         class="k-nav-item__text">Assignments</span></a>
                 <a class="k-nav-item hidden" data-course-href="./grading.html" href="#" id="kNavGrading"><span
@@ -123,8 +124,8 @@
                                 <span class="k-quiz-meta-item__label">Max attempts</span>
                             </div>
                         </div>
-                        <button class="btn btn-primary" id="quizStartBtn" style="min-width:160px">Start Attempt</button>
-                        <div style="margin-top:20px">
+                        <button class="btn btn-primary k-control-sm" id="quizStartBtn">Start Attempt</button>
+                        <div class="k-quiz-panel__actions">
                             <button class="btn btn-ghost btn-sm" id="quizShowHistoryBtn">View Attempt History</button>
                         </div>
                     </div>
@@ -147,7 +148,7 @@
                             <div class="k-quiz-dots" id="quizDots" role="list" aria-label="Questions"></div>
                             <button class="btn btn-ghost btn-sm" id="quizNextBtn" aria-label="Next question">Next
                                 →</button>
-                            <button class="btn btn-primary" id="quizSubmitBtn" style="display:none"
+                            <button class="btn btn-primary hidden" id="quizSubmitBtn"
                                 aria-label="Submit quiz">Submit Quiz</button>
                         </nav>
                     </div>
@@ -168,21 +169,19 @@
                         <p class="k-quiz-panel__desc" id="resultDesc">—</p>
 
                         <!-- Manual grading pending banner -->
-                        <div class="hidden" id="manualPendingBanner"
-                            style="background:var(--status-info-bg);color:var(--status-info-text);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;gap:12px;align-items:flex-start">
-                            <span style="font-size:20px">⏳</span>
+                        <div class="hidden k-notice-banner" id="manualPendingBanner">
+                            <span class="k-resource-type-icon">Due</span>
                             <div>
                                 <strong>Manual grading pending</strong>
-                                <p style="margin:4px 0 0;font-size:13px">Some of your answers require manual review.
+                                <p class="k-text-meta-sm">Some of your answers require manual review.
                                     Your final score will be updated once a grader reviews your submission.</p>
                             </div>
                         </div>
 
                         <!-- Per-question feedback -->
-                        <div id="quizFeedbackList"
-                            style="text-align:left;margin:0 auto 24px;max-width:600px;width:100%"></div>
+                        <div class="k-feedback-list" id="quizFeedbackList"></div>
 
-                        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+                        <div class="k-quiz-panel__actions">
                             <button class="btn btn-ghost" id="resultViewHistoryBtn">View History</button>
                             <a href="#" class="btn btn-primary" id="resultBackBtn">Back to Course</a>
                         </div>

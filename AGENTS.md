@@ -254,6 +254,8 @@ Use this checklist on every task:
 When building or updating UI for Kairos, agents MUST follow the guidelines documented in **`DESIGN_GUIDELINES.md`** and verify work against **`UI_UX_CHECKLIST.md`**.
 *   **Responsive First:** All pages must support mobile viewports (`<= 640px`) utilizing `.k-layout` and the hamburger slide-in drawer mechanism. 
 *   **Unified Shell:** Use `.k-sidebar`, `.k-topbar`, `.k-main` wrappers for all pages. Do not create new ad-hoc shells.
+*   **Shell Authority:** Shared shell behavior lives in `public/css/kairos-ui.css` and `public/js/theme.js`. Do not add page-local mobile drawer scripts, duplicate overlay logic, or competing breakpoint overrides.
+*   **Course Navigation:** Course pages must keep `Home`, `Modules`, `Quizzes`, and `Assignments` visible and predictable. `Grading` and `Analytics` remain role-gated, but the shell structure must stay consistent across course surfaces.
 *   **Accessibility:** Demand `aria-label`s on icon buttons. Don't strip focus outlines unless replacing with custom `:focus-visible`.
 3. **Enforce RBAC on server-side for all protected data/actions.**
    - Frontend gating is UX convenience only.
@@ -279,11 +281,13 @@ When building or updating UI for Kairos, agents MUST follow the guidelines docum
 These are recurring issues; check them proactively:
 
 - Theme toggle desync during viewport resize/reflow.
+- Page-local sidebar/hamburger logic drifting from the shared shell and breaking mobile drawers.
 - Modal visibility blocked by z-index/pointer-events mistakes.
 - Iframe preview failures without robust fallback logic.
 - Endpoint path mismatches and JSON shape mismatches.
 - Role detection/capability caching causing stale permissions.
 - Course context navigation disappearing on some pages.
+- Hidden or inconsistent course nav items between home, modules, lessons, resources, quizzes, and assignments.
 - Notifications “mark seen” not persisting server-side.
 - Grade UI regressions from CSS grid/stacking changes.
 

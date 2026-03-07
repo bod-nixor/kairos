@@ -33,6 +33,19 @@ Every page utilizes the `.k-layout` component to guarantee the sidebar and topba
 - **`.k-sidebar`:** Contains branding and contextual navigation. Fixed width, scales down to a sliding mobile drawer (`.is-open`) on small viewports via a hamburger toggle.
 - **`.k-topbar`:** Constrains breadcrumbs, notifications, profile actions, and the unifying theme toggle mechanism. 
 
+Shell authority rules:
+- Shared shell styling belongs in `public/css/kairos-ui.css`.
+- Shared drawer/open-close behavior belongs in `public/js/theme.js`.
+- Do not add page-local hamburger scripts, page-local overlays, or page-local `resize` handlers that compete with the shared shell.
+- Course surfaces must all use the same shell hierarchy: `.k-sidebar`, `.k-layout`, `.k-topbar`, `.k-main`, `.k-page`.
+
+### 1.1 Course Navigation
+- Keep `Home`, `Modules`, `Quizzes`, and `Assignments` available across course surfaces so navigation does not "disappear" when moving between pages.
+- `Grading` and `Analytics` remain role-gated, but their placement in the nav should stay fixed.
+- Breadcrumbs should always reflect the same hierarchy:
+  - `All Courses > Course > Section > Current page`
+- Lessons and resources should still live inside the course shell; they are not standalone documents.
+
 ### 2. Cards (`.k-card`)
 A standard `.k-card` provides a white/slate container for discrete chunks of data (like quizzes, forms, settings).
 - **Mobile handling:** All child elements in `.k-card` should stack appropriately if using `.grid-two`.
@@ -46,6 +59,23 @@ A standard `.k-card` provides a white/slate container for discrete chunks of dat
 - **Breakpoints:** 
   - `<= 1024px:` Sidebar condenses or shifts to allow content breathing room. Hamburger toggles enabled.
   - `<= 640px:` Sidebar becomes an absolute modal slide-in `transform: translateX(0)`. Tap targets (`min-height: 48px`) are enforced so fingers don't double-click links. Modal dialogs snap to `100%` width with minimal `12px` margins.
+
+Practical layout rules:
+- At `<= 1180px`, two-column content regions should collapse to one column unless there is a strong reason not to.
+- At `<= 760px`, page-header actions, search rows, grading controls, and editor toolbars should wrap to full-width rows.
+- Avoid fixed widths on form controls inside page headers; prefer utility classes (`.k-control-sm`, `.k-control-md`) that collapse cleanly.
+- Tables must live inside `.k-table-wrap` and should degrade gracefully before causing page-level horizontal overflow.
+- Sticky cards should disable themselves on narrower viewports where they compete with content height.
+
+### 4. Shared Primitives
+- Prefer shared utility classes from `public/css/kairos-ui.css` for page composition instead of inline layout styles.
+- Reuse these primitives before creating page-specific CSS:
+  - `.k-grid-auto`, `.k-grid-sidebar`, `.k-grid-split`
+  - `.k-toolbar`, `.k-search-row`, `.k-progress-row`
+  - `.k-card-grid`, `.k-state-card`, `.k-notice-banner`
+  - `.k-editor-toolbar`, `.k-editor-surface`
+  - `.k-resource-viewer`, `.k-workspace-empty`, `.k-workspace-active`
+- Inline styles should be limited to stateful values that are genuinely data-driven, such as progress percentages or skeleton heights.
 
 ## Accessibility (A11y)
 - **ARIA Labeling:** Interactive toggles (like the hamburger or `.theme-toggle`) mandate `aria-label`. Use `aria-hidden="true"` on non-semantic icons.

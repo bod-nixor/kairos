@@ -10,6 +10,7 @@
     <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
+    <link rel="stylesheet" href="./css/kairos-ui.css" />
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./js/config.js"></script>
 </head>
@@ -29,7 +30,7 @@
                     <span class="k-nav-item__text">All Courses</span>
                 </a>
             </div>
-            <div class="k-sidebar__course-header">
+            <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
             <nav class="k-nav-group" id="kNavCourse">
@@ -38,12 +39,12 @@
                 <a class="k-nav-item is-active" data-nav-key="modules" data-course-href="./modules.html" href="#"
                     aria-current="page"><span class="k-nav-item__icon">📦</span><span
                         class="k-nav-item__text">Modules</span></a>
-                <a class="k-nav-item hidden" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                <a class="k-nav-item" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
                     id="kNavQuizzes">
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
                 </a>
-                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                <a class="k-nav-item" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
                     id="kNavAssignments"><span class="k-nav-item__icon">📤</span><span
                         class="k-nav-item__text">Assignments</span></a>
                 <a class="k-nav-item hidden" data-course-href="./grading.html" href="#" id="kNavGrading"><span
@@ -98,18 +99,18 @@
                 </div>
 
                 <!-- Progress bar -->
-                <div style="margin-bottom:24px;display:flex;align-items:center;gap:12px">
-                    <div class="k-progress" style="flex:1">
+                <div class="k-progress-row">
+                    <div class="k-progress">
                         <div class="k-progress__fill" id="modulesProgressFill" style="width:0%"></div>
                     </div>
                     <span class="k-text-sm k-text-muted" id="modulesProgressText">0% complete</span>
                 </div>
 
                 <!-- Skeleton -->
-                <div id="modulesSkeleton">
-                    <div class="k-skeleton k-skeleton--card" style="height:64px;margin-bottom:12px"></div>
-                    <div class="k-skeleton k-skeleton--card" style="height:64px;margin-bottom:12px"></div>
-                    <div class="k-skeleton k-skeleton--card" style="height:64px;margin-bottom:12px"></div>
+                <div id="modulesSkeleton" class="k-skeleton-stack">
+                    <div class="k-skeleton k-skeleton--card" style="height:64px"></div>
+                    <div class="k-skeleton k-skeleton--card" style="height:64px"></div>
+                    <div class="k-skeleton k-skeleton--card" style="height:64px"></div>
                 </div>
 
                 <!-- Module list -->

@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/lms.css" />
   <link rel="stylesheet" href="./css/manager.css" />
+  <link rel="stylesheet" href="./css/kairos-ui.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
@@ -73,7 +74,7 @@
       <img class="k-sidebar__avatar" id="avatar" alt="Your avatar" />
       <div class="k-sidebar__user-info">
         <div class="k-sidebar__user-name" id="name">—</div>
-        <div class="k-sidebar__user-role" id="email" style="font-size:11px;color:var(--muted)">Manager</div>
+        <div class="k-sidebar__user-role" id="email">Manager</div>
       </div>
       <button class="k-sidebar__logout" id="logoutBtn" aria-label="Logout" title="Logout">↩</button>
     </div>
@@ -101,20 +102,22 @@
     <main class="k-main" id="appRoot">
       <div class="k-page">
 
-        <section id="signin" class="k-card centerbox" style="margin-top:40px">
+        <section id="signin" class="k-card centerbox k-state-card">
           <div class="k-card__body">
-            <h2 class="k-card__title" style="text-align:center;margin-bottom:16px;">Manager access</h2>
-            <div id="googleBtn" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
-            <p class="muted small" style="text-align:center;">Sign in with your <strong
+            <h2 class="k-card__title">Manager access</h2>
+            <div id="googleBtn" class="k-center"></div>
+            <p class="muted small">Sign in with your <strong
                 data-allowed-domain-text>@example.edu</strong> account.</p>
           </div>
         </section>
 
-        <section id="managerForbidden" class="k-card centerbox hidden" style="margin-top:40px">
-          <div class="k-card__body" style="text-align:center;">
-            <h2 class="k-card__title" style="margin-bottom:8px;">Access denied</h2>
-            <p class="muted" style="margin-bottom:24px;">This dashboard is restricted to managers.</p>
-            <a class="btn btn-primary" href="/signoff/">Return home</a>
+        <section id="managerForbidden" class="k-card centerbox k-state-card hidden">
+          <div class="k-card__body">
+            <h2 class="k-card__title">Access denied</h2>
+            <p class="muted">This dashboard is restricted to managers.</p>
+            <div class="k-state-card__actions">
+              <a class="btn btn-primary" href="/signoff/">Return home</a>
+            </div>
           </div>
         </section>
 
@@ -123,33 +126,32 @@
           <div class="k-page-header">
             <h1 class="k-page-header__title">Managed courses</h1>
           </div>
-          <div id="coursesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
-          </div>
+          <div id="coursesGrid" class="k-card-grid"></div>
         </section>
 
         <!-- Course Detail View -->
         <section id="viewCourseDetail" class="view hidden">
-          <div class="k-page-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="k-page-header">
             <h1 class="k-page-header__title" id="courseTitle">Course</h1>
-            <button id="backToCourses" class="btn btn-ghost">← Back</button>
+            <div class="k-page-header__actions">
+              <button id="backToCourses" class="btn btn-ghost">← Back</button>
+            </div>
           </div>
 
-          <div id="managerCardsContainer" class="manager-cards list-stack" style="gap:24px;">
+          <div id="managerCardsContainer" class="manager-cards list-stack">
 
             <section class="k-card manager-section" id="courseSettingsPanel" data-section="settings">
-              <div class="k-card__header draggable-head"
-                style="cursor:pointer;user-select:none;display:flex;align-items:center;">
-                <span class="drag-handle" aria-hidden="true" title="Drag to reorder"
-                  style="margin-right:12px;color:var(--muted)">⋮⋮</span>
-                <h2 class="k-card__title" style="flex:1;margin:0">Course settings</h2>
+              <div class="k-card__header k-card__header--wrap draggable-head">
+                <span class="drag-handle k-drag-handle-inline" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <h2 class="k-card__title">Course settings</h2>
                 <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true"
                   aria-controls="courseSettingsBody" aria-label="Toggle section">
                   <span class="chevron">▼</span>
                 </button>
               </div>
               <div class="k-card__body section-body" id="courseSettingsBody">
-                <div class="flex-wrap gap-16 align-end" style="margin-bottom:24px;">
-                  <div class="k-form-field flex-1" style="min-width:200px;">
+                <div class="k-toolbar">
+                  <div class="k-form-field k-grow">
                     <label class="muted">Visibility</label>
                     <select id="courseVisibilitySelect" class="k-select">
                       <option value="public">Public</option>
@@ -161,24 +163,22 @@
                   </div>
                 </div>
                 <div>
-                  <h4 style="margin:0 0 12px 0;">Pre-enroll emails</h4>
+                  <h4 class="k-section-heading">Pre-enroll emails</h4>
                   <div class="flex gap-8">
                     <input type="email" id="preenrollEmailInput" placeholder="name@example.com"
                       class="k-input flex-1" />
                     <button id="addPreenrollBtn" class="btn btn-secondary" type="button">Add</button>
                   </div>
-                  <div id="preenrollEntries" class="list-stack" style="margin-top:12px;"></div>
+                  <div id="preenrollEntries" class="list-stack k-list-spacer"></div>
                 </div>
               </div>
             </section>
 
             <section class="k-card manager-section" id="roomsPanel" data-section="rooms">
-              <div class="k-card__header draggable-head"
-                style="cursor:pointer;user-select:none;display:flex;align-items:center;">
-                <span class="drag-handle" aria-hidden="true" title="Drag to reorder"
-                  style="margin-right:12px;color:var(--muted)">⋮⋮</span>
-                <h2 class="k-card__title" style="flex:1;margin:0">Rooms</h2>
-                <div style="display:flex;gap:8px;">
+              <div class="k-card__header k-card__header--wrap draggable-head">
+                <span class="drag-handle k-drag-handle-inline" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <h2 class="k-card__title">Rooms</h2>
+                <div class="k-card__header-actions">
                   <button id="addRoomBtn" class="btn btn-primary btn-sm">+ New room</button>
                   <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="roomsBody"
                     aria-label="Toggle section">
@@ -192,29 +192,27 @@
             </section>
 
             <section class="k-card manager-section" id="enrollmentPanel" data-section="enrollment">
-              <div class="k-card__header draggable-head"
-                style="cursor:pointer;user-select:none;display:flex;align-items:center;">
-                <span class="drag-handle" aria-hidden="true" title="Drag to reorder"
-                  style="margin-right:12px;color:var(--muted)">⋮⋮</span>
-                <h2 class="k-card__title" style="flex:1;margin:0">Enrollment</h2>
+              <div class="k-card__header k-card__header--wrap draggable-head">
+                <span class="drag-handle k-drag-handle-inline" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                <h2 class="k-card__title">Enrollment</h2>
                 <button class="btn btn-ghost btn-sm section-toggle" aria-expanded="true" aria-controls="enrollmentBody"
                   aria-label="Toggle section">
                   <span class="chevron">▼</span>
                 </button>
               </div>
               <div class="k-card__body section-body" id="enrollmentBody">
-                <div class="flex gap-8 mb-24" style="margin-bottom:24px;">
+                <div class="k-search-row">
                   <input type="search" id="userSearchInput" placeholder="Search by name or email"
                     class="k-input flex-1" />
                   <button id="searchUsersBtn" class="btn btn-primary">Search</button>
                 </div>
-                <div class="grid-two" style="gap:24px; align-items:start;">
+                <div class="grid-two k-grid-split">
                   <div>
-                    <h4 style="margin:0 0 12px 0;">Results</h4>
+                    <h4 class="k-section-heading">Results</h4>
                     <div id="userSearchResults" class="list-stack"></div>
                   </div>
                   <div>
-                    <h4 style="margin:0 0 12px 0;">Current roster</h4>
+                    <h4 class="k-section-heading">Current roster</h4>
                     <div id="courseRoster" class="list-stack"></div>
                   </div>
                 </div>
@@ -226,25 +224,27 @@
 
         <!-- Progress View -->
         <section id="viewProgress" class="view hidden">
-          <div class="k-page-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="k-page-header">
             <h1 class="k-page-header__title" id="progressTitle">Student progress</h1>
-            <button id="backToCourseDetail" class="btn btn-ghost">← Back</button>
+            <div class="k-page-header__actions">
+              <button id="backToCourseDetail" class="btn btn-ghost">← Back</button>
+            </div>
           </div>
           <section class="k-card">
             <div class="k-card__header">
               <h2 class="k-card__title">Roster progress</h2>
               <div class="muted small mt-8" id="progressCourseMeta"></div>
             </div>
-            <div class="k-card__body" style="padding:0;">
-              <div class="table-wrap">
-                <table id="progressTable" class="k-table" style="width:100%;text-align:left;border-collapse:collapse;">
-                  <thead style="background:var(--surface-subtle);">
-                    <tr style="border-bottom:1px solid var(--border);">
-                      <th style="padding:12px 16px;">Student</th>
-                      <th style="padding:12px 16px;">Email</th>
-                      <th style="padding:12px 16px;">Progress</th>
-                      <th style="padding:12px 16px;">Last updated</th>
-                      <th style="padding:12px 16px;">Actions</th>
+            <div class="k-card__body k-card__body--flush">
+              <div class="k-table-wrap">
+                <table id="progressTable" class="k-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Email</th>
+                      <th>Progress</th>
+                      <th>Last updated</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody></tbody>
@@ -259,13 +259,13 @@
   </div>
 
   <dialog class="k-modal" id="progressModal">
-    <div class="k-modal__panel" style="max-width:600px; width:100%;">
+    <div class="k-modal__panel k-modal__content--sm">
       <div class="k-modal__header">
         <h3 class="k-modal__title" id="progressModalTitle">Student progress</h3>
         <button class="k-modal__close" data-modal-close aria-label="Close">✕</button>
       </div>
       <div class="k-modal__body">
-        <div class="muted small mb-16" id="progressModalMeta" style="margin-bottom:16px;"></div>
+        <div class="muted small k-panel-gap" id="progressModalMeta"></div>
         <div id="progressModalBody" class="progress-modal-body"></div>
       </div>
       <div class="k-modal__footer">
@@ -281,17 +281,6 @@
   <script src="./js/session-roles.js"></script>
   <script src="./js/manager.js"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const btn = document.getElementById("kMobileMenuBtn");
-      const sidebar = document.getElementById("kSidebar");
-      if (btn && sidebar) {
-        btn.addEventListener("click", () => {
-          const isOpen = sidebar.classList.toggle("is-open");
-          btn.setAttribute("aria-expanded", isOpen);
-        });
-      }
-    });
-
     // Fix for dialog modal using old classes in script
     const pm = document.getElementById('progressModal');
     if (pm) {

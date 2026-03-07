@@ -25,7 +25,7 @@
         const container = $('submissionQueue');
         if (!container) return;
         if (!list.length) {
-            container.innerHTML = `<div class="k-empty" style="padding:40px 16px"><div class="k-empty__icon">📋</div><p class="k-empty__title">No submissions yet</p></div>`;
+            container.innerHTML = `<div class="k-empty k-grading-empty"><div class="k-empty__icon">📋</div><p class="k-empty__title">No submissions yet</p></div>`;
             visibleSubmissionIds = [];
             activeIdx = -1;
             return;
@@ -43,7 +43,7 @@
           <div class="k-queue-item__name">${LMS.escHtml(s.student_name || 'Unknown')}</div>
           <div class="k-queue-item__date">${LMS.fmtDateTime(s.submitted_at)}</div>
         </div>
-        <span class="k-status ${statusCls}" style="font-size:11px">${statusLabel}</span>
+        <span class="k-status ${statusCls} k-text-meta-sm">${statusLabel}</span>
       </div>`;
         }).join('');
 
@@ -347,7 +347,7 @@
         const assignments = Array.isArray(assignPayload) ? assignPayload : (assignPayload.items || []);
         const sel = $('assignmentSelector');
         if (sel && assignments.length) {
-            sel.style.display = '';
+            sel.classList.remove('hidden');
             assignments.forEach(a => {
                 const opt = document.createElement('option');
                 opt.value = a.id;
