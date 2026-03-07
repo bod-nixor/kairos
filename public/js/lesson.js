@@ -11,6 +11,7 @@
 
   const state = {
     lesson: null,
+    course: null,
     canEdit: false,
     isEditMode: false,
     lastGetResponse: null,
@@ -76,6 +77,36 @@
     pill.textContent = isPublished ? 'Published' : 'Draft';
   }
 
+  function syncShell() {
+    const lesson = state.lesson || {};
+    const course = state.course || {};
+    const currentCourseId = courseId || lesson.course_id || '';
+    const courseName = course.name || course.code || 'Course';
+    const lessonTitle = lesson.title || 'Lesson';
+
+    LMS.nav.setCourseContext(currentCourseId, courseName);
+    LMS.nav.setActive('modules');
+    LMS.nav.setBreadcrumb([
+      { name: 'All Courses', href: '/signoff/' },
+      { name: courseName, href: `./course.html?course_id=${encodeURIComponent(currentCourseId)}` },
+      { name: 'Modules', href: `./modules.html?course_id=${encodeURIComponent(currentCourseId)}` },
+      { name: lessonTitle },
+    ]);
+
+    const role = String(course.my_role || '').toLowerCase();
+    if (role === 'ta' || role === 'manager' || role === 'admin') {
+      $('kNavGrading')?.classList.remove('hidden');
+    }
+    if (role === 'manager' || role === 'admin') {
+      $('kNavAnalytics')?.classList.remove('hidden');
+    }
+
+    $('kBreadCourse') && ($('kBreadCourse').textContent = courseName);
+    $('kBreadModules') && ($('kBreadModules').href = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`);
+    $('kBreadLesson') && ($('kBreadLesson').textContent = lessonTitle);
+    document.title = `${lessonTitle} - ${courseName} - Kairos`;
+  }
+
   function applyMode(isEditMode) {
     state.isEditMode = !!isEditMode;
     const editor = $('lessonEditor');
@@ -117,6 +148,7 @@
 
     const isPublished = Number(lesson.published_flag || 0) === 1;
     setStatusPill(isPublished);
+    syncShell();
 
     if (state.canEdit) {
       show('editorWrap');
@@ -139,6 +171,13 @@
     }
 
     renderDebug();
+  }
+
+  async function loadCourse() {
+    const res = await LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(courseId)}`);
+    if (!res.ok) return;
+    state.course = res.data?.data || res.data || null;
+    syncShell();
   }
 
   async function loadLesson() {
@@ -252,7 +291,7 @@
       if (embedUrl) {
         const safeUrl = escAttr(embedUrl);
         const fallback = escAttr(url);
-        const snippet = `<div class="k-embed-16x9"><iframe src="${safeUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab ↗</a></p>`;
+        const snippet = `<div class="k-embed-16x9"><iframe src="${safeUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab</a></p>`;
         document.execCommand('insertHTML', false, snippet);
       } else {
         const viewerHref = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;
@@ -276,17 +315,17 @@
     modal.id = 'lessonLinkModal';
     modal.className = 'k-modal';
     modal.innerHTML = `
-      <form method="dialog" class="k-modal__content" id="lessonLinkForm" style="max-width:520px">
-        <h3 style="margin:0 0 12px">Insert link</h3>
-        <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px">
+      <form method="dialog" class="k-modal__content k-modal__content--sm" id="lessonLinkForm">
+        <h3>Insert link</h3>
+        <label class="k-field-stack">
           <span>URL</span>
           <input id="lessonLinkUrl" type="url" required placeholder="https://example.com" />
         </label>
-        <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px">
+        <label class="k-field-stack">
           <span>Anchor text</span>
           <input id="lessonLinkText" type="text" placeholder="Link text" />
         </label>
-        <div class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px">
+        <div class="k-modal__footer">
           <button class="btn btn-ghost" type="button" id="lessonLinkCancel">Cancel</button>
           <button class="btn btn-primary" type="submit">Insert link</button>
         </div>
@@ -439,7 +478,7 @@
     $('resourceModalForm')?.addEventListener('submit', createResourceAndInsert);
 
     wireToolbar();
-    await loadLesson();
+    await Promise.all([loadCourse(), loadLesson()]);
 
     // Auto-enter edit mode if URL says mode=edit and user has permission
     if (urlMode === 'edit' && state.canEdit) {

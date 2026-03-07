@@ -16,7 +16,7 @@
         const container = $('listContainer');
         if (!container) return;
         if (!items || !items.length) {
-            container.innerHTML = '<div class="k-empty" style="padding:40px 16px"><div class="k-empty__icon">⚡</div><p class="k-empty__title">No quizzes yet</p><p class="k-empty__desc">There are no quizzes available in this course.</p></div>';
+            container.innerHTML = '<div class="k-empty k-empty-inline--wide"><div class="k-empty__icon">⚡</div><p class="k-empty__title">No quizzes yet</p><p class="k-empty__desc">There are no quizzes available in this course.</p></div>';
             return;
         }
 
@@ -79,6 +79,14 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
+            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+            LMS.nav.setActive('quizzes');
+            if (window.KairosLMS.getRole().ta || window.KairosLMS.getRole().manager || window.KairosLMS.getRole().admin) {
+                $('kNavGrading')?.classList.remove('hidden');
+            }
+            if (window.KairosLMS.getRole().manager || window.KairosLMS.getRole().admin) {
+                $('kNavAnalytics')?.classList.remove('hidden');
+            }
         }
 
         if (!listRes.ok) {

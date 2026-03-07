@@ -10,6 +10,7 @@
     <script>(function () { try { var s = localStorage.getItem('kairos-theme'); var d = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
+    <link rel="stylesheet" href="./css/kairos-ui.css" />
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./js/config.js"></script>
 </head>
@@ -24,7 +25,7 @@
         <div class="k-sidebar__scroll">
             <div class="k-nav-group"><a class="k-nav-item" href="/signoff/" data-home-link="true"><span class="k-nav-item__icon">←</span><span
                         class="k-nav-item__text">All Courses</span></a></div>
-            <div class="k-sidebar__course-header">
+            <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
             <nav class="k-nav-group">
@@ -32,12 +33,12 @@
                         class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
                 <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
                         class="k-nav-item__icon">📦</span><span class="k-nav-item__text">Modules</span></a>
-                <a class="k-nav-item hidden" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                <a class="k-nav-item" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
                     id="kNavQuizzes">
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
                 </a>
-                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                <a class="k-nav-item" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
                     id="kNavAssignments"><span class="k-nav-item__icon">📤</span><span
                         class="k-nav-item__text">Assignments</span></a>
                 <a class="k-nav-item is-active" data-course-href="./grading.html" href="#" aria-current="page"><span
@@ -71,11 +72,11 @@
       </div>
             <div class="k-topbar__actions">
                 <!-- Assignment selector (manager only) -->
-                <select class="k-select" id="assignmentSelector" style="width:220px;display:none"
+                <select class="k-select k-control-md hidden" id="assignmentSelector"
                     aria-label="Select assignment">
                     <option value="">— Select Assignment —</option>
                 </select>
-                <span class="k-grade-state k-grade-state--draft" id="gradingModeLabel" style="display:none">
+                <span class="k-grade-state k-grade-state--draft hidden" id="gradingModeLabel">
                     <span class="k-status__dot"></span> Draft
                 </span>
                 <button class="btn btn-primary btn-sm hidden" id="releaseAllBtn">Release All</button>
@@ -94,7 +95,7 @@
         <!-- Loading skeleton -->
         <div id="gradingSkeleton" class="k-main">
             <div class="k-page">
-                <div style="display:grid;grid-template-columns:340px 1fr;gap:20px">
+                <div class="k-grading-skeleton">
                     <div class="k-skeleton k-skeleton--card" style="height:500px"></div>
                     <div class="k-skeleton k-skeleton--card" style="height:500px"></div>
                 </div>
@@ -118,12 +119,12 @@
                         <input class="k-input" type="search" id="filterSearch" placeholder="Search student…"
                             aria-label="Search student" />
                     </div>
-                    <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+                    <div class="k-grading-queue-meta">
                         <span id="queueCount">0</span> submission(s)
                     </div>
                 </div>
                 <div class="k-grading-queue__list" id="submissionQueue" role="list" aria-label="Student submissions">
-                    <div class="k-empty" style="padding:40px 16px">
+                    <div class="k-empty k-grading-empty">
                         <div class="k-empty__icon">📋</div>
                         <p class="k-empty__title">No submissions</p>
                         <p class="k-empty__desc">Submissions will appear here once students submit their work.</p>
@@ -134,8 +135,7 @@
             <!-- Right: Grading workspace -->
             <div class="k-grading-workspace" id="gradingWorkspace">
                 <!-- Empty placeholder when no submission selected -->
-                <div id="workspaceEmpty"
-                    style="display:flex;align-items:center;justify-content:center;flex:1;height:100%">
+                <div id="workspaceEmpty" class="k-workspace-empty">
                     <div class="k-empty">
                         <div class="k-empty__icon">🎯</div>
                         <p class="k-empty__title">Select a submission</p>
@@ -144,7 +144,7 @@
                 </div>
 
                 <!-- Active grading view (hidden until submission selected) -->
-                <div id="workspaceActive" class="hidden" style="display:flex;flex-direction:column;height:100%">
+                <div id="workspaceActive" class="hidden k-workspace-active">
                     <div class="k-grading-workspace__head">
                         <h2 class="k-grading-workspace__student" id="workspaceStudentName">Student</h2>
                         <div class="k-grade-state k-grade-state--draft" id="workspaceGradeState">
@@ -172,16 +172,14 @@
                                 <div class="k-submission-view__text" id="submissionTextContent"></div>
                             </div>
                             <div id="submissionUrlView" class="hidden">
-                                <div
-                                    style="padding:16px;display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+                                <div class="k-submission-link-card">
                                     <p class="k-text-sm k-text-muted">Submission link:</p>
                                     <a id="submissionUrlLink" href="#" target="_blank" rel="noopener noreferrer"
                                         class="btn btn-primary btn-sm">Open Submission ↗</a>
                                 </div>
                             </div>
-                            <div id="submissionAttachments" class="hidden" style="padding:8px 0">
-                                <h3 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--muted)">Attachments
-                                </h3>
+                            <div id="submissionAttachments" class="hidden k-attachments-panel">
+                                <h3 class="k-attachments-title">Attachments</h3>
                                 <div id="attachmentList" class="k-file-list"></div>
                             </div>
                         </div>
@@ -189,9 +187,7 @@
                         <!-- Grading form -->
                         <div class="k-grading-form" id="gradingForm" role="form" aria-label="Grading form">
                             <div>
-                                <h3
-                                    style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px">
-                                    Rubric</h3>
+                                <h3 class="k-rubric-heading">Rubric</h3>
                                 <div id="rubricRows"></div>
                             </div>
 
@@ -199,8 +195,8 @@
                             <div class="k-grading-total">
                                 <span>Total Score</span>
                                 <span>
-                                    <span id="totalScore" style="font-size:22px">0</span>
-                                    <span class="k-text-muted" id="totalMax" style="font-size:15px"> / —</span>
+                                    <span class="k-score-inline" id="totalScore">0</span>
+                                    <span class="k-text-muted k-score-muted" id="totalMax"> / —</span>
                                 </span>
                             </div>
 
@@ -234,15 +230,12 @@
                             </div>
 
                             <!-- Keyboard shortcut hint -->
-                            <p class="k-text-xs k-text-muted" style="text-align:center">
-                                <kbd
-                                    style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:4px;padding:1px 4px">S</kbd>
+                            <p class="k-text-xs k-text-muted k-shortcut-list">
+                                <kbd class="k-keycap">S</kbd>
                                 Save draft ·
-                                <kbd
-                                    style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:4px;padding:1px 4px">R</kbd>
+                                <kbd class="k-keycap">R</kbd>
                                 Release ·
-                                <kbd
-                                    style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:4px;padding:1px 4px">J/K</kbd>
+                                <kbd class="k-keycap">J/K</kbd>
                                 Prev/Next
                             </p>
                         </div>

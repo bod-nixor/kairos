@@ -20,7 +20,7 @@
         const limit = opts.limit || 10;
         if (!container) return;
 
-        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--muted)">Loading…</div>`;
+        container.innerHTML = '<div class="k-loading-inline">Loading…</div>';
 
         const res = await LMS.api('GET', `./api/lms/announcements.php?course_id=${encodeURIComponent(courseId)}&limit=${limit}`);
         if (!res.ok) {
@@ -30,7 +30,7 @@
         const rawPayload = res.data?.data || res.data || [];
         const announcements = Array.isArray(rawPayload) ? rawPayload : (rawPayload.items || []);
         if (!announcements.length) {
-            container.innerHTML = '<div class="k-empty" style="padding:32px 16px"><div class="k-empty__icon">📢</div><p class="k-empty__title">No announcements yet</p><p class="k-empty__desc">Check back later for course updates.</p></div>';
+            container.innerHTML = '<div class="k-empty k-empty--compact"><div class="k-empty__icon">📢</div><p class="k-empty__title">No announcements yet</p><p class="k-empty__desc">Check back later for course updates.</p></div>';
             return;
         }
 
@@ -49,14 +49,14 @@
         const unread = !ann.read_at;
         return `
       <div class="k-announcement${unread ? ' k-announcement--unread' : ''}" data-ann-id="${LMS.escHtml(String(ann.id))}">
-        <div class="k-announcement__avatar" style="display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--primary)">
+        <div class="k-announcement__avatar">
           ${LMS.escHtml(initials)}
         </div>
         <div class="k-announcement__body">
           <div class="k-announcement__meta">
             <span class="k-announcement__author">${LMS.escHtml(ann.author_name || 'Instructor')}</span>
             <span class="k-announcement__time">${LMS.timeAgo(ann.created_at)}</span>
-            ${unread ? '<span class="k-status k-status--info" style="font-size:10px;padding:2px 6px">New</span>' : ''}
+            ${unread ? '<span class="k-status k-status--info k-status--dense">New</span>' : ''}
           </div>
           <p class="k-announcement__title">${LMS.escHtml(ann.title)}</p>
           <p class="k-announcement__preview">${LMS.escHtml(ann.body || '')}</p>

@@ -42,7 +42,7 @@
         const dot = $('kBellDot');
         if (!list) return;
         if (!notifications.length) {
-            list.innerHTML = '<div class="k-empty" style="padding:12px"><p class="k-empty__title">No notifications yet</p></div>';
+            list.innerHTML = '<div class="k-empty k-empty--tight"><p class="k-empty__title">No notifications yet</p></div>';
             if (dot) dot.classList.add('hidden');
             return;
         }
@@ -115,19 +115,17 @@
         const container = $('moduleOverview');
         if (!container) return;
         if (!modules || !modules.length) {
-            container.innerHTML = `<div class="k-empty" style="padding:24px"><div class="k-empty__icon">📦</div><p class="k-empty__title">No modules yet</p></div>`;
+            container.innerHTML = '<div class="k-empty k-empty--compact"><div class="k-empty__icon">📦</div><p class="k-empty__title">No modules yet</p></div>';
             return;
         }
-        // Show first 3 as a preview list
         const preview = modules.slice(0, 3);
-        const accent = LMS.courseAccent(COURSE_ID);
         container.innerHTML = preview.map(m => {
             const done = m.completed_items || 0;
             const total = m.total_items || 0;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             return `
         <a href="./modules.html?course_id=${encodeURIComponent(COURSE_ID)}"
-           class="k-module-item" style="text-decoration:none">
+           class="k-module-item k-module-item--link">
           <div class="k-module-item__icon" aria-hidden="true">📦</div>
           <div class="k-module-item__body">
             <div class="k-module-item__title">${LMS.escHtml(m.name)}</div>
@@ -138,8 +136,8 @@
         }).join('');
         if (modules.length > 3) {
             container.insertAdjacentHTML('beforeend',
-                `<div style="padding:12px 20px;text-align:center">
-          <a href="./modules.html?course_id=${encodeURIComponent(COURSE_ID)}" class="k-text-sm" style="color:var(--primary)">
+                `<div class="k-module-list__footer">
+          <a href="./modules.html?course_id=${encodeURIComponent(COURSE_ID)}" class="k-text-sm k-text-link">
             View all ${modules.length} modules →
           </a>
         </div>`
@@ -152,7 +150,7 @@
         const container = $('announcementsFeed');
         if (!container) return;
         if (!announcements || !announcements.length) {
-            container.innerHTML = `<div class="k-empty" style="padding:24px"><div class="k-empty__icon">📢</div><p class="k-empty__title">No announcements</p></div>`;
+            container.innerHTML = '<div class="k-empty k-empty--compact"><div class="k-empty__icon">📢</div><p class="k-empty__title">No announcements</p></div>';
             return;
         }
         const unread = announcements.filter(a => !a.read && !a.read_at).length;
@@ -164,7 +162,7 @@
             const initials = (ann.author_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
             return `
         <div class="k-announcement${!ann.read_at ? ' k-announcement--unread' : ''}">
-          <div class="k-announcement__avatar" style="display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--primary)">
+          <div class="k-announcement__avatar">
             ${initials}
           </div>
           <div class="k-announcement__body">
@@ -184,18 +182,18 @@
         const container = $('recentActivity');
         if (!container) return;
         if (!events || !events.length) {
-            container.innerHTML = `<div class="k-empty" style="padding:24px"><div class="k-empty__icon">🕒</div><p class="k-empty__title">No activity yet</p></div>`;
+            container.innerHTML = '<div class="k-empty k-empty--compact"><div class="k-empty__icon">🕒</div><p class="k-empty__title">No activity yet</p></div>';
             return;
         }
         const icons = { lesson_complete: '✅', quiz_submit: '⚡', assignment_submit: '📤', grade_released: '🎓' };
-        container.innerHTML = events.slice(0, 8).map(e => `
-      <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 20px;border-bottom:1px solid var(--border)">
-        <span style="font-size:18px;line-height:1.5">${icons[e.type] || '📌'}</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">${LMS.escHtml(e.message)}</div>
-          <div style="font-size:12px;color:var(--muted)">${LMS.timeAgo(e.created_at)}</div>
+        container.innerHTML = `<div class="k-activity-list">${events.slice(0, 8).map(e => `
+      <div class="k-activity-row">
+        <span class="k-activity-row__icon">${icons[e.type] || '📌'}</span>
+        <div class="k-activity-row__body">
+          <div class="k-activity-row__title">${LMS.escHtml(e.message)}</div>
+          <div class="k-activity-row__meta">${LMS.timeAgo(e.created_at)}</div>
         </div>
-      </div>`).join('');
+      </div>`).join('')}</div>`;
     }
 
     // ── Main load function ─────────────────────────────────────
@@ -241,13 +239,13 @@
         const banner = $('courseBanner');
         if (banner) banner.setAttribute('data-course-accent', String(accent));
 
-        // Update breadcrumb
-        const breadCourse = $('kBreadCourse');
-        if (breadCourse) breadCourse.textContent = course.code || course.name || 'Course';
-
-        // Sidebar course name
-        const sidebarName = document.getElementById('kSidebarCourseName');
-        if (sidebarName) sidebarName.textContent = course.code || course.name || '';
+        const courseLabel = course.name || course.code || 'Course';
+        LMS.nav.setCourseContext(COURSE_ID, courseLabel);
+        LMS.nav.setActive('home');
+        LMS.nav.setBreadcrumb([
+            { name: 'All Courses', href: '/signoff/' },
+            { name: course.code || courseLabel },
+        ]);
 
         // Banner content
         $('bannerLabel') && ($('bannerLabel').textContent = course.code || '');
@@ -308,7 +306,7 @@
         });
         renderNotifications();
 
-        document.title = `${course.name || 'Course'} — Kairos`;
+        document.title = `${courseLabel} — Kairos`;
         showEl('courseLoaded');
     }
 

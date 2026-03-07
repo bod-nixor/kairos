@@ -88,7 +88,7 @@
         const countEl = $('studentTableCount');
         if (!tbody) return;
         if (!students || !students.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No students found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="k-table-note">No students found.</td></tr>';
             return;
         }
         if (countEl) countEl.textContent = `${students.length} student${students.length !== 1 ? 's' : ''}`;
@@ -99,15 +99,17 @@
             const riskLabel = compPct < 50 ? '⚠ At risk' : compPct < 80 ? 'Progressing' : 'On track';
             return `<tr>
         <td>
-          <div style="font-weight:600">${LMS.escHtml(s.name)}</div>
-          <div style="font-size:12px;color:var(--muted)">${LMS.escHtml(s.email)}</div>
+          <div class="k-student-cell">
+            <div class="k-student-cell__name">${LMS.escHtml(s.name)}</div>
+            <div class="k-student-cell__meta">${LMS.escHtml(s.email)}</div>
+          </div>
         </td>
         <td>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="k-progress" style="width:80px">
+          <div class="k-progress-inline">
+            <div class="k-progress">
               <div class="k-progress__fill" style="width:${compPct}%"></div>
             </div>
-            <span style="font-size:12px">${compPct}%</span>
+            <span class="k-progress-inline__value">${compPct}%</span>
           </div>
         </td>
         <td>${typeof grade === 'number' ? grade.toFixed(1) + '%' : grade}</td>
@@ -176,6 +178,8 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
+            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+            LMS.nav.setActive('analytics');
         }
 
         // Metrics

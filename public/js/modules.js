@@ -97,11 +97,11 @@
             <label for="kEditItemTitle">Title</label>
             <input id="kEditItemTitle" type="text" value="${LMS.escHtml(currentTitle)}" required>
           </div>
-          <div class="k-form-field" style="display:flex;gap:16px;margin-top:12px">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <div class="k-inline-checkboxes k-panel-gap">
+            <label class="k-inline-checkbox">
               <input id="kEditItemPublished" type="checkbox" ${currentPublished ? 'checked' : ''}> Published
             </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <label class="k-inline-checkbox">
               <input id="kEditItemRequired" type="checkbox" ${currentRequired ? 'checked' : ''}> Required
             </label>
           </div>`;
@@ -170,7 +170,7 @@
             <label for="kEditModTitle">Module Title</label>
             <input id="kEditModTitle" type="text" value="${LMS.escHtml(currentTitle)}" required>
           </div>
-          <div class="k-form-field" style="margin-top:12px">
+          <div class="k-form-field k-panel-gap">
             <label for="kEditModDesc">Description</label>
             <textarea id="kEditModDesc" rows="3">${LMS.escHtml(currentDesc)}</textarea>
           </div>`;
@@ -269,8 +269,7 @@
          ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}${!locked ? ' k-module-item--interactive' : ''}"
          aria-disabled="${locked ? 'true' : 'false'}"
-         role="button"
-         style="${!locked ? 'cursor:pointer;' : ''}">
+         role="button">
         ${dragHandle}
         <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
         <div class="k-module-item__body">
@@ -319,7 +318,7 @@
         const items = Array.isArray(mod.items) ? mod.items : [];
         const itemsHtml = items.length
             ? items.map(renderModuleItem).join('')
-            : '<div class="k-empty" style="padding:20px"><p class="k-empty__desc">No items in this module.</p></div>';
+            : '<div class="k-empty k-empty-inline"><p class="k-empty__desc">No items in this module.</p></div>';
 
         const dragHandle = isAdmin ? `<span class="k-drag-handle k-drag-handle--module" draggable="true" title="Drag to reorder module" aria-label="Drag to reorder module">⋮⋮</span>` : '';
 
@@ -330,7 +329,7 @@
         ` : '';
 
         const headerHtml = `<div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}">${dragHandle}<span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${adminHeaderBtns}</div></div>`;
-        const itemsWrapHtml = `<div class="k-module__items" id="${bodyId}" role="list" aria-labelledby="${hdrId}" ${isExpanded ? '' : 'style="display:none"'}>${itemsHtml}</div>`;
+        const itemsWrapHtml = `<div class="k-module__items${isExpanded ? '' : ' hidden'}" id="${bodyId}" role="list" aria-labelledby="${hdrId}">${itemsHtml}</div>`;
 
         return `<section class="k-module${isExpanded ? ' is-open' : ''}" data-module-id="${moduleId}">${headerHtml}${itemsWrapHtml}</section>`;
     }
@@ -526,7 +525,7 @@
                 const expanded = header.getAttribute('aria-expanded') === 'true';
                 header.setAttribute('aria-expanded', expanded ? 'false' : 'true');
                 const panel = container.querySelector(`#${header.getAttribute('aria-controls')}`);
-                if (panel) panel.style.display = expanded ? 'none' : '';
+                if (panel) panel.classList.toggle('hidden', expanded);
                 if (moduleEl) moduleEl.classList.toggle('is-open', !expanded);
                 if (expanded) expandedModules.delete(moduleId); else expandedModules.add(moduleId);
             };

@@ -31,8 +31,7 @@
         if (!debugEl) {
             debugEl = document.createElement('pre');
             debugEl.id = 'assignDebug';
-            debugEl.className = 'k-card';
-            debugEl.style.cssText = 'padding:12px;white-space:pre-wrap;margin-top:12px;';
+            debugEl.className = 'k-card k-debug-panel';
             document.querySelector('.k-page')?.appendChild(debugEl);
         }
         debugEl.textContent = safeStringify(debugLogs);
@@ -121,10 +120,10 @@
         modal = document.createElement('dialog');
         modal.id = 'assignEditorModal';
         modal.className = 'k-modal';
-        modal.innerHTML = `<form method="dialog" class="k-modal__content" id="assignEditorForm" style="max-width:760px">
-            <h3 style="margin:0 0 12px">Edit assignment</h3>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Title</span><input id="assignEditTitle" type="text" required /></label>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        modal.innerHTML = `<form method="dialog" class="k-modal__content k-modal__content--lg" id="assignEditorForm">
+            <h3>Edit assignment</h3>
+            <label class="k-field-stack"><span>Title</span><input id="assignEditTitle" type="text" required /></label>
+            <div class="k-inline-actions k-inline-actions--compact">
               <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="formatBlock" data-assign-cmd-value="<h2>">H2</button>
               <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="bold">Bold</button>
               <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="italic">Italic</button>
@@ -132,12 +131,12 @@
               <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="insertUnorderedList">List</button>
               <button type="button" class="btn btn-ghost btn-sm" id="assignCopyMarkdownBtn">Copy Markdown</button>
             </div>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Description</span><div id="assignEditDescription" class="k-card" contenteditable="true" style="min-height:160px;padding:10px"></div></label>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Due date/time</span><input id="assignEditDueAt" type="text" placeholder="YYYY-MM-DD HH:MM:SS" /></label>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Max points</span><input id="assignEditMaxPoints" type="number" min="1" step="1" /></label>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:10px"><span>Allowed extensions (comma separated)</span><input id="assignEditAllowedExt" type="text" placeholder="pdf,docx,png" /></label>
-            <label class="k-field" style="display:grid;gap:6px;margin-bottom:12px"><span>Max file size (MB)</span><input id="assignEditMaxFileMb" type="number" min="1" max="1024" step="1" /></label>
-            <div class="k-modal__footer" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" id="assignEditorCancel">Cancel</button><button class="btn btn-primary" type="submit">Save changes</button></div>
+            <label class="k-field-stack"><span>Description</span><div id="assignEditDescription" class="k-card k-editor-surface k-editor-surface--compact" contenteditable="true"></div></label>
+            <label class="k-field-stack"><span>Due date/time</span><input id="assignEditDueAt" type="text" placeholder="YYYY-MM-DD HH:MM:SS" /></label>
+            <label class="k-field-stack"><span>Max points</span><input id="assignEditMaxPoints" type="number" min="1" step="1" /></label>
+            <label class="k-field-stack"><span>Allowed extensions (comma separated)</span><input id="assignEditAllowedExt" type="text" placeholder="pdf,docx,png" /></label>
+            <label class="k-field-stack"><span>Max file size (MB)</span><input id="assignEditMaxFileMb" type="number" min="1" max="1024" step="1" /></label>
+            <div class="k-modal__footer"><button class="btn btn-ghost" type="button" id="assignEditorCancel">Cancel</button><button class="btn btn-primary" type="submit">Save changes</button></div>
         </form>`;
         document.body.appendChild(modal);
         $('assignEditorCancel')?.addEventListener('click', () => modal.close());
@@ -252,7 +251,7 @@
         const tl = $('submissionTimeline');
         if (!tl) return;
         if (!submissions || !submissions.length) {
-            tl.innerHTML = '<div class="k-empty" style="padding:16px 0"><div class="k-empty__icon">📋</div><p class="k-empty__title">No submissions yet</p></div>';
+            tl.innerHTML = '<div class="k-empty k-card-empty--sm"><div class="k-empty__icon">📋</div><p class="k-empty__title">No submissions yet</p></div>';
             return;
         }
         tl.innerHTML = submissions.map((s, i) => {
@@ -274,10 +273,8 @@
         if (existingPanel) existingPanel.remove();
         const panel = document.createElement('section');
         panel.id = 'assignStaffPanel';
-        panel.className = 'k-card';
-        panel.style.marginTop = '16px';
-        panel.style.padding = '16px';
-        panel.innerHTML = `<h3>Staff Assignment Management</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button"></button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions"></div>`;
+        panel.className = 'k-card k-staff-panel';
+        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Assignment Management</h3><div class="k-staff-panel__actions"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button"></button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions" class="k-staff-panel__list"></div>`;
         root.appendChild(panel);
 
         const assignMandatoryBtn = $('assignMandatoryBtn');
@@ -446,6 +443,14 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         document.querySelectorAll('[data-course-href]').forEach(el => {
             el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
         });
+        LMS.nav.setCourseContext(COURSE_ID, assignData.course_name || 'Course');
+        LMS.nav.setActive('assignments');
+        if (canManage || (window.KairosLMS.getRole().ta && $('kNavGrading'))) {
+            $('kNavGrading')?.classList.remove('hidden');
+        }
+        if (window.KairosLMS.getRole().manager || window.KairosLMS.getRole().admin) {
+            $('kNavAnalytics')?.classList.remove('hidden');
+        }
         $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = assignData.course_name || '');
 
         $('assignTitle') && ($('assignTitle').textContent = assignData.title || '');
@@ -494,7 +499,7 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
             if (description) {
                 desc.innerHTML = LMS.sanitizeForRender(description);
             } else {
-                desc.innerHTML = '<div class="k-empty" style="padding:0"><p class="k-empty__desc">No description provided.</p></div>';
+                desc.innerHTML = '<div class="k-empty"><p class="k-empty__desc">No description provided.</p></div>';
             }
         }
 
