@@ -19,6 +19,7 @@
   </script>
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/lms.css" />
+  <link rel="stylesheet" href="./css/kairos-ui.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
@@ -104,12 +105,12 @@
       <div class="k-page">
 
         <!-- Sign-in screen -->
-        <section id="signin" class="centerbox card" aria-label="Sign in">
+        <section id="signin" class="centerbox card k-auth-card" aria-label="Sign in">
           <img src="./images/logo-full.png" alt="Kairos" class="k-brand-badge signin-logo" />
-          <h1 class="title" style="text-align:center;margin:0 0 16px">Welcome to Kairos</h1>
-          <p class="muted small" style="text-align:center;margin:0 0 20px">Your academic operating system</p>
+          <h1 class="title k-auth-title">Welcome to Kairos</h1>
+          <p class="muted small k-auth-subtitle">Your academic operating system</p>
           <div id="googleBtn"></div>
-          <p class="muted small" style="text-align:center;margin-top:12px">
+          <p class="muted small k-auth-subtitle">
             Only <strong data-allowed-domain-text>@nixorcollege.edu.pk</strong> accounts are allowed.
           </p>
         </section>
@@ -136,8 +137,7 @@
               <h2 class="k-card__title">My Courses</h2>
             </div>
             <div class="k-card__body">
-              <div id="coursesGrid"
-                style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+              <div id="coursesGrid" class="k-card-grid">
                 <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
                 <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
                 <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
@@ -145,12 +145,12 @@
             </div>
           </div>
 
-          <div class="k-card" style="margin-top:16px">
+          <div class="k-card k-panel-gap">
             <div class="k-card__header">
               <h2 class="k-card__title">Available Courses</h2>
             </div>
             <div class="k-card__body">
-              <div data-available-courses-grid="1" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+              <div data-available-courses-grid="1" class="k-card-grid"></div>
             </div>
           </div>
 
@@ -161,17 +161,16 @@
           <div class="k-page-header">
             <h1 class="k-page-header__title">My Courses</h1>
           </div>
-          <div id="coursesGridFull"
-            style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+          <div id="coursesGridFull" class="k-card-grid">
             <div class="k-skeleton k-skeleton--card" style="height:200px"></div>
           </div>
 
-          <div class="k-card" style="margin-top:16px">
+          <div class="k-card k-panel-gap">
             <div class="k-card__header">
               <h2 class="k-card__title">Available Courses</h2>
             </div>
             <div class="k-card__body">
-              <div data-available-courses-grid="1" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+              <div data-available-courses-grid="1" class="k-card-grid"></div>
             </div>
           </div>
 
@@ -187,10 +186,9 @@
               <button id="backToCourses" class="btn btn-ghost">← Back to Courses</button>
             </div>
           </div>
-          <div id="roomsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
-          </div>
-          <section id="progressSection" class="hidden" style="margin-top:32px">
-            <h2 style="font-size:22px;margin:0 0 16px">Your Progress</h2>
+          <div id="roomsGrid" class="k-card-grid"></div>
+          <section id="progressSection" class="hidden k-progress-section">
+            <h2 class="k-progress-section__title">Your Progress</h2>
             <div id="progressContainer"></div>
           </section>
         </section>

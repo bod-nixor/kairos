@@ -4,6 +4,12 @@
   const HOME_PATH = '/signoff/';
   const root = document.documentElement;
   const prefersDarkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const shellDrawerQuery = window.matchMedia ? window.matchMedia('(max-width: 1024px)') : null;
+
+  let serverSaveTimer = null;
+  let settingsButton = null;
+  let settingsPanel = null;
+  let shellOverlay = null;
 
   const isProjectorView = () => window.location.pathname.toLowerCase().includes('projector');
   if (isProjectorView()) {
@@ -16,7 +22,7 @@
     try {
       const value = localStorage.getItem(STORAGE_KEY);
       return isValidTheme(value) ? value : null;
-    } catch (err) {
+    } catch (_) {
       return null;
     }
   };
@@ -34,17 +40,6 @@
     }
   };
 
-  const saveSettings = (patch) => {
-    const next = { ...readSettings(), ...(patch || {}) };
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch (_) { /* ignore */ }
-    persistSettingsServer(next);
-    return next;
-  };
-
-
-
-  let serverSaveTimer = null;
-
   const canUseLmsApi = () => !!(window.KairosLMS && typeof window.KairosLMS.api === 'function');
 
   const persistSettingsServer = (settings, themeOverride) => {
@@ -58,6 +53,17 @@
         reduce_motion: settings.reduceMotion ? 1 : 0,
       });
     }, 250);
+  };
+
+  const saveSettings = (patch) => {
+    const next = { ...readSettings(), ...(patch || {}) };
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    } catch (_) {
+      // ignore
+    }
+    persistSettingsServer(next);
+    return next;
   };
 
   const loadSettingsServer = async () => {
@@ -82,7 +88,7 @@
 
   const syncToggle = (theme) => {
     const isDark = theme === 'dark';
-    document.querySelectorAll('[data-theme-toggle]').forEach(toggle => {
+    document.querySelectorAll('[data-theme-toggle]').forEach((toggle) => {
       toggle.classList.toggle('is-dark', isDark);
       toggle.setAttribute('aria-pressed', String(isDark));
       const label = toggle.querySelector('[data-theme-label]');
@@ -98,10 +104,25 @@
     root.classList.toggle('theme-dark', next === 'dark');
     root.classList.toggle('theme-light', next !== 'dark');
     if (persist) {
-      try { localStorage.setItem(STORAGE_KEY, next); } catch (err) { /* ignore */ }
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch (_) {
+        // ignore
+      }
       persistSettingsServer(readSettings(), next);
     }
     syncToggle(next);
+  };
+
+  const resolvePreferredTheme = () => {
+    const stored = readStoredTheme();
+    if (stored) return stored;
+    if (isValidTheme(root.dataset.theme)) return root.dataset.theme;
+    return prefersDarkQuery && prefersDarkQuery.matches ? 'dark' : 'light';
+  };
+
+  const syncThemeState = () => {
+    applyTheme(resolvePreferredTheme(), false);
   };
 
   const homeUrl = () => `${window.location.origin}${HOME_PATH}`;
@@ -140,79 +161,180 @@
     });
   };
 
+  const ensureShellOverlay = () => {
+    if (shellOverlay && document.body.contains(shellOverlay)) {
+      return shellOverlay;
+    }
+    shellOverlay = document.querySelector('.k-shell-overlay');
+    if (!shellOverlay) {
+      shellOverlay = document.createElement('div');
+      shellOverlay.className = 'k-shell-overlay hidden';
+      shellOverlay.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(shellOverlay);
+    }
+    return shellOverlay;
+  };
+
+  const closeShellDrawer = () => {
+    const sidebar = document.getElementById('kSidebar');
+    const menuButton = document.getElementById('kMobileMenuBtn');
+    const overlay = ensureShellOverlay();
+    if (sidebar) sidebar.classList.remove('is-open');
+    if (menuButton) menuButton.setAttribute('aria-expanded', 'false');
+    if (overlay) overlay.classList.add('hidden');
+    document.body.classList.remove('k-shell-drawer-open');
+  };
+
+  const setShellDrawerOpen = (open) => {
+    const sidebar = document.getElementById('kSidebar');
+    const menuButton = document.getElementById('kMobileMenuBtn');
+    if (!sidebar || !menuButton) return;
+    const shouldOpen = !!open && !!(shellDrawerQuery && shellDrawerQuery.matches);
+    const overlay = ensureShellOverlay();
+    sidebar.classList.toggle('is-open', shouldOpen);
+    menuButton.setAttribute('aria-expanded', String(shouldOpen));
+    document.body.classList.toggle('k-shell-drawer-open', shouldOpen);
+    if (overlay) overlay.classList.toggle('hidden', !shouldOpen);
+  };
+
+  const bindShell = () => {
+    const sidebar = document.getElementById('kSidebar');
+    const menuButton = document.getElementById('kMobileMenuBtn');
+    if (!sidebar || !menuButton) {
+      closeShellDrawer();
+      return;
+    }
+    const overlay = ensureShellOverlay();
+
+    if (menuButton.dataset.shellBound !== 'true') {
+      menuButton.dataset.shellBound = 'true';
+      menuButton.type = 'button';
+      menuButton.addEventListener('click', () => {
+        setShellDrawerOpen(!sidebar.classList.contains('is-open'));
+      });
+    }
+
+    if (overlay && overlay.dataset.shellBound !== 'true') {
+      overlay.dataset.shellBound = 'true';
+      overlay.addEventListener('click', closeShellDrawer);
+    }
+
+    if (sidebar.dataset.shellBound !== 'true') {
+      sidebar.dataset.shellBound = 'true';
+      sidebar.addEventListener('click', (event) => {
+        if (!(shellDrawerQuery && shellDrawerQuery.matches)) return;
+        if (!event.target.closest('a, button')) return;
+        window.requestAnimationFrame(closeShellDrawer);
+      });
+    }
+
+    if (!(shellDrawerQuery && shellDrawerQuery.matches)) {
+      closeShellDrawer();
+    }
+  };
+
+  const closeSettingsPanel = () => {
+    if (!settingsButton || !settingsPanel) return;
+    settingsPanel.classList.add('hidden');
+    settingsButton.setAttribute('aria-expanded', 'false');
+  };
+
+  const openSettingsPanel = () => {
+    if (!settingsButton || !settingsPanel) return;
+    settingsPanel.classList.remove('hidden');
+    settingsButton.setAttribute('aria-expanded', 'true');
+    settingsPanel.querySelector('#kSettingsClose')?.focus();
+  };
+
+  const toggleSettingsPanel = () => {
+    if (!settingsButton || !settingsPanel) return;
+    if (settingsPanel.classList.contains('hidden')) {
+      openSettingsPanel();
+      return;
+    }
+    closeSettingsPanel();
+  };
+
+  const bindSettingControl = (node, handler) => {
+    if (!node || node.dataset.settingsBound === 'true') return;
+    node.dataset.settingsBound = 'true';
+    node.addEventListener('change', handler);
+  };
+
   const ensureSettingsLauncher = () => {
-    if (document.getElementById('kSettingsFab')) return;
-    const btn = document.createElement('button');
-    btn.id = 'kSettingsFab';
-    btn.className = 'k-settings-fab';
-    btn.type = 'button';
-    btn.setAttribute('aria-label', 'Open settings');
-    btn.setAttribute('aria-controls', 'kSettingsPanel');
-    btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = '⚙️';
-    document.body.appendChild(btn);
+    settingsButton = document.getElementById('kSettingsFab');
+    settingsPanel = document.getElementById('kSettingsPanel');
 
-    const panel = document.createElement('section');
-    panel.id = 'kSettingsPanel';
-    panel.className = 'k-settings-panel hidden';
-    panel.innerHTML = `
-      <div class="k-settings-panel__header">
-        <h3>Settings</h3>
-        <button type="button" id="kSettingsClose" aria-label="Close settings">✕</button>
-      </div>
-      <label class="k-settings-row">Theme Mode
-        <button class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
-          <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
-          <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
-          <span class="theme-toggle__thumb"></span>
-        </button>
-      </label>
-      <label class="k-settings-row">Gradient
-        <select id="kGradientTheme">
-          <option value="ocean">Ocean</option>
-          <option value="sunset">Sunset</option>
-          <option value="forest">Forest</option>
-          <option value="violet">Violet</option>
-        </select>
-      </label>
-      <label class="k-settings-check"><input type="checkbox" id="kCompactMode"> Compact mode</label>
-      <label class="k-settings-check"><input type="checkbox" id="kReduceMotion"> Reduce motion</label>
-    `;
-    document.body.appendChild(panel);
+    if (!settingsButton) {
+      settingsButton = document.createElement('button');
+      settingsButton.id = 'kSettingsFab';
+      settingsButton.className = 'k-settings-fab';
+      settingsButton.type = 'button';
+      settingsButton.setAttribute('aria-label', 'Open settings');
+      settingsButton.setAttribute('aria-controls', 'kSettingsPanel');
+      settingsButton.setAttribute('aria-expanded', 'false');
+      settingsButton.innerHTML = '&#9881;';
+      document.body.appendChild(settingsButton);
+    }
 
-    btn.addEventListener('click', () => {
-      const hidden = panel.classList.toggle('hidden');
-      btn.setAttribute('aria-expanded', String(!hidden));
-    });
-    panel.querySelector('#kSettingsClose')?.addEventListener('click', () => {
-      panel.classList.add('hidden');
-      btn.setAttribute('aria-expanded', 'false');
-    });
+    if (!settingsPanel) {
+      settingsPanel = document.createElement('section');
+      settingsPanel.id = 'kSettingsPanel';
+      settingsPanel.className = 'k-settings-panel hidden';
+      settingsPanel.setAttribute('role', 'dialog');
+      settingsPanel.setAttribute('aria-modal', 'false');
+      settingsPanel.setAttribute('aria-labelledby', 'kSettingsTitle');
+      settingsPanel.innerHTML = `
+        <div class="k-settings-panel__header">
+          <h3 id="kSettingsTitle">Settings</h3>
+          <button type="button" id="kSettingsClose" aria-label="Close settings">&times;</button>
+        </div>
+        <label class="k-settings-row">Theme Mode
+          <button class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
+            <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">&#9728;</span>
+            <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">&#127769;</span>
+            <span class="theme-toggle__thumb"></span>
+          </button>
+        </label>
+        <label class="k-settings-row">Gradient
+          <select id="kGradientTheme">
+            <option value="ocean">Ocean</option>
+            <option value="sunset">Sunset</option>
+            <option value="forest">Forest</option>
+            <option value="violet">Violet</option>
+          </select>
+        </label>
+        <label class="k-settings-check"><input type="checkbox" id="kCompactMode"> Compact mode</label>
+        <label class="k-settings-check"><input type="checkbox" id="kReduceMotion"> Reduce motion</label>
+      `;
+      document.body.appendChild(settingsPanel);
+    }
+
+    if (settingsButton.dataset.settingsBound !== 'true') {
+      settingsButton.dataset.settingsBound = 'true';
+      settingsButton.addEventListener('click', toggleSettingsPanel);
+    }
+
+    if (settingsPanel.dataset.settingsContainerBound !== 'true') {
+      settingsPanel.dataset.settingsContainerBound = 'true';
+      settingsPanel.querySelector('#kSettingsClose')?.addEventListener('click', closeSettingsPanel);
+    }
 
     const settings = readSettings();
-    panel.querySelector('#kGradientTheme').value = settings.gradient;
-    panel.querySelector('#kCompactMode').checked = settings.compactMode;
-    panel.querySelector('#kReduceMotion').checked = settings.reduceMotion;
+    const gradientInput = settingsPanel.querySelector('#kGradientTheme');
+    const compactInput = settingsPanel.querySelector('#kCompactMode');
+    const reduceMotionInput = settingsPanel.querySelector('#kReduceMotion');
 
-    panel.querySelector('#kGradientTheme')?.addEventListener('change', (e) => applyUiSettings(saveSettings({ gradient: e.target.value })));
-    panel.querySelector('#kCompactMode')?.addEventListener('change', (e) => applyUiSettings(saveSettings({ compactMode: e.target.checked })));
-    panel.querySelector('#kReduceMotion')?.addEventListener('change', (e) => applyUiSettings(saveSettings({ reduceMotion: e.target.checked })));
+    if (gradientInput) gradientInput.value = settings.gradient;
+    if (compactInput) compactInput.checked = settings.compactMode;
+    if (reduceMotionInput) reduceMotionInput.checked = settings.reduceMotion;
+
+    bindSettingControl(gradientInput, (event) => applyUiSettings(saveSettings({ gradient: event.target.value })));
+    bindSettingControl(compactInput, (event) => applyUiSettings(saveSettings({ compactMode: event.target.checked })));
+    bindSettingControl(reduceMotionInput, (event) => applyUiSettings(saveSettings({ reduceMotion: event.target.checked })));
 
     syncToggle(resolvePreferredTheme());
-    panel.classList.add('hidden');
-    btn.setAttribute('aria-expanded', 'false');
-  };
-
-  const resolvePreferredTheme = () => {
-    const stored = readStoredTheme();
-    if (stored) return stored;
-    if (isValidTheme(root.dataset.theme)) return root.dataset.theme;
-    return prefersDarkQuery && prefersDarkQuery.matches ? 'dark' : 'light';
-  };
-
-  const syncThemeState = () => {
-    const preferred = resolvePreferredTheme();
-    applyTheme(preferred, false);
+    closeSettingsPanel();
   };
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -220,6 +342,7 @@
     applyUiSettings(readSettings());
     normalizeHomeLinks();
     ensureSettingsLauncher();
+    bindShell();
 
     const serverSettings = await loadSettingsServer();
     if (serverSettings) {
@@ -229,10 +352,14 @@
           compactMode: serverSettings.compactMode,
           reduceMotion: serverSettings.reduceMotion,
         }));
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        // ignore
+      }
+
       if (serverSettings.theme) {
         applyTheme(serverSettings.theme, false);
       }
+
       applyUiSettings({
         gradient: serverSettings.gradient,
         compactMode: serverSettings.compactMode,
@@ -254,6 +381,8 @@
     }
 
     document.querySelectorAll('[data-theme-toggle]').forEach((toggle) => {
+      if (toggle.dataset.themeBound === 'true') return;
+      toggle.dataset.themeBound = 'true';
       toggle.addEventListener('click', () => {
         const current = isValidTheme(root.dataset.theme) ? root.dataset.theme : resolvePreferredTheme();
         applyTheme(current === 'dark' ? 'light' : 'dark');
@@ -261,18 +390,41 @@
     });
   });
 
-
-
   window.addEventListener('pageshow', () => {
     syncThemeState();
     applyUiSettings(readSettings());
     normalizeHomeLinks();
+    ensureSettingsLauncher();
+    bindShell();
+    closeSettingsPanel();
+    closeShellDrawer();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!settingsPanel || !settingsButton || settingsPanel.classList.contains('hidden')) return;
+    if (settingsPanel.contains(event.target) || settingsButton.contains(event.target)) return;
+    closeSettingsPanel();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    closeSettingsPanel();
+    closeShellDrawer();
   });
 
   if (prefersDarkQuery && typeof prefersDarkQuery.addEventListener === 'function') {
     prefersDarkQuery.addEventListener('change', (event) => {
       if (readStoredTheme()) return;
       applyTheme(event.matches ? 'dark' : 'light', false);
+    });
+  }
+
+  if (shellDrawerQuery && typeof shellDrawerQuery.addEventListener === 'function') {
+    shellDrawerQuery.addEventListener('change', () => {
+      bindShell();
+      if (!shellDrawerQuery.matches) {
+        closeShellDrawer();
+      }
     });
   }
 })();
