@@ -289,108 +289,19 @@
     }
   };
 
-  const closeSettingsPanel = () => {
-    if (!settingsButton || !settingsPanel) return;
-    settingsPanel.classList.add('hidden');
-    settingsButton.setAttribute('aria-expanded', 'false');
-  };
-
-  const openSettingsPanel = () => {
-    if (!settingsButton || !settingsPanel) return;
-    settingsPanel.classList.remove('hidden');
-    settingsButton.setAttribute('aria-expanded', 'true');
-    settingsPanel.querySelector('#kSettingsClose')?.focus();
-  };
-
-  const toggleSettingsPanel = () => {
-    if (!settingsButton || !settingsPanel) return;
-    if (settingsPanel.classList.contains('hidden')) {
-      openSettingsPanel();
-      return;
-    }
-    closeSettingsPanel();
-  };
-
-  const bindSettingControl = (node, handler) => {
-    if (!node || node.dataset.settingsBound === 'true') return;
-    node.dataset.settingsBound = 'true';
-    node.addEventListener('change', handler);
-  };
-
   const ensureSettingsLauncher = () => {
     settingsButton = document.getElementById('kSettingsFab');
-    settingsPanel = document.getElementById('kSettingsPanel');
 
     if (!settingsButton) {
-      settingsButton = document.createElement('button');
+      settingsButton = document.createElement('a');
       settingsButton.id = 'kSettingsFab';
-      settingsButton.className = 'k-settings-fab';
-      settingsButton.type = 'button';
+      settingsButton.className = 'k-settings-fab flex align-center justify-center';
+      settingsButton.style.textDecoration = 'none';
+      settingsButton.href = './settings.html';
       settingsButton.setAttribute('aria-label', 'Open settings');
-      settingsButton.setAttribute('aria-controls', 'kSettingsPanel');
-      settingsButton.setAttribute('aria-expanded', 'false');
       settingsButton.innerHTML = '&#9881;';
       document.body.appendChild(settingsButton);
     }
-
-    if (!settingsPanel) {
-      settingsPanel = document.createElement('section');
-      settingsPanel.id = 'kSettingsPanel';
-      settingsPanel.className = 'k-settings-panel hidden';
-      settingsPanel.setAttribute('role', 'dialog');
-      settingsPanel.setAttribute('aria-modal', 'false');
-      settingsPanel.setAttribute('aria-labelledby', 'kSettingsTitle');
-      settingsPanel.innerHTML = `
-        <div class="k-settings-panel__header">
-          <h3 id="kSettingsTitle">Settings</h3>
-          <button type="button" id="kSettingsClose" aria-label="Close settings">&times;</button>
-        </div>
-        <label class="k-settings-row">Theme Mode
-          <button class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
-            <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">&#9728;</span>
-            <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">&#127769;</span>
-            <span class="theme-toggle__thumb"></span>
-          </button>
-        </label>
-        <label class="k-settings-row">Gradient
-          <select id="kGradientTheme">
-            <option value="ocean">Ocean</option>
-            <option value="sunset">Sunset</option>
-            <option value="forest">Forest</option>
-            <option value="violet">Violet</option>
-          </select>
-        </label>
-        <label class="k-settings-check"><input type="checkbox" id="kCompactMode"> Compact mode</label>
-        <label class="k-settings-check"><input type="checkbox" id="kReduceMotion"> Reduce motion</label>
-      `;
-      document.body.appendChild(settingsPanel);
-    }
-
-    if (settingsButton.dataset.settingsBound !== 'true') {
-      settingsButton.dataset.settingsBound = 'true';
-      settingsButton.addEventListener('click', toggleSettingsPanel);
-    }
-
-    if (settingsPanel.dataset.settingsContainerBound !== 'true') {
-      settingsPanel.dataset.settingsContainerBound = 'true';
-      settingsPanel.querySelector('#kSettingsClose')?.addEventListener('click', closeSettingsPanel);
-    }
-
-    const settings = readSettings();
-    const gradientInput = settingsPanel.querySelector('#kGradientTheme');
-    const compactInput = settingsPanel.querySelector('#kCompactMode');
-    const reduceMotionInput = settingsPanel.querySelector('#kReduceMotion');
-
-    if (gradientInput) gradientInput.value = settings.gradient;
-    if (compactInput) compactInput.checked = settings.compactMode;
-    if (reduceMotionInput) reduceMotionInput.checked = settings.reduceMotion;
-
-    bindSettingControl(gradientInput, (event) => applyUiSettings(saveSettings({ gradient: event.target.value })));
-    bindSettingControl(compactInput, (event) => applyUiSettings(saveSettings({ compactMode: event.target.checked })));
-    bindSettingControl(reduceMotionInput, (event) => applyUiSettings(saveSettings({ reduceMotion: event.target.checked })));
-
-    syncToggle(resolvePreferredTheme());
-    closeSettingsPanel();
   };
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -470,19 +381,11 @@
     ensureSettingsLauncher();
     bindShell();
     syncTopbarOffset();
-    closeSettingsPanel();
     closeShellDrawer();
-  });
-
-  document.addEventListener('click', (event) => {
-    if (!settingsPanel || !settingsButton || settingsPanel.classList.contains('hidden')) return;
-    if (settingsPanel.contains(event.target) || settingsButton.contains(event.target)) return;
-    closeSettingsPanel();
   });
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    closeSettingsPanel();
     closeShellDrawer();
   });
 
@@ -504,4 +407,13 @@
   }
 
   window.addEventListener('resize', syncTopbarOffset);
+
+  window.KairosTheme = {
+    applyTheme,
+    saveSettings,
+    readSettings,
+    applyUiSettings,
+    resolvePreferredTheme,
+    homeUrl
+  };
 })();
