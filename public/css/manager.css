@@ -24,12 +24,12 @@
 
 .room-entry {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: var(--panel);
+  gap: 16px;
+  background: var(--surface-subtle);
 }
 
 .room-header {
@@ -59,13 +59,14 @@
 }
 
 .queue-item {
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--primary-ghost);
+  background: var(--panel);
 }
 
 .queue-head {
@@ -130,17 +131,34 @@
 #progressTable {
   width: 100%;
   border-collapse: collapse;
+  font-size: 14px;
 }
 
 #progressTable th,
 #progressTable td {
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 #progressTable thead {
+  background: var(--surface-subtle);
+}
+
+#progressTable th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#progressTable tbody tr {
+  transition: background 0.15s ease;
+}
+
+#progressTable tbody tr:hover {
   background: var(--primary-ghost);
 }
 
@@ -276,7 +294,7 @@
 
 .manager-section.dragging {
   opacity: 0.5;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
   transform: scale(0.98);
 }
 
@@ -313,7 +331,7 @@
 
 .manager-section .section-body {
   overflow: hidden;
-  transition: height 0.3s ease, padding 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .manager-section.collapsed .section-body {
@@ -322,4 +340,3 @@
   padding-bottom: 0;
   border-top: none;
 }
-
