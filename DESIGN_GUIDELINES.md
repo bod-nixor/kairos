@@ -5,10 +5,10 @@ This document outlines the core design systems and aesthetic principles for the 
 ## Visual Aesthetics
 
 ### 1. Colors & Theming
-Kairos uses a modern variable-driven approach mapped to both light and dark themes. We rely on a robust semantic palette to ensure contrast and readability natively on every viewport.
+Kairos uses a modern variable-driven approach mapped to both light and dark themes. We rely on a robust semantic palette to ensure contrast and readability natively on every viewport. Our aesthetic heavily borrows from Vercel and Linear: minimal borders, sharp, distinct panels, and high-impact typography.
 
 - **Backgrounds:** `--bg`, `--panel`, `--surface-subtle`. Used to layer depth with panels popping visually off the softer foundation background.
-- **Accents:** `--primary` (blue by default) drives interactive feedback. Subdued ghost buttons use `--primary-ghost` (12-20% opacity).
+- **Accents:** `--primary` (blue by default) drives interactive feedback. Subdued ghost buttons use `--primary-ghost` (10-15% opacity).
 - **Text Hierarchy:** 
   - `--text` (Main headline and body color)
   - `--muted` (Subtitles, labels, disabled states)
@@ -51,7 +51,8 @@ A standard `.k-card` provides a white/slate container for discrete chunks of dat
 - **Mobile handling:** All child elements in `.k-card` should stack appropriately if using `.grid-two`.
 
 ### 3. Interactive UX
-- **Hover/Focus states:** All interactive elements (`.k-nav-item`, `.btn`) use a slight background translation or vertical `transform: translateY(-2px)` on hover to feel alive.
+- **Hover/Focus states:** All interactive elements (`.k-nav-item`, `.btn`) use a slight background translation or vertical `transform: translateY(-1px)` on hover to feel responsive and modern.
+- **Shadows and Borders:** Use subtle shadows (`box-shadow: 0 1px 3px rgba(0,0,0,0.02)`) over heavy dropshadows. Components like `.k-metric-card` or `.queue-row` should feel distinct and solid without overwhelming the eye.
 - **Skeletons:** Data loaders should use `.k-skeleton` to project layout before API responses arrive, staving off layout shift.
 
 ## Mobile and Responsive Strategy
