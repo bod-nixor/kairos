@@ -1423,6 +1423,65 @@ body.k-shell-drawer-open .k-shell-overlay {
     --k-content-gutter: 14px;
   }
 
+  /* Override the bottom-bar from style.css: restore slide-in drawer on phones */
+  .k-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    height: 100vh;
+    width: var(--k-drawer-width, 260px);
+    flex-direction: column !important;
+    border-right: 1px solid var(--k-sidebar-border);
+    border-top: 0 !important;
+    z-index: 1200;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .k-sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .k-sidebar__brand,
+  .k-sidebar__course-header,
+  .k-sidebar__user,
+  .k-sidebar__wordmark,
+  .k-nav-item__text,
+  .k-sidebar__course-name,
+  .k-sidebar__user-info,
+  .k-nav-group__label {
+    display: flex !important;
+  }
+
+  .k-nav-group {
+    flex-direction: column !important;
+  }
+
+  .k-nav-item {
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    min-height: 48px;
+  }
+
+  .k-layout {
+    margin-bottom: 0;
+  }
+
+  /* Modal scaling on phone */
+  .k-modal__panel,
+  .modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 12px;
+    max-height: calc(100vh - 24px);
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
   .k-topbar {
     padding-inline: var(--k-content-gutter);
   }

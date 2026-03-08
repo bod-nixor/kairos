@@ -16,7 +16,7 @@
     return;
   }
 
-  const isValidTheme = (value) => value === 'light' || value === 'dark';
+  const isValidTheme = (value) => ['light', 'dark', 'midnight', 'graphite', 'indigo', 'emerald'].includes(value);
 
   const readStoredTheme = () => {
     try {
@@ -87,7 +87,7 @@
   };
 
   const syncToggle = (theme) => {
-    const isDark = theme === 'dark';
+    const isDark = theme !== 'light';
     document.querySelectorAll('[data-theme-toggle]').forEach((toggle) => {
       toggle.classList.toggle('is-dark', isDark);
       toggle.setAttribute('aria-pressed', String(isDark));
@@ -101,8 +101,8 @@
   const applyTheme = (theme, persist = true) => {
     const next = isValidTheme(theme) ? theme : 'light';
     root.dataset.theme = next;
-    root.classList.toggle('theme-dark', next === 'dark');
-    root.classList.toggle('theme-light', next !== 'dark');
+    root.classList.toggle('theme-dark', next !== 'light');
+    root.classList.toggle('theme-light', next === 'light');
     if (persist) {
       try {
         localStorage.setItem(STORAGE_KEY, next);
@@ -368,7 +368,7 @@
       toggle.dataset.themeBound = 'true';
       toggle.addEventListener('click', () => {
         const current = isValidTheme(root.dataset.theme) ? root.dataset.theme : resolvePreferredTheme();
-        applyTheme(current === 'dark' ? 'light' : 'dark');
+        applyTheme(current === 'light' ? 'dark' : 'light');
       });
     });
   });

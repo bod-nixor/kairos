@@ -200,22 +200,22 @@
 .k-module {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--radius);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .k-module__header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 16px 20px;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
     cursor: pointer;
     user-select: none;
     background: var(--surface-subtle);
     border-bottom: 1px solid var(--border);
     transition: background .14s;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
+    border-top-left-radius: var(--radius);
+    border-top-right-radius: var(--radius);
 }
 
 .k-module__header:hover {
@@ -1702,11 +1702,11 @@
 .k-metric-card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
+    border-radius: var(--radius);
+    padding: var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
     border-top: 3px solid var(--k-accent, var(--primary));
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -3023,74 +3023,7 @@ dialog.k-modal::backdrop {
     }
 }
 
-/* Sidebar sliding drawer up to 640px */
-@media (max-width: 640px) {
-    .k-hamburger {
-        display: block !important;
-    }
-
-    .k-sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        height: 100vh;
-        z-index: 1100;
-        transform: translateX(-100%);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        width: 260px;
-        /* Force consistent width instead of bottom nav */
-        flex-direction: column !important;
-        /* Override bottom nav */
-        border-right: 1px solid var(--k-sidebar-border);
-        border-top: 0 !important;
-        background: var(--k-sidebar-bg);
-    }
-
-    .k-sidebar.is-open {
-        transform: translateX(0);
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
-    }
-
-    /* Undo the hidden parts on mobile from style.css */
-    .k-sidebar__brand,
-    .k-sidebar__course-header,
-    .k-sidebar__user,
-    .k-sidebar__wordmark,
-    .k-nav-item__text,
-    .k-sidebar__course-name,
-    .k-sidebar__user-info,
-    .k-nav-group__label {
-        display: flex !important;
-    }
-
-    .k-nav-group {
-        flex-direction: column !important;
-    }
-
-    .k-nav-item {
-        flex-direction: row !important;
-        justify-content: flex-start !important;
-    }
-
-    /* Modal scaling on phone */
-    .k-modal__panel,
-    .modal-card {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 12px;
-        max-height: calc(100vh - 24px);
-    }
-
-    /* Tap targets spacing */
-    .k-nav-item {
-        min-height: 48px;
-    }
-
-    .btn {
-        min-height: 44px;
-    }
-}
+/* Mobile sidebar drawer rules consolidated in kairos-ui.css */
 
 /* Global Topbar styles */
 .k-topbar__left {
