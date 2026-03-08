@@ -44,7 +44,8 @@
           <span class="k-nav-item__text">Dashboard</span>
         </button>
         <!-- Rooms shortcut -->
-        <button class="k-nav-item" data-nav-key="rooms" data-view="rooms" id="kRoomsNavBtn" disabled title="Select a course first">
+        <button class="k-nav-item" data-nav-key="rooms" data-view="rooms" id="kRoomsNavBtn" disabled
+          title="Select a course first">
           <span class="k-nav-item__icon" aria-hidden="true">🏫</span>
           <span class="k-nav-item__text">Rooms</span>
         </button>
@@ -85,10 +86,11 @@
     <!-- Topbar -->
     <header class="k-topbar hidden" id="kTopbar" role="banner">
       <div class="k-topbar__left">
-        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">☰</button>
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false"
+          aria-controls="kSidebar">☰</button>
         <nav class="k-breadcrumb" id="kBreadcrumb" aria-label="Breadcrumb">
-        <span class="k-breadcrumb__item is-current">Dashboard</span>
-      </nav>
+          <span class="k-breadcrumb__item is-current">Dashboard</span>
+        </nav>
       </div>
       <div class="k-topbar__actions">
         <button class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode"
@@ -96,7 +98,7 @@
           <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">☀️</span>
           <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">🌙</span>
         </button>
-        
+
       </div>
     </header>
 
@@ -105,14 +107,32 @@
       <div class="k-page">
 
         <!-- Sign-in screen -->
-        <section id="signin" class="centerbox card k-auth-card" aria-label="Sign in">
-          <img src="./images/logo-full.png" alt="Kairos" class="k-brand-badge signin-logo" />
-          <h1 class="title k-auth-title">Welcome to Kairos</h1>
-          <p class="muted small k-auth-subtitle">Your academic operating system</p>
-          <div id="googleBtn"></div>
-          <p class="muted small k-auth-subtitle">
-            Only <strong data-allowed-domain-text>@nixorcollege.edu.pk</strong> accounts are allowed.
-          </p>
+        <section id="signin" class="centerbox k-auth-card" aria-label="Sign in"
+          style="max-width: 420px; margin-top: 12vh;">
+          <div class="k-card" style="width: 100%; padding: 48px 40px; border-radius: 24px; box-shadow: var(--shadow);">
+            <div style="text-align: center; margin-bottom: 32px;">
+              <div
+                style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 8px 16px rgba(0,0,0,0.04); margin-bottom: 24px;">
+                <img src="./images/logo.png" alt="Kairos" class="k-brand-badge" style="width: 40px; height: 40px;" />
+              </div>
+              <h1 class="title k-auth-title"
+                style="font-size: 28px; font-weight: 700; letter-spacing: -0.04em; color: var(--text); margin-bottom: 8px;">
+                Log in to Kairos</h1>
+              <p class="muted k-auth-subtitle" style="font-size: 15px;">Nixor College operations platform</p>
+            </div>
+
+            <div style="display: flex; justify-content: center; margin: 32px 0;">
+              <div id="googleBtn" style="min-height: 44px;"></div>
+            </div>
+
+            <div style="text-align: center; border-top: 1px solid var(--border); padding-top: 24px;">
+              <p class="muted small" style="font-size: 13px; line-height: 1.5; margin: 0;">
+                Access is restricted to <br />
+                <strong data-allowed-domain-text
+                  style="color: var(--text); font-weight: 600;">@nixorcollege.edu.pk</strong> accounts.
+              </p>
+            </div>
+          </div>
         </section>
 
         <!-- Dashboard view -->
