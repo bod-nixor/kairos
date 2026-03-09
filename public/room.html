@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,10 +12,10 @@
       try {
         const stored = localStorage.getItem('kairos-theme');
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
+        const theme = stored || (prefersDark ? 'dark' : 'light');
         document.documentElement.dataset.theme = theme;
-        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
+        document.documentElement.classList.toggle('theme-dark', theme !== 'light');
+        document.documentElement.classList.toggle('theme-light', theme === 'light');
       } catch (err) {
         document.documentElement.dataset.theme = 'light';
         document.documentElement.classList.add('theme-light');
@@ -27,6 +28,7 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="./js/config.js"></script>
 </head>
+
 <body class="k-page-body room-view">
   <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Room navigation">
     <a class="k-sidebar__brand" href="/signoff/" data-home-link="true" aria-label="Home">
@@ -53,7 +55,8 @@
   <div class="k-layout">
     <header class="k-topbar" role="banner">
       <div class="k-topbar__left">
-        <button type="button" class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">&#9776;</button>
+        <button type="button" class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false"
+          aria-controls="kSidebar">&#9776;</button>
         <nav class="k-breadcrumb" aria-label="Breadcrumb">
           <a class="k-breadcrumb__item" href="/signoff/" data-home-link="true">Home</a>
           <span class="k-breadcrumb__sep" aria-hidden="true">&rsaquo;</span>
@@ -62,7 +65,8 @@
       </div>
       <div class="k-topbar__actions">
         <a href="/signoff/" data-home-link="true" class="btn btn-ghost btn-sm">Back to dashboard</a>
-        <button type="button" class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode" aria-pressed="false" data-theme-toggle>
+        <button type="button" class="k-topbar__icon-btn theme-toggle" id="themeToggle" aria-label="Toggle dark mode"
+          aria-pressed="false" data-theme-toggle>
           <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">&#9728;</span>
           <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">&#127769;</span>
         </button>
@@ -88,4 +92,5 @@
   <script src="./js/ws.js"></script>
   <script type="module" src="./js/room.js"></script>
 </body>
+
 </html>

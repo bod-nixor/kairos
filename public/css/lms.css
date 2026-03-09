@@ -951,10 +951,10 @@
 .k-option {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 16px 20px;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--radius);
     cursor: pointer;
     background: var(--panel);
     transition: all 0.2s ease;
@@ -1605,10 +1605,10 @@
 }
 
 .k-grading-form {
-    padding: 24px;
+    padding: var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-5);
     overflow-y: auto;
     background: var(--panel);
 }

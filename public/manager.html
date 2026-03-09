@@ -12,10 +12,10 @@
       try {
         const stored = localStorage.getItem('kairos-theme');
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
+        const theme = stored || (prefersDark ? 'dark' : 'light');
         document.documentElement.dataset.theme = theme;
-        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
+        document.documentElement.classList.toggle('theme-dark', theme !== 'light');
+        document.documentElement.classList.toggle('theme-light', theme === 'light');
       } catch (err) {
         document.documentElement.dataset.theme = 'light';
         document.documentElement.classList.add('theme-light');

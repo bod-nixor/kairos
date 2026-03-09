@@ -12,8 +12,8 @@
     (function () {
       try {
         var s = localStorage.getItem('kairos-theme');
-        var dark = s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        if (s) { document.documentElement.dataset.theme = s; }
+        else { var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; }
       } catch (e) { }
     })();
   </script>
