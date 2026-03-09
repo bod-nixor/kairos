@@ -351,37 +351,37 @@
     color: #6d28d9;
 }
 
-[data-theme="dark"] .k-module-item__icon--quiz {
+.theme-dark .k-module-item__icon--quiz {
     background: #052e16;
     color: #4ade80;
 }
 
-[data-theme="dark"] .k-module-item__icon--assign {
+.theme-dark .k-module-item__icon--assign {
     background: #431407;
     color: #fb923c;
 }
 
-[data-theme="dark"] .k-module-item__icon--file {
+.theme-dark .k-module-item__icon--file {
     background: #1e3a5f;
     color: #60a5fa;
 }
 
-[data-theme="dark"] .k-module-item__icon--link {
+.theme-dark .k-module-item__icon--link {
     background: #2e1065;
     color: #c084fc;
 }
 
-[data-theme="dark"] .k-module-item__icon--lesson {
+.theme-dark .k-module-item__icon--lesson {
     background: #083344;
     color: #67e8f9;
 }
 
-[data-theme="dark"] .k-module-item__icon--video {
+.theme-dark .k-module-item__icon--video {
     background: #4c0519;
     color: #fda4af;
 }
 
-[data-theme="dark"] .k-module-item__icon--resource {
+.theme-dark .k-module-item__icon--resource {
     background: #2e1065;
     color: #c4b5fd;
 }
@@ -438,7 +438,7 @@
     border: 1px solid #fcd34d;
 }
 
-[data-theme="dark"] .k-badge--draft {
+.theme-dark .k-badge--draft {
     background: #451a03;
     color: #fbbf24;
     border-color: #78350f;
@@ -450,7 +450,7 @@
     border: 1px solid #fca5a5;
 }
 
-[data-theme="dark"] .k-badge--mandatory {
+.theme-dark .k-badge--mandatory {
     background: #450a0a;
     color: #fca5a5;
     border-color: #7f1d1d;
@@ -462,7 +462,7 @@
     border: 1px solid #93c5fd;
 }
 
-[data-theme="dark"] .k-badge--edit {
+.theme-dark .k-badge--edit {
     background: #1e3a5f;
     color: #93c5fd;
     border-color: #1e40af;
@@ -501,7 +501,7 @@
     color: #dc2626;
 }
 
-[data-theme="dark"] .k-btn-icon--danger:hover {
+.theme-dark .k-btn-icon--danger:hover {
     background: #450a0a;
     color: #fca5a5;
 }

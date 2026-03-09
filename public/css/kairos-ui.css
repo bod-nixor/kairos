@@ -126,14 +126,9 @@ body.k-shell-drawer-open .k-shell-overlay {
   height: auto;
   padding: 12px var(--k-content-gutter);
   gap: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(18px);
-  border-bottom-color: rgba(15, 23, 42, 0.08);
-}
-
-[data-theme="dark"] .k-topbar {
-  background: rgba(17, 21, 31, 0.82);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
 }
 
 .k-topbar__left {
@@ -158,14 +153,9 @@ body.k-shell-drawer-open .k-shell-overlay {
   height: 42px;
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--panel);
   color: var(--text);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-}
-
-[data-theme="dark"] .k-topbar__icon-btn {
-  background: rgba(31, 37, 51, 0.88);
-  box-shadow: none;
+  box-shadow: var(--elev-1);
 }
 
 .k-topbar__icon-btn:hover,
@@ -1187,23 +1177,25 @@ body.k-shell-drawer-open .k-shell-overlay {
 .k-settings-fab {
   width: 50px;
   height: 50px;
-  right: 18px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  right: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   border-radius: 18px;
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--elev-3);
+  z-index: 1200;
 }
 
 .k-settings-panel {
-  right: 18px;
-  bottom: calc(82px + env(safe-area-inset-bottom));
-  width: min(340px, calc(100vw - 24px));
+  right: 24px;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  width: min(340px, calc(100vw - 32px));
   border-radius: 20px;
   padding: 14px;
   gap: 12px;
   max-height: min(80vh, 560px);
   overflow-y: auto;
+  z-index: 1200;
 }
 
 .k-settings-panel select {
@@ -1221,14 +1213,9 @@ body.k-shell-drawer-open .k-shell-overlay {
   height: 42px;
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--panel);
   color: var(--text);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-}
-
-[data-theme="dark"] .k-hamburger {
-  background: rgba(31, 37, 51, 0.88);
-  box-shadow: none;
+  box-shadow: var(--elev-1);
 }
 
 .k-hamburger:hover,
