@@ -61,6 +61,36 @@
 
   const isPreAuthView = () => !!document.body && document.body.classList.contains('k-pre-auth');
 
+  const escapeHtml = (value) => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  const SAFE_COLOR_PATTERNS = [
+    /^#[0-9a-f]{3}$/i,
+    /^#[0-9a-f]{4}$/i,
+    /^#[0-9a-f]{6}$/i,
+    /^#[0-9a-f]{8}$/i,
+    /^rgba?\(\s*(?:\d{1,3}%?\s*,\s*){2}\d{1,3}%?(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i,
+    /^hsla?\(\s*\d{1,3}(?:deg)?\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i,
+    /^var\(\s*--[a-z0-9-]+\s*\)$/i,
+  ];
+  const SAFE_NAMED_COLORS = new Set(['transparent', 'currentcolor', 'inherit', 'initial', 'unset']);
+
+  const sanitizePreviewColor = (value, fallback) => {
+    const normalized = String(value || '').trim();
+    if (
+      normalized
+      && (SAFE_COLOR_PATTERNS.some((pattern) => pattern.test(normalized))
+        || SAFE_NAMED_COLORS.has(normalized.toLowerCase()))
+    ) {
+      return normalized;
+    }
+    return fallback;
+  };
+
   const hasScopedOwner = () => storageOwnerResolved && !!storageOwner;
 
   const storageKeyFor = (baseKey, allowGuest = true) => {
@@ -531,23 +561,31 @@
     }
   };
 
-  const themeChoiceMarkup = () => THEMES.map((theme) => `
-    <button
-      type="button"
-      class="k-settings-theme-choice"
-      data-theme-choice="${theme.value}"
-      aria-pressed="false"
-      aria-label="Use ${theme.label} theme"
-    >
-      <span class="k-settings-theme-preview" aria-hidden="true">
-        <span class="k-settings-theme-preview__sidebar" style="background:${theme.preview.sidebar}"></span>
-        <span class="k-settings-theme-preview__main" style="background:${theme.preview.main}">
-          <span class="k-settings-theme-preview__card" style="background:${theme.preview.card}; border-color:${theme.preview.border}"></span>
+  const themeChoiceMarkup = () => THEMES.map((theme) => {
+    const themeValue = escapeHtml(theme.value);
+    const themeLabel = escapeHtml(theme.label);
+    const previewSidebar = sanitizePreviewColor(theme.preview && theme.preview.sidebar, '#111827');
+    const previewMain = sanitizePreviewColor(theme.preview && theme.preview.main, '#1f2937');
+    const previewCard = sanitizePreviewColor(theme.preview && theme.preview.card, '#374151');
+    const previewBorder = sanitizePreviewColor(theme.preview && theme.preview.border, '#4b5563');
+    return `
+      <button
+        type="button"
+        class="k-settings-theme-choice"
+        data-theme-choice="${themeValue}"
+        aria-pressed="false"
+        aria-label="Use ${themeLabel} theme"
+      >
+        <span class="k-settings-theme-preview" aria-hidden="true">
+          <span class="k-settings-theme-preview__sidebar" style="background:${previewSidebar}"></span>
+          <span class="k-settings-theme-preview__main" style="background:${previewMain}">
+            <span class="k-settings-theme-preview__card" style="background:${previewCard}; border-color:${previewBorder}"></span>
+          </span>
         </span>
-      </span>
-      <span class="k-settings-theme-choice__label">${theme.label}</span>
-    </button>
-  `).join('');
+        <span class="k-settings-theme-choice__label">${themeLabel}</span>
+      </button>
+    `;
+  }).join('');
 
   const ensureSettingsLauncher = () => {
     settingsButton = document.getElementById('kSettingsFab');
@@ -831,22 +869,26 @@
 
   window.addEventListener('pageshow', () => {
     (async () => {
-      await resolveStorageOwner();
-      syncThemeState();
-      applyUiSettings(readSettings(), false);
-      hydrateBranding();
-      normalizeHomeLinks();
-      ensureSettingsLauncher();
-      ensureSettingsPanel();
-      bindShell();
-      bindSettingsUi();
-      bindThemeToggleButtons();
-      bindAuthObserver();
-      syncSettingsPanelState();
-      syncTopbarOffset();
-      closeShellDrawer();
-      maybeLoadServerSettings();
-      emitUiState();
+      try {
+        await resolveStorageOwner();
+        syncThemeState();
+        applyUiSettings(readSettings(), false);
+        hydrateBranding();
+        normalizeHomeLinks();
+        ensureSettingsLauncher();
+        ensureSettingsPanel();
+        bindShell();
+        bindSettingsUi();
+        bindThemeToggleButtons();
+        bindAuthObserver();
+        syncSettingsPanelState();
+        syncTopbarOffset();
+        closeShellDrawer();
+        maybeLoadServerSettings();
+        emitUiState();
+      } catch (error) {
+        console.error('[KairosTheme] pageshow initialization failed:', error);
+      }
     })();
   });
 
