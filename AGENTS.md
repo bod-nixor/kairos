@@ -251,7 +251,7 @@ Use this checklist on every task:
    - Never leave path inconsistencies undocumented.
 
 ### UI/UX Requirements
-When building or updating UI for Kairos, agents MUST follow the guidelines documented in **`DESIGN_GUIDELINES.md`** and verify work against **`UI_UX_CHECKLIST.md`**.
+When building or updating UI for Kairos, agents MUST follow the guidelines documented in **`DESIGN_GUIDELINES.md`**, review color architecture in **`THEME_GUIDELINES.md`**, and verify work against **`UI_UX_CHECKLIST.md`**.
 *   **Responsive First:** All pages must support mobile viewports (`<= 640px`) utilizing `.k-layout` and the hamburger slide-in drawer mechanism. 
 *   **Unified Shell:** Use `.k-sidebar`, `.k-topbar`, `.k-main` wrappers for all pages. Do not create new ad-hoc shells.
 *   **Shell Authority:** Shared shell behavior lives in `public/css/kairos-ui.css` and `public/js/theme.js`. Do not add page-local mobile drawer scripts, duplicate overlay logic, or competing breakpoint overrides.

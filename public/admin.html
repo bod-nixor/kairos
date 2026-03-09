@@ -12,10 +12,10 @@
       try {
         const stored = localStorage.getItem('kairos-theme');
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
+        const theme = stored || (prefersDark ? 'dark' : 'light');
         document.documentElement.dataset.theme = theme;
-        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
+        document.documentElement.classList.toggle('theme-dark', theme !== 'light');
+        document.documentElement.classList.toggle('theme-light', theme === 'light');
       } catch (err) {
         document.documentElement.dataset.theme = 'light';
         document.documentElement.classList.add('theme-light');
@@ -77,7 +77,8 @@
   <div class="k-layout">
     <header class="k-topbar" role="banner">
       <div class="k-topbar__left">
-        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">☰</button>
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false"
+          aria-controls="kSidebar">☰</button>
         <nav class="k-breadcrumb" aria-label="Breadcrumb">
           <a class="k-breadcrumb__item" href="/signoff/">Home</a>
           <span class="k-breadcrumb__sep" aria-hidden="true">›</span>
@@ -212,8 +213,8 @@
               <div class="k-form-field">
                 <label class="muted">Allowlist email</label>
                 <div class="flex gap-8">
-                  <input type="email" id="adminAllowlistEmail" data-allowed-domain-placeholder="name@{domain}" placeholder="" disabled
-                    class="k-input flex-1" />
+                  <input type="email" id="adminAllowlistEmail" data-allowed-domain-placeholder="name@{domain}"
+                    placeholder="" disabled class="k-input flex-1" />
                   <button type="button" id="adminAddAllowlistBtn" class="btn btn-secondary" disabled>Add</button>
                 </div>
                 <div id="adminAllowlistEntries" class="list-stack mt-8"></div>
@@ -221,8 +222,8 @@
               <div class="k-form-field">
                 <label class="muted">Pre-enroll email</label>
                 <div class="flex gap-8">
-                  <input type="email" id="adminPreenrollEmail" data-allowed-domain-placeholder="name@{domain}" placeholder="" disabled
-                    class="k-input flex-1" />
+                  <input type="email" id="adminPreenrollEmail" data-allowed-domain-placeholder="name@{domain}"
+                    placeholder="" disabled class="k-input flex-1" />
                   <button type="button" id="adminAddPreenrollBtn" class="btn btn-secondary" disabled>Add</button>
                 </div>
                 <div id="adminPreenrollEntries" class="list-stack mt-8"></div>

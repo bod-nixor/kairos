@@ -12,10 +12,10 @@
       try {
         const stored = localStorage.getItem('kairos-theme');
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = stored === 'dark' || stored === 'light' ? stored : (prefersDark ? 'dark' : 'light');
+        const theme = stored || (prefersDark ? 'dark' : 'light');
         document.documentElement.dataset.theme = theme;
-        document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-        document.documentElement.classList.toggle('theme-light', theme !== 'dark');
+        document.documentElement.classList.toggle('theme-dark', theme !== 'light');
+        document.documentElement.classList.toggle('theme-light', theme === 'light');
       } catch (err) {
         document.documentElement.dataset.theme = 'light';
         document.documentElement.classList.add('theme-light');
@@ -69,7 +69,8 @@
   <div class="k-layout">
     <header class="k-topbar" role="banner">
       <div class="k-topbar__left">
-        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false" aria-controls="kSidebar">☰</button>
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" aria-label="Menu" aria-expanded="false"
+          aria-controls="kSidebar">☰</button>
         <nav class="k-breadcrumb" aria-label="Breadcrumb">
           <a class="k-breadcrumb__item" href="/signoff/">Home</a>
           <span class="k-breadcrumb__sep" aria-hidden="true">›</span>
