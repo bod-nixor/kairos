@@ -92,84 +92,6 @@
             transform: scale(1);
         }
 
-        /* Specific theme preview colors */
-        .preview-light-sidebar {
-            background: #0b1225;
-        }
-
-        .preview-light-main {
-            background: #f7f8fb;
-        }
-
-        .preview-light-card {
-            background: #ffffff;
-            border: 1px solid #e6e8ef;
-        }
-
-        .preview-dark-sidebar {
-            background: #0d131f;
-        }
-
-        .preview-dark-main {
-            background: #11151f;
-        }
-
-        .preview-dark-card {
-            background: #1b202c;
-            border: 1px solid #2c3242;
-        }
-
-        .preview-midnight-sidebar {
-            background: #020617;
-        }
-
-        .preview-midnight-main {
-            background: #0f172a;
-        }
-
-        .preview-midnight-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-        }
-
-        .preview-graphite-sidebar {
-            background: #171717;
-        }
-
-        .preview-graphite-main {
-            background: #262626;
-        }
-
-        .preview-graphite-card {
-            background: #404040;
-            border: 1px solid #525252;
-        }
-
-        .preview-indigo-sidebar {
-            background: #1e1b4b;
-        }
-
-        .preview-indigo-main {
-            background: #312e81;
-        }
-
-        .preview-indigo-card {
-            background: #4338ca;
-            border: 1px solid #4f46e5;
-        }
-
-        .preview-emerald-sidebar {
-            background: #064e3b;
-        }
-
-        .preview-emerald-main {
-            background: #065f46;
-        }
-
-        .preview-emerald-card {
-            background: #047857;
-            border: 1px solid #059669;
-        }
     </style>
 </head>
 
@@ -300,45 +222,19 @@
                 return; // abort UI setup if auth fails
             }
 
-            const escapeHtml = (value) => String(value || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-
-            const SAFE_COLOR_PATTERNS = [
-                /^#[0-9a-f]{3}$/i,
-                /^#[0-9a-f]{4}$/i,
-                /^#[0-9a-f]{6}$/i,
-                /^#[0-9a-f]{8}$/i,
-                /^rgba?\(\s*(?:\d{1,3}%?\s*,\s*){2}\d{1,3}%?(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i,
-                /^hsla?\(\s*\d{1,3}(?:deg)?\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i,
-                /^var\(\s*--[a-z0-9-]+\s*\)$/i,
-            ];
-            const SAFE_NAMED_COLORS = new Set(['transparent', 'currentcolor', 'inherit', 'initial', 'unset']);
-
-            const sanitizePreviewColor = (value, fallback) => {
-                const normalized = String(value || '').trim();
-                if (
-                    normalized
-                    && (SAFE_COLOR_PATTERNS.some((pattern) => pattern.test(normalized))
-                        || SAFE_NAMED_COLORS.has(normalized.toLowerCase()))
-                ) {
-                    return normalized;
-                }
-                return fallback;
-            };
-
             const renderThemeCards = () => {
                 const grid = document.getElementById('themeGrid');
-                const body = grid && grid.parentElement ? grid.parentElement : null;
                 const themes = window.KairosTheme && typeof window.KairosTheme.getThemes === 'function'
                     ? window.KairosTheme.getThemes()
                     : [];
-                if (!grid || !body || !themes.length) return [];
-                body.innerHTML = '<div class="k-theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme palette"></div>';
-                const nextGrid = document.getElementById('themeGrid');
+                const escapeHtml = window.KairosTheme && typeof window.KairosTheme.escapeHtml === 'function'
+                    ? window.KairosTheme.escapeHtml
+                    : null;
+                const sanitizePreviewColor = window.KairosTheme && typeof window.KairosTheme.sanitizePreviewColor === 'function'
+                    ? window.KairosTheme.sanitizePreviewColor
+                    : null;
+                if (!grid || !themes.length || !escapeHtml || !sanitizePreviewColor) return [];
+                const nextGrid = grid;
                 nextGrid.innerHTML = themes.map((theme, index) => `
                     <div class="k-theme-card" data-theme-value="${escapeHtml(theme.value)}" role="radio" aria-checked="false"
                         tabindex="${index === 0 ? '0' : '-1'}">

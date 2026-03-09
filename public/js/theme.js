@@ -204,6 +204,9 @@
     storageOwnerPromise = null;
   };
 
+  // mirrorBootstrapTheme intentionally writes the global STORAGE_KEY so the app can
+  // hydrate the Bootstrap theme immediately before auth/user-scoped storage is available.
+  // Do not scope STORAGE_KEY here or gate this write behind auth checks.
   const mirrorBootstrapTheme = (theme) => {
     if (!isValidTheme(theme)) {
       return;
@@ -291,7 +294,7 @@
     document.querySelectorAll('[data-theme-choice]').forEach((choice) => {
       const isActive = choice.dataset.themeChoice === currentTheme;
       choice.classList.toggle('is-active', isActive);
-      choice.setAttribute('aria-pressed', String(isActive));
+      choice.setAttribute('aria-checked', String(isActive));
       choice.setAttribute('tabindex', isActive ? '0' : '-1');
     });
   };
@@ -573,7 +576,8 @@
         type="button"
         class="k-settings-theme-choice"
         data-theme-choice="${themeValue}"
-        aria-pressed="false"
+        role="radio"
+        aria-checked="false"
         aria-label="Use ${themeLabel} theme"
       >
         <span class="k-settings-theme-preview" aria-hidden="true">
@@ -634,7 +638,7 @@
         </div>
         <button type="button" class="k-settings-panel__close" data-settings-close aria-label="Close appearance settings">&times;</button>
       </div>
-      <div class="k-settings-theme-grid" role="list" aria-label="Theme variants">
+      <div class="k-settings-theme-grid" role="radiogroup" aria-label="Theme variants">
         ${themeChoiceMarkup()}
       </div>
       <label class="k-settings-check k-settings-check--panel">
@@ -749,65 +753,73 @@
       return serverSettingsPromise;
     }
 
-    serverSettingsPromise = (async () => {
-      const serverSettings = await loadSettingsServer();
-      serverSettingsPromise = null;
-      if (!serverSettings) {
-        return null;
-      }
-
-      serverSettingsLoaded = true;
-      const localTheme = hasScopedOwner() ? readStoredTheme(false) : null;
-      const localSettings = hasScopedOwner() ? readStoredSettings(false) : null;
-      const nextTheme = localTheme || serverSettings.theme || resolvePreferredTheme();
-      const nextSettings = localSettings || {
-        gradient: serverSettings.gradient,
-        compactMode: serverSettings.compactMode,
-        reduceMotion: serverSettings.reduceMotion,
-      };
-
+    let promise = null;
+    promise = (async () => {
       try {
-        if (!localSettings) {
-          writeStorageValue(SETTINGS_KEY, JSON.stringify(nextSettings), { allowGuest: false });
+        const serverSettings = await loadSettingsServer();
+        if (!serverSettings) {
+          return null;
         }
-        if (!localTheme && serverSettings.theme) {
-          writeStorageValue(STORAGE_KEY, serverSettings.theme, { allowGuest: false });
-          mirrorBootstrapTheme(serverSettings.theme);
+
+        serverSettingsLoaded = true;
+        const localTheme = hasScopedOwner() ? readStoredTheme(false) : null;
+        const localSettings = hasScopedOwner() ? readStoredSettings(false) : null;
+        const nextTheme = localTheme || serverSettings.theme || resolvePreferredTheme();
+        const nextSettings = localSettings || {
+          gradient: serverSettings.gradient,
+          compactMode: serverSettings.compactMode,
+          reduceMotion: serverSettings.reduceMotion,
+        };
+
+        try {
+          if (!localSettings) {
+            writeStorageValue(SETTINGS_KEY, JSON.stringify(nextSettings), { allowGuest: false });
+          }
+          if (!localTheme && serverSettings.theme) {
+            writeStorageValue(STORAGE_KEY, serverSettings.theme, { allowGuest: false });
+            mirrorBootstrapTheme(serverSettings.theme);
+          }
+          if (!localTheme && !serverSettings.theme) {
+            removeStorageValue(STORAGE_KEY, { allowGuest: false });
+          }
+        } catch (_) {
+          // ignore
         }
-        if (!localTheme && !serverSettings.theme) {
-          removeStorageValue(STORAGE_KEY, { allowGuest: false });
+
+        if (
+          hasScopedOwner()
+          && (localTheme || localSettings)
+          && (
+            serverSettings.theme !== nextTheme
+            || serverSettings.compactMode !== nextSettings.compactMode
+            || serverSettings.reduceMotion !== nextSettings.reduceMotion
+          )
+        ) {
+          persistSettingsServer(nextSettings, nextTheme);
         }
-      } catch (_) {
-        // ignore
+
+        applyTheme(nextTheme, false, false);
+        mirrorBootstrapTheme(nextTheme);
+        applyUiSettings(nextSettings, false);
+
+        syncSettingsPanelState();
+        emitUiState();
+        return {
+          theme: nextTheme,
+          gradient: nextSettings.gradient,
+          compactMode: nextSettings.compactMode,
+          reduceMotion: nextSettings.reduceMotion,
+        };
+      } finally {
+        if (serverSettingsPromise === promise) {
+          serverSettingsPromise = null;
+        }
       }
-
-      if (
-        hasScopedOwner()
-        && (localTheme || localSettings)
-        && (
-          serverSettings.theme !== nextTheme
-          || serverSettings.compactMode !== nextSettings.compactMode
-          || serverSettings.reduceMotion !== nextSettings.reduceMotion
-        )
-      ) {
-        persistSettingsServer(nextSettings, nextTheme);
-      }
-
-      applyTheme(nextTheme, false, false);
-      mirrorBootstrapTheme(nextTheme);
-      applyUiSettings(nextSettings, false);
-
-      syncSettingsPanelState();
-      emitUiState();
-      return {
-        theme: nextTheme,
-        gradient: nextSettings.gradient,
-        compactMode: nextSettings.compactMode,
-        reduceMotion: nextSettings.reduceMotion,
-      };
     })();
 
-    return serverSettingsPromise;
+    serverSettingsPromise = promise;
+
+    return promise;
   };
 
   const bindAuthObserver = () => {
@@ -930,7 +942,9 @@
     readSettings,
     applyUiSettings,
     resolvePreferredTheme,
+    escapeHtml,
     getThemes: () => THEMES.map((theme) => ({ ...theme, preview: { ...theme.preview } })),
+    sanitizePreviewColor,
     syncFromServer: maybeLoadServerSettings,
     openPanel: () => setSettingsPanelOpen(true),
     closePanel: closeSettingsPanel,
