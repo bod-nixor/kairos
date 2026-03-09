@@ -8,7 +8,9 @@
     border-radius: 12px;
     overflow: hidden;
     margin-bottom: var(--space-6);
-    background: var(--k-accent, var(--primary));
+    background: linear-gradient(135deg, var(--hero-start), var(--hero-end));
+    border: 1px solid color-mix(in srgb, var(--hero-end) 55%, transparent);
+    box-shadow: var(--elev-2);
     padding: var(--space-8);
     display: flex;
     flex-direction: column;
@@ -21,7 +23,9 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.45) 100%);
+    background:
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 32%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(0, 0, 0, 0.18) 100%);
     pointer-events: none;
 }
 
@@ -35,7 +39,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--hero-muted);
     margin-bottom: 4px;
 }
 
@@ -43,7 +47,7 @@
     font-size: 32px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #fff;
+    color: var(--hero-text);
     margin: 0;
     line-height: var(--line-height-tight);
 }
@@ -61,12 +65,12 @@
     align-items: center;
     gap: 6px;
     padding: 6px 14px;
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--hero-chip-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--hero-chip-border);
     border-radius: 8px;
-    color: #fff;
+    color: var(--hero-text);
     font-size: 13px;
     font-weight: 600;
 }
@@ -80,21 +84,21 @@
 .k-course-banner__progress-bar {
     width: 120px;
     height: 4px;
-    background: rgba(255, 255, 255, .25);
+    background: var(--hero-progress-track);
     border-radius: 999px;
     overflow: hidden;
 }
 
 .k-course-banner__progress-fill {
     height: 100%;
-    background: #fff;
+    background: var(--hero-text);
     border-radius: 999px;
     transition: width 0.5s ease;
 }
 
 .k-course-banner__progress-text {
     font-size: var(--font-sm);
-    color: rgba(255, 255, 255, .85);
+    color: var(--hero-muted);
     font-weight: var(--font-weight-semibold);
 }
 
@@ -2577,48 +2581,10 @@ div.k-modal.is-open {
     display: none !important;
 }
 
-/* ── Course accent palette ───────────────────────────────────── */
-/* Each accent index maps to a distinct but harmonious hue. */
-[data-course-accent="1"] {
-    --k-accent: hsl(221, 83%, 53%);
+/* ── Theme-aware course accent ──────────────────────────────── */
+[data-course-accent] {
+    --k-accent: var(--primary);
 }
-
-/* blue */
-[data-course-accent="2"] {
-    --k-accent: hsl(262, 83%, 58%);
-}
-
-/* violet */
-[data-course-accent="3"] {
-    --k-accent: hsl(142, 71%, 45%);
-}
-
-/* green */
-[data-course-accent="4"] {
-    --k-accent: hsl(340, 82%, 52%);
-}
-
-/* rose */
-[data-course-accent="5"] {
-    --k-accent: hsl(25, 95%, 53%);
-}
-
-/* orange */
-[data-course-accent="6"] {
-    --k-accent: hsl(187, 85%, 43%);
-}
-
-/* teal */
-[data-course-accent="7"] {
-    --k-accent: hsl(47, 96%, 53%);
-}
-
-/* amber */
-[data-course-accent="8"] {
-    --k-accent: hsl(316, 70%, 50%);
-}
-
-/* fuchsia */
 
 /* ── Module item icon variants ───────────────────────────────── */
 .k-module-item__icon--quiz {

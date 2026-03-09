@@ -92,84 +92,6 @@
             transform: scale(1);
         }
 
-        /* Specific theme preview colors */
-        .preview-light-sidebar {
-            background: #0b1225;
-        }
-
-        .preview-light-main {
-            background: #f7f8fb;
-        }
-
-        .preview-light-card {
-            background: #ffffff;
-            border: 1px solid #e6e8ef;
-        }
-
-        .preview-dark-sidebar {
-            background: #0d131f;
-        }
-
-        .preview-dark-main {
-            background: #11151f;
-        }
-
-        .preview-dark-card {
-            background: #1b202c;
-            border: 1px solid #2c3242;
-        }
-
-        .preview-midnight-sidebar {
-            background: #020617;
-        }
-
-        .preview-midnight-main {
-            background: #0f172a;
-        }
-
-        .preview-midnight-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-        }
-
-        .preview-graphite-sidebar {
-            background: #171717;
-        }
-
-        .preview-graphite-main {
-            background: #262626;
-        }
-
-        .preview-graphite-card {
-            background: #404040;
-            border: 1px solid #525252;
-        }
-
-        .preview-indigo-sidebar {
-            background: #1e1b4b;
-        }
-
-        .preview-indigo-main {
-            background: #312e81;
-        }
-
-        .preview-indigo-card {
-            background: #4338ca;
-            border: 1px solid #4f46e5;
-        }
-
-        .preview-emerald-sidebar {
-            background: #064e3b;
-        }
-
-        .preview-emerald-main {
-            background: #065f46;
-        }
-
-        .preview-emerald-card {
-            background: #047857;
-            border: 1px solid #059669;
-        }
     </style>
 </head>
 
@@ -254,99 +176,7 @@
                             entire interface.</p>
                     </div>
                     <div class="k-card__body">
-                        <div class="k-theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme palette">
-                            <div class="k-theme-card" data-theme-value="light" role="radio" aria-checked="false"
-                                tabindex="0">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-light-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-light-main">
-                                        <div class="k-theme-preview-card preview-light-card"></div>
-                                        <div class="k-theme-preview-card preview-light-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Default Light</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="dark" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-dark-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-dark-main">
-                                        <div class="k-theme-preview-card preview-dark-card"></div>
-                                        <div class="k-theme-preview-card preview-dark-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Slate Dark</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="midnight" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-midnight-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-midnight-main">
-                                        <div class="k-theme-preview-card preview-midnight-card"></div>
-                                        <div class="k-theme-preview-card preview-midnight-card" style="width: 60%">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Midnight Blue</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="graphite" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-graphite-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-graphite-main">
-                                        <div class="k-theme-preview-card preview-graphite-card"></div>
-                                        <div class="k-theme-preview-card preview-graphite-card" style="width: 60%">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Graphite</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="indigo" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-indigo-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-indigo-main">
-                                        <div class="k-theme-preview-card preview-indigo-card"></div>
-                                        <div class="k-theme-preview-card preview-indigo-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Deep Indigo</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="emerald" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-emerald-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-emerald-main">
-                                        <div class="k-theme-preview-card preview-emerald-card"></div>
-                                        <div class="k-theme-preview-card preview-emerald-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Emerald Dark</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="k-theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme palette"></div>
                     </div>
                 </div>
 
@@ -392,7 +222,42 @@
                 return; // abort UI setup if auth fails
             }
 
-            const cards = Array.from(document.querySelectorAll('.k-theme-card'));
+            const renderThemeCards = () => {
+                const grid = document.getElementById('themeGrid');
+                const themes = window.KairosTheme && typeof window.KairosTheme.getThemes === 'function'
+                    ? window.KairosTheme.getThemes()
+                    : [];
+                const escapeHtml = window.KairosTheme && typeof window.KairosTheme.escapeHtml === 'function'
+                    ? window.KairosTheme.escapeHtml
+                    : null;
+                const sanitizePreviewColor = window.KairosTheme && typeof window.KairosTheme.sanitizePreviewColor === 'function'
+                    ? window.KairosTheme.sanitizePreviewColor
+                    : null;
+                if (!grid || !themes.length || !escapeHtml || !sanitizePreviewColor) return [];
+                const nextGrid = grid;
+                nextGrid.innerHTML = themes.map((theme, index) => `
+                    <div class="k-theme-card" data-theme-value="${escapeHtml(theme.value)}" role="radio" aria-checked="false"
+                        tabindex="${index === 0 ? '0' : '-1'}">
+                        <div class="k-theme-preview">
+                            <div class="k-theme-preview-sidebar" style="background:${sanitizePreviewColor(theme.preview && theme.preview.sidebar, '#111827')}"></div>
+                            <div class="k-theme-preview-main" style="background:${sanitizePreviewColor(theme.preview && theme.preview.main, '#1f2937')}">
+                                <div class="k-theme-preview-card" style="background:${sanitizePreviewColor(theme.preview && theme.preview.card, '#374151')}; border-color:${sanitizePreviewColor(theme.preview && theme.preview.border, '#4b5563')}"></div>
+                                <div class="k-theme-preview-card" style="width: 60%; background:${sanitizePreviewColor(theme.preview && theme.preview.card, '#374151')}; border-color:${sanitizePreviewColor(theme.preview && theme.preview.border, '#4b5563')}"></div>
+                            </div>
+                        </div>
+                        <div class="k-theme-card-title">
+                            <span>${escapeHtml(theme.label)}</span>
+                            <span class="k-theme-check"></span>
+                        </div>
+                    </div>
+                `).join('');
+                nextGrid.querySelectorAll('.k-theme-check').forEach((node) => {
+                    node.innerHTML = '&#10003;';
+                });
+                return Array.from(nextGrid.querySelectorAll('.k-theme-card'));
+            };
+
+            const cards = renderThemeCards();
 
             const updateActiveCard = () => {
                 const currentTheme = document.documentElement.dataset.theme || 'light';
@@ -414,12 +279,22 @@
                 card.focus();
             };
 
+            const syncControlsFromTheme = () => {
+                updateActiveCard();
+                if (!window.KairosTheme) return;
+                const settings = window.KairosTheme.readSettings();
+                const compactNode = document.getElementById('kInputCompact');
+                const motionNode = document.getElementById('kInputMotion');
+                if (compactNode) compactNode.checked = !!settings.compactMode;
+                if (motionNode) motionNode.checked = !!settings.reduceMotion;
+            };
+
             cards.forEach(card => {
                 card.addEventListener('click', () => {
                     const themeValue = card.dataset.themeValue;
                     if (window.KairosTheme) {
                         window.KairosTheme.applyTheme(themeValue, true);
-                        updateActiveCard();
+                        syncControlsFromTheme();
                     }
                 });
 
@@ -444,36 +319,24 @@
             });
 
             if (window.KairosTheme) {
-                const settings = window.KairosTheme.readSettings();
                 const compactNode = document.getElementById('kInputCompact');
                 const motionNode = document.getElementById('kInputMotion');
 
                 if (compactNode) {
-                    compactNode.checked = settings.compactMode;
                     compactNode.addEventListener('change', (e) => {
-                        window.KairosTheme.applyUiSettings(window.KairosTheme.saveSettings({ compactMode: e.target.checked }));
+                        window.KairosTheme.saveSettings({ compactMode: e.target.checked });
                     });
                 }
 
                 if (motionNode) {
-                    motionNode.checked = settings.reduceMotion;
                     motionNode.addEventListener('change', (e) => {
-                        window.KairosTheme.applyUiSettings(window.KairosTheme.saveSettings({ reduceMotion: e.target.checked }));
+                        window.KairosTheme.saveSettings({ reduceMotion: e.target.checked });
                     });
                 }
             }
 
-            updateActiveCard();
-
-            // Observe theme changes from the topbar toggle button to keep cards in sync
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.attributeName === 'data-theme') {
-                        updateActiveCard();
-                    }
-                });
-            });
-            observer.observe(document.documentElement, { attributes: true });
+            syncControlsFromTheme();
+            document.addEventListener('kairos:ui-settings', syncControlsFromTheme);
         });
     </script>
 </body>
