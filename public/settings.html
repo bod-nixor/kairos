@@ -254,99 +254,7 @@
                             entire interface.</p>
                     </div>
                     <div class="k-card__body">
-                        <div class="k-theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme palette">
-                            <div class="k-theme-card" data-theme-value="light" role="radio" aria-checked="false"
-                                tabindex="0">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-light-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-light-main">
-                                        <div class="k-theme-preview-card preview-light-card"></div>
-                                        <div class="k-theme-preview-card preview-light-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Light Mode</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="dark" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-dark-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-dark-main">
-                                        <div class="k-theme-preview-card preview-dark-card"></div>
-                                        <div class="k-theme-preview-card preview-dark-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Default Dark</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="midnight" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-midnight-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-midnight-main">
-                                        <div class="k-theme-preview-card preview-midnight-card"></div>
-                                        <div class="k-theme-preview-card preview-midnight-card" style="width: 60%">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Midnight</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="graphite" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-graphite-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-graphite-main">
-                                        <div class="k-theme-preview-card preview-graphite-card"></div>
-                                        <div class="k-theme-preview-card preview-graphite-card" style="width: 60%">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Graphite</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="indigo" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-indigo-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-indigo-main">
-                                        <div class="k-theme-preview-card preview-indigo-card"></div>
-                                        <div class="k-theme-preview-card preview-indigo-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Indigo</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div class="k-theme-card" data-theme-value="emerald" role="radio" aria-checked="false"
-                                tabindex="-1">
-                                <div class="k-theme-preview">
-                                    <div class="k-theme-preview-sidebar preview-emerald-sidebar"></div>
-                                    <div class="k-theme-preview-main preview-emerald-main">
-                                        <div class="k-theme-preview-card preview-emerald-card"></div>
-                                        <div class="k-theme-preview-card preview-emerald-card" style="width: 60%"></div>
-                                    </div>
-                                </div>
-                                <div class="k-theme-card-title">
-                                    <span>Emerald</span>
-                                    <span class="k-theme-check">✓</span>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="k-theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme palette"></div>
                     </div>
                 </div>
 
@@ -392,7 +300,45 @@
                 return; // abort UI setup if auth fails
             }
 
-            const cards = Array.from(document.querySelectorAll('.k-theme-card'));
+            const escapeHtml = (value) => String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const renderThemeCards = () => {
+                const grid = document.getElementById('themeGrid');
+                const body = grid && grid.parentElement ? grid.parentElement : null;
+                const themes = window.KairosTheme && typeof window.KairosTheme.getThemes === 'function'
+                    ? window.KairosTheme.getThemes()
+                    : [];
+                if (!grid || !body || !themes.length) return [];
+                body.innerHTML = '<div class="k-theme-grid" id="themeGrid" role="radiogroup" aria-label="Theme palette"></div>';
+                const nextGrid = document.getElementById('themeGrid');
+                nextGrid.innerHTML = themes.map((theme, index) => `
+                    <div class="k-theme-card" data-theme-value="${escapeHtml(theme.value)}" role="radio" aria-checked="false"
+                        tabindex="${index === 0 ? '0' : '-1'}">
+                        <div class="k-theme-preview">
+                            <div class="k-theme-preview-sidebar" style="background:${theme.preview.sidebar}"></div>
+                            <div class="k-theme-preview-main" style="background:${theme.preview.main}">
+                                <div class="k-theme-preview-card" style="background:${theme.preview.card}; border-color:${theme.preview.border}"></div>
+                                <div class="k-theme-preview-card" style="width: 60%; background:${theme.preview.card}; border-color:${theme.preview.border}"></div>
+                            </div>
+                        </div>
+                        <div class="k-theme-card-title">
+                            <span>${escapeHtml(theme.label)}</span>
+                            <span class="k-theme-check"></span>
+                        </div>
+                    </div>
+                `).join('');
+                nextGrid.querySelectorAll('.k-theme-check').forEach((node) => {
+                    node.innerHTML = '&#10003;';
+                });
+                return Array.from(nextGrid.querySelectorAll('.k-theme-card'));
+            };
+
+            const cards = renderThemeCards();
 
             const updateActiveCard = () => {
                 const currentTheme = document.documentElement.dataset.theme || 'light';

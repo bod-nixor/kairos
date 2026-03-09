@@ -48,6 +48,9 @@
   let settingsObserver = null;
   let serverSettingsLoaded = false;
   let serverSettingsPromise = null;
+  let storageOwner = null;
+  let storageOwnerResolved = false;
+  let storageOwnerPromise = null;
 
   const isProjectorView = () => window.location.pathname.toLowerCase().includes('projector');
   if (isProjectorView()) {
@@ -58,18 +61,138 @@
 
   const isPreAuthView = () => !!document.body && document.body.classList.contains('k-pre-auth');
 
-  const readStoredTheme = () => {
+  const hasScopedOwner = () => storageOwnerResolved && !!storageOwner;
+
+  const storageKeyFor = (baseKey, allowGuest = true) => {
+    if (hasScopedOwner()) {
+      return `${baseKey}:${storageOwner}`;
+    }
+    return allowGuest ? baseKey : null;
+  };
+
+  const readStorageValue = (baseKey, allowGuest = true) => {
+    const key = storageKeyFor(baseKey, allowGuest);
+    if (!key) {
+      return null;
+    }
     try {
-      const value = localStorage.getItem(STORAGE_KEY);
-      return isValidTheme(value) ? value : null;
+      return localStorage.getItem(key);
     } catch (_) {
       return null;
     }
   };
 
-  const readStoredSettings = () => {
+  const writeStorageValue = (baseKey, value, { allowGuest = true, mirrorGlobal = false } = {}) => {
+    const key = storageKeyFor(baseKey, allowGuest);
+    if (!key) {
+      return;
+    }
     try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
+      localStorage.setItem(key, value);
+      if (mirrorGlobal && key !== baseKey) {
+        localStorage.setItem(baseKey, value);
+      }
+    } catch (_) {
+      // ignore
+    }
+  };
+
+  const removeStorageValue = (baseKey, { allowGuest = true, removeGlobal = false } = {}) => {
+    const key = storageKeyFor(baseKey, allowGuest);
+    if (!key) {
+      return;
+    }
+    try {
+      localStorage.removeItem(key);
+      if (removeGlobal && key !== baseKey) {
+        localStorage.removeItem(baseKey);
+      }
+    } catch (_) {
+      // ignore
+    }
+  };
+
+  const ownerFromUser = (me) => {
+    const userId = me && (me.user_id ?? me.id);
+    if (userId !== undefined && userId !== null && String(userId).trim()) {
+      return `user:${String(userId).trim()}`;
+    }
+    const email = me && typeof me.email === 'string' ? me.email.trim().toLowerCase() : '';
+    return email ? `email:${email}` : null;
+  };
+
+  const resolveStorageOwner = async () => {
+    if (storageOwnerResolved) {
+      return storageOwner;
+    }
+    if (storageOwnerPromise) {
+      return storageOwnerPromise;
+    }
+
+    storageOwnerPromise = (async () => {
+      if (isPreAuthView()) {
+        storageOwner = null;
+        storageOwnerResolved = true;
+        return null;
+      }
+
+      let me = null;
+      try {
+        if (window.KairosLMS && typeof window.KairosLMS.loadMe === 'function') {
+          me = await window.KairosLMS.loadMe();
+        } else if (window.KairosLMS && typeof window.KairosLMS.api === 'function') {
+          const res = await window.KairosLMS.api('GET', './api/me.php');
+          me = res.ok ? (res.data || null) : null;
+        } else {
+          const resp = await fetch('./api/me.php', {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          });
+          if (resp.ok) {
+            me = await resp.json();
+          }
+        }
+      } catch (_) {
+        me = null;
+      }
+
+      storageOwner = ownerFromUser(me);
+      storageOwnerResolved = true;
+      return storageOwner;
+    })();
+
+    try {
+      return await storageOwnerPromise;
+    } finally {
+      storageOwnerPromise = null;
+    }
+  };
+
+  const resetStorageOwner = (resolved = false) => {
+    storageOwner = null;
+    storageOwnerResolved = resolved;
+    storageOwnerPromise = null;
+  };
+
+  const mirrorBootstrapTheme = (theme) => {
+    if (!isValidTheme(theme)) {
+      return;
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch (_) {
+      // ignore
+    }
+  };
+
+  const readStoredTheme = (allowGuest = true) => {
+    const value = readStorageValue(STORAGE_KEY, allowGuest);
+    return isValidTheme(value) ? value : null;
+  };
+
+  const readStoredSettings = (allowGuest = true) => {
+    try {
+      const raw = readStorageValue(SETTINGS_KEY, allowGuest);
       if (!raw) {
         return null;
       }
@@ -178,11 +301,7 @@
 
   const saveSettings = (patch) => {
     const next = { ...readSettings(), ...(patch || {}) };
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
-    } catch (_) {
-      // ignore
-    }
+    writeStorageValue(SETTINGS_KEY, JSON.stringify(next));
     applyUiSettings(next, false);
     persistSettingsServer(next);
     emitUiState();
@@ -220,18 +339,11 @@
     root.classList.toggle('theme-dark', next !== 'light');
     root.classList.toggle('theme-light', next === 'light');
     if (next !== 'light') {
-      try {
-        localStorage.setItem(LAST_DARK_KEY, next);
-      } catch (_) {
-        // ignore
-      }
+      writeStorageValue(LAST_DARK_KEY, next);
     }
     if (persist) {
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch (_) {
-        // ignore
-      }
+      writeStorageValue(STORAGE_KEY, next);
+      mirrorBootstrapTheme(next);
       persistSettingsServer(readSettings(), next);
     }
     syncToggle(next);
@@ -571,7 +683,7 @@
         if (current === 'light') {
           let target = 'dark';
           try {
-            const lastDark = localStorage.getItem(LAST_DARK_KEY);
+            const lastDark = readStorageValue(LAST_DARK_KEY);
             if (lastDark && isValidTheme(lastDark) && lastDark !== 'light') {
               target = lastDark;
             }
@@ -607,8 +719,8 @@
       }
 
       serverSettingsLoaded = true;
-      const localTheme = readStoredTheme();
-      const localSettings = readStoredSettings();
+      const localTheme = hasScopedOwner() ? readStoredTheme(false) : null;
+      const localSettings = hasScopedOwner() ? readStoredSettings(false) : null;
       const nextTheme = localTheme || serverSettings.theme || resolvePreferredTheme();
       const nextSettings = localSettings || {
         gradient: serverSettings.gradient,
@@ -618,20 +730,22 @@
 
       try {
         if (!localSettings) {
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+          writeStorageValue(SETTINGS_KEY, JSON.stringify(nextSettings), { allowGuest: false });
         }
         if (!localTheme && serverSettings.theme) {
-          localStorage.setItem(STORAGE_KEY, serverSettings.theme);
+          writeStorageValue(STORAGE_KEY, serverSettings.theme, { allowGuest: false });
+          mirrorBootstrapTheme(serverSettings.theme);
         }
         if (!localTheme && !serverSettings.theme) {
-          localStorage.removeItem(STORAGE_KEY);
+          removeStorageValue(STORAGE_KEY, { allowGuest: false });
         }
       } catch (_) {
         // ignore
       }
 
       if (
-        (localTheme || localSettings)
+        hasScopedOwner()
+        && (localTheme || localSettings)
         && (
           serverSettings.theme !== nextTheme
           || serverSettings.compactMode !== nextSettings.compactMode
@@ -642,6 +756,7 @@
       }
 
       applyTheme(nextTheme, false, false);
+      mirrorBootstrapTheme(nextTheme);
       applyUiSettings(nextSettings, false);
 
       syncSettingsPanelState();
@@ -663,7 +778,25 @@
       if (isPreAuthView()) {
         serverSettingsLoaded = false;
         serverSettingsPromise = null;
+        resetStorageOwner(true);
+        syncThemeState();
+        applyUiSettings(readSettings(), false);
+        syncSettingsPanelState();
+        return;
       }
+
+      if (!hasScopedOwner()) {
+        resetStorageOwner(false);
+        resolveStorageOwner().then(() => {
+          syncThemeState();
+          applyUiSettings(readSettings(), false);
+          syncSettingsPanelState();
+          maybeLoadServerSettings();
+          emitUiState();
+        });
+        return;
+      }
+
       syncSettingsPanelState();
       maybeLoadServerSettings();
     });
@@ -672,7 +805,6 @@
 
   document.addEventListener('DOMContentLoaded', async () => {
     syncThemeState();
-    applyUiSettings(readSettings(), false);
     if (typeof window.waitForAppConfig === 'function') {
       try {
         await window.waitForAppConfig();
@@ -680,6 +812,9 @@
         // ignore
       }
     }
+    await resolveStorageOwner();
+    syncThemeState();
+    applyUiSettings(readSettings(), false);
     hydrateBranding();
     normalizeHomeLinks();
     ensureSettingsLauncher();
@@ -695,21 +830,24 @@
   });
 
   window.addEventListener('pageshow', () => {
-    syncThemeState();
-    applyUiSettings(readSettings(), false);
-    hydrateBranding();
-    normalizeHomeLinks();
-    ensureSettingsLauncher();
-    ensureSettingsPanel();
-    bindShell();
-    bindSettingsUi();
-    bindThemeToggleButtons();
-    bindAuthObserver();
-    syncSettingsPanelState();
-    syncTopbarOffset();
-    closeShellDrawer();
-    maybeLoadServerSettings();
-    emitUiState();
+    (async () => {
+      await resolveStorageOwner();
+      syncThemeState();
+      applyUiSettings(readSettings(), false);
+      hydrateBranding();
+      normalizeHomeLinks();
+      ensureSettingsLauncher();
+      ensureSettingsPanel();
+      bindShell();
+      bindSettingsUi();
+      bindThemeToggleButtons();
+      bindAuthObserver();
+      syncSettingsPanelState();
+      syncTopbarOffset();
+      closeShellDrawer();
+      maybeLoadServerSettings();
+      emitUiState();
+    })();
   });
 
   document.addEventListener('click', (event) => {
@@ -750,6 +888,7 @@
     readSettings,
     applyUiSettings,
     resolvePreferredTheme,
+    getThemes: () => THEMES.map((theme) => ({ ...theme, preview: { ...theme.preview } })),
     syncFromServer: maybeLoadServerSettings,
     openPanel: () => setSettingsPanelOpen(true),
     closePanel: closeSettingsPanel,
