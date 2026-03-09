@@ -381,9 +381,16 @@
     <script src="./js/theme.js"></script>
     <script src="./js/lms-core.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             // Boot auth/sidebar wiring from the shared entrypoint
-            if (typeof window.boot === 'function') window.boot();
+            try {
+                if (window.KairosLMS && typeof window.KairosLMS.boot === 'function') {
+                    await window.KairosLMS.boot();
+                }
+            } catch (err) {
+                console.error('[Settings] boot failed:', err);
+                return; // abort UI setup if auth fails
+            }
 
             const cards = Array.from(document.querySelectorAll('.k-theme-card'));
 

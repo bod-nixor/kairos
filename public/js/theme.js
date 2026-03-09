@@ -1,6 +1,7 @@
 (function () {
   const STORAGE_KEY = 'kairos-theme';
   const SETTINGS_KEY = 'kairos-ui-settings';
+  const LAST_DARK_KEY = 'kairos-last-dark-theme';
   const HOME_PATH = '/signoff/';
   const root = document.documentElement;
   const prefersDarkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -103,6 +104,9 @@
     root.dataset.theme = next;
     root.classList.toggle('theme-dark', next !== 'light');
     root.classList.toggle('theme-light', next === 'light');
+    if (next !== 'light') {
+      try { localStorage.setItem(LAST_DARK_KEY, next); } catch (_) { }
+    }
     if (persist) {
       try {
         localStorage.setItem(STORAGE_KEY, next);
@@ -368,7 +372,14 @@
       toggle.dataset.themeBound = 'true';
       toggle.addEventListener('click', () => {
         const current = isValidTheme(root.dataset.theme) ? root.dataset.theme : resolvePreferredTheme();
-        applyTheme(current === 'light' ? 'dark' : 'light');
+        if (current === 'light') {
+          // Restore last dark palette, or fall back to 'dark'
+          let target = 'dark';
+          try { const ld = localStorage.getItem(LAST_DARK_KEY); if (ld && isValidTheme(ld) && ld !== 'light') target = ld; } catch (_) { }
+          applyTheme(target);
+        } else {
+          applyTheme('light');
+        }
       });
     });
   });

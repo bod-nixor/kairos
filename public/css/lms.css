@@ -271,8 +271,8 @@
 .k-module-item {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
     border-bottom: 1px solid var(--border);
     text-decoration: none;
     color: var(--text);
