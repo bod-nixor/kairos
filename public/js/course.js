@@ -235,11 +235,6 @@
         const actPayload = actRes.ok ? (actRes.data?.data || actRes.data || []) : [];
         const activity = Array.isArray(actPayload) ? actPayload : [];
 
-        // Apply course accent
-        const accent = LMS.courseAccent(course.id || COURSE_ID);
-        const banner = $('courseBanner');
-        if (banner) banner.setAttribute('data-course-accent', String(accent));
-
         const courseLabel = course.name || course.code || 'Course';
         LMS.nav.setCourseContext(COURSE_ID, courseLabel);
         LMS.nav.setActive('home');

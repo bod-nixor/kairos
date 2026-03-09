@@ -48,12 +48,6 @@
     } catch { return ''; }
   }
 
-  /* ── Course accent color (deterministic) ─────────────────── */
-  function courseAccent(courseId) {
-    const id = parseInt(courseId, 10) || 1;
-    return ((id - 1) % 8) + 1;
-  }
-
   function getBranding() {
     const defaults = {
       productName: 'Kairos',
@@ -849,7 +843,6 @@
     fmtDate,
     fmtDateTime,
     timeAgo,
-    courseAccent,
     getBranding,
     getProductName,
     featureEnabled,

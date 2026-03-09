@@ -265,7 +265,7 @@
                                     </div>
                                 </div>
                                 <div class="k-theme-card-title">
-                                    <span>Default Light</span>
+                                    <span>Light Mode</span>
                                     <span class="k-theme-check">✓</span>
                                 </div>
                             </div>
@@ -280,7 +280,7 @@
                                     </div>
                                 </div>
                                 <div class="k-theme-card-title">
-                                    <span>Slate Dark</span>
+                                    <span>Default Dark</span>
                                     <span class="k-theme-check">✓</span>
                                 </div>
                             </div>
@@ -296,7 +296,7 @@
                                     </div>
                                 </div>
                                 <div class="k-theme-card-title">
-                                    <span>Midnight Blue</span>
+                                    <span>Midnight</span>
                                     <span class="k-theme-check">✓</span>
                                 </div>
                             </div>
@@ -327,7 +327,7 @@
                                     </div>
                                 </div>
                                 <div class="k-theme-card-title">
-                                    <span>Deep Indigo</span>
+                                    <span>Indigo</span>
                                     <span class="k-theme-check">✓</span>
                                 </div>
                             </div>
@@ -342,7 +342,7 @@
                                     </div>
                                 </div>
                                 <div class="k-theme-card-title">
-                                    <span>Emerald Dark</span>
+                                    <span>Emerald</span>
                                     <span class="k-theme-check">✓</span>
                                 </div>
                             </div>
@@ -414,12 +414,22 @@
                 card.focus();
             };
 
+            const syncControlsFromTheme = () => {
+                updateActiveCard();
+                if (!window.KairosTheme) return;
+                const settings = window.KairosTheme.readSettings();
+                const compactNode = document.getElementById('kInputCompact');
+                const motionNode = document.getElementById('kInputMotion');
+                if (compactNode) compactNode.checked = !!settings.compactMode;
+                if (motionNode) motionNode.checked = !!settings.reduceMotion;
+            };
+
             cards.forEach(card => {
                 card.addEventListener('click', () => {
                     const themeValue = card.dataset.themeValue;
                     if (window.KairosTheme) {
                         window.KairosTheme.applyTheme(themeValue, true);
-                        updateActiveCard();
+                        syncControlsFromTheme();
                     }
                 });
 
@@ -444,36 +454,24 @@
             });
 
             if (window.KairosTheme) {
-                const settings = window.KairosTheme.readSettings();
                 const compactNode = document.getElementById('kInputCompact');
                 const motionNode = document.getElementById('kInputMotion');
 
                 if (compactNode) {
-                    compactNode.checked = settings.compactMode;
                     compactNode.addEventListener('change', (e) => {
                         window.KairosTheme.applyUiSettings(window.KairosTheme.saveSettings({ compactMode: e.target.checked }));
                     });
                 }
 
                 if (motionNode) {
-                    motionNode.checked = settings.reduceMotion;
                     motionNode.addEventListener('change', (e) => {
                         window.KairosTheme.applyUiSettings(window.KairosTheme.saveSettings({ reduceMotion: e.target.checked }));
                     });
                 }
             }
 
-            updateActiveCard();
-
-            // Observe theme changes from the topbar toggle button to keep cards in sync
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.attributeName === 'data-theme') {
-                        updateActiveCard();
-                    }
-                });
-            });
-            observer.observe(document.documentElement, { attributes: true });
+            syncControlsFromTheme();
+            document.addEventListener('kairos:ui-settings', syncControlsFromTheme);
         });
     </script>
 </body>
