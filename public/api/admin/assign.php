@@ -27,7 +27,7 @@ try {
     }
 
     if ($method === 'POST') {
-        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $input  = kairos_json_input();
         $action = strtolower((string)($input['action'] ?? 'assign'));
         $courseId = (int)($input['course_id'] ?? 0);
         if ($courseId <= 0) {
@@ -88,7 +88,8 @@ try {
 
     json_out(['error' => 'method not allowed'], 405);
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] admin.assign failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
 
 function detect_assignment_schema(PDO $pdo): array

@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_out(['error' => 'method_not_allowed'], 405);
 }
 
-$payload = json_decode(file_get_contents('php://input'), true) ?? [];
+$payload = kairos_json_input();
 $targetId = isset($payload['user_id']) ? (int)$payload['user_id'] : 0;
 $courseId = isset($payload['course_id']) ? (int)$payload['course_id'] : 0;
 
@@ -29,5 +29,6 @@ try {
     $removed = unenroll_user_from_course($pdo, $targetId, $courseId);
     json_out(['success' => true, 'removed' => $removed]);
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] manager.unenroll failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }

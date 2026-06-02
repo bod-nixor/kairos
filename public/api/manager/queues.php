@@ -24,7 +24,7 @@ if (!table_exists($pdo, 'queues') || !table_has_columns($pdo, 'queues', ['queue_
     json_out(['error' => 'unsupported', 'message' => 'queues table not available'], 500);
 }
 
-$payload = json_decode(file_get_contents('php://input'), true) ?? [];
+$payload = kairos_json_input();
 $action = strtolower((string)($payload['action'] ?? ''));
 $roomId = isset($payload['room_id']) ? (int)$payload['room_id'] : 0;
 $queueId = isset($payload['queue_id']) ? (int)$payload['queue_id'] : 0;
@@ -114,7 +114,8 @@ try {
         json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] manager.queues failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
 
 json_out(['error' => 'unknown'], 400);

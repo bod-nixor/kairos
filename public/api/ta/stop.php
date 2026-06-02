@@ -11,7 +11,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     json_out(['error' => 'method not allowed'], 405);
 }
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = kairos_json_input();
 $queueId = isset($input['queue_id']) ? (int)$input['queue_id'] : 0;
 
 if ($queueId <= 0) {
@@ -95,7 +95,8 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] ta.stop failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
 
 $meta = queue_meta($pdo, $queueId);

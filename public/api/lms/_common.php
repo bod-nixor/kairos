@@ -30,11 +30,18 @@ function lms_user_role(array $user): string
 function lms_json_input(): array
 {
     $raw = file_get_contents('php://input');
-    if (!$raw) {
+    if ($raw === false || trim($raw) === '') {
         return [];
     }
-    $decoded = json_decode($raw, true);
-    return is_array($decoded) ? $decoded : [];
+    try {
+        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        lms_error('invalid_json', 'Malformed JSON request body', 400);
+    }
+    if (!is_array($decoded)) {
+        lms_error('invalid_json', 'JSON request body must be an object', 400);
+    }
+    return $decoded;
 }
 
 function lms_ok($data = []): void

@@ -424,9 +424,9 @@ function ta_audit_log_table(PDO $pdo): ?string {
 }
 
 function ta_append_audit_log_file(array $entry): void {
-    $logDir = __DIR__ . '/../logs';
+    $logDir = dirname(__DIR__, 3) . '/storage/logs';
     if (!is_dir($logDir)) {
-        @mkdir($logDir, 0775, true);
+        @mkdir($logDir, 0750, true);
     }
     $file = $logDir . '/ta_audit.log';
     $payload = [

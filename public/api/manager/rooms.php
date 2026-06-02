@@ -24,7 +24,7 @@ if (!table_exists($pdo, 'rooms') || !table_has_columns($pdo, 'rooms', ['room_id'
     json_out(['error' => 'unsupported', 'message' => 'rooms table not available'], 500);
 }
 
-$payload = json_decode(file_get_contents('php://input'), true) ?? [];
+$payload = kairos_json_input();
 $action  = strtolower((string)($payload['action'] ?? ''));
 $courseId = isset($payload['course_id']) ? (int)$payload['course_id'] : 0;
 $roomId   = isset($payload['room_id']) ? (int)$payload['room_id'] : 0;
@@ -94,7 +94,8 @@ try {
         json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] manager.rooms failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
 
 json_out(['error' => 'unknown'], 400);

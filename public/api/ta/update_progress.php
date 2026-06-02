@@ -8,7 +8,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     json_out(['error' => 'method not allowed'], 405);
 }
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = kairos_json_input();
 $studentId = isset($input['user_id']) ? (int)$input['user_id'] : 0;
 $detailId  = isset($input['detail_id']) ? (int)$input['detail_id'] : 0;
 $status    = isset($input['status']) ? trim((string)$input['status']) : '';

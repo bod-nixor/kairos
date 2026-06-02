@@ -6,7 +6,6 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 
 DEFAULT_EMIT_URL = "http://127.0.0.1:8090/emit"
@@ -22,13 +21,14 @@ def _load_payload(raw: str | None):
 
 
 def send_event(url: str, secret: str, event: dict) -> int:
-    query = urllib.parse.urlencode({"secret": secret})
-    target = f"{url}?{query}"
     data = json.dumps(event).encode()
     req = urllib.request.Request(
-        target,
+        url,
         data=data,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "X-Kairos-WS-Secret": secret,
+        },
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=10) as resp:

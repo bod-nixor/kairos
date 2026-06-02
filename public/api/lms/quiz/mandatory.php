@@ -59,8 +59,7 @@ try {
         ' course_id=' . (int)$row['course_id'] .
         ' user_id=' . (int)$user['user_id'] .
         ' required_flag=' . $required .
-        ' message=' . $e->getMessage() .
-        ' trace=' . $e->getTraceAsString()
+        ' exception=' . get_class($e)
     );
     lms_error('mandatory_failed', 'Failed to update mandatory state', 500);
 }

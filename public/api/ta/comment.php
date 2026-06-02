@@ -12,7 +12,7 @@ if (!table_exists($pdo, 'ta_comments')) {
     json_out(['error' => 'comments table missing'], 500);
 }
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = kairos_json_input();
 $studentId = isset($input['user_id']) ? (int)$input['user_id'] : 0;
 $courseId  = isset($input['course_id']) ? (int)$input['course_id'] : 0;
 $text      = isset($input['text']) ? trim((string)$input['text']) : '';

@@ -200,6 +200,6 @@ try {
     if ($uploadedDriveMeta !== null && !empty($uploadedDriveMeta['file_id'])) {
         lms_drive_delete_stub((string)$uploadedDriveMeta['file_id']);
     }
-    error_log('assignment_submit_failed assignment_id=' . $assignmentId . ' user_id=' . (int)$user['user_id'] . ' message=' . $e->getMessage() . ' trace=' . $e->getTraceAsString());
+    error_log('assignment_submit_failed assignment_id=' . $assignmentId . ' user_id=' . (int)$user['user_id'] . ' exception=' . get_class($e));
     lms_error('submission_failed', 'Failed to submit assignment', 500);
 }

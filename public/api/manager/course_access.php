@@ -9,7 +9,7 @@ require_role_or_higher($pdo, $user, 'manager');
 $userId = (int)($user['user_id'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $in = json_decode(file_get_contents('php://input'), true) ?? [];
+    $in = kairos_json_input();
     $courseId = (int)($in['course_id'] ?? 0);
     assert_manager_controls_course($pdo, $userId, $courseId);
 

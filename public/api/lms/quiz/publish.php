@@ -63,8 +63,7 @@ try {
         ' course_id=' . (int)$row['course_id'] .
         ' user_id=' . (int)$user['user_id'] .
         ' target_status=' . $newStatus .
-        ' message=' . $e->getMessage() .
-        ' trace=' . $e->getTraceAsString()
+        ' exception=' . get_class($e)
     );
     lms_error('publish_failed', 'Failed to update publish state', 500);
 }

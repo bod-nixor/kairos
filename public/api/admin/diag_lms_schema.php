@@ -12,6 +12,9 @@ require_once dirname(__DIR__) . '/bootstrap.php';
 require_once dirname(__DIR__) . '/lms/_common.php';
 
 $user = lms_require_roles(['admin']);
+if (!kairos_bool_env('ENABLE_ADMIN_DIAGNOSTICS', false)) {
+    lms_error('not_found', 'Diagnostic endpoint is disabled.', 404);
+}
 
 try {
     $pdo = db();

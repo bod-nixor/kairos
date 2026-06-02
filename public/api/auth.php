@@ -43,7 +43,11 @@ function base64url_decode_str(string $s): string {
   $s = strtr($s, '-_', '+/');
   $pad = strlen($s) % 4;
   if ($pad) $s .= str_repeat('=', 4 - $pad);
-  return base64_decode($s);
+  $decoded = base64_decode($s, true);
+  if ($decoded === false) {
+    throw new Exception('invalid base64url');
+  }
+  return $decoded;
 }
 
 
@@ -98,7 +102,11 @@ function apply_pending_pre_enrollments(PDO $pdo, int $userId, string $email): vo
 }
 
 function verify_google_id_token(string $idToken, string $clientId): array {
-  [$h64, $p64, $s64] = explode('.', $idToken);
+  $parts = explode('.', $idToken);
+  if (count($parts) !== 3) {
+    throw new Exception('malformed token');
+  }
+  [$h64, $p64, $s64] = $parts;
   $header = json_decode(base64url_decode_str($h64), true);
   $payload = json_decode(base64url_decode_str($p64), true);
   $sig     = base64url_decode_str($s64);
@@ -107,13 +115,16 @@ function verify_google_id_token(string $idToken, string $clientId): array {
   if (empty($header['kid'])) throw new Exception('No kid');
   if (!in_array($header['alg'], ['RS256'], true)) throw new Exception('Bad alg');
 
-  // Verify aud, iss, exp
+  // Verify aud, iss, exp, and issued-at sanity.
   $now = time();
   if (empty($payload['aud']) || $payload['aud'] !== $clientId) throw new Exception('Bad aud');
   if (empty($payload['iss']) || !in_array($payload['iss'], ['https://accounts.google.com', 'accounts.google.com'], true)) {
     throw new Exception('Bad iss');
   }
   if (empty($payload['exp']) || $payload['exp'] < $now) throw new Exception('Token expired');
+  if (empty($payload['iat']) || !is_numeric($payload['iat'])) throw new Exception('Bad iat');
+  $iat = (int)$payload['iat'];
+  if ($iat > ($now + 120) || $iat < ($now - 86400)) throw new Exception('Bad iat');
 
   // Find cert by kid
   $certs = get_google_certs();
@@ -159,10 +170,13 @@ function asn1_bit_string($s){ return asn1_tlv("\x03", "\x00".$s); }
 function asn1_integer($i){ if($i==='' )$i="\x00"; if(ord($i[0])>0x7f){$i="\x00".$i;} return asn1_tlv("\x02",$i); }
 function encode_rsa_mod_exp($n,$e){ return asn1_sequence(asn1_integer($n), asn1_integer($e)); }
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = kairos_json_input();
 $credential = $input['credential'] ?? '';
 
 if (!$credential) json_out(['success'=>false, 'error'=>'missing credential'], 400);
+if (!kairos_rate_limit('auth:google:' . kairos_client_ip(), (int)env('AUTH_RATE_LIMIT_ATTEMPTS', 12), (int)env('AUTH_RATE_LIMIT_WINDOW_SECONDS', 300))) {
+  json_out(['success'=>false, 'error'=>'too_many_attempts'], 429);
+}
 
 try {
   $clientId = env('GOOGLE_CLIENT_ID');
@@ -184,7 +198,14 @@ try {
   $picture = $payload['picture'] ?? '';
   $sub     = $payload['sub'] ?? ''; // Google unique user ID
 
-  if (!$email || !$sub) throw new Exception('Invalid payload');
+  if (!$email || !$sub || !filter_var($email, FILTER_VALIDATE_EMAIL)) throw new Exception('Invalid payload');
+  if (($payload['email_verified'] ?? false) !== true && ($payload['email_verified'] ?? '') !== 'true') {
+    throw new Exception('Unverified email');
+  }
+  $emailDomain = strtolower(substr(strrchr((string)$email, '@') ?: '', 1));
+  if ($emailDomain === '' || strcasecmp($emailDomain, ALLOWED_DOMAIN) !== 0) {
+    throw new Exception('Unauthorized email domain');
+  }
 
   $pdo = db();
   
@@ -216,9 +237,17 @@ try {
 
   apply_pending_pre_enrollments($pdo, (int)$user['user_id'], (string)$email);
 
+  session_regenerate_id(true);
+  $_SESSION = [];
   $_SESSION['user'] = $user;
 
   json_out(['success'=>true, 'user'=>$user]);
 } catch (Throwable $e) {
-  json_out(['success'=>false, 'error'=>$e->getMessage()], 401);
+  error_log(json_encode([
+    'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+    'action' => 'google_auth',
+    'status' => 'failed',
+    'reason_class' => get_class($e),
+  ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+  json_out(['success'=>false, 'error'=>'Authentication failed'], 401);
 }
