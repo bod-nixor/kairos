@@ -54,9 +54,12 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    $courseIdForLog = (isset($row) && is_array($row) && isset($row['course_id']))
+        ? (int)$row['course_id']
+        : 'unknown';
     error_log(
         'lms/quiz/mandatory.php failed assessment_id=' . $assessmentId .
-        ' course_id=' . (int)$row['course_id'] .
+        ' course_id=' . $courseIdForLog .
         ' user_id=' . (int)$user['user_id'] .
         ' required_flag=' . $required .
         ' exception=' . get_class($e)

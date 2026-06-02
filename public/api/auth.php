@@ -216,6 +216,7 @@ try {
     INSERT INTO users (google_id, email, name, picture_url, is_active, role_id)
     VALUES (:gid, :email, :name, :pic, 1, :role_id)
     ON DUPLICATE KEY UPDATE
+      email = VALUES(email),
       name = VALUES(name),
       picture_url = VALUES(picture_url),
       is_active = 1,
@@ -231,9 +232,12 @@ try {
   ]);
 
   // Load user (to get user_id and role_id)
-  $u = $pdo->prepare("SELECT user_id, email, name, picture_url, role_id FROM users WHERE email = :email LIMIT 1");
-  $u->execute([':email'=>$email]);
+  $u = $pdo->prepare("SELECT user_id, email, name, picture_url, role_id FROM users WHERE google_id = :gid LIMIT 1");
+  $u->execute([':gid' => $sub]);
   $user = $u->fetch();
+  if (!$user) {
+    throw new Exception('User reload failed');
+  }
 
   apply_pending_pre_enrollments($pdo, (int)$user['user_id'], (string)$email);
 

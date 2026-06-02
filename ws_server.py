@@ -157,6 +157,7 @@ class ClientState:
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = WS_EMIT_MAX_BYTES
 _socketio_internal_path = WS_SOCKET_PATH.lstrip("/") or "socket.io"
 socketio = SocketIO(
     app,
@@ -332,7 +333,7 @@ def handle_disconnect():
 
 @app.post("/emit")
 def handle_emit():
-    provided_secret = request.headers.get("X-Kairos-WS-Secret", "") or request.args.get("secret", "")
+    provided_secret = request.headers.get("X-Kairos-WS-Secret", "")
     if not provided_secret or not hmac.compare_digest(provided_secret, WS_SHARED_SECRET):
         abort(403)
 

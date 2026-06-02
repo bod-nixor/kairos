@@ -16,6 +16,15 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
 
+function manager_queue_ws_notify(array $event, string $context): void
+{
+    try {
+        ws_notify($event);
+    } catch (Throwable $e) {
+        error_log('[kairos] manager.queues ws_notify failed context=' . $context . ' exception=' . get_class($e) . ' message=' . $e->getMessage());
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_out(['error' => 'method_not_allowed'], 405);
 }
@@ -55,7 +64,7 @@ try {
             ':description' => $description ?? '',
         ]);
         $id = (int)$pdo->lastInsertId();
-        ws_notify(['event' => 'rooms', 'course_id' => $courseId]);
+        manager_queue_ws_notify(['event' => 'rooms', 'course_id' => $courseId], 'create');
         json_out(['success' => true, 'queue_id' => $id]);
     }
 
@@ -87,7 +96,7 @@ try {
         $sql = 'UPDATE queues SET ' . implode(', ', $fields) . ' WHERE queue_id = :qid';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
+        manager_queue_ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']], 'rename');
         json_out(['success' => true]);
     }
 
@@ -110,7 +119,7 @@ try {
             }
             throw $e;
         }
-        ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
+        manager_queue_ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']], 'delete');
         json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {

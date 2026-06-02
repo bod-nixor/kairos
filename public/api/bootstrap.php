@@ -260,19 +260,52 @@ function kairos_rate_limit(string $bucket, int $limit, int $windowSeconds): bool
     $key = hash('sha256', $bucket);
     $file = $dir . DIRECTORY_SEPARATOR . $key . '.json';
     $now = time();
-    $state = ['window_start' => $now, 'count' => 0];
-    if (is_file($file)) {
-        $decoded = json_decode((string)@file_get_contents($file), true);
-        if (is_array($decoded)) {
-            $state = array_merge($state, $decoded);
+    $fp = @fopen($file, 'c+');
+    if (!is_resource($fp)) {
+        return true;
+    }
+
+    $locked = false;
+    try {
+        if (!flock($fp, LOCK_EX)) {
+            return true;
         }
-    }
-    if (($now - (int)$state['window_start']) >= $windowSeconds) {
+        $locked = true;
+
+        rewind($fp);
+        $raw = stream_get_contents($fp);
+        $decoded = is_string($raw) && trim($raw) !== ''
+            ? json_decode($raw, true)
+            : null;
+
         $state = ['window_start' => $now, 'count' => 0];
+        if (is_array($decoded)) {
+            $state = [
+                'window_start' => isset($decoded['window_start']) ? (int)$decoded['window_start'] : $now,
+                'count' => isset($decoded['count']) ? max(0, (int)$decoded['count']) : 0,
+            ];
+        }
+
+        if (($now - (int)$state['window_start']) >= $windowSeconds) {
+            $state = ['window_start' => $now, 'count' => 0];
+        }
+        $state['count'] = (int)$state['count'] + 1;
+
+        $encoded = json_encode($state);
+        if (is_string($encoded)) {
+            rewind($fp);
+            ftruncate($fp, 0);
+            fwrite($fp, $encoded);
+            fflush($fp);
+        }
+
+        return (int)$state['count'] <= $limit;
+    } finally {
+        if ($locked) {
+            flock($fp, LOCK_UN);
+        }
+        fclose($fp);
     }
-    $state['count'] = (int)$state['count'] + 1;
-    @file_put_contents($file, json_encode($state), LOCK_EX);
-    return (int)$state['count'] <= $limit;
 }
 
 $secure = kairos_is_https_request();
@@ -350,14 +383,15 @@ function kairos_json_input(): array
         return [];
     }
     try {
-        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        $decoded = json_decode($raw, false, 512, JSON_THROW_ON_ERROR);
     } catch (JsonException $e) {
         json_out(['error' => 'invalid_json', 'message' => 'Malformed JSON request body'], 400);
     }
-    if (!is_array($decoded)) {
+    if (!$decoded instanceof stdClass) {
         json_out(['error' => 'invalid_json', 'message' => 'JSON request body must be an object'], 400);
     }
-    return $decoded;
+    $decodedArray = json_decode($raw, true);
+    return is_array($decodedArray) ? $decodedArray : [];
 }
 
 kairos_apply_cors_policy();

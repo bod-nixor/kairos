@@ -16,6 +16,15 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
 
+function manager_room_ws_notify(array $event, string $context): void
+{
+    try {
+        ws_notify($event);
+    } catch (Throwable $e) {
+        error_log('[kairos] manager.rooms ws_notify failed context=' . $context . ' exception=' . get_class($e) . ' message=' . $e->getMessage());
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_out(['error' => 'method_not_allowed'], 405);
 }
@@ -46,7 +55,7 @@ try {
         $stmt = $pdo->prepare('INSERT INTO rooms (course_id, name) VALUES (:cid, :name)');
         $stmt->execute([':cid' => $courseId, ':name' => $name]);
         $id = (int)$pdo->lastInsertId();
-        ws_notify(['event' => 'rooms', 'course_id' => $courseId]);
+        manager_room_ws_notify(['event' => 'rooms', 'course_id' => $courseId], 'create');
         json_out(['success' => true, 'room_id' => $id]);
     }
 
@@ -67,7 +76,7 @@ try {
         }
         $stmt = $pdo->prepare('UPDATE rooms SET name = :name WHERE room_id = :rid');
         $stmt->execute([':name' => $name, ':rid' => $roomId]);
-        ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
+        manager_room_ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom], 'rename');
         json_out(['success' => true]);
     }
 
@@ -90,7 +99,7 @@ try {
             }
             throw $e;
         }
-        ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
+        manager_room_ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom], 'delete');
         json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {

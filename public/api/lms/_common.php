@@ -34,14 +34,15 @@ function lms_json_input(): array
         return [];
     }
     try {
-        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        $decoded = json_decode($raw, false, 512, JSON_THROW_ON_ERROR);
     } catch (JsonException $e) {
         lms_error('invalid_json', 'Malformed JSON request body', 400);
     }
-    if (!is_array($decoded)) {
+    if (!$decoded instanceof stdClass) {
         lms_error('invalid_json', 'JSON request body must be an object', 400);
     }
-    return $decoded;
+    $decodedArray = json_decode($raw, true);
+    return is_array($decodedArray) ? $decodedArray : [];
 }
 
 function lms_ok($data = []): void
