@@ -41,7 +41,8 @@ function lms_json_input(): array
     if (!$decoded instanceof stdClass) {
         lms_error('invalid_json', 'JSON request body must be an object', 400);
     }
-    $decodedArray = json_decode($raw, true);
+    $encoded = json_encode($decoded);
+    $decodedArray = is_string($encoded) ? json_decode($encoded, true) : null;
     return is_array($decodedArray) ? $decodedArray : [];
 }
 

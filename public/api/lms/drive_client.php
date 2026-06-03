@@ -37,6 +37,23 @@ function lms_ooxml_required_prefix(string $extension): ?string
     ][$extension] ?? null;
 }
 
+function lms_is_legacy_office_extension(string $extension): bool
+{
+    return in_array($extension, ['doc', 'ppt', 'xls'], true);
+}
+
+function lms_validate_ole_container(string $tmpPath): bool
+{
+    $handle = @fopen($tmpPath, 'rb');
+    if (!is_resource($handle)) {
+        return false;
+    }
+    $signature = fread($handle, 4);
+    fclose($handle);
+
+    return $signature === "\xD0\xCF\x11\xE0";
+}
+
 function lms_validate_ooxml_container(string $tmpPath, string $extension): bool
 {
     $requiredPrefix = lms_ooxml_required_prefix($extension);
@@ -118,7 +135,11 @@ function lms_validate_uploaded_file(array $file, int $maxBytes): array
     }
     $allowedMimes = $policy[$ext];
     $genericOfficeMime = in_array($detectedMime, ['application/zip', 'application/octet-stream'], true);
-    if (lms_ooxml_required_prefix($ext) !== null && $genericOfficeMime) {
+    if (lms_is_legacy_office_extension($ext) && in_array($detectedMime, $allowedMimes, true)) {
+        if (!lms_validate_ole_container($tmpPath)) {
+            lms_error('validation_error', 'unsupported file content type', 422);
+        }
+    } elseif (lms_ooxml_required_prefix($ext) !== null && $genericOfficeMime) {
         if (!lms_validate_ooxml_container($tmpPath, $ext)) {
             lms_error('validation_error', 'unsupported file content type', 422);
         }
