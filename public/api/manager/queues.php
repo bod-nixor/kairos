@@ -117,5 +117,3 @@ try {
     error_log('[kairos] manager.queues failed: ' . get_class($e));
     json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
-
-json_out(['error' => 'unknown'], 400);
