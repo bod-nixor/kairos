@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import os
+import re
 import threading
 import time
 
@@ -76,6 +77,14 @@ DEFAULT_CHANNELS = {"rooms", "queue", "progress", "ta_accept", "projector"}
 TOKEN_TTL_SECONDS = int(os.getenv("WS_TOKEN_TTL", "600") or 600)
 WS_SOCKET_PATH = _normalize_socket_path(os.getenv("WS_SOCKET_PATH", "/websocket/socket.io/"))
 WS_SHARED_SECRET = os.getenv("WS_SHARED_SECRET", "").strip()
+WS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("WS_ALLOWED_ORIGINS", "https://kairos.nixorcorporate.com").split(",")
+    if origin.strip()
+]
+WS_EMIT_MAX_BYTES = int(os.getenv("WS_EMIT_MAX_BYTES", "65536") or 65536)
+WS_LOG_DEBUG = (os.getenv("WS_LOG_DEBUG", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+EVENT_NAME_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
 
 OUTBOX_POLL_SECONDS = float(os.getenv("LMS_OUTBOX_POLL_SECONDS", "1") or 1)
 LMS_OUTBOX_ENABLED = (os.getenv("LMS_OUTBOX_ENABLED", "1") or "1").strip() not in {"0", "false", "False"}
@@ -148,14 +157,15 @@ class ClientState:
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = WS_EMIT_MAX_BYTES
 _socketio_internal_path = WS_SOCKET_PATH.lstrip("/") or "socket.io"
 socketio = SocketIO(
     app,
     async_mode="eventlet",
-    cors_allowed_origins="https://kairos.nixorcorporate.com",
+    cors_allowed_origins=WS_ALLOWED_ORIGINS,
     path=_socketio_internal_path,
-    logger=True,
-    engineio_logger=True,
+    logger=WS_LOG_DEBUG,
+    engineio_logger=WS_LOG_DEBUG,
 )
 
 _connections: Dict[str, ClientState] = {}
@@ -323,16 +333,19 @@ def handle_disconnect():
 
 @app.post("/emit")
 def handle_emit():
-    provided_secret = request.args.get("secret", "")
+    provided_secret = request.headers.get("X-Kairos-WS-Secret", "")
     if not provided_secret or not hmac.compare_digest(provided_secret, WS_SHARED_SECRET):
         abort(403)
+
+    if request.content_length is not None and request.content_length > WS_EMIT_MAX_BYTES:
+        abort(413)
 
     message = request.get_json(silent=True)
     if not isinstance(message, dict):
         abort(400, description="invalid json payload")
 
     event_name = str(message.get("event") or "").strip()
-    if not event_name:
+    if not event_name or not EVENT_NAME_RE.match(event_name):
         abort(400, description="event is required")
 
     outbound = _build_payload(message)
@@ -350,7 +363,7 @@ def handle_exception(exc: Exception):
         return exc
 
     app.logger.exception("Uncaught exception: %s", exc)
-    return jsonify({"ok": False, "error": str(exc)}), 500
+    return jsonify({"ok": False, "error": "internal_error"}), 500
 
 
 if LMS_OUTBOX_ENABLED:

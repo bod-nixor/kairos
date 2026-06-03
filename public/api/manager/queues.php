@@ -24,7 +24,7 @@ if (!table_exists($pdo, 'queues') || !table_has_columns($pdo, 'queues', ['queue_
     json_out(['error' => 'unsupported', 'message' => 'queues table not available'], 500);
 }
 
-$payload = json_decode(file_get_contents('php://input'), true) ?? [];
+$payload = kairos_json_input();
 $action = strtolower((string)($payload['action'] ?? ''));
 $roomId = isset($payload['room_id']) ? (int)$payload['room_id'] : 0;
 $queueId = isset($payload['queue_id']) ? (int)$payload['queue_id'] : 0;
@@ -55,7 +55,7 @@ try {
             ':description' => $description ?? '',
         ]);
         $id = (int)$pdo->lastInsertId();
-        ws_notify(['event' => 'rooms', 'course_id' => $courseId]);
+        safe_ws_notify(['event' => 'rooms', 'course_id' => $courseId], 'manager.queues ws_notify failed context=create');
         json_out(['success' => true, 'queue_id' => $id]);
     }
 
@@ -87,7 +87,7 @@ try {
         $sql = 'UPDATE queues SET ' . implode(', ', $fields) . ' WHERE queue_id = :qid';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
+        safe_ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']], 'manager.queues ws_notify failed context=rename');
         json_out(['success' => true]);
     }
 
@@ -110,11 +110,10 @@ try {
             }
             throw $e;
         }
-        ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']]);
+        safe_ws_notify(['event' => 'rooms', 'course_id' => (int)$info['course_id']], 'manager.queues ws_notify failed context=delete');
         json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] manager.queues failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
-
-json_out(['error' => 'unknown'], 400);

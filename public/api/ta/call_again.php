@@ -11,7 +11,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     json_out(['error' => 'method not allowed'], 405);
 }
 
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = kairos_json_input();
 $queueId = isset($input['queue_id']) ? (int)$input['queue_id'] : 0;
 $providedStudentName = isset($input['student_name']) ? trim((string)$input['student_name']) : '';
 $providedTaName = isset($input['ta_name']) ? trim((string)$input['ta_name']) : '';

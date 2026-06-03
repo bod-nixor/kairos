@@ -75,8 +75,8 @@ GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=kairos
-DB_USERNAME=kairos
-DB_PASSWORD=secret
+DB_USERNAME=kairos_app
+DB_PASSWORD=replace-with-strong-database-password
 DB_CHARSET=utf8mb4
 # Optional: DB_DSN=mysql:host=127.0.0.1;port=3306;dbname=kairos;charset=utf8mb4
 

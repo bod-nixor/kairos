@@ -26,7 +26,7 @@ try {
     }
 
     if ($method === 'POST') {
-        $input  = json_decode(file_get_contents('php://input'), true) ?? [];
+                $input  = kairos_json_input();
         $action = strtolower((string)($input['action'] ?? ''));
 
         if (!in_array($action, ['create', 'rename', 'delete'], true)) {
@@ -100,7 +100,8 @@ try {
 
     json_out(['error' => 'method not allowed'], 405);
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] admin.courses failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
 
 function table_has_column(PDO $pdo, string $table, string $column): bool

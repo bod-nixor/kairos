@@ -24,7 +24,7 @@ if (!table_exists($pdo, 'rooms') || !table_has_columns($pdo, 'rooms', ['room_id'
     json_out(['error' => 'unsupported', 'message' => 'rooms table not available'], 500);
 }
 
-$payload = json_decode(file_get_contents('php://input'), true) ?? [];
+$payload = kairos_json_input();
 $action  = strtolower((string)($payload['action'] ?? ''));
 $courseId = isset($payload['course_id']) ? (int)$payload['course_id'] : 0;
 $roomId   = isset($payload['room_id']) ? (int)$payload['room_id'] : 0;
@@ -46,7 +46,7 @@ try {
         $stmt = $pdo->prepare('INSERT INTO rooms (course_id, name) VALUES (:cid, :name)');
         $stmt->execute([':cid' => $courseId, ':name' => $name]);
         $id = (int)$pdo->lastInsertId();
-        ws_notify(['event' => 'rooms', 'course_id' => $courseId]);
+        safe_ws_notify(['event' => 'rooms', 'course_id' => $courseId], 'manager.rooms ws_notify failed context=create');
         json_out(['success' => true, 'room_id' => $id]);
     }
 
@@ -67,7 +67,7 @@ try {
         }
         $stmt = $pdo->prepare('UPDATE rooms SET name = :name WHERE room_id = :rid');
         $stmt->execute([':name' => $name, ':rid' => $roomId]);
-        ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
+        safe_ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom], 'manager.rooms ws_notify failed context=rename');
         json_out(['success' => true]);
     }
 
@@ -90,11 +90,10 @@ try {
             }
             throw $e;
         }
-        ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom]);
+        safe_ws_notify(['event' => 'rooms', 'course_id' => $courseFromRoom], 'manager.rooms ws_notify failed context=delete');
         json_out(['success' => true, 'deleted' => $deleted ?? false]);
     }
 } catch (Throwable $e) {
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    error_log('[kairos] manager.rooms failed: ' . get_class($e));
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }
-
-json_out(['error' => 'unknown'], 400);

@@ -53,3 +53,11 @@ function ws_notify(array $event): void {
     $cmd = implode(' ', $parts) . ' > /dev/null 2>&1 &';
     exec($cmd);
 }
+
+function safe_ws_notify(array $event, string $context): void {
+    try {
+        ws_notify($event);
+    } catch (Throwable $e) {
+        error_log('[kairos] ' . $context . ' exception=' . get_class($e) . ' message=' . $e->getMessage());
+    }
+}

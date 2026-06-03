@@ -49,6 +49,6 @@ try {
         'limit' => $limit,
     ]);
 } catch (Throwable $e) {
-    error_log('lms/quiz/submissions.php failed assessment_id=' . $assessmentId . ' user_id=' . (int)$user['user_id'] . ' message=' . $e->getMessage() . ' trace=' . $e->getTraceAsString());
+    error_log('lms/quiz/submissions.php failed assessment_id=' . $assessmentId . ' user_id=' . (int)$user['user_id'] . ' exception=' . get_class($e));
     lms_error('internal_error', 'Internal server error', 500);
 }

@@ -140,7 +140,7 @@ try {
   }
 
   if ($method === 'POST') {
-    $json       = json_decode(file_get_contents('php://input'), true) ?? [];
+    $json       = kairos_json_input();
     $detail_id  = isset($json['detail_id']) ? (int)$json['detail_id'] : 0;
     $done       = !empty($json['done']);      // legacy checkbox mapping
     $statusName = $json['status'] ?? null;    // optional explicit status name
@@ -215,5 +215,6 @@ try {
   json_out(['error' => 'method not allowed'], 405);
 
 } catch (Throwable $e) {
-  json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+  error_log('[kairos] progress failed: ' . get_class($e));
+  json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }

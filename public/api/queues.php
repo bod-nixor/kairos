@@ -4,24 +4,18 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/_helpers.php';
 require_once __DIR__ . '/queue_helpers.php';
 require_once __DIR__ . '/_ws_notify.php';
+require_once dirname(__DIR__) . '/includes/logger.php';
 require_once dirname(__DIR__, 2) . '/src/rbac.php';
 $user = require_login();
 $pdo  = db();
 
-/* ---------- Logging setup ---------- */
-$logDir  = __DIR__ . '/../logs';
-$logFile = $logDir . '/queues.log';
-
-if (!is_dir($logDir)) {
-    @mkdir($logDir, 0775, true);
-}
-
-/** Append a line to queues.log */
+/** Append queue diagnostics only when KAIROS_DEBUG is explicitly enabled. */
 function qlog(string $msg): void {
-    global $logFile, $user;
-    $uid = isset($user['user_id']) ? ('uid='.(string)$user['user_id']) : 'uid=-';
-    $ts  = date('Y-m-d H:i:s');
-    @file_put_contents($logFile, "[$ts][$uid] $msg\n", FILE_APPEND);
+    global $user;
+    kairos_debug_log('queues', [
+        'user_id' => isset($user['user_id']) ? (int)$user['user_id'] : null,
+        'message' => preg_replace('/TRACE=.*/', 'TRACE_REDACTED', $msg),
+    ]);
 }
 
 /* Log PHP errors/notices and uncaught exceptions too */
@@ -266,7 +260,7 @@ try {
     }
 
     if ($method === 'POST') {
-        $json     = json_decode(file_get_contents('php://input'), true) ?? [];
+        $json     = kairos_json_input();
         $action   = $json['action'] ?? '';
         $queue_id = (int)($json['queue_id'] ?? 0);
 
@@ -392,6 +386,6 @@ try {
 
 } catch (Throwable $e) {
     // Log full error and return JSON
-    qlog("Caught ".$e::class.": ".$e->getMessage()." TRACE=".$e->getTraceAsString());
-    json_out(['error' => 'server', 'message' => $e->getMessage()], 500);
+    qlog('Caught ' . $e::class);
+    json_out(['error' => 'server', 'message' => 'Internal server error'], 500);
 }

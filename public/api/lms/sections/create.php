@@ -50,6 +50,6 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    error_log('Failed to create section: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+    error_log('Failed to create section: exception=' . get_class($e));
     lms_error('db_error', 'Failed to create section', 500);
 }

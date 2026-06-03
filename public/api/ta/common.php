@@ -424,9 +424,11 @@ function ta_audit_log_table(PDO $pdo): ?string {
 }
 
 function ta_append_audit_log_file(array $entry): void {
-    $logDir = __DIR__ . '/../logs';
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0775, true);
+    $logDir = dirname(__DIR__, 3) . '/storage/logs';
+    if (!is_dir($logDir) && !mkdir($logDir, 0750, true) && !is_dir($logDir)) {
+        $lastError = error_get_last();
+        error_log('[kairos] ta audit fallback mkdir failed dir=' . $logDir . ' error=' . (string)($lastError['message'] ?? 'unknown'));
+        return;
     }
     $file = $logDir . '/ta_audit.log';
     $payload = [
@@ -437,7 +439,16 @@ function ta_append_audit_log_file(array $entry): void {
         'student' => $entry['student_user_id'] ?? null,
         'meta'    => $entry['meta'] ?? null,
     ];
-    @file_put_contents($file, json_encode($payload, JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+    $line = json_encode($payload, JSON_UNESCAPED_SLASHES);
+    if (!is_string($line)) {
+        error_log('[kairos] ta audit fallback encode failed file=' . $file . ' error=' . json_last_error_msg());
+        return;
+    }
+    $written = file_put_contents($file, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+    if ($written === false) {
+        $lastError = error_get_last();
+        error_log('[kairos] ta audit fallback write failed file=' . $file . ' error=' . (string)($lastError['message'] ?? 'unknown') . ' payload=' . $line);
+    }
 }
 
 function ta_log_audit_event(PDO $pdo, array $entry): void {
