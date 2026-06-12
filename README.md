@@ -43,7 +43,7 @@ Current/active domains include:
 
 Kairos is currently deployed in a cPanel-style environment and code should be written with those constraints in mind:
 
-- No framework/composer assumptions for core runtime flows.
+- No framework assumptions for core runtime flows. The private Drive integration uses locked Composer dependencies.
 - Public entrypoints live under `public/`.
 - Relative URLs can break when moving between nested pages; prefer well-defined base paths.
 - Session/auth requests rely on same-origin credentials/cookie behavior.
@@ -53,7 +53,8 @@ Kairos is currently deployed in a cPanel-style environment and code should be wr
 
 ## Prerequisites
 
-- PHP 8.1+ with `pdo_mysql`, `curl`, `openssl`.
+- PHP 8.1+ with `pdo_mysql`, `fileinfo`, `json`, and `openssl`; `curl`, `zip`, and `mbstring` are recommended.
+- Composer 2 for installing the locked Google Drive API client.
 - MariaDB/MySQL 10.6+.
 - Python 3.10+ (`pip install -r requirements.txt`) for websocket relay.
 - Google OAuth Client ID configured for Kairos hosts.
@@ -72,6 +73,13 @@ ALLOWED_DOMAIN=nixorcollege.edu.pk
 DEFAULT_ROLE_NAME=student
 GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 
+GOOGLE_DRIVE_ENABLED=false
+GOOGLE_DRIVE_WRITES_ENABLED=false
+GOOGLE_DRIVE_AUTH_MODE=service_account
+GOOGLE_DRIVE_CREDENTIALS_PATH=/absolute/path/outside/webroot/service-account.json
+GOOGLE_DRIVE_SHARED_DRIVE_ID=
+GOOGLE_DRIVE_ROOT_FOLDER_ID=
+
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=kairos
@@ -87,6 +95,14 @@ WS_PUBLIC_URL=wss://your-host.example.edu
 SESSION_COOKIE_NAME=kairos_session
 SESSION_COOKIE_PATH=/
 ```
+
+Install PHP dependencies:
+
+```bash
+composer install --no-dev --classmap-authoritative --no-interaction
+```
+
+See `docs/runbooks/google_drive_storage.md` before enabling private file storage.
 
 ### OAuth + local dev caveat
 

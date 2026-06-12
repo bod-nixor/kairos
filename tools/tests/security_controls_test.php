@@ -55,9 +55,14 @@ if ($tmp === false) {
 
 $rootHtaccess = (string)file_get_contents(dirname(__DIR__, 2) . '/.htaccess');
 $publicHtaccess = (string)file_get_contents(dirname(__DIR__, 2) . '/public/.htaccess');
-$assert(strpos($rootHtaccess, '^(\\.git|\\.env|config|docs|sql|src|tools|storage|logs)') !== false, 'root .htaccess should block repository internals');
+$assert(strpos($rootHtaccess, '^(\\.git|\\.env|config|db|docs|sql|src|tools|storage|logs|vendor)') !== false, 'root .htaccess should block repository internals and Composer dependencies');
 $assert(strpos($publicHtaccess, '^(includes|logs)(/|$)') !== false, 'public .htaccess should block public includes/logs');
 $assert(strpos($rootHtaccess, 'Content-Security-Policy') !== false, 'root .htaccess should define a CSP');
+$assert(strpos($rootHtaccess, 'https://accounts.google.com https://fonts.googleapis.com') !== false, 'CSP should permit Google Sign-In styles narrowly');
+$assert(strpos($rootHtaccess, 'wss://kairos.nixorcorporate.com') !== false, 'CSP should permit the canonical secure WebSocket origin');
+$assert(strpos($rootHtaccess, 'static.cloudflareinsights.com') === false, 'optional Cloudflare analytics should not weaken CSP');
+$assert(strpos($rootHtaccess, 'play.google.com') === false, 'browser telemetry endpoints should not be allowlisted');
+$assert(strpos($rootHtaccess, "script-src-attr 'none'") !== false, 'inline script attributes should remain prohibited');
 
 if ($failed) {
     fwrite(STDERR, implode(PHP_EOL, $failed) . PHP_EOL);

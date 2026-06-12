@@ -6,7 +6,7 @@
  * Includes courses from:
  *  - student_courses (enrolled students)
  *  - course_staff (TAs, managers assigned to a course)
- *  - All courses for global admin/manager roles
+ *  - All courses for administrators
  */
 declare(strict_types=1);
 
@@ -14,11 +14,9 @@ require_once __DIR__ . '/../_common.php';
 
 $user = require_login();
 $pdo = db();
-$userId = (int)($user['user_id'] ?? 0);
 $role = lms_user_role($user);
 
-if (in_array($role, ['admin', 'manager'], true)) {
-    // Admins and global managers see all active courses
+if ($role === 'admin') {
     $stmt = $pdo->prepare(
         'SELECT CAST(c.course_id AS UNSIGNED) AS course_id, c.name, COALESCE(c.code, "") AS code,
                 COALESCE(c.visibility, "public") AS visibility
@@ -28,19 +26,20 @@ if (in_array($role, ['admin', 'manager'], true)) {
     );
     $stmt->execute();
 } else {
-    // Students and TAs see courses they are enrolled in or assigned as staff
+    $courseIds = rbac_accessible_course_ids($pdo, $user) ?? [];
+    if (!$courseIds) {
+        lms_ok(['courses' => []]);
+    }
+    $placeholders = implode(',', array_fill(0, count($courseIds), '?'));
     $stmt = $pdo->prepare(
-        'SELECT DISTINCT CAST(c.course_id AS UNSIGNED) AS course_id, c.name,
+        'SELECT CAST(c.course_id AS UNSIGNED) AS course_id, c.name,
                 COALESCE(c.code, "") AS code, COALESCE(c.visibility, "public") AS visibility
          FROM courses c
          WHERE c.is_active = 1
-           AND (
-             EXISTS (SELECT 1 FROM student_courses sc WHERE sc.user_id = :uid AND sc.course_id = c.course_id)
-             OR EXISTS (SELECT 1 FROM course_staff cs WHERE cs.user_id = :uid2 AND cs.course_id = c.course_id)
-           )
+           AND c.course_id IN (' . $placeholders . ')
          ORDER BY c.name ASC'
     );
-    $stmt->execute([':uid' => $userId, ':uid2' => $userId]);
+    $stmt->execute(array_values($courseIds));
 }
 
 $enrolled = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];

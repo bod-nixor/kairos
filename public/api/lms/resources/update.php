@@ -20,7 +20,7 @@ if ($resourceId <= 0 || $courseId <= 0) {
 lms_course_access($user, $courseId);
 
 $pdo = db();
-$stmt = $pdo->prepare('SELECT resource_id, course_id, title, resource_type, drive_preview_url, metadata_json FROM lms_resources WHERE resource_id = :id AND course_id = :cid AND deleted_at IS NULL LIMIT 1');
+$stmt = $pdo->prepare('SELECT resource_id, course_id, title, resource_type, drive_file_id, drive_preview_url, metadata_json FROM lms_resources WHERE resource_id = :id AND course_id = :cid AND deleted_at IS NULL LIMIT 1');
 $stmt->execute([':id' => $resourceId, ':cid' => $courseId]);
 $resource = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -39,6 +39,9 @@ if ($title !== null && $title !== '') {
     $params[':title'] = $title;
 }
 if ($url !== null && $url !== '') {
+    if (!empty($resource['drive_file_id'])) {
+        lms_error('validation_error', 'Managed file content cannot be replaced with an external URL.', 422);
+    }
     if (!preg_match('/^https?:\/\//i', $url)) {
         lms_error('validation_error', 'URL must start with http:// or https://.', 422);
     }

@@ -16,55 +16,10 @@ if ($assignmentId <= 0) {
 
 $uploadMeta = null;
 if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-    $file = $_FILES['file'];
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
-        lms_error('validation_error', 'file upload failed', 422);
-    }
-
-    $size = (int)($file['size'] ?? 0);
-    $maxBytes = (int)env('LMS_UPLOAD_MAX_BYTES', 10485760);
-    if ($size <= 0 || $size > $maxBytes) {
-        lms_error('validation_error', 'file exceeds maximum size', 422);
-    }
-
-    $filename = trim((string)($file['name'] ?? ''));
-    if ($filename === '') {
-        $filename = 'submission_file';
-    }
-    if (function_exists('mb_substr')) {
-        $filename = mb_substr($filename, 0, 255);
-    } else {
-        $filename = substr($filename, 0, 255);
-    }
-
-    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-    $blocked = ['php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'exe', 'js', 'sh'];
-    if ($ext !== '' && in_array($ext, $blocked, true)) {
-        lms_error('validation_error', 'file type is not allowed', 422);
-    }
-
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $detectedMime = (string)$finfo->file((string)$file['tmp_name']);
-    $allowedMimes = [
-        'application/pdf',
-        'image/png',
-        'image/jpeg',
-        'text/plain',
-        'application/zip',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/msword',
-    ];
-    if (!in_array($detectedMime, $allowedMimes, true)) {
-        lms_error('validation_error', 'unsupported file content type', 422);
-    }
-
-    $uploadMeta = [
-        'name' => $filename,
-        'tmp_name' => (string)$file['tmp_name'],
-        'mime_type' => $detectedMime,
-        'size' => $size,
-        'extension' => $ext,
-    ];
+    $uploadMeta = lms_validate_uploaded_file(
+        $_FILES['file'],
+        lms_drive_upload_limit((int)env('LMS_UPLOAD_MAX_BYTES', 10485760))
+    );
 }
 
 $textSubmission = trim((string)($_POST['text_submission'] ?? ''));
@@ -124,12 +79,32 @@ if ($uploadMeta !== null) {
 }
 
 $uploadedDriveMeta = null;
+$storage = null;
+$storageContext = null;
 if ($uploadMeta !== null) {
-    $uploadedDriveMeta = lms_drive_upload_stub($uploadMeta['name'], $uploadMeta['tmp_name'], $uploadMeta['mime_type']);
+    if (!lms_drive_writes_enabled()) {
+        lms_error('storage_unavailable', 'Private file uploads are temporarily disabled. Use a text submission or contact an administrator.', 503);
+    }
+    $storageContext = [
+        'kind' => 'assignment_submission',
+        'course_id' => (int)$assignment['course_id'],
+        'assignment_id' => $assignmentId,
+        'uploader_user_id' => (int)$user['user_id'],
+    ];
+    try {
+        $storage = lms_drive_storage();
+        $uploadedDriveMeta = $storage->upload($uploadMeta, $storageContext);
+    } catch (DriveStorageException $e) {
+        lms_drive_fail($e, 'drive_submission_upload', [
+            'assignment_id' => $assignmentId,
+            'course_id' => (int)$assignment['course_id'],
+            'user_id' => (int)$user['user_id'],
+        ]);
+    }
 }
 
-$pdo->beginTransaction();
 try {
+    $pdo->beginTransaction();
     $verStmt = $pdo->prepare('SELECT COALESCE(MAX(version),0)+1 FROM lms_submissions WHERE assignment_id=:a AND student_user_id=:u FOR UPDATE');
     $verStmt->execute([':a' => $assignmentId, ':u' => (int)$user['user_id']]);
     $version = (int)$verStmt->fetchColumn();
@@ -148,15 +123,17 @@ try {
     $submissionId = (int)$pdo->lastInsertId();
 
     if ($uploadedDriveMeta !== null && $uploadMeta !== null) {
-        $pdo->prepare('INSERT INTO lms_resources (course_id,title,resource_type,drive_file_id,drive_preview_url,mime_type,file_size,checksum_sha256,access_scope,metadata_json,created_by) VALUES (:c,:t,\'file\',:fid,:url,:m,:size,:chk,\'assignment_submission\',:meta,:u)')->execute([
+        $resourceMetadata = lms_drive_resource_metadata($uploadedDriveMeta, ($storageContext ?? []) + [
+            'submission_id' => $submissionId,
+        ]);
+        $pdo->prepare('INSERT INTO lms_resources (course_id,title,resource_type,drive_file_id,drive_preview_url,mime_type,file_size,checksum_sha256,access_scope,metadata_json,created_by) VALUES (:c,:t,\'file\',:fid,NULL,:m,:size,:chk,\'assignment_submission\',:meta,:u)')->execute([
             ':c' => (int)$assignment['course_id'],
             ':t' => $uploadMeta['name'],
             ':fid' => $uploadedDriveMeta['file_id'],
-            ':url' => $uploadedDriveMeta['preview_url'],
             ':m' => $uploadedDriveMeta['mime_type'],
             ':size' => $uploadedDriveMeta['size'],
-            ':chk' => $uploadedDriveMeta['checksum'],
-            ':meta' => json_encode($uploadedDriveMeta),
+            ':chk' => $uploadedDriveMeta['checksum_sha256'],
+            ':meta' => json_encode($resourceMetadata, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             ':u' => (int)$user['user_id'],
         ]);
         $resourceId = (int)$pdo->lastInsertId();
@@ -164,6 +141,12 @@ try {
             ':s' => $submissionId,
             ':r' => $resourceId,
             ':v' => $version,
+        ]);
+        $storage->updateAppProperties((string)$uploadedDriveMeta['file_id'], [
+            'resource_id' => $resourceId,
+            'submission_id' => $submissionId,
+            'assignment_id' => $assignmentId,
+            'course_id' => (int)$assignment['course_id'],
         ]);
     }
 
@@ -198,8 +181,21 @@ try {
         $pdo->rollBack();
     }
     if ($uploadedDriveMeta !== null && !empty($uploadedDriveMeta['file_id'])) {
-        lms_drive_delete_stub((string)$uploadedDriveMeta['file_id']);
+        if ($storage instanceof DriveStorageInterface) {
+            lms_drive_try_cleanup($storage, (string)$uploadedDriveMeta['file_id'], [
+                'assignment_id' => $assignmentId,
+                'course_id' => (int)$assignment['course_id'],
+                'user_id' => (int)$user['user_id'],
+            ]);
+        }
     }
     error_log('assignment_submit_failed assignment_id=' . $assignmentId . ' user_id=' . (int)$user['user_id'] . ' exception=' . get_class($e));
+    if ($e instanceof DriveStorageException) {
+        lms_drive_fail($e, 'drive_submission_finalize', [
+            'assignment_id' => $assignmentId,
+            'course_id' => (int)$assignment['course_id'],
+            'user_id' => (int)$user['user_id'],
+        ]);
+    }
     lms_error('submission_failed', 'Failed to submit assignment', 500);
 }

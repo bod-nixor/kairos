@@ -2,6 +2,10 @@
 .env.*
 !.env.example
 public/logs/queues.log
+/vendor/
 
 # One-time DOM tools
 scripts/
+
+__pycache__/
+*.pyc
