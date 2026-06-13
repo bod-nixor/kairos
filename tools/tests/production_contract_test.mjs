@@ -63,7 +63,7 @@ for (const page of realtimePages) {
   );
 }
 
-const vendorClient = path.join(root, 'public/vendor/socket.io/4.7.5/socket.io.min.js');
+const vendorClient = path.join(root, 'public/assets/vendor/socket.io/4.7.5/socket.io.min.js');
 assert.equal(fs.existsSync(vendorClient), true, 'vendored Socket.IO client is missing');
 assert.ok(fs.statSync(vendorClient).size > 10000, 'vendored Socket.IO client looks incomplete');
 

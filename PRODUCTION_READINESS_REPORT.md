@@ -33,7 +33,7 @@ Production inspection and repository review identified:
 
 ### CSP and Asset Loading
 
-- Vendored Socket.IO 4.7.5 under `public/vendor/socket.io/4.7.5/`.
+- Vendored Socket.IO 4.7.5 under `public/assets/vendor/socket.io/4.7.5/`.
 - Replaced every Socket.IO CDN reference with the repository-controlled asset.
 - Added `data-cfasync="false"` to external and application script tags.
 - Added explicit CSP directives for script/style elements and attributes, workers, media, manifests, frames, and the canonical secure WebSocket origin.
@@ -131,7 +131,7 @@ node --check public/js/ws.js
 node --check public/js/lms-ws.js
 node --check public/js/lms-core.js
 python3 -m py_compile ws_server.py ws_emit.py
-sha256sum public/vendor/socket.io/4.7.5/socket.io.min.js
+sha256sum public/assets/vendor/socket.io/4.7.5/socket.io.min.js
 composer validate --strict --no-check-publish
 composer audit --locked
 ```
