@@ -16,7 +16,7 @@ Deploy the complete repository change set, including:
 - all changed `public/*.html` entry points
 - `public/css/kairos-ui.css`
 - `public/js/ws.js`, `public/js/lms-ws.js`, and `public/js/lms-core.js`
-- `public/vendor/socket.io/4.7.5/socket.io.min.js` and `LICENSE`
+- `public/assets/vendor/socket.io/4.7.5/socket.io.min.js` and `LICENSE`
 - changed PHP API and RBAC consumers under `public/api/`
 - `composer.json` and `composer.lock`
 - `public/api/lms/integrations/drive/` and `public/api/lms/resources/download.php`
@@ -61,7 +61,7 @@ All critical scripts also carry `data-cfasync="false"` as a repository-side defe
 
 - [ ] Confirm `mod_headers`, `mod_rewrite`, `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel` are enabled as required by the hosting layout.
 - [ ] Confirm the effective document root uses the deployed `.htaccess` policy.
-- [ ] Confirm `/signoff/vendor/socket.io/4.7.5/socket.io.min.js` returns HTTP 200 and a JavaScript content type.
+- [ ] Confirm `/signoff/assets/vendor/socket.io/4.7.5/socket.io.min.js` returns HTTP 200 and a JavaScript content type.
 - [ ] Confirm `/signoff/vendor/autoload.php`, `/signoff/composer.json`, and `/signoff/composer.lock` return 403/404.
 - [ ] Confirm `/signoff/websocket/socket.io/?EIO=4&transport=polling` reaches the Python service.
 - [ ] Check that cPanel did not omit hidden `.htaccess` files during upload.
@@ -88,7 +88,7 @@ curl -sSI https://kairos.nixorcorporate.com/signoff/ \
   | tr -d '\r' \
   | grep -iE 'content-security-policy|cross-origin-opener-policy|x-content-type-options'
 
-curl -sSI https://kairos.nixorcorporate.com/signoff/vendor/socket.io/4.7.5/socket.io.min.js
+curl -sSI https://kairos.nixorcorporate.com/signoff/assets/vendor/socket.io/4.7.5/socket.io.min.js
 
 curl -sS "https://kairos.nixorcorporate.com/signoff/websocket/socket.io/?EIO=4&transport=polling"
 ```
