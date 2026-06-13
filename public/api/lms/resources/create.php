@@ -36,7 +36,9 @@ lms_course_access($user, $courseId);
 $embed = lms_external_embed_descriptor($url);
 $previewUrl = $embed['embed_url'] ?? $url;
 $shareWarning = null;
-if ($type === 'pdf' && str_contains($url, 'drive.google.com') && ($embed['provider'] ?? '') !== 'google_drive') {
+$urlHost = strtolower((string)(parse_url($url, PHP_URL_HOST) ?: ''));
+$isDriveHost = $urlHost === 'drive.google.com' || str_ends_with($urlHost, '.drive.google.com');
+if ($type === 'pdf' && $isDriveHost && ($embed['provider'] ?? '') !== 'google_drive') {
     $shareWarning = 'Drive link could not be normalized to preview URL. Ensure sharing settings allow viewers.';
 }
 

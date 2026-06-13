@@ -8,8 +8,21 @@ const ui = fs.readFileSync(path.join(root, 'public/css/kairos-ui.css'), 'utf8');
 const lms = fs.readFileSync(path.join(root, 'public/css/lms.css'), 'utf8');
 
 const failures = [];
-const lightBlock = style.match(/:root,\s*\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
-const semanticBlock = style.match(/KAIROS LMS[\s\S]*?:root\s*\{([\s\S]*?)\n\}\s*\n\.theme-dark/)?.[1] || '';
+
+function findTokenBlock(css, selectorPattern, requiredToken) {
+  const blocks = [...css.matchAll(new RegExp(`${selectorPattern}\\s*\\{([\\s\\S]*?)\\}`, 'gm'))];
+  return blocks.map(match => match[1]).find(block => block.includes(requiredToken)) || '';
+}
+
+const lightBlock = findTokenBlock(
+  style,
+  String.raw`(?:^|\n)\s*(?::root\s*,\s*\[data-theme=["']light["']\]|\[data-theme=["']light["']\]|:root)`,
+  '--text-secondary',
+);
+const semanticBlock = findTokenBlock(style, String.raw`(?:^|\n)\s*:root`, '--status-success-bg');
+
+if (!lightBlock) failures.push('could not locate the light-theme token block');
+if (!semanticBlock) failures.push('could not locate the semantic status token block');
 
 function token(block, name) {
   const value = block.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`))?.[1];
@@ -60,6 +73,12 @@ for (const needle of ['::placeholder', ':disabled', 'var(--control-border)', 'va
   if (!`${style}\n${ui}\n${lms}`.includes(needle)) {
     failures.push(`shared UI CSS missing ${needle}`);
   }
+}
+if (!/\.k-item-reorder-controls\s*\{[\s\S]*?display:\s*inline-flex/.test(lms)) {
+  failures.push('item keyboard reorder controls must remain visible at desktop breakpoints');
+}
+if (!lms.includes('.k-form-field input:focus-visible')) {
+  failures.push('form fields must use focus-visible for the custom focus ring');
 }
 
 if (failures.length) {

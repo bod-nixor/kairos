@@ -122,6 +122,11 @@ if (!str_contains($read, 'announcement_id IN')) {
 if (!str_contains($read, 'LMS_MAX_ANNOUNCEMENT_READ_IDS') || !str_contains($read, "lms_error('validation_error', 'Too many announcement IDs'")) {
     $failed[] = 'announcement read tracking must reject oversized ID batches';
 }
+$rawCap = strpos($read, 'if (count($ids) > LMS_MAX_ANNOUNCEMENT_READ_IDS)');
+$normalizationLoop = strpos($read, 'foreach ($ids as $rawId)');
+if ($rawCap === false || $normalizationLoop === false || $rawCap > $normalizationLoop) {
+    $failed[] = 'announcement read tracking must cap the raw ID batch before normalization';
+}
 if (str_contains($read, "array_map('intval', \$ids)")) {
     $failed[] = 'announcement read tracking must not coerce malformed IDs with intval';
 }
@@ -142,6 +147,11 @@ foreach (['a.announcement_id = :announcement_id', 'a.course_id = :course_id', "a
         $failed[] = "announcement detail endpoint is missing {$needle}";
     }
 }
+foreach (['$rawCourseId', '$rawAnnouncementId', "preg_match('/^[1-9][0-9]*$/D'"] as $needle) {
+    if (!str_contains($detail, $needle)) {
+        $failed[] = "announcement detail endpoint is missing strict query validation: {$needle}";
+    }
+}
 
 $helpers = (string)file_get_contents("{$root}/public/api/lms/announcements/_helpers.php");
 if (!str_contains($helpers, "'audience' => \$visibleToCourse ? 'course' : 'course_staff'")) {
@@ -156,6 +166,11 @@ foreach (['openAnnouncementDetail', 'View full announcement', 'announcements_rea
     if (!str_contains($courseJs, $needle)) {
         $failed[] = "course announcement UI is missing {$needle}";
     }
+}
+$localReadMutation = strpos($courseJs, 'notifications.forEach(n => { n.read = true; });');
+$announcementReadCall = strpos($courseJs, "'./api/lms/announcements_read.php'");
+if ($localReadMutation === false || $announcementReadCall === false || $localReadMutation < $announcementReadCall) {
+    $failed[] = 'notification UI must update local read state only after persistence calls complete';
 }
 
 if ($failed) {

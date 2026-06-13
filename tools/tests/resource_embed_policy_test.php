@@ -83,6 +83,9 @@ if (class_exists(DOMDocument::class)) {
 $root = dirname(__DIR__, 2);
 $core = (string)file_get_contents($root . '/public/js/lms-core.js');
 $viewer = (string)file_get_contents($root . '/public/js/resource-viewer.js');
+$lesson = (string)file_get_contents($root . '/public/js/lesson.js');
+$create = (string)file_get_contents($root . '/public/api/lms/resources/create.php');
+$update = (string)file_get_contents($root . '/public/api/lms/resources/update.php');
 $template = (string)file_get_contents($root . '/templates/pages/resource-viewer.html');
 
 foreach (['youtube-nocookie.com', 'getEmbedDescriptor', "sandbox: 'allow-same-origin'", 'toVimeoEmbedUrl'] as $needle) {
@@ -97,6 +100,23 @@ foreach (['previewFallbackLink', 'loading="lazy"', 'referrerpolicy="strict-origi
     if (!str_contains($viewer . $template, $needle)) {
         $failed[] = "resource viewer missing {$needle}";
     }
+}
+if (!str_contains($core, '/^[A-Za-z0-9_-]{6,20}$/')) {
+    $failed[] = 'frontend YouTube normalization must validate the video ID contract';
+}
+if (!str_contains($lesson, 'LMS.getEmbedDescriptor(url, { title })')) {
+    $failed[] = 'lesson video insertion must use the shared provider embed descriptor';
+}
+foreach (['parse_url($url, PHP_URL_HOST)', "str_ends_with(\$urlHost, '.drive.google.com')"] as $needle) {
+    if (!str_contains($create, $needle)) {
+        $failed[] = "resource create share warning is missing host-scoped detection: {$needle}";
+    }
+}
+if (!str_contains($update, "\$meta['share_warning'] = null;")) {
+    $failed[] = 'resource URL updates must clear stale share warnings';
+}
+if (!str_contains($viewer, "resource?.original_url || rawUrl")) {
+    $failed[] = 'resource fallback must prefer the original URL over the preview URL';
 }
 
 if ($failed !== []) {

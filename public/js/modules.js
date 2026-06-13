@@ -321,7 +321,7 @@
     /* =========================================================
        Render: Module Section
        ========================================================= */
-    function renderModuleHtml(mod, isExpanded) {
+    function renderModuleHtml(mod, isExpanded, moduleIndex, moduleCount) {
         const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
         const bodyId = `mod-items-${moduleId}`;
         const hdrId = `mod-hdr-${moduleId}`;
@@ -333,6 +333,10 @@
         const dragHandle = isAdmin ? `<span class="k-drag-handle k-drag-handle--module" draggable="true" title="Drag to reorder module" aria-label="Drag to reorder module">⋮⋮</span>` : '';
 
         const adminHeaderBtns = isAdmin ? `
+          <span class="k-module-reorder-controls" aria-label="Reorder module">
+            <button class="k-btn-icon" type="button" title="Move module up" aria-label="Move module up" data-action="move-module-up" data-module-id="${moduleId}"${moduleIndex === 0 ? ' disabled' : ''}>↑</button>
+            <button class="k-btn-icon" type="button" title="Move module down" aria-label="Move module down" data-action="move-module-down" data-module-id="${moduleId}"${moduleIndex === moduleCount - 1 ? ' disabled' : ''}>↓</button>
+          </span>
           <button type="button" class="k-admin-btn k-admin-btn--sm" data-action="open-add-item" data-module-id="${moduleId}">+ Add Item</button>
           <button type="button" class="k-btn-icon" title="Edit module" data-action="edit-module" data-module-id="${moduleId}">✏️</button>
           <button type="button" class="k-btn-icon k-btn-icon--danger" title="Delete module" data-action="delete-module" data-module-id="${moduleId}">🗑️</button>
@@ -377,6 +381,22 @@
         });
     }
 
+    function setModuleReorderBusy(container, busy) {
+        container.querySelectorAll('[data-action="move-module-up"], [data-action="move-module-down"]').forEach(button => {
+            if (busy && !button.disabled) {
+                button.dataset.reorderBusyDisabled = '1';
+                button.disabled = true;
+            } else if (!busy && button.dataset.reorderBusyDisabled === '1') {
+                delete button.dataset.reorderBusyDisabled;
+                button.disabled = false;
+            }
+        });
+        container.querySelectorAll('.k-drag-handle--module').forEach(handle => {
+            handle.setAttribute('draggable', busy ? 'false' : 'true');
+            handle.setAttribute('aria-disabled', busy ? 'true' : 'false');
+        });
+    }
+
     function syncItemOrder(sectionId, itemIds) {
         const module = modulesData.find(entry => parseInt(entry.section_id ?? entry.id ?? 0, 10) === sectionId);
         if (!module || !Array.isArray(module.items)) return;
@@ -399,6 +419,7 @@
 
         moduleReorderPending = true;
         container.setAttribute('aria-busy', 'true');
+        setModuleReorderBusy(container, true);
         try {
             const res = await LMS.api('POST', './api/lms/sections/reorder.php', {
                 course_id: COURSE_ID_INT,
@@ -422,6 +443,7 @@
         } finally {
             moduleReorderPending = false;
             container.setAttribute('aria-busy', 'false');
+            if (document.body.contains(container)) setModuleReorderBusy(container, false);
         }
     }
 
@@ -613,10 +635,10 @@
         const container = $('moduleList');
         if (!container) return;
 
-        container.innerHTML = modules.map((mod) => {
+        container.innerHTML = modules.map((mod, index) => {
             const moduleId = parseInt(mod.section_id ?? mod.id ?? 0, 10);
             const isExpanded = expandedModules.has(moduleId);
-            return renderModuleHtml(mod, isExpanded);
+            return renderModuleHtml(mod, isExpanded, index, modules.length);
         }).join('');
 
         // Setup drag-and-drop after rendering
@@ -849,6 +871,20 @@
                     if (actionName === 'open-add-item') openCreateModal('module_item', action.dataset.moduleId || '');
                     else if (actionName === 'edit-module' && mod) openEditModuleModal(mod);
                     else if (actionName === 'delete-module' && mod) confirmDeleteModule(mod);
+                    else if ((actionName === 'move-module-up' || actionName === 'move-module-down') && mod) {
+                        const moduleEl = action.closest('.k-module[data-module-id]');
+                        if (!moduleEl || moduleReorderPending) return;
+                        const originalOrder = orderedIds(container, '.k-module[data-module-id]', 'moduleId');
+                        if (actionName === 'move-module-up' && moduleEl.previousElementSibling?.classList.contains('k-module')) {
+                            container.insertBefore(moduleEl, moduleEl.previousElementSibling);
+                        } else if (actionName === 'move-module-down' && moduleEl.nextElementSibling?.classList.contains('k-module')) {
+                            container.insertBefore(moduleEl.nextElementSibling, moduleEl);
+                        } else {
+                            return;
+                        }
+                        await persistModuleOrder(container, originalOrder);
+                        renderModules(modulesData);
+                    }
                     else if ((actionName === 'move-item-up' || actionName === 'move-item-down') && item) {
                         const itemEl = action.closest('.k-module-item[data-module-item-id]');
                         const itemsContainer = itemEl?.closest('.k-module__items');

@@ -669,7 +669,8 @@
       } else if (host === 'youtu.be') {
         videoId = parsed.pathname.replace(/^\//, '').split('/')[0] || '';
       }
-      if (!videoId) return null;
+      videoId = videoId.trim();
+      if (!/^[A-Za-z0-9_-]{6,20}$/.test(videoId)) return null;
       const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
       const embed = new URL(`https://www.youtube-nocookie.com/embed/${videoId}`);
       if (start > 0) embed.searchParams.set('start', String(start));

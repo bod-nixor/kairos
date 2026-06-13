@@ -78,18 +78,29 @@
             const unread = notifications.filter(n => !n.read);
             const ids = unread.map((n) => n.event_id).filter(Boolean);
             const announcementIds = unread.map(n => n.announcement_id).filter(id => id > 0);
-            ids.forEach((id) => seenNotificationIds.add(String(id)));
-            notifications.forEach(n => { n.read = true; });
-            renderNotifications();
             if (ids.length) {
-                await LMS.api('POST', './api/lms/notifications_seen.php', { course_id: Number(COURSE_ID), event_ids: ids });
+                const seenResult = await LMS.api('POST', './api/lms/notifications_seen.php', {
+                    course_id: Number(COURSE_ID),
+                    event_ids: ids,
+                });
+                if (!seenResult.ok) {
+                    LMS.toast(seenResult.data?.error?.message || 'Could not mark notifications as read.', 'error');
+                    return;
+                }
             }
             if (announcementIds.length) {
-                await LMS.api('POST', './api/lms/announcements_read.php', {
+                const announcementResult = await LMS.api('POST', './api/lms/announcements_read.php', {
                     course_id: Number(COURSE_ID),
                     ids: [...new Set(announcementIds)],
                 });
+                if (!announcementResult.ok) {
+                    LMS.toast(announcementResult.data?.error?.message || 'Could not mark announcements as read.', 'error');
+                    return;
+                }
             }
+            ids.forEach((id) => seenNotificationIds.add(String(id)));
+            notifications.forEach(n => { n.read = true; });
+            renderNotifications();
         });
         $('kNotificationsList')?.addEventListener('click', (event) => {
             const button = event.target.closest('[data-view-announcement]');

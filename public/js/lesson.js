@@ -300,11 +300,19 @@
     if (!editor) return;
 
     if (type === 'video') {
-      const embedUrl = LMS.toYoutubeEmbedUrl(url);
-      if (embedUrl) {
-        const safeUrl = escAttr(embedUrl);
+      const descriptor = LMS.getEmbedDescriptor(url, { title });
+      if (descriptor?.embedUrl) {
+        const iframeAttributes = [
+          `src="${escAttr(descriptor.embedUrl)}"`,
+          `title="${escAttr(title || descriptor.title || 'Embedded video')}"`,
+          'loading="lazy"',
+          'referrerpolicy="strict-origin-when-cross-origin"',
+          descriptor.allow ? `allow="${escAttr(descriptor.allow)}"` : '',
+          descriptor.sandbox ? `sandbox="${escAttr(descriptor.sandbox)}"` : '',
+          descriptor.allowFullscreen ? 'allowfullscreen' : '',
+        ].filter(Boolean).join(' ');
         const fallback = escAttr(url);
-        const snippet = `<div class="k-embed-16x9"><iframe src="${safeUrl}" title="${escAttr(title)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab</a></p>`;
+        const snippet = `<div class="k-embed-16x9"><iframe ${iframeAttributes}></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab</a></p>`;
         document.execCommand('insertHTML', false, snippet);
       } else {
         const viewerHref = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;

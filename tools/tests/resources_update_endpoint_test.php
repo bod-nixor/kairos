@@ -65,6 +65,7 @@ function simulate_resources_update(array $actor, array $in, array &$state): arra
             $meta = [];
         }
         $meta['url'] = $url;
+        $meta['share_warning'] = null;
         $state['resources'][$resourceIndex]['metadata_json'] = $meta;
         $updated = true;
     }
@@ -114,7 +115,10 @@ $baseState = [
             'course_id' => 301,
             'title' => 'Original Resource',
             'drive_preview_url' => 'https://drive.google.com/file/d/abc/view',
-            'metadata_json' => ['url' => 'https://drive.google.com/file/d/abc/view'],
+            'metadata_json' => [
+                'url' => 'https://drive.google.com/file/d/abc/view',
+                'share_warning' => 'Old warning',
+            ],
             'published' => 1,
             'deleted_at' => null,
         ],
@@ -180,6 +184,10 @@ $cases = [
             }
             if (($state['resources'][0]['metadata_json']['url'] ?? '') !== 'https://example.com/slides.pdf') {
                 throw new RuntimeException('metadata_json url not updated');
+            }
+            $metadata = $state['resources'][0]['metadata_json'];
+            if (!array_key_exists('share_warning', $metadata) || $metadata['share_warning'] !== null) {
+                throw new RuntimeException('stale share warning was not cleared');
             }
             if ($state['module_items'][0]['title'] !== 'New Resource Title') {
                 throw new RuntimeException('module item title did not cascade');

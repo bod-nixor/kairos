@@ -4,9 +4,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/_helpers.php';
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
-$courseId = (int)($_GET['course_id'] ?? 0);
-$announcementId = (int)($_GET['announcement_id'] ?? 0);
-if ($courseId <= 0 || $announcementId <= 0) {
+$rawCourseId = $_GET['course_id'] ?? null;
+$rawAnnouncementId = $_GET['announcement_id'] ?? null;
+$courseId = is_string($rawCourseId) && preg_match('/^[1-9][0-9]*$/D', $rawCourseId) === 1
+    ? filter_var($rawCourseId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+    : false;
+$announcementId = is_string($rawAnnouncementId) && preg_match('/^[1-9][0-9]*$/D', $rawAnnouncementId) === 1
+    ? filter_var($rawAnnouncementId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+    : false;
+if ($courseId === false || $announcementId === false) {
     lms_error('validation_error', 'course_id and announcement_id required', 422);
 }
 

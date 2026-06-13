@@ -28,6 +28,10 @@ if (!is_array($ids) || empty($ids)) {
 
 lms_course_access($user, $courseId);
 
+if (count($ids) > LMS_MAX_ANNOUNCEMENT_READ_IDS) {
+    lms_error('validation_error', 'Too many announcement IDs', 422);
+}
+
 // Deduplicate only after strict validation; values such as "12abc" must not become 12.
 $normalizedIds = [];
 foreach ($ids as $rawId) {

@@ -54,6 +54,7 @@ if ($url !== null && $url !== '') {
     $meta['url'] = $url;
     $meta['preview_url'] = $previewUrl;
     $meta['embed_provider'] = $embed['provider'] ?? null;
+    $meta['share_warning'] = null;
     $updates[] = 'metadata_json = :meta';
     $params[':meta'] = json_encode($meta, JSON_THROW_ON_ERROR);
 }

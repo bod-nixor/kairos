@@ -64,7 +64,7 @@ function lms_reorder_temporary_positions(array $currentPositions, int $count): a
 
     $maxPosition = $currentPositions === [] ? 0 : max($currentPositions);
     $unsignedIntMax = 4294967295;
-    if ($maxPosition < 0 || $maxPosition > ($unsignedIntMax - $count - 1)) {
+    if ($maxPosition < 0 || $maxPosition > ($unsignedIntMax - $count)) {
         throw new OverflowException('No safe temporary position range remains');
     }
 

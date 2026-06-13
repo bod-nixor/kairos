@@ -5,7 +5,7 @@ require_once dirname(__DIR__, 2) . '/public/api/lms/_reorder.php';
 
 function simulate_reorder(array $actor, int $courseId, array $payload, array $currentIds): array
 {
-    if (!in_array(strtolower((string)($actor['course_role'] ?? '')), ['manager', 'admin'], true)) {
+    if (($actor['capabilities']['manage_course'] ?? false) !== true) {
         return ['status' => 403, 'error' => 'forbidden'];
     }
     if ((int)($actor['course_id'] ?? 0) !== $courseId) {
@@ -31,12 +31,12 @@ function simulate_reorder(array $actor, int $courseId, array $payload, array $cu
     return ['status' => 200, 'order' => $submittedIds];
 }
 
-$manager = ['course_role' => 'manager', 'course_id' => 101];
+$manager = ['capabilities' => ['manage_course' => true], 'course_id' => 101];
 $current = [501, 502, 503];
 $cases = [
     ['valid reorder', $manager, 101, ['module_item_ids' => [503, 501, 502], 'expected_module_item_ids' => $current], 200],
-    ['student denied', ['course_role' => 'student', 'course_id' => 101], 101, ['module_item_ids' => $current], 403],
-    ['ta denied', ['course_role' => 'ta', 'course_id' => 101], 101, ['module_item_ids' => $current], 403],
+    ['student denied', ['capabilities' => ['manage_course' => false], 'course_id' => 101], 101, ['module_item_ids' => $current], 403],
+    ['ta denied', ['capabilities' => [], 'course_id' => 101], 101, ['module_item_ids' => $current], 403],
     ['foreign course denied', $manager, 202, ['module_item_ids' => $current], 403],
     ['missing item rejected', $manager, 101, ['module_item_ids' => [501, 502]], 422],
     ['foreign item rejected', $manager, 101, ['module_item_ids' => [501, 502, 999]], 422],
@@ -62,6 +62,15 @@ try {
     }
 } catch (Throwable $e) {
     $failed[] = 'temporary position allocation failed: ' . $e->getMessage();
+}
+
+try {
+    $temporary = lms_reorder_temporary_positions([4294967293], 2);
+    if ($temporary !== [4294967294, 4294967295] || count(array_unique($temporary)) !== 2) {
+        $failed[] = 'top unsigned-int boundary must remain a valid temporary range';
+    }
+} catch (Throwable $e) {
+    $failed[] = 'top unsigned-int boundary was incorrectly rejected: ' . $e->getMessage();
 }
 
 try {
@@ -93,7 +102,7 @@ foreach ([$itemEndpoint, $sectionEndpoint] as $source) {
 if (preg_match("/':pos'\\s*=>\\s*-/", $itemEndpoint) === 1) {
     $failed[] = 'module item reorder must never write negative positions to an unsigned column';
 }
-foreach (['expected_module_item_ids', 'itemReordersPending', 'move-item-up', 'move-item-down', 'restoreElementOrder'] as $needle) {
+foreach (['expected_module_item_ids', 'itemReordersPending', 'move-item-up', 'move-item-down', 'move-module-up', 'move-module-down', 'restoreElementOrder'] as $needle) {
     if (!str_contains($frontend, $needle)) {
         $failed[] = "module reorder frontend is missing {$needle}";
     }
