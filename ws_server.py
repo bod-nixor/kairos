@@ -85,12 +85,166 @@ WS_ALLOWED_ORIGINS = [
 WS_EMIT_MAX_BYTES = int(os.getenv("WS_EMIT_MAX_BYTES", "65536") or 65536)
 WS_LOG_DEBUG = (os.getenv("WS_LOG_DEBUG", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
 EVENT_NAME_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
+COURSE_ACCESS_MAPPINGS: Dict[str, tuple[str, str, str, Optional[str]]] = {
+    "manager_courses": ("manager_courses", "user_id", "course_id", None),
+    "course_staff": ("course_staff", "user_id", "course_id", "role"),
+    "course_roles": ("course_roles", "user_id", "course_id", "role"),
+    "enrollments": ("enrollments", "user_id", "course_id", "role"),
+    "user_courses": ("user_courses", "user_id", "course_id", "role"),
+    "ta_courses": ("ta_courses", "ta_user_id", "course_id", None),
+    "course_tas": ("course_tas", "user_id", "course_id", None),
+    "ta_enrollments": ("ta_enrollments", "user_id", "course_id", None),
+    "staff_courses": ("staff_courses", "user_id", "course_id", None),
+    "student_courses": ("student_courses", "user_id", "course_id", None),
+}
 
 OUTBOX_POLL_SECONDS = float(os.getenv("LMS_OUTBOX_POLL_SECONDS", "1") or 1)
 LMS_OUTBOX_ENABLED = (os.getenv("LMS_OUTBOX_ENABLED", "1") or "1").strip() not in {"0", "false", "False"}
 
 if not WS_SHARED_SECRET:
     raise RuntimeError("WS_SHARED_SECRET must be configured")
+
+
+def _open_db(*, autocommit: bool = True):
+    if pymysql is None:
+        raise RuntimeError("pymysql is required for realtime authorization")
+    return pymysql.connect(
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        port=int(os.getenv("DB_PORT", "3306") or 3306),
+        user=os.getenv("DB_USERNAME", ""),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_DATABASE", "kairos"),
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=autocommit,
+        connect_timeout=5,
+        read_timeout=5,
+        write_timeout=5,
+    )
+
+
+def _mapping_grants(
+    cursor: Any,
+    *,
+    mapping_key: str,
+    user_id: int,
+    course_id: int,
+    allowed_roles: Optional[Set[str]] = None,
+) -> bool:
+    if mapping_key not in COURSE_ACCESS_MAPPINGS:
+        raise ValueError(f"Unsupported course access mapping: {mapping_key}")
+    table, user_column, course_column, role_column = COURSE_ACCESS_MAPPINGS[mapping_key]
+
+    columns = [user_column, course_column]
+    if role_column:
+        columns.append(role_column)
+    placeholders = ",".join(["%s"] * len(columns))
+    cursor.execute(
+        "SELECT COUNT(*) AS column_count FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s "
+        f"AND COLUMN_NAME IN ({placeholders})",
+        [table, *columns],
+    )
+    row = cursor.fetchone() or {}
+    if int(row.get("column_count") or 0) != len(columns):
+        return False
+
+    sql = (
+        f"SELECT 1 FROM `{table}` "
+        f"WHERE `{user_column}` = %s AND `{course_column}` = %s"
+    )
+    args: list[Any] = [user_id, course_id]
+    if role_column and allowed_roles:
+        role_placeholders = ",".join(["%s"] * len(allowed_roles))
+        sql += f" AND LOWER(`{role_column}`) IN ({role_placeholders})"
+        args.extend(sorted(allowed_roles))
+    sql += " LIMIT 1"
+    cursor.execute(sql, args)
+    return cursor.fetchone() is not None
+
+
+def _user_can_access_course(user_id: int, course_id: int) -> bool:
+    if user_id <= 0 or course_id <= 0:
+        return False
+
+    connection = None
+    try:
+        connection = _open_db()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT LOWER(r.name) AS role_name "
+                "FROM users u JOIN roles r ON r.role_id = u.role_id "
+                "WHERE u.user_id = %s LIMIT 1",
+                (user_id,),
+            )
+            role_row = cursor.fetchone() or {}
+            role = str(role_row.get("role_name") or "").lower()
+            if role == "admin":
+                return True
+
+            mappings = []
+            if role == "manager":
+                mappings.extend([
+                    ("manager_courses", None),
+                    ("course_staff", {"manager"}),
+                    ("course_roles", {"manager"}),
+                    ("enrollments", {"manager"}),
+                    ("user_courses", {"manager"}),
+                ])
+            elif role == "ta":
+                mappings.extend([
+                    ("course_staff", {"ta", "manager"}),
+                    ("course_roles", {"ta", "manager"}),
+                    ("enrollments", {"ta", "manager"}),
+                    ("user_courses", {"ta", "manager"}),
+                    ("ta_courses", None),
+                    ("course_tas", None),
+                    ("ta_enrollments", None),
+                    ("staff_courses", None),
+                ])
+            elif role == "student":
+                mappings.append(("student_courses", None))
+            else:
+                return False
+
+            for mapping_key, allowed_roles in mappings:
+                if _mapping_grants(
+                    cursor,
+                    mapping_key=mapping_key,
+                    user_id=user_id,
+                    course_id=course_id,
+                    allowed_roles=allowed_roles,
+                ):
+                    return True
+    except Exception:
+        app.logger.exception(
+            "realtime course authorization failed user=%s course=%s",
+            user_id,
+            course_id,
+        )
+    finally:
+        if connection is not None:
+            connection.close()
+    return False
+
+
+def _room_course_id(room_id: int) -> Optional[int]:
+    connection = None
+    try:
+        connection = _open_db()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT CAST(course_id AS UNSIGNED) AS course_id "
+                "FROM rooms WHERE room_id = %s LIMIT 1",
+                (room_id,),
+            )
+            row = cursor.fetchone() or {}
+            return _parse_int(row.get("course_id"))
+    except Exception:
+        app.logger.exception("realtime room authorization failed room=%s", room_id)
+        return None
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 def _parse_int(value: Any) -> Optional[int]:
@@ -202,22 +356,36 @@ def _room_names(state: ClientState) -> Set[str]:
     return rooms
 
 
-def _emit_to_all_clients(payload: Dict[str, Any]) -> int:
-    """Broadcast the payload to every connected client."""
+def _channel_for_event(event_name: str) -> str:
+    if event_name.startswith("projector_"):
+        return "projector"
+    return event_name if event_name in DEFAULT_CHANNELS else "progress"
 
-    with _connections_lock:
-        targets = list(_connections.keys())
 
-    for sid in targets:
-        socketio.emit(payload["event"], payload, room=sid)
-
-    return len(targets)
+def _emit_scoped_event(payload: Dict[str, Any]) -> int:
+    channel = _channel_for_event(str(payload.get("event") or ""))
+    course_id = _parse_int(payload.get("course_id"))
+    room_id = _parse_int(payload.get("room_id"))
+    if course_id is not None and room_id is not None:
+        room = f"channel::{channel}::course::{course_id}::room::{room_id}"
+    elif course_id is not None:
+        room = f"channel::{channel}::course::{course_id}"
+    elif room_id is not None:
+        room = f"channel::{channel}::room::{room_id}"
+    else:
+        room = f"channel::{channel}"
+    socketio.emit(payload["event"], payload, room=room)
+    return 1
 
 
 def _emit_course_scoped(payload: Dict[str, Any]) -> int:
     course_id = _parse_int(payload.get("course_id"))
     if course_id is None:
-        return _emit_to_all_clients(payload)
+        app.logger.warning(
+            "dropping LMS event without course scope event=%s",
+            payload.get("event") or payload.get("event_name") or "unknown",
+        )
+        return 0
 
     room_name = f"course:{course_id}"
     socketio.emit(payload["event"], payload, room=room_name)
@@ -229,24 +397,10 @@ def _outbox_worker() -> None:
         app.logger.info("LMS outbox worker disabled")
         return
 
-    db_host = os.getenv("DB_HOST", "127.0.0.1")
-    db_port = int(os.getenv("DB_PORT", "3306") or 3306)
-    db_user = os.getenv("DB_USERNAME", "")
-    db_password = os.getenv("DB_PASSWORD", "")
-    db_name = os.getenv("DB_DATABASE", "kairos")
-
     while True:
         connection = None
         try:
-            connection = pymysql.connect(
-                host=db_host,
-                port=db_port,
-                user=db_user,
-                password=db_password,
-                database=db_name,
-                cursorclass=pymysql.cursors.DictCursor,
-                autocommit=False,
-            )
+            connection = _open_db(autocommit=False)
             with connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT event_id, payload_json FROM lms_event_outbox WHERE delivered_at IS NULL ORDER BY occurred_at ASC LIMIT 50 FOR UPDATE"
@@ -298,6 +452,23 @@ def handle_connect():
     course_id = _parse_int(request.args.get("course_id"))
     room_id = _parse_int(request.args.get("room_id"))
     sid = request.sid
+
+    if room_id is not None:
+        room_course_id = _room_course_id(room_id)
+        if room_course_id is None:
+            return False
+        if course_id is not None and course_id != room_course_id:
+            return False
+        course_id = room_course_id
+
+    if course_id is not None and not _user_can_access_course(user_id, course_id):
+        app.logger.warning(
+            "realtime subscription denied user=%s course=%s room=%s",
+            user_id,
+            course_id,
+            room_id,
+        )
+        return False
 
     state = ClientState(
         sid=sid,
@@ -351,7 +522,7 @@ def handle_emit():
     outbound = _build_payload(message)
     outbound["event"] = event_name
 
-    recipients = _emit_to_all_clients(outbound)
+    recipients = _emit_scoped_event(outbound)
     return jsonify({"ok": True, "sent": recipients})
 
 

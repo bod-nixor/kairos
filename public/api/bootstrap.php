@@ -312,8 +312,10 @@ $secure = kairos_is_https_request();
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
 ini_set('session.use_trans_sid', '0');
-ini_set('session.sid_length', '48');
-ini_set('session.sid_bits_per_character', '6');
+if (PHP_VERSION_ID < 80400) {
+    ini_set('session.sid_length', '48');
+    ini_set('session.sid_bits_per_character', '6');
+}
 
 $secureCookieSetting = env('SESSION_COOKIE_SECURE', null);
 if ($secureCookieSetting === null || $secureCookieSetting === '') {

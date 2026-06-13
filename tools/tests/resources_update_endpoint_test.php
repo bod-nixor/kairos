@@ -53,6 +53,9 @@ function simulate_resources_update(array $actor, array $in, array &$state): arra
     }
 
     if ($url !== null && $url !== '') {
+        if (!empty($state['resources'][$resourceIndex]['drive_file_id'])) {
+            return ['status' => 422, 'error' => 'validation_error'];
+        }
         if (!preg_match('/^https?:\/\//i', $url)) {
             return ['status' => 422, 'error' => 'validation_error'];
         }
@@ -112,6 +115,16 @@ $baseState = [
             'title' => 'Original Resource',
             'drive_preview_url' => 'https://drive.google.com/file/d/abc/view',
             'metadata_json' => ['url' => 'https://drive.google.com/file/d/abc/view'],
+            'published' => 1,
+            'deleted_at' => null,
+        ],
+        [
+            'resource_id' => 901,
+            'course_id' => 301,
+            'title' => 'Managed File',
+            'drive_file_id' => 'private_drive_id',
+            'drive_preview_url' => null,
+            'metadata_json' => ['storage_backend' => 'google_drive'],
             'published' => 1,
             'deleted_at' => null,
         ],
@@ -192,6 +205,12 @@ $cases = [
         'name' => 'bad url returns validation error',
         'actor' => ['user_id' => 1, 'role_name' => 'admin'],
         'payload' => ['resource_id' => 900, 'course_id' => 301, 'url' => 'ftp://bad-url'],
+        'expect_status' => 422,
+    ],
+    [
+        'name' => 'managed file cannot be replaced with an external url',
+        'actor' => ['user_id' => 20, 'role_name' => 'manager'],
+        'payload' => ['resource_id' => 901, 'course_id' => 301, 'url' => 'https://example.com/replacement.pdf'],
         'expect_status' => 422,
     ],
     [

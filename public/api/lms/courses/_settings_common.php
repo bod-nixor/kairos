@@ -16,23 +16,10 @@ function lms_course_exists(PDO $pdo, int $courseId): bool
 function lms_require_course_manager_or_admin(PDO $pdo, array $user, int $courseId): void
 {
     $role = lms_user_role($user);
-    if ($role === 'admin') {
-        return;
-    }
-
-    if ($role !== 'manager') {
+    if (!in_array($role, ['manager', 'admin'], true)) {
         lms_error('forbidden', 'Insufficient permissions.', 403);
     }
-
-    $stmt = $pdo->prepare('SELECT 1 FROM course_staff WHERE user_id = :uid AND course_id = :cid AND role = :role LIMIT 1');
-    $stmt->execute([
-        ':uid' => (int)($user['user_id'] ?? 0),
-        ':cid' => $courseId,
-        ':role' => 'manager',
-    ]);
-    if (!$stmt->fetchColumn()) {
-        lms_error('forbidden', 'Manager access to this course is required.', 403);
-    }
+    lms_course_access($user, $courseId);
 }
 
 function lms_normalize_email(string $email): string

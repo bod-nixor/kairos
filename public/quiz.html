@@ -7,12 +7,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Take a quiz or review your attempt history." />
     <link rel="icon" type="image/png" href="./images/logo.png" />
-    <script>(function () { try { var s = localStorage.getItem('kairos-theme'); if (s) { document.documentElement.dataset.theme = s; } else { var d = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = d ? 'dark' : 'light'; } } catch (e) { } })()</script>
+    <script data-cfasync="false">(function () { try { var s = localStorage.getItem('kairos-theme'); if (s) { document.documentElement.dataset.theme = s; } else { var d = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = d ? 'dark' : 'light'; } } catch (e) { } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
     <link rel="stylesheet" href="./css/kairos-ui.css" />
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="./js/config.js"></script>
+    <script data-cfasync="false" src="./vendor/socket.io/4.7.5/socket.io.min.js"></script>
+    <script data-cfasync="false" src="./js/config.js"></script>
 </head>
 
 <body class="k-page-body">
@@ -216,11 +216,11 @@
         </main>
     </div>
 
-    <script src="./js/theme.js"></script>
-    <script src="./js/ws.js"></script>
-    <script src="./js/lms-core.js"></script>
-    <script src="./js/lms-ws.js"></script>
-    <script src="./js/quiz.js"></script>
+    <script data-cfasync="false" src="./js/theme.js"></script>
+    <script data-cfasync="false" src="./js/ws.js"></script>
+    <script data-cfasync="false" src="./js/lms-core.js"></script>
+    <script data-cfasync="false" src="./js/lms-ws.js"></script>
+    <script data-cfasync="false" src="./js/quiz.js"></script>
 </body>
 
 </html>

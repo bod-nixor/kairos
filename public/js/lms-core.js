@@ -270,9 +270,11 @@
 
   /* ── Modal System ────────────────────────────────────────── */
   let _activeModal = null;
+  let _modalReturnFocus = null;
 
   function openModal({ title, body, actions, wide, narrow, onClose } = {}) {
     closeModal();
+    _modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const el = document.createElement('div');
     el.className = 'k-modal';
     el.setAttribute('role', 'dialog');
@@ -300,6 +302,7 @@
       bodyEl.appendChild(body);
     }
     document.body.appendChild(el);
+    document.body.classList.add('k-modal-open');
     requestAnimationFrame(() => el.classList.add('is-open'));
     _activeModal = el;
 
@@ -313,7 +316,9 @@
       }
     });
 
-    const firstFocusable = el.querySelector('button, [tabindex="0"]');
+    const firstFocusable = el.querySelector(
+      '[autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex="0"]',
+    );
     if (firstFocusable) firstFocusable.focus();
 
     const trapFocus = e => {
@@ -351,9 +356,13 @@
     _activeModal = null;
     if (el._trapFocus) document.removeEventListener('keydown', el._trapFocus);
     if (el._escHandler) document.removeEventListener('keydown', el._escHandler);
+    document.body.classList.remove('k-modal-open');
     el.classList.remove('is-open');
     el.addEventListener('transitionend', () => el.remove(), { once: true });
     setTimeout(() => { if (el.parentNode) el.remove(); }, 300);
+    const returnFocus = _modalReturnFocus;
+    _modalReturnFocus = null;
+    if (returnFocus?.isConnected) returnFocus.focus();
   }
 
   /* ── Skeleton helpers ────────────────────────────────────── */

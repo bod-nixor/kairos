@@ -1,0 +1,28 @@
+{
+    "name": "nixor/kairos",
+    "description": "Academic operations and LMS infrastructure for Nixor College",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.1",
+        "ext-fileinfo": "*",
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "google/apiclient": "^2.18",
+        "google/apiclient-services": "0.444.0"
+    },
+    "config": {
+        "allow-plugins": {},
+        "optimize-autoloader": true,
+        "process-timeout": 600,
+        "sort-packages": true
+    },
+    "scripts": {
+        "pre-autoload-dump": "Google\\Task\\Composer::cleanup"
+    },
+    "extra": {
+        "google/apiclient-services": [
+            "Drive"
+        ]
+    }
+}

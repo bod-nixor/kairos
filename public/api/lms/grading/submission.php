@@ -5,6 +5,7 @@
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
+require_once dirname(__DIR__) . '/drive_client.php';
 
 $user = lms_require_roles(['ta', 'manager', 'admin']);
 $id = (int) ($_GET['submission_id'] ?? 0);
@@ -51,13 +52,22 @@ if ($user['role_name'] === 'ta') {
 // Submission files
 $files = $pdo->prepare(
     'SELECT sf.submission_file_id, sf.resource_id, r.title AS name,
-            r.drive_preview_url AS url, r.mime_type
+            r.mime_type
      FROM lms_submission_files sf
      JOIN lms_resources r ON r.resource_id = sf.resource_id
      WHERE sf.submission_id = :id'
 );
 $files->execute([':id' => $id]);
 $fileRows = $files->fetchAll();
+foreach ($fileRows as &$fileRow) {
+    $resourceId = (int)$fileRow['resource_id'];
+    $fileRow['url'] = lms_drive_internal_url($resourceId);
+    $fileRow['download_url'] = lms_drive_internal_url($resourceId);
+    $fileRow['preview_url'] = lms_drive_inline_allowed((string)($fileRow['mime_type'] ?? ''))
+        ? lms_drive_internal_url($resourceId, 'inline')
+        : '';
+}
+unset($fileRow);
 
 // Determine submission type for frontend rendering
 if (!empty($fileRows)) {

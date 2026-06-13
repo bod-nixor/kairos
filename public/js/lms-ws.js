@@ -81,10 +81,13 @@
     }
 
     function init(options) {
-        if (_initialized) return;
+        const opts = options || {};
+        if (_initialized) {
+            if (opts.courseId) setCourseContext(opts.courseId);
+            return;
+        }
         _initialized = true;
 
-        const opts = options || {};
         const allChannels = opts.includeBaseChannels
             ? [...BASE_CHANNELS, ...LMS_CHANNELS]
             : LMS_CHANNELS;
@@ -97,42 +100,9 @@
                 onQueue: opts.onQueue || null,
                 onRooms: opts.onRooms || null,
                 onProgress: opts.onProgress || null,
+                onEvent: dispatchEvent,
             });
         }
-
-        // Listen for lms_* events via Socket.IO
-        // The backend emits them as named Socket.IO events.
-        // We hook into the raw socket if available, falling back to
-        // polling dispatcher registration when socket unavailable.
-        _hookIntoSocket();
-    }
-
-    function _hookIntoSocket() {
-        // Poll for socket availability (SignoffWS manages connection)
-        const MAX_POLLS = 30;
-        let polls = 0;
-        const interval = setInterval(() => {
-            polls++;
-            const ws = global.SignoffWS;
-            if (!ws) {
-                if (polls >= MAX_POLLS) clearInterval(interval);
-                return;
-            }
-            const state = ws.getState ? ws.getState() : null;
-            // Access raw socket if exposed, else wait for connected
-            if (!state || !state.connected) {
-                if (polls >= MAX_POLLS) clearInterval(interval);
-                return;
-            }
-            clearInterval(interval);
-
-            // Register LMS event names on the underlying socket.
-            // Since SignoffWS wraps the socket internally, we use a custom
-            // global hook that ws.js will call if defined:
-            //   global.lmsEventHandler(payload)
-            global.lmsEventHandler = dispatchEvent;
-
-        }, 500);
     }
 
     /*
@@ -145,5 +115,12 @@
     }
 
     global.LmsWS = { on, off, emit, setCourseContext, init, channels: LMS_CHANNELS };
+
+    const params = new URLSearchParams(global.location ? global.location.search : '');
+    const initialCourseId = params.get('course_id') || params.get('courseId');
+    if (initialCourseId) {
+        _courseId = Number(initialCourseId) || null;
+    }
+    init({ courseId: _courseId || undefined, includeBaseChannels: true });
 
 })(typeof window !== 'undefined' ? window : this);

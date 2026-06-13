@@ -4,6 +4,7 @@
  */
 declare(strict_types=1);
 require_once __DIR__ . '/_common.php';
+require_once __DIR__ . '/drive_client.php';
 
 $user = require_login();
 $courseId = isset($_GET['course_id']) ? (int) $_GET['course_id'] : 0;
@@ -25,7 +26,7 @@ $modules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $itemsStmt = $pdo->prepare(
     'SELECT mi.module_item_id, mi.section_id, mi.item_type, mi.entity_id, mi.title, mi.position,
-            r.drive_preview_url AS resource_url, r.metadata_json AS resource_metadata_json,
+            r.drive_file_id, r.drive_preview_url AS resource_url, r.metadata_json AS resource_metadata_json,
             CASE WHEN mi.item_type = \'lesson\' AND lc.completion_id IS NOT NULL THEN 1 ELSE 0 END AS completed
      FROM lms_module_items mi
      LEFT JOIN lms_lesson_completions lc ON mi.item_type = \'lesson\' AND lc.lesson_id = mi.entity_id AND lc.user_id = :uid
@@ -54,7 +55,10 @@ foreach ($items as $item) {
     if (!empty($meta['url'])) {
         $item['resource_url'] = (string)$meta['url'];
     }
-    unset($item['resource_metadata_json']);
+    if (!empty($item['drive_file_id'])) {
+        $item['resource_url'] = lms_drive_internal_url((int)$item['entity_id']);
+    }
+    unset($item['resource_metadata_json'], $item['drive_file_id']);
 
     $bySection[$sid][] = $item;
 }

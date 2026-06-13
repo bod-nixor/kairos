@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/bootstrap.php';
+require_once dirname(__DIR__, 3) . '/src/rbac.php';
 
 function lms_user_role(array $user): string
 {
@@ -102,24 +103,34 @@ function lms_require_feature(array $flags, ?int $courseId = null): void
 function lms_course_access(array $user, int $courseId, bool $allowStaff = true): void
 {
     $role = $user['role_name'] ?? lms_user_role($user);
-    if (in_array($role, ['admin', 'manager'], true)) {
+    $pdo = db();
+    if ($role === 'admin') {
         return;
     }
 
-    $pdo = db();
-    if ($allowStaff && $role === 'ta') {
-        $stmt = $pdo->prepare('SELECT 1 FROM course_staff WHERE user_id = :uid AND course_id = :cid AND role IN (\'ta\',\'manager\') LIMIT 1');
-        $stmt->execute([':uid' => (int) $user['user_id'], ':cid' => $courseId]);
-        if ($stmt->fetchColumn()) {
+    if ($role === 'manager') {
+        if (rbac_can_manage_course($pdo, $user, $courseId)) {
             return;
         }
+        lms_error('forbidden', 'Manager access to this course is required.', 403);
     }
 
-    $stmt = $pdo->prepare('SELECT 1 FROM student_courses WHERE user_id = :uid AND course_id = :cid LIMIT 1');
-    $stmt->execute([':uid' => (int) $user['user_id'], ':cid' => $courseId]);
-    if (!$stmt->fetchColumn()) {
-        lms_error('forbidden', 'You are not enrolled in this course.', 403);
+    if ($role === 'ta') {
+        if ($allowStaff && rbac_can_act_as_ta($pdo, $user, $courseId)) {
+            return;
+        }
+        lms_error('forbidden', 'Staff access to this course is required.', 403);
     }
+
+    if ($role === 'student' && in_array(
+        $courseId,
+        rbac_student_course_ids($pdo, (int)($user['user_id'] ?? 0)),
+        true
+    )) {
+        return;
+    }
+
+    lms_error('forbidden', 'You are not enrolled in this course.', 403);
 }
 
 function lms_is_staff_role(string $role): bool

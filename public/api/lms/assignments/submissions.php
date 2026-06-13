@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once dirname(__DIR__) . '/drive_client.php';
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 lms_require_feature(['assignments', 'lms_assignments']);
@@ -41,7 +42,7 @@ try {
 
     $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, s.version, s.status, s.submitted_at, s.is_late,
         s.text_submission, s.submission_comment, g.score AS grade, g.feedback,
-        r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_preview_url
+        r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_file_id
         FROM lms_submissions s
         LEFT JOIN lms_grades g ON g.grade_id = (
             SELECT g2.grade_id FROM lms_grades g2 WHERE g2.submission_id = s.submission_id ORDER BY g2.updated_at DESC, g2.grade_id DESC LIMIT 1
@@ -81,12 +82,18 @@ try {
             ];
         }
         if ($row['resource_id'] !== null) {
+            $hasDriveFile = $row['drive_file_id'] !== null;
             $items[$submissionId]['files'][] = [
                 'resource_id' => (int)$row['resource_id'],
                 'name' => (string)($row['file_name'] ?? ''),
                 'mime_type' => (string)($row['mime_type'] ?? ''),
                 'file_size' => $row['file_size'] === null ? null : (int)$row['file_size'],
-                'preview_url' => (string)($row['drive_preview_url'] ?? ''),
+                'download_url' => $hasDriveFile
+                    ? lms_drive_internal_url((int)$row['resource_id'])
+                    : '',
+                'preview_url' => $hasDriveFile && lms_drive_inline_allowed((string)($row['mime_type'] ?? ''))
+                    ? lms_drive_internal_url((int)$row['resource_id'], 'inline')
+                    : '',
             ];
         }
     }

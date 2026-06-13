@@ -8,7 +8,7 @@
   <meta name="description" content="Kairos academic platform — your courses, queues, and progress." />
   <link rel="icon" type="image/png" href="./images/logo.png" />
   <!-- Theme flash prevention -->
-  <script>
+  <script data-cfasync="false">
     (function () {
       try {
         var s = localStorage.getItem('kairos-theme');
@@ -20,9 +20,9 @@
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/lms.css" />
   <link rel="stylesheet" href="./css/kairos-ui.css" />
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="./js/config.js"></script>
+  <script data-cfasync="false" src="https://accounts.google.com/gsi/client" async defer></script>
+  <script data-cfasync="false" src="./vendor/socket.io/4.7.5/socket.io.min.js"></script>
+  <script data-cfasync="false" src="./js/config.js"></script>
 </head>
 
 <body class="k-page-body k-pre-auth">
@@ -252,12 +252,12 @@
   <span id="navRooms" class="hidden"></span>
   <button id="logoutBtn" class="hidden"></button>
 
-  <script src="./js/theme.js"></script>
-  <script src="./js/ws.js"></script>
-  <script src="./js/lms-core.js"></script>
-  <script src="./js/lms-ws.js"></script>
-  <script src="./script.js"></script>
-  <script>
+  <script data-cfasync="false" src="./js/theme.js"></script>
+  <script data-cfasync="false" src="./js/ws.js"></script>
+  <script data-cfasync="false" src="./js/lms-core.js"></script>
+  <script data-cfasync="false" src="./js/lms-ws.js"></script>
+  <script data-cfasync="false" src="./script.js"></script>
+  <script data-cfasync="false">
     /* Sidebar nav view switching — bridge to script.js */
     document.addEventListener('DOMContentLoaded', function () {
       window.showKairosView = function (view) {

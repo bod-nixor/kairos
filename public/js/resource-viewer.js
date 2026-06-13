@@ -38,6 +38,20 @@
         }
     }
 
+    function isSameOriginUrl(value) {
+        try {
+            const parsed = new URL(String(value || ''), window.location.href);
+            return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+                && parsed.origin === window.location.origin;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function isManagedResource(resource = currentResource) {
+        return resource?.storage_backend === 'google_drive';
+    }
+
     function getCurrentCourseRoleFlags() {
         return LMS.resolveCourseRoleFlags(currentCourse || {});
     }
@@ -69,7 +83,15 @@
     }
 
     function inferType(resource) {
-        if (resource && typeof resource === 'object' && resource.type) return String(resource.type).toLowerCase();
+        const declaredType = resource && typeof resource === 'object' && resource.type
+            ? String(resource.type).toLowerCase()
+            : '';
+        const mime = String(resource?.mime_type || resource?.mime || '').toLowerCase();
+        if (mime === 'application/pdf') return 'pdf';
+        if (mime.startsWith('image/')) return 'image';
+        if (mime.startsWith('audio/')) return 'audio';
+        if (mime.startsWith('video/')) return 'video';
+        if (declaredType) return declaredType;
         const url = typeof resource === 'string'
             ? String(resource).toLowerCase()
             : String(resource?.url || resource?.file_url || '').toLowerCase();
@@ -153,6 +175,23 @@
         linkEl.onclick = null;
     }
 
+    function applyManagedLink(linkEl, rawUrl, label, isDownload = false) {
+        if (!linkEl) return;
+        const value = String(rawUrl || '').trim();
+        linkEl.textContent = label;
+        if (!isSameOriginUrl(value)) {
+            linkEl.removeAttribute('href');
+            linkEl.onclick = null;
+            return;
+        }
+        linkEl.href = value;
+        linkEl.removeAttribute('target');
+        linkEl.removeAttribute('rel');
+        if (isDownload) linkEl.setAttribute('download', '');
+        else linkEl.removeAttribute('download');
+        linkEl.onclick = null;
+    }
+
     async function loadCourse() {
         if (!COURSE_ID) return;
         const res = await LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`);
@@ -171,10 +210,14 @@
         if ($('externalDesc')) $('externalDesc').textContent = message;
     }
 
-    function renderPdfLikePreview(rawUrl) {
-        const iframeSrc = LMS.toDrivePreviewUrl(rawUrl);
-        if (!isHttpUrl(iframeSrc)) {
-            applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource', false);
+    function renderPdfLikePreview(rawUrl, resource) {
+        const managed = isManagedResource(resource);
+        const iframeSrc = managed ? (resource?.preview_url || '') : LMS.toDrivePreviewUrl(rawUrl);
+        const validPreview = managed ? isSameOriginUrl(iframeSrc) : isHttpUrl(iframeSrc);
+        if (!validPreview) {
+            const fallbackUrl = resource?.download_url || rawUrl;
+            if (managed) applyManagedLink($('downloadFallbackBtn'), fallbackUrl, 'Download Resource', true);
+            else applySafeExternalLink($('downloadFallbackBtn'), fallbackUrl, 'Open Resource', false);
             showViewerState('unsupportedWrap');
             return;
         }
@@ -184,6 +227,17 @@
         hardenPreviewIframe(iframe);
         hideEl('externalWrap');
         iframe.src = iframeSrc;
+
+        if (managed) {
+            iframe.onerror = () => {
+                setExternalDescription('Preview failed to load. Download the file instead.');
+                applyManagedLink($('externalLink'), resource?.download_url || rawUrl, 'Download file', true);
+                showEl('externalWrap');
+            };
+            applyManagedLink($('externalLink'), resource?.download_url || rawUrl, 'Download file', true);
+            showViewerState('iframeWrap');
+            return;
+        }
 
         let failed = false;
         const markFailed = () => {
@@ -219,11 +273,34 @@
         showViewerState('iframeWrap');
     }
 
-    function renderVideo(rawUrl) {
+    function renderVideo(rawUrl, resource) {
         const embedUrl = LMS.toYoutubeEmbedUrl(rawUrl);
         const videoWrap = $('videoWrap');
         if (!videoWrap) return;
         videoWrap.innerHTML = '';
+
+        if (isManagedResource(resource) && isSameOriginUrl(resource?.preview_url || '')) {
+            videoWrap.classList.remove('k-embed-16x9');
+            const video = document.createElement('video');
+            video.className = 'k-resource-video';
+            video.controls = true;
+            video.playsInline = true;
+            video.preload = 'metadata';
+            const source = document.createElement('source');
+            source.src = resource.preview_url;
+            source.type = resource.mime_type || '';
+            video.appendChild(source);
+            video.appendChild(document.createTextNode('Your browser does not support the video tag.'));
+            videoWrap.appendChild(video);
+            showViewerState('videoWrap');
+            return;
+        }
+        if (isManagedResource(resource)) {
+            setExternalDescription('Browser preview is not available for this private video. Download the file instead.');
+            applyManagedLink($('externalLink'), resource?.download_url || rawUrl, 'Download video', true);
+            showViewerState('externalWrap');
+            return;
+        }
 
         if (embedUrl) {
             videoWrap.classList.add('k-embed-16x9');
@@ -277,6 +354,12 @@
     function renderMediaExternal(resource, kind) {
         const rawUrl = resource?.url || resource?.drive_preview_url || resource?.file_url || '';
         const mime = resource?.mime_type || resource?.mime || '';
+        if (isManagedResource(resource)) {
+            setExternalDescription(`This ${kind} resource${mime ? ` (${mime})` : ''} is stored privately in Kairos.`);
+            applyManagedLink($('externalLink'), resource.download_url || rawUrl, `Open ${kind}`, false);
+            showViewerState('externalWrap');
+            return;
+        }
         setExternalDescription(`This ${kind} resource${mime ? ` (${mime})` : ''} opens in an external viewer.`);
         if (!isHttpUrl(rawUrl)) {
             setExternalDescription(`This ${kind} resource has an unsafe URL and cannot be opened: ${rawUrl}`);
@@ -324,11 +407,29 @@
         showViewerState('textWrap');
     }
 
-    function updateActionButtons(rawUrl, type) {
+    function updateActionButtons(resource, type) {
         const downloadBtn = $('downloadBtn');
         const openBtn = $('openNewTabBtn');
         downloadBtn?.classList.add('hidden');
         openBtn?.classList.add('hidden');
+
+        const rawUrl = resource?.url || resource?.preview_url || resource?.drive_preview_url || '';
+        if (isManagedResource(resource)) {
+            const downloadUrl = resource?.download_url || '';
+            const previewUrl = resource?.preview_url || '';
+            if (downloadBtn && isSameOriginUrl(downloadUrl)) {
+                downloadBtn.classList.remove('hidden');
+                downloadBtn.href = downloadUrl;
+                downloadBtn.onclick = null;
+            }
+            if (openBtn && isSameOriginUrl(previewUrl)) {
+                openBtn.classList.remove('hidden');
+                openBtn.onclick = () => {
+                    window.open(previewUrl, '_blank', 'noopener,noreferrer');
+                };
+            }
+            return;
+        }
 
         if (!rawUrl || type === 'link' || !isHttpUrl(rawUrl)) return;
 
@@ -355,6 +456,7 @@
         if (!wrap) return;
 
         const normalizedPublished = (resource.published === 1 || resource.published === '1') ? 1 : 0;
+        const managed = isManagedResource(resource);
         wrap.classList.remove('hidden');
         wrap.innerHTML = `
           <div class="k-card k-staff-panel">
@@ -366,10 +468,11 @@
               <label for="editResTitle">Title</label>
               <input class="k-input" id="editResTitle" value="${LMS.escHtml(resource.title || '')}" />
             </div>
-            <div class="k-form-field k-panel-gap">
+            <div class="k-form-field k-panel-gap ${managed ? 'hidden' : ''}">
               <label for="editResUrl">URL / Drive Link</label>
               <input class="k-input" id="editResUrl" value="${LMS.escHtml(resource.url || resource.drive_preview_url || resource.file_url || '')}" placeholder="https://..." />
             </div>
+            ${managed ? '<p class="k-muted k-panel-gap">Stored file bytes are private and cannot be replaced with an external URL. Upload a new resource to replace the file.</p>' : ''}
             <div class="k-form-field k-panel-gap">
               <label for="editResPublished">Status</label>
               <select class="k-select k-control-md" id="editResPublished">
@@ -399,13 +502,14 @@
 
         isSavingResource = true;
         try {
-            const res = await LMS.api('POST', './api/lms/resources/update.php', {
+            const payload = {
                 course_id: Number(COURSE_ID),
                 resource_id: Number(RESOURCE_ID),
                 title,
-                url,
                 published,
-            });
+            };
+            if (!isManagedResource(currentResource)) payload.url = url;
+            const res = await LMS.api('POST', './api/lms/resources/update.php', payload);
             if (!res.ok) {
                 LMS.toast(res.data?.error?.message || 'Failed to save resource.', 'error');
                 return;
@@ -445,15 +549,20 @@
 
         currentResource = res.data?.data || res.data || {};
         const type = inferType(currentResource);
-        const rawUrl = currentResource.url || currentResource.drive_preview_url || currentResource.file_url || '';
+        const rawUrl = currentResource.preview_url
+            || currentResource.url
+            || currentResource.drive_preview_url
+            || currentResource.file_url
+            || currentResource.download_url
+            || '';
 
         $('resourceTypeIcon') && ($('resourceTypeIcon').textContent = TYPE_ICONS[type] || 'File');
         $('resourceType') && ($('resourceType').textContent = (type || 'file').toUpperCase());
         syncShell(currentResource);
-        updateActionButtons(rawUrl, type);
+        updateActionButtons(currentResource, type);
 
         if (type === 'video') {
-            renderVideo(rawUrl);
+            renderVideo(rawUrl, currentResource);
             return;
         }
         if (type === 'slides') {
@@ -465,7 +574,7 @@
             return;
         }
         if (type === 'pdf' || type === 'file' || type === 'embed') {
-            renderPdfLikePreview(rawUrl);
+            renderPdfLikePreview(rawUrl, currentResource);
             return;
         }
         if (type === 'link') {

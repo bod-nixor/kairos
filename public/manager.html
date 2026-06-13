@@ -6,7 +6,7 @@
   <title>Manager Dashboard · Kairos</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/png" href="./images/logo.png" />
-  <script>
+  <script data-cfasync="false">
     (() => {
       if (window.location.pathname.toLowerCase().includes('projector')) return;
       try {
@@ -26,9 +26,9 @@
   <link rel="stylesheet" href="./css/lms.css" />
   <link rel="stylesheet" href="./css/manager.css" />
   <link rel="stylesheet" href="./css/kairos-ui.css" />
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="./js/config.js"></script>
+  <script data-cfasync="false" src="https://accounts.google.com/gsi/client" async defer></script>
+  <script data-cfasync="false" src="./vendor/socket.io/4.7.5/socket.io.min.js"></script>
+  <script data-cfasync="false" src="./js/config.js"></script>
 </head>
 
 <body class="k-page-body">
@@ -276,11 +276,11 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-  <script src="./js/theme.js"></script>
-  <script src="./js/ws.js"></script>
-  <script src="./js/session-roles.js"></script>
-  <script src="./js/manager.js"></script>
-  <script>
+  <script data-cfasync="false" src="./js/theme.js"></script>
+  <script data-cfasync="false" src="./js/ws.js"></script>
+  <script data-cfasync="false" src="./js/session-roles.js"></script>
+  <script data-cfasync="false" src="./js/manager.js"></script>
+  <script data-cfasync="false">
     // Fix for dialog modal using old classes in script
     const pm = document.getElementById('progressModal');
     if (pm) {

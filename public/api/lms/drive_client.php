@@ -1,9 +1,69 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/integrations/drive/DriveStorageInterface.php';
+require_once __DIR__ . '/integrations/drive/DriveStorageException.php';
+
 function lms_drive_enabled(): bool
 {
     return (bool)env('GOOGLE_DRIVE_ENABLED', false);
+}
+
+function lms_drive_writes_enabled(): bool
+{
+    return lms_drive_enabled() && (bool)env('GOOGLE_DRIVE_WRITES_ENABLED', false);
+}
+
+/**
+ * @return array<string,mixed>
+ */
+function lms_drive_config(): array
+{
+    return [
+        'auth_mode' => strtolower(trim((string)env('GOOGLE_DRIVE_AUTH_MODE', 'service_account'))),
+        'credentials_path' => trim((string)env('GOOGLE_DRIVE_CREDENTIALS_PATH', '')),
+        'shared_drive_id' => trim((string)env('GOOGLE_DRIVE_SHARED_DRIVE_ID', '')),
+        'root_folder_id' => trim((string)env('GOOGLE_DRIVE_ROOT_FOLDER_ID', '')),
+        'max_upload_bytes' => max(1, (int)env('GOOGLE_DRIVE_MAX_UPLOAD_BYTES', 25 * 1024 * 1024)),
+    ];
+}
+
+function lms_set_drive_storage_for_tests(?DriveStorageInterface $storage): void
+{
+    $GLOBALS['kairos_drive_storage_override'] = $storage;
+}
+
+function lms_drive_storage(): DriveStorageInterface
+{
+    $override = $GLOBALS['kairos_drive_storage_override'] ?? null;
+    if ($override instanceof DriveStorageInterface) {
+        return $override;
+    }
+    if (!lms_drive_enabled()) {
+        throw new DriveStorageException('disabled', 'Google Drive storage is disabled.');
+    }
+
+    $autoload = app_base_path('vendor', 'autoload.php');
+    if (!is_file($autoload)) {
+        throw new DriveStorageException('dependency_missing', 'Google API dependencies are not installed.');
+    }
+    require_once $autoload;
+    require_once __DIR__ . '/integrations/drive/GoogleDriveStorage.php';
+
+    static $storage = null;
+    if (!$storage instanceof DriveStorageInterface) {
+        $storage = new GoogleDriveStorage(lms_drive_config());
+    }
+    return $storage;
+}
+
+function lms_drive_upload_limit(int $endpointLimit): int
+{
+    $driveLimit = (int)(lms_drive_config()['max_upload_bytes'] ?? 25 * 1024 * 1024);
+    if ($endpointLimit <= 0) {
+        return $driveLimit;
+    }
+    return min($endpointLimit, $driveLimit);
 }
 
 function lms_upload_policy(): array
@@ -106,7 +166,7 @@ function lms_validate_uploaded_file(array $file, int $maxBytes): array
     }
 
     $size = (int)($file['size'] ?? 0);
-    if ($size <= 0 || ($maxBytes > 0 && $size > $maxBytes)) {
+    if (!lms_upload_size_allowed($size, $maxBytes)) {
         lms_error('validation_error', 'file exceeds maximum size', 422);
     }
 
@@ -154,28 +214,125 @@ function lms_validate_uploaded_file(array $file, int $maxBytes): array
         'mime_type' => $detectedMime,
         'size' => $size,
         'extension' => $ext,
+        'checksum_sha256' => hash_file('sha256', $tmpPath),
     ];
 }
 
-function lms_drive_upload_stub(string $originalName, string $tmpPath, string $mimeType): array
+function lms_upload_size_allowed(int $size, int $maxBytes): bool
 {
-    $size = filesize($tmpPath) ?: 0;
-    $checksum = hash_file('sha256', $tmpPath) ?: null;
-    $basePreview = rtrim((string)env('LMS_DRIVE_PREVIEW_BASE', 'https://drive.google.com/file/d/'), '/');
-    $fileId = 'stub_' . bin2hex(random_bytes(8));
+    return $size > 0 && ($maxBytes <= 0 || $size <= $maxBytes);
+}
 
+function lms_drive_internal_url(int $resourceId, string $disposition = 'attachment'): string
+{
+    $mode = $disposition === 'inline' ? 'inline' : 'attachment';
+    return './api/lms/resources/download.php?resource_id=' . $resourceId . '&disposition=' . $mode;
+}
+
+function lms_drive_inline_allowed(string $mimeType): bool
+{
+    $mime = strtolower(trim(explode(';', $mimeType, 2)[0]));
+    if (in_array($mime, ['application/pdf', 'text/plain', 'text/csv'], true)) {
+        return true;
+    }
+    return str_starts_with($mime, 'image/')
+        && !in_array($mime, ['image/svg+xml'], true);
+}
+
+/**
+ * @param array<string,mixed> $remote
+ */
+function lms_drive_download_integrity_ok(
+    string $fileId,
+    array $remote,
+    int $actualSize,
+    string $actualChecksum,
+    int $expectedSize,
+    string $expectedChecksum,
+    string $expectedStorageKey
+): bool {
+    $remoteProperties = is_array($remote['app_properties'] ?? null) ? $remote['app_properties'] : [];
+    return ($remote['file_id'] ?? '') === $fileId
+        && empty($remote['trashed'])
+        && ($expectedSize <= 0 || $actualSize === $expectedSize)
+        && ($expectedChecksum === '' || hash_equals(strtolower($expectedChecksum), strtolower($actualChecksum)))
+        && ($expectedStorageKey === '' || hash_equals(
+            $expectedStorageKey,
+            (string)($remoteProperties['kairos_storage_key'] ?? '')
+        ));
+}
+
+function lms_drive_log(string $action, string $status, array $context = []): void
+{
+    $allowed = array_intersect_key($context, array_flip([
+        'reason',
+        'course_id',
+        'resource_id',
+        'assignment_id',
+        'submission_id',
+        'user_id',
+    ]));
+    $entry = array_merge([
+        'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+        'action' => $action,
+        'status' => $status,
+    ], $allowed);
+    error_log('[kairos] ' . json_encode($entry, JSON_UNESCAPED_SLASHES));
+}
+
+function lms_drive_fail(DriveStorageException $e, string $operation, array $context = []): never
+{
+    lms_drive_log($operation, 'failed', $context + ['reason' => $e->reason()]);
+    lms_error(
+        'storage_unavailable',
+        'File uploads are temporarily unavailable. Use a text submission or contact an administrator.',
+        503
+    );
+}
+
+function lms_drive_try_cleanup(
+    DriveStorageInterface $storage,
+    string $fileId,
+    array $context = []
+): bool {
+    if ($fileId === '') {
+        return true;
+    }
+    $lastReason = 'delete_failed';
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        try {
+            $storage->delete($fileId);
+            lms_drive_log('drive_cleanup', 'completed', $context);
+            return true;
+        } catch (DriveStorageException $e) {
+            $lastReason = $e->reason();
+            if ($attempt < 3) {
+                usleep(100000 * $attempt);
+            }
+        }
+    }
+    lms_drive_log('drive_cleanup', 'pending', $context + ['reason' => $lastReason]);
+    return false;
+}
+
+/**
+ * @param array<string,mixed> $storageMeta
+ * @param array<string,mixed> $context
+ * @return array<string,mixed>
+ */
+function lms_drive_resource_metadata(array $storageMeta, array $context): array
+{
     return [
-        'file_id' => $fileId,
-        'preview_url' => $basePreview . '/' . $fileId . '/preview',
-        'mime_type' => $mimeType,
-        'size' => (int)$size,
-        'checksum' => $checksum,
-        'storage_mode' => lms_drive_enabled() ? 'drive_stub' : 'local_stub',
-        'original_name' => $originalName,
+        'storage_backend' => 'google_drive',
+        'storage_key' => (string)($storageMeta['storage_key'] ?? ''),
+        'drive_folder_id' => (string)($storageMeta['folder_id'] ?? ''),
+        'stored_name' => (string)($storageMeta['stored_name'] ?? ''),
+        'original_name' => (string)($storageMeta['original_name'] ?? ''),
+        'uploaded_at' => (string)($storageMeta['uploaded_at'] ?? gmdate('c')),
+        'uploader_user_id' => (int)($context['uploader_user_id'] ?? 0),
+        'course_id' => (int)($context['course_id'] ?? 0),
+        'assignment_id' => isset($context['assignment_id']) ? (int)$context['assignment_id'] : null,
+        'submission_id' => isset($context['submission_id']) ? (int)$context['submission_id'] : null,
+        'storage_cleanup_pending' => false,
     ];
-}
-
-function lms_drive_delete_stub(string $fileId): bool
-{
-    return $fileId !== '';
 }

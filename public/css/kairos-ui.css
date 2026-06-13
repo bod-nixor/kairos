@@ -20,6 +20,73 @@ body.k-page-body.k-shell-drawer-open {
   overflow: hidden;
 }
 
+body.k-modal-open {
+  overflow: hidden;
+}
+
+:where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"]),
+  [contenteditable="true"]
+):focus-visible {
+  outline: 3px solid var(--primary) !important;
+  outline-offset: 3px;
+}
+
+.k-realtime-status {
+  position: fixed;
+  left: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 1100;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(360px, calc(100vw - 36px));
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--elev-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.k-realtime-status[hidden] {
+  display: none;
+}
+
+.k-realtime-status__dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.k-realtime-status[data-status="connecting"] .k-realtime-status__dot,
+.k-realtime-status[data-status="reconnecting"] .k-realtime-status__dot {
+  background: #f59e0b;
+  animation: k-realtime-pulse 1.25s ease-in-out infinite;
+}
+
+.k-realtime-status[data-status="offline"] .k-realtime-status__dot,
+.k-realtime-status[data-status="unavailable"] .k-realtime-status__dot {
+  background: var(--danger);
+}
+
+@keyframes k-realtime-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+}
+
 .k-shell-overlay {
   position: fixed;
   inset: 0;
@@ -805,6 +872,11 @@ body.k-shell-drawer-open .k-shell-overlay {
   z-index: 1;
 }
 
+.k-editor-surface:focus-visible {
+  border-radius: 14px;
+  box-shadow: 0 0 0 3px var(--primary-ghost);
+}
+
 .k-editor-surface[contenteditable="false"] {
   opacity: 0.75;
 }
@@ -1568,11 +1640,14 @@ body.k-shell-drawer-open .k-shell-overlay {
 
   /* Modal scaling on phone */
   .k-modal__panel,
+  .k-modal__content,
+  .k-modal__card,
   .modal-card {
-    width: 100% !important;
-    max-width: 100% !important;
+    width: calc(100% - 24px) !important;
+    max-width: calc(100% - 24px) !important;
     margin: 12px;
     max-height: calc(100vh - 24px);
+    max-height: calc(100svh - 24px);
   }
 
   .btn {
@@ -1636,6 +1711,14 @@ body.k-shell-drawer-open .k-shell-overlay {
     border-radius: 16px;
   }
 
+  .k-realtime-status {
+    left: 12px;
+    right: 72px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    max-width: none;
+    border-radius: 16px;
+  }
+
   .k-settings-panel {
     left: 12px;
     right: 12px;
@@ -1681,5 +1764,16 @@ body.k-shell-drawer-open .k-shell-overlay {
   .k-inline-actions,
   .k-staff-panel__actions {
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

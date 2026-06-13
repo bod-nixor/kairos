@@ -197,7 +197,7 @@
                 al.innerHTML = detail.attachments.map(a => `
           <div class="k-file-item">
             <span class="k-file-item__name">${LMS.escHtml(a.name)}</span>
-            <a href="${LMS.escHtml(a.url)}" download class="btn btn-ghost btn-sm">↓</a>
+            <a href="${LMS.escHtml(a.download_url || a.url)}" download class="btn btn-ghost btn-sm" aria-label="Download ${LMS.escHtml(a.name)}">Download</a>
           </div>`).join('');
                 showEl('submissionAttachments');
             }

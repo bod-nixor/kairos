@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+if (getenv('KAIROS_DB_TESTS') !== '1') {
+    echo "sections reorder DB integration test skipped (set KAIROS_DB_TESTS=1 against an isolated test database)" . PHP_EOL;
+    exit(0);
+}
+
 require_once dirname(__DIR__, 2) . '/public/api/lms/_common.php';
 
 function test_module_reorder()
