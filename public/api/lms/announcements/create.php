@@ -14,8 +14,8 @@ lms_require_course_capability($user, 'manage_course_announcements', $courseId);
 
 $pdo = db();
 $actorId = (int)$user['user_id'];
-$pdo->beginTransaction();
 try {
+    $pdo->beginTransaction();
     $stmt = $pdo->prepare(
         'INSERT INTO lms_announcements'
         . ' (course_id, title, body, status, published_at, created_by)'

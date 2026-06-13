@@ -31,7 +31,7 @@ try {
 
     $courseRole = lms_course_role($user, (int)$assignment['course_id']);
     $canViewAll = in_array($courseRole, ['admin', 'manager'], true);
-    if ($role === 'ta') {
+    if ($courseRole === 'ta') {
         $canViewAll = lms_ta_assigned_to_assignment($pdo, (int)$user['user_id'], $assignmentId);
     }
 

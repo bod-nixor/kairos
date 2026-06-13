@@ -58,6 +58,7 @@ foreach ($cases as $index => [$actor, $courseId, $announcementId, $action, $expe
 $root = dirname(__DIR__, 2);
 foreach (['create', 'update', 'delete'] as $endpoint) {
     $source = (string)file_get_contents("{$root}/public/api/lms/announcements/{$endpoint}.php");
+    $try = strpos($source, 'try {');
     $begin = strpos($source, 'beginTransaction()');
     $event = strpos($source, 'lms_emit_event');
     $commit = strpos($source, '$pdo->commit()');
@@ -66,6 +67,9 @@ foreach (['create', 'update', 'delete'] as $endpoint) {
     }
     if (!str_contains($source, "'manage_course_announcements'")) {
         $failed[] = "{$endpoint} must enforce manage_course_announcements";
+    }
+    if (in_array($endpoint, ['create', 'update'], true) && ($try === false || $begin === false || $try > $begin)) {
+        $failed[] = "{$endpoint} must begin its transaction inside the protected try block";
     }
 }
 
@@ -76,6 +80,19 @@ if (!str_contains($list, "a.status = 'published'")) {
 $read = (string)file_get_contents("{$root}/public/api/lms/announcements_read.php");
 if (!str_contains($read, 'announcement_id IN')) {
     $failed[] = 'announcement read tracking must validate announcement_id';
+}
+if (!str_contains($read, 'LMS_MAX_ANNOUNCEMENT_READ_IDS') || !str_contains($read, "lms_error('validation_error', 'Too many announcement IDs'")) {
+    $failed[] = 'announcement read tracking must reject oversized ID batches';
+}
+
+$update = (string)file_get_contents("{$root}/public/api/lms/announcements/update.php");
+$rowGuard = strpos($update, '$stmt->rowCount() !== 1');
+$audit = strpos($update, 'lms_announcement_audit');
+if ($rowGuard === false || $audit === false || $rowGuard > $audit) {
+    $failed[] = 'announcement updates must verify one changed row before audit and event side effects';
+}
+if (!str_contains($update, 'No announcement changes supplied')) {
+    $failed[] = 'announcement updates must reject no-op writes before starting side effects';
 }
 
 if ($failed) {

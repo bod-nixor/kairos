@@ -23,6 +23,7 @@ assert.match(modules, /aria-expanded="/);
 assert.match(modules, /<a class="k-module-item__link" href="/);
 assert.doesNotMatch(modules, /role="button"/);
 assert.doesNotMatch(modules, /querySelectorAll\('\.k-module__header'\)\.forEach/);
+assert.doesNotMatch(modules, /const editBtn = e\.target\.closest\('\[data-action="edit-item"\]'\)/);
 assert.match(modules, /container\.addEventListener\('click'/);
 assert.match(modules, /course\.capabilities\?\.manage_course/);
 
@@ -30,6 +31,8 @@ const lmsCss = read('public/css/lms.css');
 assert.match(lmsCss, /\.k-module__toggle\s*\{[\s\S]*min-height:\s*52px/);
 assert.match(lmsCss, /\.k-module-item__link\s*\{[\s\S]*min-height:\s*52px/);
 assert.match(lmsCss, /@media \(max-width: 640px\)[\s\S]*\.k-module__header/);
+assert.doesNotMatch(lmsCss, /var\(--focus-ring\)(?!,)/);
+assert.match(lmsCss, /var\(--focus-ring,\s*var\(--primary\)\)/);
 
 const theme = read('public/js/theme.js');
 const uiCss = read('public/css/kairos-ui.css');
@@ -50,6 +53,11 @@ assert.match(course, /announcement\.deleted/);
 const grading = read('public/js/grading.js');
 const analytics = read('public/js/analytics.js');
 assert.match(grading, /course\.capabilities\?\.grade_course/);
+assert.match(grading, /if \(!courseRes\.ok\)/);
+assert.match(grading, /Unable to load course/);
 assert.match(analytics, /course\.capabilities\?\.manage_course/);
+
+const quizzes = read('public/js/quizzes.js');
+assert.doesNotMatch(quizzes, /resolveCourseRoleFlags/);
 
 console.log('course UI contract tests passed');

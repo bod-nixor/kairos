@@ -753,15 +753,6 @@
                     return;
                 }
 
-                const editBtn = e.target.closest('[data-action="edit-item"]');
-                if (editBtn) {
-                    const href = editBtn.dataset.href || '';
-                    if (navigateToHref(href)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                    return;
-                }
                 if (e.target.closest('.k-drag-handle')) return;
                 const target = e.target.closest('a');
                 if (target) {

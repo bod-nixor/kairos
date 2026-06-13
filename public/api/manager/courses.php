@@ -19,7 +19,7 @@ if (!table_exists($pdo, 'courses') || !table_has_columns($pdo, 'courses', ['cour
     json_out(['error' => 'unsupported', 'message' => 'courses table not available'], 500);
 }
 
-$isAdmin = strtolower((string)($user['role_name'] ?? '')) === 'admin';
+$isAdmin = user_role_at_least($pdo, $user, 'admin');
 if ($isAdmin) {
     $st = $pdo->query('SELECT CAST(course_id AS UNSIGNED) AS course_id, name FROM courses ORDER BY name');
 } else {

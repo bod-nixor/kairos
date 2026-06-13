@@ -189,6 +189,19 @@ assert.match(websocketServer, /_emit_scoped_event/);
 assert.match(websocketServer, /COURSE_ACCESS_MAPPINGS/);
 assert.match(websocketServer, /if mapping_key not in COURSE_ACCESS_MAPPINGS/);
 assert.match(websocketServer, /course_pre_enroll/);
+assert.match(websocketServer, /_pre_enroll_schema_valid:\s*Optional\[bool\]\s*=\s*None/);
+assert.match(websocketServer, /def _check_pre_enroll_schema/);
+assert.match(websocketServer, /WHERE email = %s AND course_id = %s/);
+assert.doesNotMatch(websocketServer, /WHERE LOWER\(email\) = %s AND course_id = %s/);
+
+const managerCourses = read('public/api/manager/courses.php');
+assert.match(managerCourses, /\$isAdmin\s*=\s*user_role_at_least\(\$pdo,\s*\$user,\s*'admin'\)/);
+
+const taCommon = read('public/api/ta/common.php');
+assert.match(taCommon, /'table'\s*=>\s*'enrollments'[\s\S]*?'role_col'\s*=>\s*'role'[\s\S]*?'role_value'\s*=>\s*'student'/);
+assert.match(taCommon, /'table'\s*=>\s*'user_courses'[\s\S]*?'role_col'\s*=>\s*'role'[\s\S]*?'role_value'\s*=>\s*'student'/);
+
+assert.match(submissionList, /if \(\$courseRole === 'ta'\)/);
 
 const announcementMigration = read('db/migrations/20260613_1430_add_announcement_publication_audit.sql');
 assert.match(announcementMigration, /lms_announcement_audit/);

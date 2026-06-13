@@ -308,7 +308,26 @@
         }
 
         const courseRes = await LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`);
-        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
+        if (!courseRes.ok) {
+            const container = $('gradingAccessDenied').querySelector('.k-page');
+            if (courseRes.status === 403) {
+                LMS.renderAccessDenied(
+                    container,
+                    'Grading access is not available for this course.',
+                    `/course.html?course_id=${COURSE_ID}`
+                );
+            } else {
+                LMS.renderEmpty(container, {
+                    icon: '⚠️',
+                    title: 'Unable to load course',
+                    desc: 'The course could not be loaded. Please try again.',
+                    action: { href: location.href, label: 'Try Again' },
+                });
+            }
+            showEl('gradingAccessDenied'); hideEl('gradingSkeleton'); return;
+        }
+
+        const course = courseRes.data?.data || courseRes.data;
         if (!course || !course.capabilities?.grade_course) {
             LMS.renderAccessDenied(
                 $('gradingAccessDenied').querySelector('.k-page'),

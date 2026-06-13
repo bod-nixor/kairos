@@ -11,6 +11,8 @@
 declare(strict_types=1);
 require_once __DIR__ . '/_common.php';
 
+const LMS_MAX_ANNOUNCEMENT_READ_IDS = 100;
+
 $user = require_login();
 $in = lms_json_input();
 $courseId = (int)($in['course_id'] ?? 0);
@@ -33,6 +35,9 @@ $ids = array_values(array_filter(
 ));
 if (!$ids) {
     lms_error('validation_error', 'ids must contain valid announcement IDs', 422);
+}
+if (count($ids) > LMS_MAX_ANNOUNCEMENT_READ_IDS) {
+    lms_error('validation_error', 'Too many announcement IDs', 422);
 }
 
 $userId = (int)$user['user_id'];

@@ -31,8 +31,16 @@ $publishedAt = $values['status'] === 'published'
     ? ($existing['published_at'] ?: gmdate('Y-m-d H:i:s'))
     : null;
 
-$pdo->beginTransaction();
+if (
+    (string)$existing['title'] === $values['title']
+    && (string)$existing['body'] === $values['body']
+    && (string)$existing['status'] === $values['status']
+) {
+    lms_error('validation_error', 'No announcement changes supplied', 422);
+}
+
 try {
+    $pdo->beginTransaction();
     $stmt = $pdo->prepare(
         'UPDATE lms_announcements'
         . ' SET title = :title, body = :body, status = :status, published_at = :published_at'
@@ -46,6 +54,10 @@ try {
         ':announcement_id' => $announcementId,
         ':course_id' => $courseId,
     ]);
+    if ($stmt->rowCount() !== 1) {
+        $pdo->rollBack();
+        lms_error('not_found', 'Announcement not found', 404);
+    }
     lms_announcement_audit($pdo, $announcementId, $courseId, $actorId, $action, $existing, $values);
     $event = lms_announcement_event(
         $actorId,
