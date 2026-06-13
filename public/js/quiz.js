@@ -7,6 +7,7 @@
 
     const $ = id => document.getElementById(id);
     const LMS = window.KairosLMS;
+    const Management = window.KairosLMSManagement;
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const QUIZ_ID = params.get('quiz_id') || '';
@@ -309,115 +310,20 @@
       </div>`).join('');
     }
 
-
-
-    function ensureQuestionEditorModal() {
-        let modal = $('quizQuestionModal');
-        if (modal) return modal;
-        modal = document.createElement('dialog');
-        modal.id = 'quizQuestionModal';
-        modal.className = 'k-modal';
-        modal.innerHTML = `<form method="dialog" class="k-modal__content k-modal__content--md" id="quizQuestionForm">
-            <h3>Add question</h3>
-            <label class="k-field-stack"><span>Prompt</span><textarea id="quizQPrompt" rows="3" required></textarea></label>
-            <div class="k-form-two-col">
-              <label class="k-field-stack"><span>Type</span><select id="quizQType"><option value="mcq">Multiple choice</option><option value="multiple_select">Multi-select</option><option value="true_false">True/False</option><option value="short_answer">Short answer</option><option value="long_answer">Long answer</option></select></label>
-              <label class="k-field-stack"><span>Points</span><input id="quizQPoints" type="number" min="1" value="1" /></label>
-            </div>
-            <label class="k-field-stack"><span>Options (comma-separated, optional)</span><input id="quizQOptions" type="text" placeholder="Option A, Option B" /></label>
-            <label class="k-field-stack"><span>Correct answer (value or comma list)</span><input id="quizQAnswer" type="text" /></label>
-            <label class="k-inline-checkbox"><input id="quizQRequired" type="checkbox" /><span>Required question</span></label>
-            <div class="k-modal__footer"><button class="btn btn-ghost" type="button" id="quizQuestionCancel">Cancel</button><button class="btn btn-primary" type="submit">Add question</button></div>
-          </form>`;
-        document.body.appendChild(modal);
-        $('quizQuestionCancel')?.addEventListener('click', () => modal.close());
-        return modal;
-    }
-
-    function openQuestionEditorModal(initial = {}) {
-        const modal = ensureQuestionEditorModal();
-        const form = $('quizQuestionForm');
-        const prompt = $('quizQPrompt');
-        const type = $('quizQType');
-        const points = $('quizQPoints');
-        const options = $('quizQOptions');
-        const answer = $('quizQAnswer');
-        const required = $('quizQRequired');
-        if (!form || !prompt || !type || !points || !options || !answer || !required) return Promise.resolve(null);
-        prompt.value = initial.prompt || '';
-        type.value = normalizeQuestionType(initial.question_type || 'mcq');
-        points.value = String(initial.points || 1);
-        options.value = initial.options_raw || '';
-        answer.value = initial.answer_raw || '';
-        required.checked = !!initial.is_required;
-        modal.showModal();
-        return new Promise((resolve) => {
-            const closeHandler = () => {
-                form.removeEventListener('submit', submitHandler);
-                modal.removeEventListener('close', closeHandler);
-                resolve(null);
-            };
-            const submitHandler = (event) => {
-                event.preventDefault();
-                const payload = {
-                    prompt: prompt.value.trim(),
-                    question_type: normalizeQuestionType(type.value),
-                    points: Number(points.value || 1),
-                    options_raw: options.value,
-                    answer_raw: answer.value,
-                    is_required: required.checked,
-                };
-                if (!payload.prompt) {
-                    LMS.toast('Question prompt is required', 'warning');
-                    return;
-                }
-                form.removeEventListener('submit', submitHandler);
-                modal.removeEventListener('close', closeHandler);
-                modal.close();
-                resolve(payload);
-            };
-            form.addEventListener('submit', submitHandler);
-            modal.addEventListener('close', closeHandler);
-            setTimeout(() => prompt.focus(), 0);
-        });
-    }
-
-    function normalizeQuestionType(type) {
-        const value = String(type || 'mcq').toLowerCase();
-        if (value === 'multiple_choice') return 'mcq';
-        if (value === 'truefalse') return 'true_false';
-        if (value === 'multi_select') return 'multiple_select';
-        if (value === 'short') return 'short_answer';
-        if (value === 'long') return 'long_answer';
-        return value;
-    }
-
     async function addQuestion() {
-        const modalInput = await openQuestionEditorModal();
-        if (!modalInput) return;
-        const options = modalInput.options_raw
-            ? modalInput.options_raw.split(',').map((v, i) => ({ value: `opt_${i + 1}`, text: v.trim() })).filter((o) => o.text)
-            : [];
-        const correctRaw = String(modalInput.answer_raw || '').trim();
-        const answerKey = modalInput.question_type === 'multiple_select'
-            ? correctRaw.split(',').map((v) => v.trim()).filter(Boolean)
-            : (correctRaw || null);
-        const payload = {
-            assessment_id: Number(QUIZ_ID),
-            prompt: modalInput.prompt,
-            question_type: modalInput.question_type,
-            points: Number(modalInput.points) > 0 ? Number(modalInput.points) : 1,
-            options,
-            answer_key: answerKey,
-            is_required: modalInput.is_required ? 1 : 0,
-        };
-        const res = await LMS.api('POST', './api/lms/quiz/question/create.php', payload);
-        if (!res.ok) {
-            LMS.toast(res.data?.error?.message || 'Failed to add question', 'error');
-            return;
-        }
-        LMS.toast('Question added', 'success');
-        await renderStaffPanel();
+        await Management.openQuestionEditor({}, {
+            mode: 'create',
+            onSubmit: async (payload) => {
+                const res = await LMS.api('POST', './api/lms/quiz/question/create.php', {
+                    assessment_id: Number(QUIZ_ID),
+                    ...payload,
+                });
+                if (!res.ok) return res;
+                LMS.toast('Question added.', 'success');
+                await renderStaffPanel();
+                return res;
+            },
+        });
     }
 
     async function renderStaffPanel() {
@@ -429,7 +335,7 @@
         const panel = document.createElement('section');
         panel.id = 'quizStaffPanel';
         panel.className = 'k-card k-staff-panel';
-        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Quiz Management</h3><div class="k-staff-panel__actions"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions" class="k-staff-panel__list"></div><div id="staffAttempts" class="k-staff-panel__list"></div>`;
+        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Quiz Management</h3><div class="k-staff-panel__actions"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffEditQuizBtn" type="button">Edit Quiz</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions" class="k-staff-panel__list"></div><div id="staffAttempts" class="k-staff-panel__list"></div>`;
         intro.appendChild(panel);
 
         const staffMandatoryBtn = $('staffMandatoryBtn');
@@ -439,6 +345,21 @@
         }
 
         $('staffAddQuestionBtn')?.addEventListener('click', addQuestion);
+        $('staffEditQuizBtn')?.addEventListener('click', async () => {
+            await Management.openQuizEditor(quizData, {
+                mode: 'edit',
+                onSubmit: async (payload) => {
+                    const res = await LMS.api('POST', './api/lms/quiz/update.php', {
+                        assessment_id: Number(QUIZ_ID),
+                        ...payload,
+                    });
+                    if (!res.ok) return res;
+                    LMS.toast('Quiz updated.', 'success');
+                    await loadPage();
+                    return res;
+                },
+            });
+        });
         $('staffPublishQuizBtn')?.addEventListener('click', async () => {
             const res = await LMS.api('POST', './api/lms/quiz/publish.php', { assessment_id: Number(QUIZ_ID), published: 1 });
             LMS.toast(res.ok ? 'Quiz published' : 'Publish failed', res.ok ? 'success' : 'error');
@@ -484,7 +405,12 @@
                 return;
             }
             const items = res.data?.data?.items || res.data?.items || [];
-            target.innerHTML = `<h4>Attempts / Submissions (${items.length})</h4>` + items.map((a) => `<div class="k-attempt-row">Attempt #${a.attempt_id} · student ${a.student_user_id} · ${a.status} · ${a.score ?? '-'} / ${a.max_score ?? '-'}</div>`).join('');
+            target.innerHTML = `<h4>Attempts / Submissions (${items.length})</h4>` + items.map((a) => `
+                <div class="k-attempt-row">
+                    <strong>${LMS.escHtml(a.student_name || 'Student')}</strong>
+                    <span>${LMS.escHtml(a.status || 'In progress')}</span>
+                    <span>${a.score === null ? 'Awaiting grade' : `${a.score} / ${a.max_score ?? '-'}`}</span>
+                </div>`).join('');
         });
 
         const qRes = await LMS.api('GET', `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`);
@@ -532,39 +458,19 @@
         wrap.querySelectorAll('button[data-act="edit"]').forEach((btn) => btn.addEventListener('click', async () => {
             const id = Number(btn.dataset.id || 0);
             const question = questions.find((q) => Number(q.question_id) === id) || {};
-            const questionOptions = Array.isArray(question.options) ? question.options : [];
-            const answerSeed = Array.isArray(question.answer_key)
-                ? question.answer_key.join(', ')
-                : (question.answer_key || '');
-            const modalInput = await openQuestionEditorModal({
-                prompt: question.prompt || '',
-                question_type: question.question_type || 'mcq',
-                points: question.points || 1,
-                options_raw: questionOptions.map((opt) => opt.text || opt.value || '').filter(Boolean).join(', '),
-                answer_raw: answerSeed,
-                is_required: Number(question.is_required || 0) === 1,
+            await Management.openQuestionEditor(question, {
+                mode: 'edit',
+                onSubmit: async (payload) => {
+                    const res = await LMS.api('POST', './api/lms/quiz/question/update.php', {
+                        question_id: id,
+                        ...payload,
+                    });
+                    if (!res.ok) return res;
+                    LMS.toast('Question updated.', 'success');
+                    await renderStaffPanel();
+                    return res;
+                },
             });
-            if (!modalInput) return;
-            const options = String(modalInput.options_raw || '')
-                .split(',')
-                .map((v, idx) => ({ value: `opt_${idx + 1}`, text: v.trim() }))
-                .filter((opt) => opt.text);
-            const normalizedPoints = Number(modalInput.points) > 0 ? Number(modalInput.points) : 1;
-            const answerRaw = String(modalInput.answer_raw || '').trim();
-            const answerKey = modalInput.question_type === 'multiple_select'
-                ? answerRaw.split(',').map((v) => v.trim()).filter(Boolean)
-                : (answerRaw || null);
-            const res = await LMS.api('POST', './api/lms/quiz/question/update.php', {
-                question_id: id,
-                prompt: modalInput.prompt,
-                question_type: modalInput.question_type,
-                points: normalizedPoints,
-                answer_key: answerKey,
-                settings: { options },
-                is_required: modalInput.is_required ? 1 : 0,
-            });
-            LMS.toast(res.ok ? 'Question updated' : 'Update failed', res.ok ? 'success' : 'error');
-            if (res.ok) await renderStaffPanel();
         }));
     }
 
@@ -594,26 +500,31 @@
         }
 
         quizData = res.data?.data || res.data || {};
+        canManage = !!quizData.capabilities?.manage_course;
+        if (URL_MODE === 'edit' && !canManage) {
+            showPanel('quizAccessDenied');
+            LMS.renderAccessDenied($('quizAccessDenied'), 'You do not have permission to edit this quiz.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+            return;
+        }
         document.title = `${quizData.title || 'Quiz'} — Kairos`;
         const bc = $('kBreadCourse');
         if (bc) {
             bc.href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`;
             bc.textContent = quizData.course_name || 'Course';
         }
-        LMS.nav.setCourseContext(COURSE_ID, quizData.course_name || 'Course');
+        LMS.nav.setCourseContext(COURSE_ID, quizData.course_name || 'Course', quizData);
         LMS.nav.setActive('quizzes');
-        const courseRole = LMS.resolveCourseRoleFlags(quizData.course_role || quizData.my_role || quizData.role);
-        if (courseRole.ta || courseRole.manager || courseRole.admin) {
-            $('kNavGrading')?.classList.remove('hidden');
-        }
-        if (courseRole.manager || courseRole.admin) {
-            $('kNavAnalytics')?.classList.remove('hidden');
-        }
         $('quizStickyTitle') && ($('quizStickyTitle').textContent = quizData.title || 'Quiz');
 
         // Populate intro panel
         $('quizIntroTitle') && ($('quizIntroTitle').textContent = quizData.title || 'Quiz');
-        $('quizIntroDesc') && ($('quizIntroDesc').textContent = quizData.description || quizData.instructions || '');
+        const introDesc = $('quizIntroDesc');
+        if (introDesc) {
+            const instructions = quizData.instructions || quizData.description || '';
+            introDesc.innerHTML = instructions
+                ? LMS.sanitizeForRender(instructions)
+                : '<p class="k-text-muted">No instructions provided.</p>';
+        }
         $('metaQuestions') && ($('metaQuestions').textContent = quizData.question_count || quizData.total_questions || '?');
         $('metaTime') && ($('metaTime').textContent = quizData.time_limit_min ? quizData.time_limit_min + ' min' : (quizData.time_limit_minutes ? quizData.time_limit_minutes + ' min' : 'None'));
         $('metaAttempts') && ($('metaAttempts').textContent = quizData.attempts_used || 0);
@@ -682,16 +593,6 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
-        const roles = session.caps?.roles || {};
-        canManage = !!(roles.admin || roles.manager);
-
-        // Enforce RBAC: students cannot access edit mode
-        if (URL_MODE === 'edit' && !canManage) {
-            showPanel('quizAccessDenied');
-            LMS.renderAccessDenied($('quizAccessDenied'), 'You do not have permission to edit this quiz.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
-            return;
-        }
-
         await loadPage();
     });
 

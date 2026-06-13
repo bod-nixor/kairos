@@ -45,7 +45,10 @@ For assignment grading, a TA must also appear in `lms_assignment_tas`. Students 
 | Admin surface | no | no | no | yes | explicit admin role |
 | Projector | no | yes | yes | yes | TA-or-higher operational role and scoped data APIs |
 
-The shared course navigation is rendered from `COURSE_NAV_ITEMS` in `public/js/lms-core.js`. Grading requires `grade_course`; analytics requires `manage_course`. Hidden UI is never an authorization boundary.
+The shared course navigation is rendered from `COURSE_NAV_ITEMS` in `public/js/lms-core.js`. Every course page exposes
+the same `#kNavCourse` mount and passes the server-returned course capability payload to it. Grading requires
+`grade_course`; analytics requires `manage_course`. Page-local role guesses are forbidden. Hidden UI is never an
+authorization boundary.
 
 ## Object Ownership Chains
 
@@ -85,6 +88,7 @@ Client-provided `course_id` is context only. It must match the relationship load
 | `lms/quiz/attempts.php` | GET | owner or `grade_course` | assessment belongs to course | 403/404 |
 | `lms/quiz/attempt/get.php`, `quiz/submissions.php` | GET | `grade_course` | attempt/assessment belongs to assigned course | 403/404 |
 | `lms/assignments/{create,update,publish,mandatory,delete}.php` | POST | `manage_course` | assignment resolves to assigned course | 403/404/422 |
+| `lms/assignments/upload-policy.php` | GET | `view_course` | policy is non-sensitive; caller must still belong to the course | 403/422 |
 | `lms/assignments/submit.php` | POST | student | published assignment, enrolled course, self only | 403/404/409 |
 | `lms/assignments/submissions.php` | GET | owner or assigned grader | assignment stored course; students receive own released grade only | 403/404 |
 | `lms/assignments/tas/set.php` | POST | `manage_course` | assignment belongs to assigned course; assignment-level grader assignment only | 403/404 |
@@ -113,6 +117,8 @@ Helpers such as `_common.php`, `_helpers.php`, `_access.php`, and compatibility 
 - `422`: malformed ID, invalid state, or inconsistent object set.
 
 Responses are sanitized. SQL details, filesystem paths, OAuth values, session IDs, and Drive IDs are not returned.
+Assignment upload rejection uses `422 validation_error` for unsupported/disallowed extensions, MIME/content mismatch,
+and oversized files. Validation completes before Drive upload and before the submission transaction begins.
 
 ## Realtime Rules
 
@@ -131,6 +137,8 @@ Responses are sanitized. SQL details, filesystem paths, OAuth values, session ID
 5. For each role, directly open grading, analytics, lesson edit, assignment edit, and course settings URLs.
 6. Verify queue/room and WebSocket subscriptions reject mismatched or foreign course context.
 7. Verify protected downloads accept only local resource IDs and never reveal Drive IDs.
+8. Verify assignment upload presets rehydrate, the student `accept` filter matches the stored policy, SVG is rejected,
+   and a rejected file creates neither a Drive object nor a submission row.
 
 ## Migration Note
 

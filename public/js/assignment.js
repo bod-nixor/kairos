@@ -6,6 +6,7 @@
 
     const $ = id => document.getElementById(id);
     const LMS = window.KairosLMS;
+    const Management = window.KairosLMSManagement;
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
     const ASSIGN_ID = params.get('assignment_id') || '';
@@ -41,10 +42,16 @@
     function initDropzone() {
         const dz = $('dropzone');
         const fileInput = $('fileInput');
-        if (!dz || !fileInput) return;
+        if (!dz || !fileInput || dz.dataset.wired === '1') return;
+        dz.dataset.wired = '1';
 
         dz.addEventListener('click', () => fileInput.click());
-        dz.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+        dz.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
         dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('is-dragover'); });
         dz.addEventListener('dragleave', () => dz.classList.remove('is-dragover'));
         dz.addEventListener('drop', e => {
@@ -65,7 +72,7 @@
     }
 
     function addFiles(files) {
-        const MAX_MB = (assignData && assignData.max_file_mb) || 50;
+        const MAX_MB = (assignData && (assignData.effective_max_file_mb || assignData.max_file_mb)) || 50;
         const allowedExtRaw = String(assignData?.allowed_file_extensions || '').toLowerCase();
         const allowedExts = allowedExtRaw ? allowedExtRaw.split(',').map((v) => v.trim()).filter(Boolean) : [];
         files.forEach(f => {
@@ -81,7 +88,7 @@
                     return;
                 }
             }
-            uploadedFiles.push(f);
+            uploadedFiles = [f];
         });
         renderFileList();
     }
@@ -100,130 +107,6 @@
                 uploadedFiles.splice(Number(btn.dataset.idx), 1);
                 renderFileList();
             });
-        });
-    }
-
-    function insertTextAtCursor(text) {
-        const selection = document.getSelection();
-        if (!selection || selection.rangeCount === 0) return;
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(document.createTextNode(text));
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-    }
-
-    function ensureAssignmentEditorModal() {
-        let modal = $('assignEditorModal');
-        if (modal) return modal;
-        modal = document.createElement('dialog');
-        modal.id = 'assignEditorModal';
-        modal.className = 'k-modal';
-        modal.innerHTML = `<form method="dialog" class="k-modal__content k-modal__content--lg" id="assignEditorForm">
-            <h3>Edit assignment</h3>
-            <label class="k-field-stack"><span>Title</span><input id="assignEditTitle" type="text" required /></label>
-            <div class="k-inline-actions k-inline-actions--compact">
-              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="formatBlock" data-assign-cmd-value="<h2>">H2</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="bold">Bold</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="italic">Italic</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="underline">Underline</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-assign-cmd="insertUnorderedList">List</button>
-              <button type="button" class="btn btn-ghost btn-sm" id="assignCopyMarkdownBtn">Copy Markdown</button>
-            </div>
-            <label class="k-field-stack"><span>Description</span><div id="assignEditDescription" class="k-card k-editor-surface k-editor-surface--compact" contenteditable="true"></div></label>
-            <label class="k-field-stack"><span>Due date/time</span><input id="assignEditDueAt" type="text" placeholder="YYYY-MM-DD HH:MM:SS" /></label>
-            <label class="k-field-stack"><span>Max points</span><input id="assignEditMaxPoints" type="number" min="1" step="1" /></label>
-            <label class="k-field-stack"><span>Allowed extensions (comma separated)</span><input id="assignEditAllowedExt" type="text" placeholder="pdf,docx,png" /></label>
-            <label class="k-field-stack"><span>Max file size (MB)</span><input id="assignEditMaxFileMb" type="number" min="1" max="1024" step="1" /></label>
-            <div class="k-modal__footer"><button class="btn btn-ghost" type="button" id="assignEditorCancel">Cancel</button><button class="btn btn-primary" type="submit">Save changes</button></div>
-        </form>`;
-        document.body.appendChild(modal);
-        $('assignEditorCancel')?.addEventListener('click', () => modal.close());
-        modal.querySelectorAll('[data-assign-cmd]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const editor = $('assignEditDescription');
-                if (!editor) return;
-                editor.focus();
-                if (typeof document.execCommand === 'function') {
-                    document.execCommand(btn.dataset.assignCmd, false, btn.dataset.assignCmdValue || null);
-                    return;
-                }
-                const value = btn.dataset.assignCmdValue || '';
-                if (value) {
-                    insertTextAtCursor(value);
-                }
-            });
-        });
-        $('assignCopyMarkdownBtn')?.addEventListener('click', async () => {
-            const editor = $('assignEditDescription');
-            if (!editor) return;
-            try {
-                await navigator.clipboard.writeText(LMS.htmlToMarkdown(editor.innerHTML || ''));
-                LMS.toast('Markdown copied to clipboard.', 'success');
-            } catch (_) {
-                LMS.toast('Unable to copy markdown.', 'error');
-            }
-        });
-        $('assignEditDescription')?.addEventListener('paste', (event) => {
-            const text = event.clipboardData?.getData('text/plain') || '';
-            if (!text || !/[#*\-\[\]]/.test(text)) return;
-            event.preventDefault();
-            const html = LMS.markdownToHtml(text);
-            if (typeof document.execCommand === 'function') {
-                document.execCommand('insertHTML', false, html);
-            } else {
-                insertTextAtCursor(text);
-            }
-        });
-        return modal;
-    }
-
-    function openAssignmentEditor(initial) {
-        const modal = ensureAssignmentEditorModal();
-        const form = $('assignEditorForm');
-        const title = $('assignEditTitle');
-        const description = $('assignEditDescription');
-        const dueAt = $('assignEditDueAt');
-        const maxPoints = $('assignEditMaxPoints');
-        const allowedExt = $('assignEditAllowedExt');
-        const maxFileMb = $('assignEditMaxFileMb');
-        if (!form || !title || !description || !dueAt || !maxPoints || !allowedExt || !maxFileMb) {
-            LMS.toast('Assignment editor failed to open. Please refresh and try again.', 'error');
-            return Promise.resolve(null);
-        }
-        title.value = initial?.title || '';
-        description.innerHTML = LMS.sanitizeForRender(initial?.instructions || initial?.description || '');
-        dueAt.value = initial?.due_at || '';
-        maxPoints.value = String(initial?.max_points || 100);
-        allowedExt.value = initial?.allowed_file_extensions || '';
-        maxFileMb.value = String(initial?.max_file_mb || 50);
-        modal.showModal();
-        return new Promise((resolve) => {
-            const closeHandler = () => {
-                form.removeEventListener('submit', submitHandler);
-                modal.removeEventListener('close', closeHandler);
-                resolve(null);
-            };
-            const submitHandler = (event) => {
-                event.preventDefault();
-                const points = Number.parseInt(maxPoints.value || '100', 10);
-                const maxMb = Number.parseInt(maxFileMb.value || '50', 10);
-                form.removeEventListener('submit', submitHandler);
-                modal.removeEventListener('close', closeHandler);
-                modal.close();
-                resolve({
-                    title: title.value.trim(),
-                    instructions: (description.innerHTML || '').trim(),
-                    due_at: dueAt.value.trim(),
-                    max_points: Number.isFinite(points) && points > 0 ? points : 100,
-                    allowed_file_extensions: allowedExt.value.trim().toLowerCase(),
-                    max_file_mb: Number.isFinite(maxMb) && maxMb > 0 ? maxMb : 50,
-                });
-            };
-            form.addEventListener('submit', submitHandler);
-            modal.addEventListener('close', closeHandler);
-            setTimeout(() => title.focus(), 0);
         });
     }
 
@@ -255,11 +138,12 @@
             return;
         }
         tl.innerHTML = submissions.map((s, i) => {
-            const cls = s.grade !== undefined ? 'k-timeline-item--graded' : i === 0 ? 'k-timeline-item--current' : '';
+            const hasGrade = s.grade !== undefined && s.grade !== null;
+            const cls = hasGrade ? 'k-timeline-item--graded' : i === 0 ? 'k-timeline-item--current' : '';
             return `<div class="k-timeline-item ${cls}">
         <div class="k-timeline-item__version">Submission ${submissions.length - i}</div>
         <div class="k-timeline-item__title">${LMS.escHtml(s.label || s.file_name || 'Submitted')}</div>
-        <div class="k-timeline-item__meta">${LMS.fmtDateTime(s.submitted_at)}${s.grade !== undefined ? ` · Grade: ${s.grade}` : ''}${s.submission_comment ? ` · Comment: ${LMS.escHtml(s.submission_comment)}` : ''}</div>
+        <div class="k-timeline-item__meta">${LMS.fmtDateTime(s.submitted_at)}${hasGrade ? ` · Grade: ${LMS.escHtml(String(s.grade))}` : ''}${s.submission_comment ? ` · Comment: ${LMS.escHtml(s.submission_comment)}` : ''}</div>
       </div>`;
         }).join('');
     }
@@ -320,24 +204,30 @@
             );
         });
         $('assignEditBtn')?.addEventListener('click', async () => {
-            const updatePayload = await openAssignmentEditor(assignData);
-            if (!updatePayload || !updatePayload.title) return;
-            const res = await LMS.api('POST', './api/lms/assignments/update.php', {
-                assignment_id: Number(ASSIGN_ID),
-                title: updatePayload.title,
-                instructions: updatePayload.instructions,
-                due_at: updatePayload.due_at,
-                max_points: updatePayload.max_points,
-                allowed_file_extensions: updatePayload.allowed_file_extensions,
-                max_file_mb: updatePayload.max_file_mb,
+            await Management.openAssignmentEditor(assignData, {
+                mode: 'edit',
+                policy: assignData.upload_policy,
+                onSubmit: async (updatePayload) => {
+                    const res = await LMS.api('POST', './api/lms/assignments/update.php', {
+                        assignment_id: Number(ASSIGN_ID),
+                        ...updatePayload,
+                    });
+                    if (!res.ok) return res;
+                    LMS.toast('Assignment updated.', 'success');
+                    await loadPage();
+                    return res;
+                },
             });
-LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknown error'}`, res.ok ? 'success' : 'error');
-            if (res.ok) await loadPage();
         });
 
         const target = $('assignStaffSubmissions');
         if (target) {
-            target.innerHTML = `<h4>Submissions (${submissions.length})</h4>` + submissions.map((s) => `<div class="k-attempt-row">Submission #${s.submission_id} · student ${s.student_user_id} · ${LMS.fmtDateTime(s.submitted_at)} · grade ${s.grade ?? '-'}</div>`).join('');
+            target.innerHTML = `<h4>Submissions (${submissions.length})</h4>` + submissions.map((s) => `
+                <div class="k-attempt-row">
+                    <strong>${LMS.escHtml(s.student_name || 'Student')}</strong>
+                    <span>${LMS.fmtDateTime(s.submitted_at)}</span>
+                    <span class="k-status ${s.grade === null ? 'k-status--neutral' : 'k-status--info'}">${s.grade === null ? 'Awaiting grade' : `${s.grade} points`}</span>
+                </div>`).join('');
         }
     }
 
@@ -388,6 +278,8 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
                 return;
             }
             LMS.toast('Submitted successfully!', 'success');
+            uploadedFiles = [];
+            renderFileList();
             // Refresh page state
             await loadPage();
         } finally {
@@ -430,6 +322,13 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         }
 
         assignData = assignRes.data?.data || assignRes.data || {};
+        canManage = !!assignData.capabilities?.manage_course;
+        if (URL_MODE === 'edit' && !canManage) {
+            LMS.renderAccessDenied($('assignAccessDenied'), 'You do not have permission to edit this assignment.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+            showEl('assignAccessDenied');
+            hideEl('assignLoaded');
+            return;
+        }
         const submissions = subsRes.ok ? (subsRes.data?.data?.items || subsRes.data?.data || subsRes.data?.items || []) : [];
         const latestSub = submissions[0] || null;
 
@@ -443,15 +342,8 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         document.querySelectorAll('[data-course-href]').forEach(el => {
             el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
         });
-        LMS.nav.setCourseContext(COURSE_ID, assignData.course_name || 'Course');
+        LMS.nav.setCourseContext(COURSE_ID, assignData.course_name || 'Course', assignData);
         LMS.nav.setActive('assignments');
-        const courseRole = LMS.resolveCourseRoleFlags(assignData.course_role || assignData.my_role || assignData.role);
-        if (courseRole.ta || courseRole.manager || courseRole.admin) {
-            $('kNavGrading')?.classList.remove('hidden');
-        }
-        if (courseRole.manager || courseRole.admin) {
-            $('kNavAnalytics')?.classList.remove('hidden');
-        }
         $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = assignData.course_name || '');
 
         $('assignTitle') && ($('assignTitle').textContent = assignData.title || '');
@@ -477,7 +369,7 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         }
 
         // Grade status
-        if (latestSub && latestSub.grade !== undefined) {
+        if (latestSub && latestSub.grade !== undefined && latestSub.grade !== null) {
             const gs = $('assignGradeStatus');
             if (gs) {
                 gs.textContent = `Grade: ${latestSub.grade} / ${assignData.max_points || '?'}`;
@@ -510,6 +402,14 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         // Submission panel
         const submType = assignData.submission_type || 'file';
         ['fileSubmission', 'textSubmission', 'urlSubmission'].forEach(hideEl);
+        const allowedTypes = Management.formatExtensions(assignData.allowed_file_extensions || '', assignData.upload_policy);
+        const effectiveMaxMb = assignData.effective_max_file_mb || assignData.max_file_mb || 50;
+        $('dropzoneHint') && ($('dropzoneHint').textContent = `${allowedTypes} · Maximum ${effectiveMaxMb} MB`);
+        $('allowedTypesText') && ($('allowedTypesText').textContent = allowedTypes);
+        $('maxFileSizeText') && ($('maxFileSizeText').textContent = `${effectiveMaxMb} MB`);
+        $('assignmentPointsText') && ($('assignmentPointsText').textContent = `${assignData.max_points || 0} points`);
+        const fileInput = $('fileInput');
+        if (fileInput) fileInput.accept = Management.extensionsToAccept(assignData.allowed_file_extensions || '', assignData.upload_policy);
 
         if (latestSub) {
             // Already submitted
@@ -521,13 +421,15 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
                 showEl('submissionActions');
                 showEl(submType + 'Submission');
                 initDropzone();
-            });
+            }, { once: true });
         } else {
             showEl(submType + 'Submission');
-            const allowedTypesHint = assignData.allowed_file_extensions ? assignData.allowed_file_extensions.split(',').map((v) => v.trim()).filter(Boolean).join(', ') : 'Any file type';
-            $('dropzoneHint') && ($('dropzoneHint').textContent = `${allowedTypesHint} · Max ${assignData.max_file_mb || 50}MB per file`);
             initDropzone();
-            $('submitBtn') && $('submitBtn').addEventListener('click', submitWork);
+        }
+        const submitBtn = $('submitBtn');
+        if (submitBtn && submitBtn.dataset.wired !== '1') {
+            submitBtn.dataset.wired = '1';
+            submitBtn.addEventListener('click', submitWork);
         }
 
         // Submission count note
@@ -545,27 +447,6 @@ LMS.toast(res.ok ? 'Assignment updated' : `Update failed: ${res.error || 'Unknow
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
-        const roles = session.caps?.roles || {};
-        canManage = !!(roles.admin || roles.manager);
-
-        // Enforce RBAC: students cannot access edit mode
-        if (URL_MODE === 'edit' && !canManage) {
-            const denied = $('assignAccessDenied');
-            if (denied) {
-                LMS.renderAccessDenied(denied, 'You do not have permission to edit this assignment.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
-                denied.classList.remove('hidden');
-            }
-
-            hideEl('assignSkeleton');
-            hideEl('assignLoaded');
-            hideEl('assignError');
-
-            document.querySelectorAll('#assignLoaded button, #assignLoaded input, #assignLoaded select, #assignLoaded textarea').forEach((el) => {
-                el.disabled = true;
-            });
-            return;
-        }
-
         await loadPage();
     });
 

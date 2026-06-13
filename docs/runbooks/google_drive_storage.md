@@ -100,6 +100,10 @@ Activation sequence:
 - Each file receives opaque `appProperties` for its Kairos storage key and applicable course, assignment, submission, uploader, and resource identifiers.
 - Downloads accept only a local `resource_id`. Kairos resolves the stored Drive ID server-side, applies course/submission RBAC, rechecks metadata and SHA-256, and streams bytes with private no-store headers.
 - HTML, SVG, JavaScript, XML, and other active types are never served inline.
+- Assignment uploads are restricted to the assignment's normalized extension allowlist. `finfo` MIME detection and
+  Office/ODF container checks run before Drive is called.
+- SVG is intentionally unsupported for assignment uploads. It is active content and is excluded from the Images
+  preset, storage upload policy, and inline preview policy.
 
 ## Browser Preview Policy
 
@@ -124,6 +128,8 @@ Use test courses and test accounts only.
 9. Another student and an unassigned TA receive `403`.
 10. Delete the test course resource and confirm the DB row is soft-deleted before the Drive file moves to trash.
 11. Set `GOOGLE_DRIVE_WRITES_ENABLED=false`; confirm downloads still work while upload/delete return sanitized `503` errors.
+12. For an assignment with a restricted preset, verify disallowed, MIME-mismatched, oversized, and SVG files return
+    sanitized `422` responses and do not appear in the Shared Drive.
 
 ## Automated Tests
 

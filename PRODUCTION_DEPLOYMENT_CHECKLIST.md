@@ -153,6 +153,8 @@ The effective CSP must:
 - [ ] Check Default Dark, Light, Midnight, Graphite, Indigo, and Emerald themes.
 - [ ] In Light Mode, verify muted text, placeholders, disabled controls, links, focus rings, borders, status badges, the top bar, and announcement bell remain legible.
 - [ ] Keyboard-test navigation, appearance controls, forms, and dialogs; verify visible focus, Escape close, focus trap, and focus return.
+- [ ] Open assignment and quiz create/edit dialogs in Light and Default Dark; verify section hierarchy, inline
+      validation, disabled save state, focus return, and no mobile overflow.
 
 ## Role and Authorization Smoke Tests
 
@@ -170,6 +172,8 @@ Use non-production test accounts and do not alter real grades/submissions:
 - [ ] Manager: foreign `announcement_id`, `submission_id`, `assignment_id`, and module IDs return 403/404.
 - [ ] Course breadcrumb returns to `course.html?course_id=<id>` from every nested course page.
 - [ ] Course navigation ordering and profile identity remain stable across direct loads and page transitions.
+- [ ] Manager/admin see Grading and Analytics on every managed course surface; TA sees only capability-approved
+      Grading; student sees neither. Compare desktop and mobile drawer output.
 - [ ] Module accordions work with click, Enter, Space, and narrow touch input; item links remain tappable beside edit controls.
 - [ ] Manager reorders module items by drag and by mobile up/down controls; rapid duplicate input produces one save and no HTTP 500.
 - [ ] Two manager sessions reorder the same module; the stale session receives `409 reorder_conflict`, refreshes, and does not overwrite the committed order.
@@ -187,6 +191,13 @@ Use non-production test accounts and do not alter real grades/submissions:
 - [ ] Confirm the uploaded resource appears under `resources/course-<id>/` with an opaque filename.
 - [ ] Enrolled student can preview/download the published resource; foreign-course student receives 403.
 - [ ] Student file submission persists under `submissions/course-<id>/assignment-<id>/user-<id>/`.
+- [ ] Assignment cards show readable excerpts without raw HTML; detail shows sanitized formatting and strips scripts,
+      event handlers, unsafe links, and iframes.
+- [ ] Assignment upload presets and safe custom extensions persist and rehydrate; the student file input `accept`
+      attribute matches the resolved policy.
+- [ ] Disallowed extension, MIME mismatch, oversized file, and SVG each return sanitized `422`; confirm no submission
+      row and no Drive file are created.
+- [ ] Quiz create/edit and question create/edit show polished validation and no raw JSON/debug text.
 - [ ] Submitting student, assigned TA, course manager, and admin can download; another student/unassigned TA receives 403.
 - [ ] Delete a test resource and confirm the DB record is hidden before the Drive file moves to trash.
 - [ ] Text assignment submission and link-based resources remain available if Drive writes are disabled.
@@ -210,3 +221,6 @@ Use non-production test accounts and do not alter real grades/submissions:
 If application rollback is required, restore the prior files first. Retain `lms_announcement_audit` unless an approved data-retention decision permits the manual rollback documented in the migration. For a Drive incident, set
 `GOOGLE_DRIVE_WRITES_ENABLED=false` first so authenticated reads remain available; use
 `GOOGLE_DRIVE_ENABLED=false` only when credentials must be fully disabled or revoked.
+
+This LMS polish pass has no new migration. Do not drop or clear existing assignment restriction columns during
+rollback.

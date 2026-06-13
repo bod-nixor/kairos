@@ -11,6 +11,17 @@ mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_
 The announcement migration must run before deploying the announcement detail/mutation UI. Reorder and embed
 hardening require no schema change.
 
+The assignment upload policy uses the existing columns introduced by
+`sql/20260227_1030_assignment_restrictions_and_quiz_question_required.sql`. Confirm those columns exist before
+deploying:
+
+```sql
+SHOW COLUMNS FROM lms_assignments
+WHERE Field IN ('allowed_file_extensions', 'max_file_mb');
+```
+
+This LMS polish pass adds no migration and does not mutate schema at runtime.
+
 ## Drive configuration
 Install locked PHP dependencies before enabling Drive:
 
@@ -52,6 +63,25 @@ canonical Drive mapping and cleanup state.
 - Resources: upload/get under `/api/lms/resources/...`
 - Quiz: CRUD, questions, attempts under `/api/lms/quiz/...`
 - Assignments: CRUD, submission, TA assignment under `/api/lms/assignments/...`
+- Assignment upload policy: `/api/lms/assignments/upload-policy.php`
 - Grading: queue/details/grade/release under `/api/lms/grading/...`
 - Announcements: list/detail/create/update/delete/read under `/api/lms/announcements...`
 - Analytics: `/api/lms/analytics/course/get.php`
+
+## Assignment and quiz staging smoke
+
+1. Manager opens Assignments, creates a draft, selects multiple upload presets, adds a custom safe extension, saves,
+   and confirms the values rehydrate on edit.
+2. Student confirms allowed types, maximum effective size, points, due date, and selected filename are visible.
+3. Submit one valid PDF, one disallowed extension, one MIME-mismatched file, one oversized file, and one SVG.
+4. Confirm every rejected file returns sanitized `422`, creates no submission row, and is never uploaded to Drive.
+5. Manager creates/edits a quiz and adds/edits MCQ, multiple-select, true/false, and written-response questions.
+6. Traverse course, modules, lesson, resource, quizzes, quiz, assignments, assignment, grading, and analytics by direct
+   load and internal links. Grading follows `grade_course`; Analytics follows `manage_course`.
+7. Repeat at `390x844`, `768x1024`, `1440x900`, and a large desktop in Light and Default Dark.
+
+## Rollback
+
+Restore the previous application files as one artifact. No schema rollback is needed for this pass. Existing
+`allowed_file_extensions` and `max_file_mb` data can remain in place. If upload behavior is implicated, set
+`GOOGLE_DRIVE_WRITES_ENABLED=false` before rollback so protected reads remain available while new writes stop.

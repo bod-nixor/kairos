@@ -30,12 +30,13 @@ try {
 
     lms_require_course_capability($user, 'grade_course', (int)$quiz['course_id']);
 
-    $rows = $pdo->prepare('SELECT a.attempt_id, a.user_id AS student_user_id, a.status, a.grading_status, a.score, a.max_score, a.started_at, a.submitted_at,
+    $rows = $pdo->prepare('SELECT a.attempt_id, a.user_id AS student_user_id, u.name AS student_name, a.status, a.grading_status, a.score, a.max_score, a.started_at, a.submitted_at,
            SUM(CASE WHEN r.needs_manual_grading = 1 THEN 1 ELSE 0 END) AS manual_review_count
       FROM lms_assessment_attempts a
+      JOIN users u ON u.user_id = a.user_id
       LEFT JOIN lms_assessment_responses r ON r.attempt_id = a.attempt_id
      WHERE a.assessment_id = :id
-     GROUP BY a.attempt_id, a.user_id, a.status, a.grading_status, a.score, a.max_score, a.started_at, a.submitted_at
+     GROUP BY a.attempt_id, a.user_id, u.name, a.status, a.grading_status, a.score, a.max_score, a.started_at, a.submitted_at
      ORDER BY a.submitted_at DESC, a.attempt_id DESC
      LIMIT :limit OFFSET :offset');
     $rows->bindValue(':id', $assessmentId, PDO::PARAM_INT);

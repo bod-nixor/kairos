@@ -195,8 +195,20 @@
         try { data = await resp.json(); } catch { data = null; }
       }
       if (!resp.ok) {
-        const errMsg = (data && data.error) ? data.error : `HTTP ${resp.status}`;
-        return { ok: false, status: resp.status, error: errMsg, data };
+        const errorPayload = data && data.error;
+        const errMsg = typeof errorPayload === 'string'
+          ? errorPayload
+          : (errorPayload && typeof errorPayload.message === 'string'
+            ? errorPayload.message
+            : `HTTP ${resp.status}`);
+        return {
+          ok: false,
+          status: resp.status,
+          error: errMsg,
+          errorCode: errorPayload && typeof errorPayload === 'object' ? errorPayload.code || null : null,
+          errorDetails: errorPayload && typeof errorPayload === 'object' ? errorPayload.details || null : null,
+          data,
+        };
       }
       return { ok: true, status: resp.status, error: null, data };
     } catch (err) {
@@ -680,32 +692,101 @@
     }
   }
 
-  function sanitizeForRender(html) {
+  function sanitizeForRender(html, options = {}) {
     if (!html || typeof html !== 'string') return '';
 
-    const div = document.createElement('div');
-    div.innerHTML = html;
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const allowedTags = new Set([
+      'a', 'b', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3', 'h4',
+      'hr', 'i', 'iframe', 'li', 'ol', 'p', 'pre', 's', 'span', 'strong', 'table', 'tbody', 'td',
+      'th', 'thead', 'tr', 'u', 'ul',
+    ]);
+    const dropContentTags = new Set([
+      'base', 'button', 'embed', 'form', 'input', 'link', 'math', 'meta', 'object',
+      'script', 'select', 'style', 'svg', 'textarea',
+    ]);
 
-    // Remove dangerous tags
-    div.querySelectorAll('script, style, object, embed').forEach(el => el.remove());
+    Array.from(template.content.querySelectorAll('*')).forEach((el) => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'iframe' && options.allowEmbeds !== true) {
+        el.remove();
+        return;
+      }
+      if (dropContentTags.has(tag)) {
+        el.remove();
+        return;
+      }
+      if (!allowedTags.has(tag)) {
+        el.replaceWith(...Array.from(el.childNodes));
+        return;
+      }
 
-    // Remove inline event handlers (onclick, onerror, etc.)
-    div.querySelectorAll('*').forEach(el => {
-      [...el.attributes].forEach(attr => {
-        if (attr.name.startsWith('on')) {
+      Array.from(el.attributes).forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        const allowed = (tag === 'a' && ['href', 'title'].includes(name))
+          || (tag === 'iframe' && ['src', 'title'].includes(name));
+        if (!allowed) {
           el.removeAttribute(attr.name);
         }
-        // Block javascript: URLs
-        if (['href', 'src'].includes(attr.name)) {
-          const value = attr.value.trim().toLowerCase();
-          if (value.startsWith('javascript:')) {
-            el.removeAttribute(attr.name);
-          }
-        }
       });
+
+      if (tag === 'a') {
+        const href = (el.getAttribute('href') || '').trim();
+        let safeHref = '';
+        try {
+          const parsed = new URL(href, global.location?.href || 'https://kairos.invalid/');
+          if (['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
+            safeHref = href;
+          }
+        } catch (_) {
+          safeHref = '';
+        }
+        if (safeHref) {
+          el.setAttribute('href', safeHref);
+          el.setAttribute('target', '_blank');
+          el.setAttribute('rel', 'noopener noreferrer');
+        } else {
+          el.removeAttribute('href');
+        }
+      } else if (tag === 'iframe') {
+        const descriptor = getEmbedDescriptor(el.getAttribute('src') || '', {
+          title: el.getAttribute('title') || 'Embedded lesson resource',
+        });
+        if (!descriptor) {
+          el.remove();
+          return;
+        }
+        el.setAttribute('src', descriptor.embedUrl);
+        el.setAttribute('title', descriptor.title);
+        el.setAttribute('loading', 'lazy');
+        el.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        if (descriptor.sandbox) el.setAttribute('sandbox', descriptor.sandbox);
+        if (descriptor.allow) el.setAttribute('allow', descriptor.allow);
+        if (descriptor.allowFullscreen) el.setAttribute('allowfullscreen', '');
+      }
     });
 
-    return div.innerHTML;
+    return template.innerHTML;
+  }
+
+  function richTextToPlainText(value) {
+    if (!value || typeof value !== 'string') return '';
+    const template = document.createElement('template');
+    template.innerHTML = sanitizeForRender(value);
+    template.content.querySelectorAll('br, blockquote, div, h1, h2, h3, h4, li, ol, p, pre, table, tr, ul')
+      .forEach((element) => element.appendChild(document.createTextNode(' ')));
+    return (template.content.textContent || '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function richTextExcerpt(value, maxLength = 180) {
+    const text = richTextToPlainText(value);
+    const limit = Number.isFinite(Number(maxLength)) ? Math.max(20, Number(maxLength)) : 180;
+    if (text.length <= limit) return text;
+    return `${text.slice(0, Math.max(1, limit - 1)).trimEnd()}…`;
   }
 
   function debug(entry, options = {}) {
@@ -1023,6 +1104,8 @@
     markdownToHtml,
     htmlToMarkdown,
     sanitizeForRender,
+    richTextToPlainText,
+    richTextExcerpt,
     debug,
     nav: KairosNav,
   };

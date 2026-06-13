@@ -40,10 +40,11 @@ try {
     }
 
     $gradeStatusFilter = $canViewAll ? '' : " AND g2.status = 'released'";
-    $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, s.version, s.status, s.submitted_at, s.is_late,
+    $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, u.name AS student_name, s.version, s.status, s.submitted_at, s.is_late,
         s.text_submission, s.submission_comment, g.score AS grade, g.feedback,
         r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_file_id
         FROM lms_submissions s
+        JOIN users u ON u.user_id = s.student_user_id
         LEFT JOIN lms_grades g ON g.grade_id = (
             SELECT g2.grade_id FROM lms_grades g2 WHERE g2.submission_id = s.submission_id'
             . $gradeStatusFilter . ' ORDER BY g2.updated_at DESC, g2.grade_id DESC LIMIT 1
@@ -71,6 +72,7 @@ try {
                 'submission_id' => $submissionId,
                 'assignment_id' => (int)$row['assignment_id'],
                 'student_user_id' => (int)$row['student_user_id'],
+                'student_name' => (string)($row['student_name'] ?? 'Student'),
                 'version' => (int)$row['version'],
                 'status' => (string)$row['status'],
                 'submitted_at' => $row['submitted_at'],

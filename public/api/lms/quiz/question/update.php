@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/_common.php';
+require_once dirname(__DIR__) . '/_helpers.php';
 
 lms_require_feature(['quiz', 'quizzes', 'lms_quizzes']);
 $user = lms_require_roles(['manager', 'admin']);
@@ -18,21 +18,22 @@ $existing = $existingStmt->fetch();
 if (!$existing) {
     lms_error('not_found', 'Question not found', 404);
 }
+$existingOptionsStmt = $pdo->prepare('SELECT option_text, option_value FROM lms_question_options WHERE question_id = :id ORDER BY position ASC, option_id ASC');
+$existingOptionsStmt->execute([':id' => $id]);
+$existingOptions = array_map(
+    static fn(array $option): array => [
+        'text' => (string)$option['option_text'],
+        'value' => (string)$option['option_value'],
+    ],
+    $existingOptionsStmt->fetchAll(PDO::FETCH_ASSOC)
+);
 
-lms_course_access($user, (int)$existing['course_id']);
+lms_require_course_capability($user, 'manage_course', (int)$existing['course_id']);
 
 $prompt = array_key_exists('prompt', $in) ? trim((string)$in['prompt']) : (string)$existing['prompt'];
 $questionType = array_key_exists('question_type', $in)
     ? trim((string)$in['question_type'])
     : trim((string)$existing['question_type']);
-
-$allowedQuestionTypes = ['mcq', 'multi_select', 'multiple_select', 'true_false', 'short_answer', 'long_answer', 'file_upload'];
-if ($questionType === 'multi_select') {
-    $questionType = 'multiple_select';
-}
-if (!in_array($questionType, $allowedQuestionTypes, true)) {
-    lms_error('validation_error', 'question_type is invalid', 422);
-}
 
 $points = array_key_exists('points', $in) ? (float)$in['points'] : (float)$existing['points'];
 $position = array_key_exists('position', $in) ? max(1, (int)$in['position']) : (int)$existing['position'];
@@ -56,15 +57,44 @@ if (array_key_exists('options', $in) && is_array($in['options'])) {
     $options = $in['options'];
 } elseif (array_key_exists('settings', $in) && is_array($in['settings']) && array_key_exists('options', $in['settings']) && is_array($in['settings']['options'])) {
     $options = $in['settings']['options'];
+} elseif ($existingOptions !== []) {
+    $options = $existingOptions;
 } else {
     $options = (isset($settings['options']) && is_array($settings['options'])) ? $settings['options'] : [];
 }
 $settings['options'] = $options;
-$settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 if ($prompt === '' || $questionType === '') {
     lms_error('validation_error', 'prompt and question_type must be non-empty', 422);
 }
+$definitionFields = ['prompt', 'question_type', 'points', 'options', 'settings', 'answer_key'];
+$validateDefinition = array_intersect($definitionFields, array_keys($in)) !== [];
+if ($validateDefinition) {
+    try {
+        $definition = lms_validate_question_definition(
+            $questionType,
+            $points,
+            $options,
+            $answerKeyJson === null ? null : json_decode((string)$answerKeyJson, true)
+        );
+    } catch (InvalidArgumentException $e) {
+        lms_error('validation_error', $e->getMessage(), 422);
+    }
+    $questionType = $definition['question_type'];
+    $points = $definition['points'];
+    $options = $definition['options'];
+    $answerKeyJson = $definition['answer_key'] === null
+        ? null
+        : json_encode($definition['answer_key'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+} else {
+    try {
+        $questionType = lms_normalize_question_type($questionType);
+    } catch (InvalidArgumentException $e) {
+        lms_error('validation_error', $e->getMessage(), 422);
+    }
+}
+$settings['options'] = $options;
+$settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 if (array_key_exists('answer_key', $in)) {
     $newAnswer = json_decode((string)$answerKeyJson, true);

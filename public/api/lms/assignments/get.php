@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/_restriction_helpers.php';
 
 lms_require_feature(['assignments', 'lms_assignments']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
@@ -58,6 +59,7 @@ try {
     $courseNameStmt = $pdo->prepare('SELECT name FROM courses WHERE course_id = :cid LIMIT 1');
     $courseNameStmt->execute([':cid' => (int)$assignment['course_id']]);
     $courseName = (string)($courseNameStmt->fetchColumn() ?: '');
+    $effectiveMaxBytes = lms_assignment_effective_max_bytes(max(1, (int)($assignment['max_file_mb'] ?? 50)));
 
     $payload = [
         'assignment_id' => (int)$assignment['assignment_id'],
@@ -70,8 +72,12 @@ try {
         'max_points' => (float)$assignment['max_points'],
         'allowed_file_extensions' => (string)($assignment['allowed_file_extensions'] ?? ''),
         'max_file_mb' => max(1, (int)($assignment['max_file_mb'] ?? 50)),
+        'effective_max_file_mb' => max(1, (int)floor($effectiveMaxBytes / 1024 / 1024)),
+        'upload_policy' => lms_assignment_upload_policy_payload(),
         'status' => (string)$assignment['status'],
         'course_name' => $courseName,
+        'course_role' => lms_course_role($user, (int)$assignment['course_id']),
+        'capabilities' => lms_course_capabilities($user, (int)$assignment['course_id']),
         'published_flag' => (int)$module['published_flag'],
         'required_flag' => (int)$module['required_flag'],
     ];

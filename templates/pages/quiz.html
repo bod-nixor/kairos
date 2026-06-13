@@ -28,7 +28,7 @@
             <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
-            <nav class="k-nav-group" id="kNavCourse">
+            <nav class="k-nav-group" id="kNavCourse" aria-label="Course sections">
                 <a class="k-nav-item" data-course-href="./course.html" href="#"><span
                         class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
                 <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
@@ -105,7 +105,7 @@
                     <div id="quizIntroPanel" class="k-quiz-panel hidden" aria-label="Quiz introduction">
                         <span class="k-quiz-panel__icon" role="img" aria-label="Quiz">⚡</span>
                         <h1 class="k-quiz-panel__title" id="quizIntroTitle">Quiz Title</h1>
-                        <p class="k-quiz-panel__desc" id="quizIntroDesc">Loading quiz details…</p>
+                        <div class="k-quiz-panel__desc k-rich-text" id="quizIntroDesc">Loading quiz details…</div>
                         <div class="k-quiz-meta-row" id="quizIntroMeta">
                             <div class="k-quiz-meta-item">
                                 <span class="k-quiz-meta-item__value" id="metaQuestions">—</span>
@@ -219,6 +219,7 @@
     <script data-cfasync="false" src="./js/theme.js"></script>
     <script data-cfasync="false" src="./js/ws.js"></script>
     <script data-cfasync="false" src="./js/lms-core.js"></script>
+    <script data-cfasync="false" src="./js/lms-management-ui.js"></script>
     <script data-cfasync="false" src="./js/lms-ws.js"></script>
     <script data-cfasync="false" src="./js/quiz.js"></script>
 </body>

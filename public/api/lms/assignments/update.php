@@ -59,7 +59,7 @@ if (!$existing) {
     lms_error('not_found', 'Assignment not found', 404);
 }
 
-lms_course_access($user, (int) $existing['course_id']);
+lms_require_course_capability($user, 'manage_course', (int)$existing['course_id']);
 
 if (array_key_exists('status', $in)) {
     $targetStatus = (string) $in['status'];

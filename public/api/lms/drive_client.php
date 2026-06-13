@@ -72,19 +72,42 @@ function lms_upload_policy(): array
         'pdf'  => ['application/pdf'],
         'txt'  => ['text/plain'],
         'csv'  => ['text/csv', 'text/plain'],
+        'rtf'  => ['application/rtf', 'text/rtf', 'text/plain'],
         'doc'  => ['application/msword', 'application/x-ole-storage'],
         'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'odt'  => ['application/vnd.oasis.opendocument.text'],
         'ppt'  => ['application/vnd.ms-powerpoint', 'application/x-ole-storage'],
         'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        'odp'  => ['application/vnd.oasis.opendocument.presentation'],
         'xls'  => ['application/vnd.ms-excel', 'application/x-ole-storage'],
         'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'ods'  => ['application/vnd.oasis.opendocument.spreadsheet'],
         'png'  => ['image/png'],
         'jpg'  => ['image/jpeg'],
         'jpeg' => ['image/jpeg'],
         'gif'  => ['image/gif'],
         'webp' => ['image/webp'],
-        'mp4'  => ['video/mp4', 'application/octet-stream'],
-        'webm' => ['video/webm', 'application/octet-stream'],
+        'mp4'  => ['video/mp4'],
+        'mov'  => ['video/quicktime'],
+        'm4v'  => ['video/x-m4v', 'video/mp4'],
+        'webm' => ['video/webm'],
+        'mp3'  => ['audio/mpeg'],
+        'wav'  => ['audio/wav', 'audio/x-wav', 'audio/vnd.wave'],
+        'm4a'  => ['audio/mp4', 'audio/x-m4a', 'video/mp4'],
+        'ogg'  => ['audio/ogg', 'application/ogg'],
+        'zip'  => ['application/zip'],
+        'rar'  => ['application/vnd.rar', 'application/x-rar', 'application/x-rar-compressed'],
+        '7z'   => ['application/x-7z-compressed'],
+        'tar'  => ['application/x-tar'],
+        'gz'   => ['application/gzip', 'application/x-gzip'],
+        'json' => ['application/json', 'text/plain'],
+        'py'   => ['text/plain', 'text/x-python'],
+        'java' => ['text/plain', 'text/x-java'],
+        'c'    => ['text/plain', 'text/x-c'],
+        'cpp'  => ['text/plain', 'text/x-c++'],
+        'h'    => ['text/plain', 'text/x-c'],
+        'sql'  => ['text/plain', 'application/sql'],
+        'md'   => ['text/plain', 'text/markdown'],
     ];
 }
 
@@ -94,6 +117,15 @@ function lms_ooxml_required_prefix(string $extension): ?string
         'docx' => 'word/',
         'pptx' => 'ppt/',
         'xlsx' => 'xl/',
+    ][$extension] ?? null;
+}
+
+function lms_odf_mime_type(string $extension): ?string
+{
+    return [
+        'odt' => 'application/vnd.oasis.opendocument.text',
+        'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+        'odp' => 'application/vnd.oasis.opendocument.presentation',
     ][$extension] ?? null;
 }
 
@@ -155,7 +187,67 @@ function lms_validate_ooxml_container(string $tmpPath, string $extension): bool
     return $hasContentTypes && $hasRequiredDirectory;
 }
 
-function lms_validate_uploaded_file(array $file, int $maxBytes): array
+function lms_validate_odf_container(string $tmpPath, string $extension): bool
+{
+    $expectedMime = lms_odf_mime_type($extension);
+    if ($expectedMime === null || !class_exists('ZipArchive')) {
+        return false;
+    }
+    $zip = new ZipArchive();
+    if ($zip->open($tmpPath) !== true) {
+        return false;
+    }
+    $storedMime = $zip->getFromName('mimetype');
+    $hasContent = $zip->locateName('content.xml') !== false;
+    $zip->close();
+    return is_string($storedMime) && trim($storedMime) === $expectedMime && $hasContent;
+}
+
+/**
+ * @return array{ok:bool,mime_type:string,reason:string}
+ */
+function lms_upload_type_validation(string $extension, string $detectedMime, string $tmpPath): array
+{
+    $extension = strtolower(trim($extension));
+    $detectedMime = strtolower(trim(explode(';', $detectedMime, 2)[0]));
+    $policy = lms_upload_policy();
+    if ($extension === '' || !isset($policy[$extension])) {
+        return ['ok' => false, 'mime_type' => $detectedMime, 'reason' => 'unsupported_extension'];
+    }
+
+    $allowedMimes = $policy[$extension];
+    $genericContainerMime = in_array($detectedMime, ['application/zip', 'application/octet-stream'], true);
+    if (lms_is_legacy_office_extension($extension) && in_array($detectedMime, $allowedMimes, true)) {
+        return [
+            'ok' => lms_validate_ole_container($tmpPath),
+            'mime_type' => $detectedMime,
+            'reason' => 'content_mismatch',
+        ];
+    }
+    if (lms_ooxml_required_prefix($extension) !== null) {
+        return [
+            'ok' => ($genericContainerMime || in_array($detectedMime, $allowedMimes, true))
+                && lms_validate_ooxml_container($tmpPath, $extension),
+            'mime_type' => $allowedMimes[0],
+            'reason' => 'content_mismatch',
+        ];
+    }
+    if (lms_odf_mime_type($extension) !== null) {
+        return [
+            'ok' => ($genericContainerMime || in_array($detectedMime, $allowedMimes, true))
+                && lms_validate_odf_container($tmpPath, $extension),
+            'mime_type' => $allowedMimes[0],
+            'reason' => 'content_mismatch',
+        ];
+    }
+    return [
+        'ok' => in_array($detectedMime, $allowedMimes, true),
+        'mime_type' => $detectedMime,
+        'reason' => 'content_mismatch',
+    ];
+}
+
+function lms_validate_uploaded_file(array $file, int $maxBytes, ?array $allowedExtensions = null): array
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
         lms_error('upload_failed', 'File upload failed', 422);
@@ -167,7 +259,8 @@ function lms_validate_uploaded_file(array $file, int $maxBytes): array
 
     $size = (int)($file['size'] ?? 0);
     if (!lms_upload_size_allowed($size, $maxBytes)) {
-        lms_error('validation_error', 'file exceeds maximum size', 422);
+        $maxMb = max(1, (int)floor($maxBytes / 1024 / 1024));
+        lms_error('validation_error', 'File exceeds the maximum allowed size of ' . $maxMb . ' MB.', 422);
     }
 
     $originalName = trim((string)($file['name'] ?? ''));
@@ -185,7 +278,16 @@ function lms_validate_uploaded_file(array $file, int $maxBytes): array
     $ext = strtolower(pathinfo($safeName, PATHINFO_EXTENSION));
     $policy = lms_upload_policy();
     if ($ext === '' || !array_key_exists($ext, $policy)) {
-        lms_error('validation_error', 'file type is not allowed', 422);
+        lms_error('validation_error', 'File type .' . ($ext !== '' ? $ext : '?') . ' is not supported.', 422);
+    }
+    if ($allowedExtensions !== null) {
+        $normalizedAllowed = array_values(array_unique(array_filter(array_map(
+            static fn($value): string => strtolower(trim((string)$value)),
+            $allowedExtensions
+        ))));
+        if ($normalizedAllowed !== [] && !in_array($ext, $normalizedAllowed, true)) {
+            lms_error('validation_error', 'File type .' . $ext . ' is not allowed for this assignment.', 422);
+        }
     }
 
     $detectedMime = 'application/octet-stream';
@@ -193,20 +295,11 @@ function lms_validate_uploaded_file(array $file, int $maxBytes): array
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $detectedMime = (string)$finfo->file($tmpPath);
     }
-    $allowedMimes = $policy[$ext];
-    $genericOfficeMime = in_array($detectedMime, ['application/zip', 'application/octet-stream'], true);
-    if (lms_is_legacy_office_extension($ext) && in_array($detectedMime, $allowedMimes, true)) {
-        if (!lms_validate_ole_container($tmpPath)) {
-            lms_error('validation_error', 'unsupported file content type', 422);
-        }
-    } elseif (lms_ooxml_required_prefix($ext) !== null && $genericOfficeMime) {
-        if (!lms_validate_ooxml_container($tmpPath, $ext)) {
-            lms_error('validation_error', 'unsupported file content type', 422);
-        }
-        $detectedMime = $allowedMimes[0];
-    } elseif (!in_array($detectedMime, $allowedMimes, true)) {
-        lms_error('validation_error', 'unsupported file content type', 422);
+    $typeValidation = lms_upload_type_validation($ext, $detectedMime, $tmpPath);
+    if (!$typeValidation['ok']) {
+        lms_error('validation_error', 'File content does not match the .' . $ext . ' extension.', 422);
     }
+    $detectedMime = $typeValidation['mime_type'];
 
     return [
         'name' => $safeName,

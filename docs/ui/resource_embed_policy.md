@@ -22,6 +22,10 @@ clipboard-write, accelerometer, or gyroscope unless a reviewed feature explicitl
 The resource viewer always exposes an original-resource or authenticated-download fallback. A provider refusing to
 frame, requiring sign-in, or failing its own browser checks must not strand the user.
 
+Assignment and quiz rich text do not permit iframes. The shared sanitizer enables provider iframes only when a lesson
+render explicitly requests embed mode; the URL must still resolve through the provider matrix above. This prevents
+pasted assignment markup from creating an executable frame while preserving reviewed lesson embeds.
+
 ## Expected Third-Party Console Noise
 
 The following messages may come from provider internals and are not Kairos defects when the preview remains usable:

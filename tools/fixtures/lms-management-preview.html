@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kairos LMS Management Preview</title>
+  <link rel="stylesheet" href="../../public/css/style.css" />
+  <link rel="stylesheet" href="../../public/css/lms.css" />
+  <link rel="stylesheet" href="../../public/css/kairos-ui.css" />
+</head>
+<body class="k-page-body">
+  <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Course navigation">
+    <a class="k-sidebar__brand" href="#" aria-label="Kairos home">
+      <div class="k-sidebar__logo"><img class="k-brand-badge" src="../../public/images/logo.png" alt="" /></div>
+      <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+    </a>
+    <div class="k-sidebar__scroll">
+      <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
+        <div class="k-sidebar__course-name" id="kSidebarCourseName">Computer Science</div>
+      </div>
+      <nav class="k-nav-group" id="kNavCourse" aria-label="Course sections"></nav>
+    </div>
+    <div class="k-sidebar__user">
+      <img class="k-sidebar__avatar" id="kSidebarAvatar" src="../../public/images/logo.png" alt="" />
+      <div class="k-sidebar__user-info">
+        <div class="k-sidebar__user-name" id="kSidebarName">Preview Manager</div>
+        <div class="k-sidebar__user-role" id="kSidebarRole">Manager</div>
+      </div>
+      <button class="k-sidebar__logout" type="button" aria-label="Logout">&#8617;</button>
+    </div>
+  </aside>
+
+  <div class="k-layout">
+    <header class="k-topbar">
+      <div class="k-topbar__left">
+        <button class="k-hamburger hidden" id="kMobileMenuBtn" type="button" aria-label="Menu">&#9776;</button>
+        <nav class="k-breadcrumb" aria-label="Breadcrumb">
+          <a class="k-breadcrumb__item" href="#">All Courses</a>
+          <span class="k-breadcrumb__sep" aria-hidden="true">&rsaquo;</span>
+          <a class="k-breadcrumb__item" href="#" id="kBreadCourse">Computer Science</a>
+          <span class="k-breadcrumb__sep" aria-hidden="true">&rsaquo;</span>
+          <span class="k-breadcrumb__item is-current">Assignments</span>
+        </nav>
+      </div>
+      <div class="k-topbar__actions">
+        <button class="btn btn-ghost btn-sm" type="button" data-preview-theme="light">Light</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-preview-theme="dark">Dark</button>
+      </div>
+    </header>
+
+    <main class="k-main">
+      <div class="k-page">
+        <div class="k-page-header">
+          <div>
+            <h1 class="k-page-header__title">Assignments</h1>
+            <p class="k-page-header__subtitle">Computer Science · CS101</p>
+          </div>
+          <div class="k-page-header__actions">
+            <button class="btn btn-secondary" id="previewQuizBtn" type="button">Open Quiz Editor</button>
+            <button class="btn btn-primary" id="previewAssignmentBtn" type="button">New Assignment</button>
+          </div>
+        </div>
+
+        <div class="k-lms-card-grid" role="list">
+          <a class="k-lms-content-card" href="#" role="listitem">
+            <div class="k-lms-content-card__top">
+              <span class="k-lms-content-card__icon" aria-hidden="true">A</span>
+              <span class="k-status k-status--success">Published</span>
+            </div>
+            <div class="k-lms-content-card__body">
+              <h2>Practical Exercise 1.4</h2>
+              <p id="previewExcerpt"></p>
+              <div class="k-lms-content-card__meta"><span>Due Jun 18, 2026</span><span>100 pts</span></div>
+            </div>
+          </a>
+          <a class="k-lms-content-card" href="#" role="listitem">
+            <div class="k-lms-content-card__top">
+              <span class="k-lms-content-card__icon" aria-hidden="true">A</span>
+              <span class="k-status k-status--neutral">Draft</span>
+            </div>
+            <div class="k-lms-content-card__body">
+              <h2>Algorithm Reflection</h2>
+              <p>No description provided.</p>
+              <div class="k-lms-content-card__meta"><span>No due date</span><span>20 pts</span></div>
+            </div>
+          </a>
+        </div>
+
+        <section class="k-card k-panel-gap-lg">
+          <div class="k-card__header"><h2 class="k-card__title">Sanitized Assignment Details</h2></div>
+          <div class="k-card__body"><div class="k-assign-description" id="previewDescription"></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script data-cfasync="false" src="../../public/js/lms-core.js"></script>
+  <script data-cfasync="false" src="../../public/js/lms-management-ui.js"></script>
+  <script data-cfasync="false" src="./lms-management-preview.js"></script>
+</body>
+</html>

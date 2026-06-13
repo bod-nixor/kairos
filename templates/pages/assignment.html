@@ -28,7 +28,7 @@
             <div class="k-sidebar__course-header" id="kSidebarCourseHeader">
                 <div class="k-sidebar__course-name" id="kSidebarCourseName">Course</div>
             </div>
-            <nav class="k-nav-group">
+            <nav class="k-nav-group" id="kNavCourse" aria-label="Course sections">
                 <a class="k-nav-item" data-course-href="./course.html" href="#"><span
                         class="k-nav-item__icon">🏠</span><span class="k-nav-item__text">Home</span></a>
                 <a class="k-nav-item" data-course-href="./modules.html" href="#"><span
@@ -178,14 +178,19 @@
 
                                 <!-- Submission type: file | text | url (set by JS) -->
                                 <div id="fileSubmission" class="hidden">
-                                    <label class="k-label" id="dropzoneLabel">Upload Files</label>
+                                    <label class="k-label" id="dropzoneLabel">Upload File</label>
                                     <div class="k-dropzone" id="dropzone" tabindex="0" role="button"
-                                        aria-label="Upload files">
+                                        aria-label="Upload file">
                                         <span class="k-dropzone__icon" aria-hidden="true">☁️</span>
                                         <span class="k-dropzone__label">Drop files here or click to browse</span>
                                         <span class="k-dropzone__hint" id="dropzoneHint">Any file type · Max 50MB per
                                             file</span>
-                                        <input type="file" id="fileInput" multiple class="hidden" tabindex="-1" />
+                                        <input type="file" id="fileInput" class="hidden" tabindex="-1" />
+                                    </div>
+                                    <div class="k-upload-rule-card" id="uploadRuleCard" aria-live="polite">
+                                        <div><span>Allowed types</span><strong id="allowedTypesText">Any supported file type</strong></div>
+                                        <div><span>Maximum size</span><strong id="maxFileSizeText">50 MB</strong></div>
+                                        <div><span>Points</span><strong id="assignmentPointsText">100 points</strong></div>
                                     </div>
                                     <div class="k-file-list" id="fileList"></div>
                                 </div>
@@ -265,6 +270,7 @@
     <script data-cfasync="false" src="./js/theme.js"></script>
     <script data-cfasync="false" src="./js/ws.js"></script>
     <script data-cfasync="false" src="./js/lms-core.js"></script>
+    <script data-cfasync="false" src="./js/lms-management-ui.js"></script>
     <script data-cfasync="false" src="./js/lms-ws.js"></script>
     <script data-cfasync="false" src="./js/assignment.js"></script>
 </body>
