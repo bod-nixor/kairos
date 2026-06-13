@@ -535,15 +535,19 @@
         if (startBtn) {
             const attemptsUsed = Number(quizData.attempts_used || 0);
             const noAttempts = quizData.max_attempts && attemptsUsed >= Number(quizData.max_attempts);
+            startBtn.onclick = null;
             if (noAttempts) {
                 startBtn.disabled = true;
                 startBtn.textContent = 'No attempts remaining';
             } else {
-                startBtn.addEventListener('click', startAttempt, { once: true });
+                startBtn.disabled = false;
+                startBtn.textContent = 'Start Attempt';
+                startBtn.onclick = startAttempt;
             }
         }
 
-        $('quizShowHistoryBtn') && $('quizShowHistoryBtn').addEventListener('click', loadHistory);
+        const historyBtn = $('quizShowHistoryBtn');
+        if (historyBtn) historyBtn.onclick = loadHistory;
         showPanel('quizIntroPanel');
         await renderStaffPanel();
     }

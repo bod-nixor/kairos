@@ -80,7 +80,7 @@ for (const page of coursePages) {
 
 for (const script of ['lesson.js', 'resource-viewer.js', 'quiz.js', 'assignment.js']) {
   const source = read(`public/js/${script}`);
-  assert.doesNotMatch(source, /kNav(?:Grading|Analytics)'\)\?\.classList\.remove/, `${script} must not override capability navigation`);
+  assert.doesNotMatch(source, /kNav(?:Grading|Analytics)(?:['"]\s*\)?)?\s*(?:\?\.|\.)classList\.remove/, `${script} must not override capability navigation`);
   assert.match(source, /setCourseContext\([^;]+,\s*[^;]+,\s*[^;)]+\)/, `${script} must pass capability context to shared navigation`);
 }
 

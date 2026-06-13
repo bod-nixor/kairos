@@ -56,6 +56,7 @@ try {
         ':created_by' => (int)$user['user_id'],
     ]);
     $assessmentId = (int)$pdo->lastInsertId();
+    $pdo->commit();
     lms_emit_event($pdo, 'quiz.created', [
         'event_id' => lms_uuid_v4(),
         'occurred_at' => gmdate('Y-m-d H:i:s'),
@@ -66,7 +67,6 @@ try {
         'title' => $title,
         'status' => 'draft',
     ]);
-    $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

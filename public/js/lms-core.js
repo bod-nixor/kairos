@@ -724,6 +724,10 @@
 
       Array.from(el.attributes).forEach((attr) => {
         const name = attr.name.toLowerCase();
+        if (name.startsWith('on')) {
+          el.removeAttribute(attr.name);
+          return;
+        }
         const allowed = (tag === 'a' && ['href', 'title'].includes(name))
           || (tag === 'iframe' && ['src', 'title'].includes(name));
         if (!allowed) {

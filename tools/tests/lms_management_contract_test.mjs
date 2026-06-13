@@ -56,7 +56,8 @@ assert.equal(management.extensionsToAccept('PDF, .docx, json', {}), '.pdf,.docx,
 const core = read('public/js/lms-core.js');
 assert.match(core, /function sanitizeForRender/);
 assert.match(core, /dropContentTags[\s\S]*'script'/);
-assert.match(core, /name\.startsWith\('on'\)|allowedTags/);
+assert.match(core, /name\.startsWith\((['"])on\1\)/, 'sanitizeForRender must check and remove event-handler attributes');
+assert.match(core, /allowedTags/, 'sanitizer allowlist contract must exist');
 assert.match(core, /\['http:', 'https:', 'mailto:'\]/);
 assert.match(core, /getEmbedDescriptor/);
 
@@ -72,6 +73,8 @@ assert.match(assignment, /fileInput\.accept = Management\.extensionsToAccept/);
 assert.match(quizzes, /k-lms-content-card/);
 assert.match(quiz, /Management\.openQuizEditor/);
 assert.match(quiz, /Management\.openQuestionEditor/);
+assert.match(quiz, /startBtn\.onclick = startAttempt/);
+assert.match(quiz, /historyBtn\.onclick = loadHistory/);
 assert.doesNotMatch(quiz, /ensureQuestionEditorModal|options \(comma-separated/i);
 
 const css = read('public/css/kairos-ui.css');

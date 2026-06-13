@@ -28,10 +28,10 @@ if ($title === '') {
 }
 
 $instructionsRaw = $in['instructions'] ?? $in['description'] ?? $in['description_html'] ?? $existing['instructions'];
-$instructions = is_scalar($instructionsRaw) || $instructionsRaw === null ? $instructionsRaw : null;
 if ($instructionsRaw !== null && !is_scalar($instructionsRaw)) {
     lms_error('validation_error', 'instructions must be a string', 422);
 }
+$instructions = $instructionsRaw;
 $maxAttempts = array_key_exists('max_attempts', $in) ? (int)$in['max_attempts'] : (int)$existing['max_attempts'];
 if ($maxAttempts < 1 || $maxAttempts > 100) {
     lms_error('validation_error', 'max_attempts must be between 1 and 100', 422);
@@ -75,6 +75,7 @@ try {
         ':due_at' => $dueAt,
         ':id' => $id,
     ]);
+    $pdo->commit();
     lms_emit_event($pdo, 'quiz.updated', [
         'event_id' => lms_uuid_v4(),
         'occurred_at' => gmdate('Y-m-d H:i:s'),
@@ -85,7 +86,6 @@ try {
         'title' => $title,
         'status' => $status,
     ]);
-    $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
