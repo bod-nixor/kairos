@@ -395,6 +395,17 @@
             handle.setAttribute('draggable', busy ? 'false' : 'true');
             handle.setAttribute('aria-disabled', busy ? 'true' : 'false');
         });
+        if (!busy) refreshModuleMoveButtons(container);
+    }
+
+    function refreshModuleMoveButtons(container) {
+        const modules = Array.from(container.querySelectorAll('.k-module[data-module-id]'));
+        modules.forEach((moduleEl, index) => {
+            const upButton = moduleEl.querySelector('[data-action="move-module-up"]');
+            const downButton = moduleEl.querySelector('[data-action="move-module-down"]');
+            if (upButton) upButton.disabled = index === 0;
+            if (downButton) downButton.disabled = index === modules.length - 1;
+        });
     }
 
     function syncItemOrder(sectionId, itemIds) {

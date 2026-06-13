@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__, 2) . '/public/api/lms/resources/_embed.php';
+
 function has_resource_course_access(array $actor, int $courseId, array $state): bool
 {
     $role = strtolower((string)($actor['role_name'] ?? ''));
@@ -59,12 +61,16 @@ function simulate_resources_update(array $actor, array $in, array &$state): arra
         if (!preg_match('/^https?:\/\//i', $url)) {
             return ['status' => 422, 'error' => 'validation_error'];
         }
-        $state['resources'][$resourceIndex]['drive_preview_url'] = $url;
+        $embed = lms_external_embed_descriptor($url);
+        $previewUrl = $embed['embed_url'] ?? $url;
+        $state['resources'][$resourceIndex]['drive_preview_url'] = $previewUrl;
         $meta = $state['resources'][$resourceIndex]['metadata_json'];
         if (!is_array($meta)) {
             $meta = [];
         }
         $meta['url'] = $url;
+        $meta['preview_url'] = $previewUrl;
+        $meta['embed_provider'] = $embed['provider'] ?? null;
         $meta['share_warning'] = null;
         $state['resources'][$resourceIndex]['metadata_json'] = $meta;
         $updated = true;
@@ -186,6 +192,12 @@ $cases = [
                 throw new RuntimeException('metadata_json url not updated');
             }
             $metadata = $state['resources'][0]['metadata_json'];
+            if (($metadata['preview_url'] ?? '') !== 'https://example.com/slides.pdf') {
+                throw new RuntimeException('metadata_json preview_url not updated');
+            }
+            if (!array_key_exists('embed_provider', $metadata) || $metadata['embed_provider'] !== null) {
+                throw new RuntimeException('metadata_json embed_provider not updated');
+            }
             if (!array_key_exists('share_warning', $metadata) || $metadata['share_warning'] !== null) {
                 throw new RuntimeException('stale share warning was not cleared');
             }

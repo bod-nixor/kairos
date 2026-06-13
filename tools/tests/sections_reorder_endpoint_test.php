@@ -102,7 +102,7 @@ foreach ([$itemEndpoint, $sectionEndpoint] as $source) {
 if (preg_match("/':pos'\\s*=>\\s*-/", $itemEndpoint) === 1) {
     $failed[] = 'module item reorder must never write negative positions to an unsigned column';
 }
-foreach (['expected_module_item_ids', 'itemReordersPending', 'move-item-up', 'move-item-down', 'move-module-up', 'move-module-down', 'restoreElementOrder'] as $needle) {
+foreach (['expected_module_item_ids', 'itemReordersPending', 'move-item-up', 'move-item-down', 'move-module-up', 'move-module-down', 'refreshModuleMoveButtons', 'restoreElementOrder'] as $needle) {
     if (!str_contains($frontend, $needle)) {
         $failed[] = "module reorder frontend is missing {$needle}";
     }
