@@ -20,8 +20,12 @@ if ($courseId <= 0) {
 if ($assignmentId <= 0) {
     lms_error('validation_error', 'assignment_id required', 422);
 }
-lms_course_access($user, $courseId);
+lms_require_course_capability($user, 'manage_course', $courseId);
 $pdo = db();
+$assignment = lms_assignment_scope($pdo, $assignmentId);
+if (!$assignment || (int)$assignment['course_id'] !== $courseId) {
+    lms_error('not_found', 'Assignment not found in this course', 404);
+}
 
 // Configurable status filter — whitelist only valid values, default released
 $statusParam = $_GET['status'] ?? 'released';

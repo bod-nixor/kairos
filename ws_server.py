@@ -171,13 +171,14 @@ def _user_can_access_course(user_id: int, course_id: int) -> bool:
         connection = _open_db()
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT LOWER(r.name) AS role_name "
+                "SELECT LOWER(r.name) AS role_name, LOWER(u.email) AS email "
                 "FROM users u JOIN roles r ON r.role_id = u.role_id "
                 "WHERE u.user_id = %s LIMIT 1",
                 (user_id,),
             )
             role_row = cursor.fetchone() or {}
             role = str(role_row.get("role_name") or "").lower()
+            email = str(role_row.get("email") or "").strip().lower()
             if role == "admin":
                 return True
 
@@ -215,6 +216,22 @@ def _user_can_access_course(user_id: int, course_id: int) -> bool:
                     allowed_roles=allowed_roles,
                 ):
                     return True
+
+            if role == "student" and email:
+                cursor.execute(
+                    "SELECT COUNT(*) AS column_count FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_pre_enroll' "
+                    "AND COLUMN_NAME IN ('course_id', 'email')"
+                )
+                columns_row = cursor.fetchone() or {}
+                if int(columns_row.get("column_count") or 0) == 2:
+                    cursor.execute(
+                        "SELECT 1 FROM course_pre_enroll "
+                        "WHERE LOWER(email) = %s AND course_id = %s LIMIT 1",
+                        (email, course_id),
+                    )
+                    if cursor.fetchone() is not None:
+                        return True
     except Exception:
         app.logger.exception(
             "realtime course authorization failed user=%s course=%s",

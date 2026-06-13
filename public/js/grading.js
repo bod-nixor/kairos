@@ -307,25 +307,19 @@
             showEl('gradingAccessDenied'); hideEl('gradingSkeleton'); return;
         }
 
-        const [capsRes, courseRes, assignRes] = await Promise.all([
-            LMS.loadCaps(),
-            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
-            LMS.api('GET', `./api/lms/assignments.php?course_id=${encodeURIComponent(COURSE_ID)}`),
-        ]);
-
-        const caps = capsRes || {};
-        const isTA = caps.roles && (caps.roles.ta || caps.roles.manager || caps.roles.admin);
-        if (!isTA) {
+        const courseRes = await LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`);
+        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
+        if (!course || !course.capabilities?.grade_course) {
             LMS.renderAccessDenied(
                 $('gradingAccessDenied').querySelector('.k-page'),
-                'Grading is only accessible to TAs, Managers, and Admins.',
+                'Grading access is not available for this course.',
                 `/course.html?course_id=${COURSE_ID}`
             );
             showEl('gradingAccessDenied'); hideEl('gradingSkeleton'); return;
         }
 
-        gradingRole = (caps.roles && (caps.roles.manager || caps.roles.admin)) ? 'manager' : 'ta';
-        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
+        gradingRole = course.capabilities.manage_course ? 'manager' : 'ta';
+        const assignRes = await LMS.api('GET', `./api/lms/assignments.php?course_id=${encodeURIComponent(COURSE_ID)}`);
         if (course) {
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
             const bc = $('kBreadCourse');
@@ -336,10 +330,8 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
-            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course', course);
             LMS.nav.setActive('grading');
-            const role = String(course.my_role || '').toLowerCase();
-            if (role === 'manager' || role === 'admin') { $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden'); }
         }
 
         // Assignment selector (manager sees all; TA sees assigned only)

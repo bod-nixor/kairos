@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-function assignment_access_allowed(bool $isStaffRole, int $publishedFlag, string $status): bool
+function assignment_access_allowed(bool $canManageContent, int $publishedFlag, string $status): bool
 {
-    if ($isStaffRole) {
+    if ($canManageContent) {
         return true;
     }
     return $publishedFlag === 1 && $status === 'published';
@@ -12,7 +12,8 @@ function assignment_access_allowed(bool $isStaffRole, int $publishedFlag, string
 $cases = [
     ['name' => 'student denied when module unpublished', 'staff' => false, 'published_flag' => 0, 'status' => 'published', 'expected' => false],
     ['name' => 'student denied when assignment draft', 'staff' => false, 'published_flag' => 1, 'status' => 'draft', 'expected' => false],
-    ['name' => 'staff allowed when unpublished', 'staff' => true, 'published_flag' => 0, 'status' => 'draft', 'expected' => true],
+    ['name' => 'TA denied when unpublished', 'staff' => false, 'published_flag' => 0, 'status' => 'draft', 'expected' => false],
+    ['name' => 'manager allowed when unpublished', 'staff' => true, 'published_flag' => 0, 'status' => 'draft', 'expected' => true],
 ];
 
 $failed = [];

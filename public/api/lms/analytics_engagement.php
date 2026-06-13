@@ -12,7 +12,7 @@ $courseId = (int) ($_GET['course_id'] ?? 0);
 if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
-lms_course_access($user, $courseId);
+lms_require_course_capability($user, 'manage_course', $courseId);
 $pdo = db();
 
 $period = max(1, min((int) ($_GET['period'] ?? 30), 365));

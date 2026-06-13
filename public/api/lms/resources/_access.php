@@ -62,7 +62,12 @@ function lms_authorize_resource_access(PDO $pdo, array $user, array $resource): 
         }
     }
 
-    $denial = lms_resource_scope_denial($user, $resource, $taAssigned);
+    $denial = lms_resource_scope_denial(
+        $user,
+        $resource,
+        $taAssigned,
+        lms_can_view_unpublished($user, $courseId)
+    );
     if ($denial !== null) {
         lms_error($denial['code'], $denial['message'], $denial['status']);
     }
@@ -71,7 +76,12 @@ function lms_authorize_resource_access(PDO $pdo, array $user, array $resource): 
 /**
  * @return array{code:string,message:string,status:int}|null
  */
-function lms_resource_scope_denial(array $user, array $resource, bool $taAssigned = false): ?array
+function lms_resource_scope_denial(
+    array $user,
+    array $resource,
+    bool $taAssigned = false,
+    bool $canViewUnpublished = false
+): ?array
 {
     $role = strtolower((string)($user['role_name'] ?? 'student'));
     $scope = (string)($resource['access_scope'] ?? 'course');
@@ -96,7 +106,7 @@ function lms_resource_scope_denial(array $user, array $resource, bool $taAssigne
         return null;
     }
 
-    if (!lms_is_staff_role($role) && (int)$resource['published_flag'] !== 1) {
+    if (!$canViewUnpublished && (int)$resource['published_flag'] !== 1) {
         return ['code' => 'forbidden', 'message' => 'Resource is not published', 'status' => 403];
     }
     return null;

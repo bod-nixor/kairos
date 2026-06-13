@@ -212,9 +212,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
-    cursor: pointer;
-    user-select: none;
+    padding: 0 var(--space-5);
     background: var(--surface-subtle);
     border-bottom: 1px solid var(--border);
     transition: background .14s;
@@ -222,8 +220,30 @@
     border-top-right-radius: var(--radius);
 }
 
-.k-module__header:hover {
+.k-module__header:hover,
+.k-module__header:focus-within {
     background: var(--primary-ghost);
+}
+
+.k-module__toggle {
+    min-width: 0;
+    min-height: 52px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.k-module__toggle:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 8px;
 }
 
 .k-module__chevron {
@@ -275,8 +295,8 @@
 .k-module-item {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-5);
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
     border-bottom: 1px solid var(--border);
     text-decoration: none;
     color: var(--text);
@@ -287,24 +307,33 @@
     border-bottom: 0;
 }
 
-.k-module-item:hover {
+.k-module-item:hover,
+.k-module-item:focus-within {
     background: var(--surface-subtle);
 }
 
-.k-module-item--interactive {
-    cursor: pointer;
+.k-module-item__link {
+    min-width: 0;
+    min-height: 52px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-2);
+    color: inherit;
+    text-decoration: none;
 }
 
-.k-module-item--interactive:focus-visible {
+.k-module-item__link:focus-visible {
     outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
+    outline-offset: 0;
+    border-radius: 8px;
     box-shadow: inset 0 0 0 1px var(--focus-ring);
     background: var(--surface-subtle);
 }
 
 .k-module-item--locked {
     opacity: .55;
-    pointer-events: none;
 }
 
 .k-module-item__icon {
@@ -480,7 +509,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-right: 4px;
+    flex-shrink: 0;
 }
 
 .k-btn-icon {
@@ -494,6 +523,12 @@
     text-decoration: none;
     transition: background .12s;
     cursor: pointer;
+}
+
+.k-module .k-btn-icon,
+.k-announcement .k-btn-icon {
+    width: 40px;
+    height: 40px;
 }
 
 .k-btn-icon:hover {
@@ -516,8 +551,8 @@
     /* hidden for non-admin; shown via .k-drag-handle presence in HTML only for admins */
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     font-size: 14px;
     color: var(--muted);
     cursor: grab;
@@ -1845,6 +1880,13 @@
     margin-bottom: var(--space-1);
 }
 
+.k-announcement__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
 .k-announcement__author {
     font-size: 13px;
     font-weight: 600;
@@ -1956,6 +1998,35 @@
 }
 
 @media (max-width: 640px) {
+    .k-module__header {
+        align-items: stretch;
+        flex-wrap: wrap;
+        padding: 0 var(--space-3);
+    }
+
+    .k-module__toggle {
+        min-width: calc(100% - 52px);
+    }
+
+    .k-module__meta {
+        width: 100%;
+        justify-content: flex-end;
+        padding-bottom: var(--space-2);
+    }
+
+    .k-module-item {
+        align-items: flex-start;
+        padding: 0 var(--space-2);
+    }
+
+    .k-module-item__link {
+        gap: var(--space-3);
+    }
+
+    .k-module-item__admin-actions {
+        padding-top: 6px;
+    }
+
     .k-bar-chart__row {
         grid-template-columns: 100px 1fr 40px;
     }
@@ -2755,6 +2826,10 @@ dialog.k-modal {
     justify-content: center;
     overflow: visible;
     pointer-events: none;
+}
+
+dialog.k-modal:not([open]) {
+    display: none;
 }
 
 dialog.k-modal[open] {

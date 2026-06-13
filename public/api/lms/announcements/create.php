@@ -1,62 +1,59 @@
 <?php
-/**
- * POST /api/lms/announcements/create.php
- * Create a new announcement in a course.
- *
- * Payload: { course_id: int, title: string, body: string }
- */
 declare(strict_types=1);
-require_once dirname(__DIR__) . '/_common.php';
+
+require_once __DIR__ . '/_helpers.php';
 
 $user = lms_require_roles(['manager', 'admin']);
-$in = lms_json_input();
-$courseId = (int)($in['course_id'] ?? 0);
-
-if ($courseId <= 0 || empty($in['title']) || empty($in['body'])) {
-    lms_error('validation_error', 'course_id, title, body required', 422);
+$input = lms_json_input();
+$courseId = (int)($input['course_id'] ?? 0);
+if ($courseId <= 0) {
+    lms_error('validation_error', 'course_id required', 422);
 }
-
-// Enforce course-scoped access (prevents cross-course announcement injection)
-lms_course_access($user, $courseId);
-
-// Managers must be explicitly verified as course staff (not just global managers)
-if ($user['role_name'] === 'manager') {
-    $pdo = db();
-    $staffStmt = $pdo->prepare(
-        'SELECT 1 FROM course_staff WHERE user_id = :uid AND course_id = :cid LIMIT 1'
-    );
-    $staffStmt->execute([':uid' => (int)$user['user_id'], ':cid' => $courseId]);
-    if (!$staffStmt->fetchColumn()) {
-        lms_error('forbidden', 'You are not staff in this course', 403);
-    }
-}
+$values = lms_announcement_input($input);
+lms_require_course_capability($user, 'manage_course_announcements', $courseId);
 
 $pdo = db();
+$actorId = (int)$user['user_id'];
+$pdo->beginTransaction();
+try {
+    $stmt = $pdo->prepare(
+        'INSERT INTO lms_announcements'
+        . ' (course_id, title, body, status, published_at, created_by)'
+        . ' VALUES (:course_id, :title, :body, :status, :published_at, :created_by)'
+    );
+    $stmt->execute([
+        ':course_id' => $courseId,
+        ':title' => $values['title'],
+        ':body' => $values['body'],
+        ':status' => $values['status'],
+        ':published_at' => $values['status'] === 'published' ? gmdate('Y-m-d H:i:s') : null,
+        ':created_by' => $actorId,
+    ]);
+    $announcementId = (int)$pdo->lastInsertId();
+    lms_announcement_audit(
+        $pdo,
+        $announcementId,
+        $courseId,
+        $actorId,
+        'create',
+        null,
+        $values
+    );
+    $event = lms_announcement_event(
+        $actorId,
+        $announcementId,
+        $courseId,
+        'announcement.created',
+        ['title' => $values['title'], 'status' => $values['status']]
+    );
+    lms_emit_event($pdo, 'announcement.created', $event);
+    $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log('announcement create failed course_id=' . $courseId . ' actor_id=' . $actorId);
+    lms_error('announcement_create_failed', 'Unable to create announcement', 500);
+}
 
-// Insert announcement
-$stmt = $pdo->prepare(
-    'INSERT INTO lms_announcements (course_id, title, body, created_by)
-     VALUES (:c, :t, :b, :u)'
-);
-$stmt->execute([
-    ':c' => $courseId,
-    ':t' => $in['title'],
-    ':b' => $in['body'],
-    ':u' => (int)$user['user_id'],
-]);
-$id = (int)$pdo->lastInsertId();
-
-// Emit event for realtime subscribers
-$event = [
-    'event_name' => 'announcement.created',
-    'event_id' => lms_uuid_v4(),
-    'occurred_at' => gmdate('c'),
-    'actor_id' => (int)$user['user_id'],
-    'entity_type' => 'announcement',
-    'entity_id' => $id,
-    'course_id' => $courseId,
-    'title' => $in['title'],
-];
-lms_emit_event($pdo, 'announcement.created', $event);
-
-lms_ok(['announcement_id' => $id]);
+lms_ok(['announcement_id' => $announcementId]);

@@ -258,15 +258,18 @@
     <dialog class="k-modal" id="kAnnModal">
         <div class="k-modal__panel">
             <div class="k-modal__header">
-                <h3 class="k-modal__title">Post Announcement</h3>
+                <h3 class="k-modal__title" id="kAnnModalTitle">Post Announcement</h3>
                 <button class="k-modal__close" id="kAnnModalClose" aria-label="Close">✕</button>
             </div>
             <form id="kAnnForm">
+                <input type="hidden" name="announcement_id" value="">
                 <div class="k-modal__body">
                     <div class="k-form-field"><label for="kf-ann-title">Title *</label><input id="kf-ann-title"
                             name="title" required placeholder="e.g. Exam Schedule Updated"></div>
                     <div class="k-form-field"><label for="kf-ann-body">Body *</label><textarea id="kf-ann-body"
                             name="body" required placeholder="Write your announcement here" rows="5"></textarea></div>
+                    <div class="k-form-field"><label for="kf-ann-status">Publication</label><select id="kf-ann-status"
+                            name="status"><option value="published">Published</option><option value="draft">Draft</option></select></div>
                 </div>
                 <div class="k-modal__footer">
                     <button type="button" class="btn btn-ghost btn-sm" id="kAnnModalCancel">Cancel</button>

@@ -17,6 +17,9 @@ if ($courseId <= 0 || $studentId <= 0) {
 if (!ta_has_course($pdo, (int)$user['user_id'], $courseId)) {
     json_out(['error' => 'forbidden'], 403);
 }
+if (!ta_student_in_course($pdo, $studentId, $courseId)) {
+    json_out(['error' => 'student_not_found'], 404);
+}
 
 // Fetch categories for the course
 $catStmt = $pdo->prepare('SELECT CAST(category_id AS UNSIGNED) AS category_id, name

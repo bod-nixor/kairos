@@ -24,6 +24,9 @@ if ($studentId <= 0 || $courseId <= 0 || $text === '') {
 if (!ta_has_course($pdo, (int)$user['user_id'], $courseId)) {
     json_out(['error' => 'forbidden'], 403);
 }
+if (!ta_student_in_course($pdo, $studentId, $courseId)) {
+    json_out(['error' => 'student_not_found'], 404);
+}
 
 $ins = $pdo->prepare('INSERT INTO ta_comments (user_id, course_id, ta_user_id, text, created_at)
                       VALUES (:uid, :cid, :ta, :text, NOW())');

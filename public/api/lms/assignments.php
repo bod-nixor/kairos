@@ -20,7 +20,7 @@ $debug = ['steps' => []];
 
 try {
     $pdo = db();
-    $isStaff = lms_is_staff_role(lms_user_role($user));
+    $canManage = lms_can_view_unpublished($user, $courseId);
     $sql = 'SELECT assignment_id AS id, title, instructions AS description,
                    due_at AS due_date, max_points, status
             FROM lms_assignments
@@ -28,7 +28,7 @@ try {
               AND deleted_at IS NULL
               AND (:is_staff = 1 OR status = \'published\')
             ORDER BY due_at ASC, assignment_id ASC';
-    $params = [':course_id' => $courseId, ':is_staff' => $isStaff ? 1 : 0];
+    $params = [':course_id' => $courseId, ':is_staff' => $canManage ? 1 : 0];
     if ($debugMode) {
         $debug['steps'][] = ['step' => 'list_assignments', 'sql' => $sql, 'params' => $params];
     }

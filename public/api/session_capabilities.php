@@ -15,8 +15,20 @@ if ($cfg) {
     }
 }
 
-$flagsStmt = $pdo->prepare('SELECT course_id, flag_key, enabled FROM lms_feature_flags WHERE course_id IS NULL OR course_id IN (SELECT course_id FROM student_courses WHERE user_id = :uid)');
-$flagsStmt->execute([':uid' => (int)$user['user_id']]);
+$courseIds = rbac_accessible_course_ids($pdo, $user);
+if ($courseIds === null) {
+    $flagsStmt = $pdo->query('SELECT course_id, flag_key, enabled FROM lms_feature_flags');
+} elseif ($courseIds) {
+    $placeholders = implode(',', array_fill(0, count($courseIds), '?'));
+    $flagsStmt = $pdo->prepare(
+        'SELECT course_id, flag_key, enabled'
+        . ' FROM lms_feature_flags'
+        . " WHERE course_id IS NULL OR course_id IN ($placeholders)"
+    );
+    $flagsStmt->execute($courseIds);
+} else {
+    $flagsStmt = $pdo->query('SELECT course_id, flag_key, enabled FROM lms_feature_flags WHERE course_id IS NULL');
+}
 $flags = $flagsStmt->fetchAll();
 
 lms_ok([
@@ -28,4 +40,8 @@ lms_ok([
     ],
     'allowed_domains' => $domains,
     'feature_flags' => $flags,
+    'capabilities' => [
+        'create_course' => rbac_can($pdo, $user, 'create_course'),
+        'assign_course_staff' => rbac_can($pdo, $user, 'assign_course_staff'),
+    ],
 ]);

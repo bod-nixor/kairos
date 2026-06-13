@@ -412,9 +412,9 @@
       _caps = {
         is_logged_in: true,
         roles: {
-          student: true,
-          ta: role === 'ta' || role === 'manager' || role === 'admin',
-          manager: role === 'manager' || role === 'admin',
+          student: role === 'student',
+          ta: role === 'ta',
+          manager: role === 'manager',
           admin: role === 'admin',
         },
       };
@@ -460,9 +460,32 @@
   }
 
   /* ── Nav / Sidebar ───────────────────────────────────────── */
+  const COURSE_NAV_ITEMS = [
+    { key: 'home', label: 'Home', icon: '🏠', href: './course.html' },
+    { key: 'modules', label: 'Modules', icon: '📦', href: './modules.html' },
+    { key: 'quizzes', label: 'Quizzes', icon: '⚡', href: './quizzes.html', id: 'kNavQuizzes' },
+    { key: 'assignments', label: 'Assignments', icon: '📤', href: './assignments.html', id: 'kNavAssignments' },
+    { key: 'grading', label: 'Grading', icon: '🧑‍🏫', href: './grading.html', id: 'kNavGrading', capability: 'grade_course' },
+    { key: 'analytics', label: 'Analytics', icon: '📊', href: './analytics.html', id: 'kNavAnalytics', capability: 'manage_course' },
+  ];
+
+  function courseCapabilities(context) {
+    if (context && typeof context === 'object' && context.capabilities) {
+      return context.capabilities;
+    }
+    const roleFlags = resolveCourseRoleFlags(context || getRole());
+    return {
+      view_course: roleFlags.student || roleFlags.ta || roleFlags.manager || roleFlags.admin,
+      manage_course: roleFlags.manager || roleFlags.admin,
+      grade_course: roleFlags.ta || roleFlags.manager || roleFlags.admin,
+      manage_course_announcements: roleFlags.manager || roleFlags.admin,
+    };
+  }
+
   const KairosNav = {
     _courseId: null,
     _courseName: null,
+    _activeKey: null,
 
     setGlobalContext() {
       this._courseId = null;
@@ -475,7 +498,7 @@
       if (header) header.setAttribute('hidden', '');
     },
 
-    setCourseContext(courseId, courseName) {
+    setCourseContext(courseId, courseName, context) {
       this._courseId = courseId;
       this._courseName = courseName;
       const global = document.getElementById('kNavGlobal');
@@ -486,19 +509,38 @@
       if (course) course.removeAttribute('hidden');
       if (header) header.removeAttribute('hidden');
       if (nameEl && courseName) nameEl.textContent = courseName;
-      // Patch all course nav hrefs with course_id
       if (courseId && course) {
-        course.querySelectorAll('[data-course-href]').forEach(el => {
-          const base = el.dataset.courseHref;
-          el.href = `${base}?course_id=${encodeURIComponent(courseId)}`;
-        });
+        const caps = courseCapabilities(context);
+        course.setAttribute('aria-label', 'Course sections');
+        course.innerHTML = COURSE_NAV_ITEMS
+          .filter(item => !item.capability || caps[item.capability])
+          .map(item => {
+            const active = item.key === this._activeKey;
+            return `<a class="k-nav-item${active ? ' is-active' : ''}" data-nav-key="${item.key}" data-course-href="${item.href}" href="${item.href}?course_id=${encodeURIComponent(courseId)}"${item.id ? ` id="${item.id}"` : ''}${active ? ' aria-current="page"' : ''}>
+              <span class="k-nav-item__icon" aria-hidden="true">${item.icon}</span>
+              <span class="k-nav-item__text">${item.label}</span>
+            </a>`;
+          }).join('');
+      }
+      const courseBread = document.getElementById('kBreadCourse');
+      if (courseBread) {
+        courseBread.textContent = courseName || 'Course';
+        if (courseBread.tagName === 'A') {
+          courseBread.href = `./course.html?course_id=${encodeURIComponent(courseId)}`;
+        }
+      }
+      const modulesBread = document.getElementById('kBreadModules');
+      if (modulesBread && modulesBread.tagName === 'A') {
+        modulesBread.href = `./modules.html?course_id=${encodeURIComponent(courseId)}`;
       }
     },
 
     setActive(pageKey) {
+      this._activeKey = pageKey;
       document.querySelectorAll('.k-nav-item[data-nav-key]').forEach(el => {
         const current = el.dataset.navKey === pageKey;
-        el.setAttribute('aria-current', current ? 'page' : 'false');
+        if (current) el.setAttribute('aria-current', 'page');
+        else el.removeAttribute('aria-current');
         el.classList.toggle('is-active', current);
       });
     },
@@ -509,7 +551,7 @@
       el.innerHTML = items.map((item, i) => {
         const isLast = i === items.length - 1;
         const safeName = escHtml(item.name || '');
-        if (isLast) return `<span class="k-breadcrumb__item is-current">${safeName}</span>`;
+        if (isLast) return `<span class="k-breadcrumb__item is-current" aria-current="page">${safeName}</span>`;
         const href = escHtml(item.href || '#');
         return `<a class="k-breadcrumb__item" href="${href}">${safeName}</a><span class="k-breadcrumb__sep" aria-hidden="true">›</span>`;
       }).join('');
@@ -520,8 +562,11 @@
       const avatar = document.getElementById('kSidebarAvatar');
       const name = document.getElementById('kSidebarName');
       const roleEl = document.getElementById('kSidebarRole');
-      if (avatar) avatar.src = me.picture_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><circle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%236c63ff%22/><text x=%2220%22 y=%2226%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2218%22>?</text></svg>';
-      if (name) name.textContent = me.name || me.email || '';
+      if (avatar) {
+        avatar.src = me.picture_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><circle cx=%2220%22 cy=%2220%22 r=%2220%22 fill=%22%236c63ff%22/><text x=%2220%22 y=%2226%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2218%22>?</text></svg>';
+        avatar.alt = me.name ? `${me.name} profile picture` : 'User profile picture';
+      }
+      if (name) name.textContent = me.name || me.email || 'User';
       // Derive display role from session capabilities
       const r = _caps && _caps.roles ? _caps.roles : {};
       let roleLabel = 'Student';

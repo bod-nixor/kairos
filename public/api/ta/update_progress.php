@@ -31,6 +31,9 @@ $courseId = (int)$detail['course_id'];
 if (!ta_has_course($pdo, (int)$user['user_id'], $courseId)) {
     json_out(['error' => 'forbidden'], 403);
 }
+if (!ta_student_in_course($pdo, $studentId, $courseId)) {
+    json_out(['error' => 'student_not_found'], 404);
+}
 
 $statusName = $status !== '' ? strtolower($status) : 'none';
 $validNames = ['none', 'pending', 'completed', 'review'];

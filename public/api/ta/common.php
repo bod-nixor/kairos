@@ -96,6 +96,32 @@ function ta_has_course(PDO $pdo, int $taUserId, int $courseId): bool {
     return false;
 }
 
+function ta_student_in_course(PDO $pdo, int $studentUserId, int $courseId): bool {
+    if ($studentUserId <= 0 || $courseId <= 0) {
+        return false;
+    }
+
+    $mappings = [
+        ['table' => 'student_courses', 'user_col' => 'user_id', 'course_col' => 'course_id'],
+        ['table' => 'enrollments', 'user_col' => 'user_id', 'course_col' => 'course_id'],
+        ['table' => 'course_users', 'user_col' => 'user_id', 'course_col' => 'course_id'],
+        ['table' => 'user_courses', 'user_col' => 'user_id', 'course_col' => 'course_id'],
+    ];
+    foreach ($mappings as $map) {
+        if (!ta_table_has_columns($pdo, $map['table'], [$map['user_col'], $map['course_col']])) {
+            continue;
+        }
+        $sql = "SELECT 1 FROM `{$map['table']}`"
+             . " WHERE `{$map['user_col']}` = :uid AND `{$map['course_col']}` = :cid LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':uid' => $studentUserId, ':cid' => $courseId]);
+        if ($stmt->fetchColumn()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Helper to fetch all courses a TA (or elevated role) is linked with.
  */

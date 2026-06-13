@@ -151,17 +151,16 @@
             hideEl('analyticsSkeleton'); showEl('analyticsAccessDenied'); return;
         }
 
-        const caps = await LMS.loadCaps();
-        const isManager = caps && caps.roles && (caps.roles.manager || caps.roles.admin);
-        if (!isManager) {
-            LMS.renderAccessDenied($('analyticsAccessDenied'), 'Course Analytics is only accessible to Managers.', `/course.html?course_id=${COURSE_ID}`);
+        const period = ($('periodSelect') && $('periodSelect').value) || '30';
+
+        const courseRes = await LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`);
+        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
+        if (!course || !course.capabilities?.manage_course) {
+            LMS.renderAccessDenied($('analyticsAccessDenied'), 'Course analytics access is not available for this course.', `/course.html?course_id=${COURSE_ID}`);
             hideEl('analyticsSkeleton'); showEl('analyticsAccessDenied'); return;
         }
 
-        const period = ($('periodSelect') && $('periodSelect').value) || '30';
-
-        const [courseRes, metricsRes, completionRes, engRes, studentsRes, assignmentsRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
+        const [metricsRes, completionRes, engRes, studentsRes, assignmentsRes] = await Promise.all([
             LMS.api('GET', `./api/lms/analytics_metrics.php?course_id=${encodeURIComponent(COURSE_ID)}&period=${period}`),
             LMS.api('GET', `./api/lms/analytics_completion.php?course_id=${encodeURIComponent(COURSE_ID)}`),
             LMS.api('GET', `./api/lms/analytics_engagement.php?course_id=${encodeURIComponent(COURSE_ID)}&period=${period}`),
@@ -171,7 +170,6 @@
 
         hideEl('analyticsSkeleton');
 
-        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
         if (course) {
             document.title = `Analytics — ${course.name || 'Course'} — Kairos`;
             $('kSidebarCourseName') && ($('kSidebarCourseName').textContent = course.code || course.name);
@@ -184,15 +182,8 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
-            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course', course);
             LMS.nav.setActive('analytics');
-            const role = String(course.my_role || '').toLowerCase();
-            if (role === 'ta' || role === 'manager' || role === 'admin') {
-                $('kNavGrading')?.classList.remove('hidden');
-            }
-            if (role === 'manager' || role === 'admin') {
-                $('kNavAnalytics')?.classList.remove('hidden');
-            }
         }
 
         // Metrics

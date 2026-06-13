@@ -4,7 +4,7 @@
 
 - [ ] Schedule a controlled deployment window.
 - [ ] Back up the current `/signoff/` files and effective Apache configuration.
-- [ ] Take a database backup even though this change has no migration.
+- [ ] Take a database backup before applying the announcement migration.
 - [ ] Record the current Python realtime process command and rollback artifact.
 - [ ] Confirm no unrelated working-tree files are included in the deployment package.
 
@@ -22,9 +22,23 @@ Deploy the complete repository change set, including:
 - `composer.json` and `composer.lock`
 - `public/api/lms/integrations/drive/` and `public/api/lms/resources/download.php`
 - `ws_server.py`
-- updated runbooks and test files
+- `db/migrations/20260613_1430_add_announcement_publication_audit.sql`
+- updated security documentation, runbooks, and test files
 
-No SQL migration is required.
+Apply the SQL migration before deploying the announcement API/UI.
+
+## Database Migration
+
+- [ ] Confirm `lms_announcements` and `lms_event_outbox` are present.
+- [ ] Apply:
+
+```bash
+mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_audit.sql
+```
+
+- [ ] Verify `lms_announcements.status`, `published_at`, and `idx_lms_announcements_course_status`.
+- [ ] Verify `lms_announcement_audit` and its foreign keys/indexes.
+- [ ] Do not run the rollback unless application code has first been rolled back and audit retention has been approved.
 
 ## Environment Verification
 
@@ -147,6 +161,16 @@ Use non-production test accounts and do not alter real grades/submissions:
 - [ ] TA: can access assigned courses/rooms/queues only.
 - [ ] Manager: can manage assigned courses only; another manager's course returns 403.
 - [ ] Admin: retains intended global access.
+- [ ] Student and TA: unpublished modules, lessons, resources, quizzes, assignments, and announcements remain hidden.
+- [ ] Student: only released grades/feedback are returned.
+- [ ] TA: grading requires assignment assignment and progress requires target enrollment in the same course.
+- [ ] Manager: create, edit, publish/unpublish, and soft-delete an announcement in an assigned course.
+- [ ] Student/TA: announcement create/update/delete endpoints return 403.
+- [ ] Manager: foreign `announcement_id`, `submission_id`, `assignment_id`, and module IDs return 403/404.
+- [ ] Course breadcrumb returns to `course.html?course_id=<id>` from every nested course page.
+- [ ] Course navigation ordering and profile identity remain stable across direct loads and page transitions.
+- [ ] Module accordions work with click, Enter, Space, and narrow touch input; item links remain tappable beside edit controls.
+- [ ] Settings cog is centered in all six themes and required viewports.
 - [ ] Queue participant and ETA endpoints reject a queue outside the user's courses.
 - [ ] WebSocket subscription to an unauthorized course is rejected.
 - [ ] LMS resource upload rejects student/TA roles.
@@ -175,6 +199,6 @@ Use non-production test accounts and do not alter real grades/submissions:
 4. Purge `/signoff/*` from Cloudflare and server caches.
 5. Re-run login, CSP, API, and WebSocket smoke checks.
 
-There is no database rollback because this deployment contains no schema or data migration. For a Drive incident, set
+If application rollback is required, restore the prior files first. Retain `lms_announcement_audit` unless an approved data-retention decision permits the manual rollback documented in the migration. For a Drive incident, set
 `GOOGLE_DRIVE_WRITES_ENABLED=false` first so authenticated reads remain available; use
 `GOOGLE_DRIVE_ENABLED=false` only when credentials must be fully disabled or revoked.

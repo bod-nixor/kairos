@@ -12,14 +12,17 @@ if ($assessmentId <= 0) {
 }
 
 $pdo = db();
-$assessment = $pdo->prepare('SELECT assessment_id, course_id, max_attempts FROM lms_assessments WHERE assessment_id=:id AND deleted_at IS NULL LIMIT 1');
+$assessment = $pdo->prepare('SELECT assessment_id, course_id, max_attempts, status FROM lms_assessments WHERE assessment_id=:id AND deleted_at IS NULL LIMIT 1');
 $assessment->execute([':id' => $assessmentId]);
 $a = $assessment->fetch();
 if (!$a) {
     lms_error('not_found', 'Assessment not found', 404);
 }
 
-lms_course_access($user, (int)$a['course_id']);
+lms_course_access($user, (int)$a['course_id'], false);
+if ((string)$a['status'] !== 'published') {
+    lms_error('forbidden', 'Quiz is not published', 403);
+}
 
 $pdo->beginTransaction();
 try {

@@ -19,15 +19,19 @@ if (!table_exists($pdo, 'courses') || !table_has_columns($pdo, 'courses', ['cour
     json_out(['error' => 'unsupported', 'message' => 'courses table not available'], 500);
 }
 
-$ids = fetch_manager_course_ids($pdo, $userId);
-if (!$ids) {
-    json_out([]);
+$isAdmin = strtolower((string)($user['role_name'] ?? '')) === 'admin';
+if ($isAdmin) {
+    $st = $pdo->query('SELECT CAST(course_id AS UNSIGNED) AS course_id, name FROM courses ORDER BY name');
+} else {
+    $ids = fetch_manager_course_ids($pdo, $userId);
+    if (!$ids) {
+        json_out([]);
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $sql = 'SELECT CAST(course_id AS UNSIGNED) AS course_id, name FROM courses WHERE course_id IN ('.$placeholders.') ORDER BY name';
+    $st = $pdo->prepare($sql);
+    $st->execute($ids);
 }
-
-$placeholders = implode(',', array_fill(0, count($ids), '?'));
-$sql = 'SELECT CAST(course_id AS UNSIGNED) AS course_id, name FROM courses WHERE course_id IN ('.$placeholders.') ORDER BY name';
-$st = $pdo->prepare($sql);
-$st->execute($ids);
 $rows = [];
 while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
     $rows[] = [

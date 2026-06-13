@@ -21,7 +21,7 @@ if (!$attempt) {
     lms_error('not_found', 'Attempt not found', 404);
 }
 
-lms_course_access($user, (int)$attempt['course_id']);
+lms_require_course_capability($user, 'grade_course', (int)$attempt['course_id']);
 
 $respStmt = $pdo->prepare('SELECT response_id, question_id, response_json, auto_score, max_score, needs_manual_grading, graded_at
  FROM lms_assessment_responses

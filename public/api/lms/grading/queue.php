@@ -13,10 +13,22 @@ if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
 
-// Enforce course-scoped access (prevents IDOR across courses)
-lms_course_access($user, $courseId);
+// Enforce course-scoped grading capability (prevents IDOR across courses).
+lms_require_course_capability($user, 'grade_course', $courseId);
 
 $pdo = db();
+if ($assignmentId > 0) {
+    $assignment = lms_assignment_scope($pdo, $assignmentId);
+    if (!$assignment || (int)$assignment['course_id'] !== $courseId) {
+        lms_error('not_found', 'Assignment not found in this course', 404);
+    }
+    if (
+        lms_course_role($user, $courseId) === 'ta'
+        && !lms_ta_assigned_to_assignment($pdo, (int)$user['user_id'], $assignmentId)
+    ) {
+        lms_error('forbidden', 'TA not assigned to this assignment', 403);
+    }
+}
 
 $sql = 'SELECT s.submission_id AS id, s.assignment_id, s.student_user_id,
                u.name AS student_name, s.status, s.submitted_at, s.is_late,
@@ -39,7 +51,7 @@ if ($assignmentId > 0) {
 }
 
 // TA restriction: only see items assigned to them
-if ($user['role_name'] === 'ta') {
+if (lms_course_role($user, $courseId) === 'ta') {
     $sql .= ' AND EXISTS (SELECT 1 FROM lms_assignment_tas t WHERE t.assignment_id = s.assignment_id AND t.ta_user_id = :uid)';
     $params[':uid'] = (int) $user['user_id'];
 }

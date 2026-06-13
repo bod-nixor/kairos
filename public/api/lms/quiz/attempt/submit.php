@@ -22,7 +22,7 @@ function lms_normalize_answer_value($value)
     return $value;
 }
 
-$user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
+$user = lms_require_roles(['student']);
 $in = lms_json_input();
 $attemptId = (int)($in['attempt_id'] ?? 0);
 $responses = $in['responses'] ?? [];
@@ -42,7 +42,7 @@ if ((int)$attempt['user_id'] !== (int)$user['user_id']) {
 }
 
 // Verify enrollment is still valid (defense-in-depth)
-lms_course_access($user, (int)$attempt['course_id']);
+lms_course_access($user, (int)$attempt['course_id'], false);
 
 if ((string)$attempt['status'] !== 'in_progress') {
     lms_error('conflict', 'Attempt is not in progress', 409);

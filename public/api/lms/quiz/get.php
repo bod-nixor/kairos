@@ -35,8 +35,7 @@ try {
     }
 
     lms_course_access($user, (int)$row['course_id']);
-    $role = lms_user_role($user);
-    if (!lms_is_staff_role($role) && (string)$row['status'] !== 'published') {
+    if (!lms_can_view_unpublished($user, (int)$row['course_id']) && (string)$row['status'] !== 'published') {
         lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
     }
 
