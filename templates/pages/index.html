@@ -8,7 +8,7 @@
   <meta name="description" content="Kairos academic platform — your courses, queues, and progress." />
   <link rel="icon" type="image/png" href="./images/logo.png" />
   <!-- Theme flash prevention -->
-  <script data-cfasync="false">
+  <script data-cfasync="false" nonce="{{CSP_NONCE}}">
     (function () {
       try {
         var s = localStorage.getItem('kairos-theme');
@@ -257,43 +257,7 @@
   <script data-cfasync="false" src="./js/lms-core.js"></script>
   <script data-cfasync="false" src="./js/lms-ws.js"></script>
   <script data-cfasync="false" src="./script.js"></script>
-  <script data-cfasync="false">
-    /* Sidebar nav view switching — bridge to script.js */
-    document.addEventListener('DOMContentLoaded', function () {
-      window.showKairosView = function (view) {
-        if (view === 'dashboard' || view === 'courses') {
-          // Both dashboard and courses render into viewDashboard
-          if (typeof renderCourseCards === 'function') renderCourseCards();
-          return;
-        }
-        if (view === 'rooms') {
-          if (typeof showView === 'function') showView('viewRooms');
-          return;
-        }
-        // Fallback for unknown views
-        var mapped = 'view' + view.charAt(0).toUpperCase() + view.slice(1);
-        if (typeof showView === 'function') showView(mapped);
-      };
-
-      const navBtns = document.querySelectorAll('.k-nav-item[data-view]');
-      navBtns.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          const view = btn.dataset.view;
-          navBtns.forEach(b => { b.classList.remove('is-active'); b.removeAttribute('aria-current'); });
-          btn.classList.add('is-active');
-          btn.setAttribute('aria-current', 'page');
-          if (window.showKairosView) window.showKairosView(view);
-        });
-      });
-
-      // Greeting
-      const hour = new Date().getHours();
-      const greetEl = document.getElementById('dashGreeting');
-      if (greetEl) {
-        greetEl.textContent = hour < 12 ? 'Good morning!' : hour < 17 ? 'Good afternoon!' : 'Good evening!';
-      }
-    });
-  </script>
+  <script data-cfasync="false" src="./js/index-page.js"></script>
 </body>
 
 </html>

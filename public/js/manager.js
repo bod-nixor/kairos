@@ -340,6 +340,17 @@ function closeProgressModal() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
+function setupProgressModalDialog() {
+  const modal = document.getElementById('progressModal');
+  if (!modal) return;
+  modal.querySelectorAll('[data-modal-close]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (typeof modal.close === 'function') modal.close();
+      else modal.classList.remove('is-open');
+    });
+  });
+}
+
 function formatTimestamp(value) {
   if (!value) return '';
   const date = new Date(value);
@@ -1085,6 +1096,7 @@ function setupEvents() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const startApp = () => {
+    setupProgressModalDialog();
     updateAllowedDomainCopy();
     setupEvents();
     bootstrap();

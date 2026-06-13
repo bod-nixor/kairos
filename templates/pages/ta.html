@@ -6,7 +6,7 @@
   <title>TA Dashboard · Kairos</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/png" href="./images/logo.png" />
-  <script data-cfasync="false">
+  <script data-cfasync="false" nonce="{{CSP_NONCE}}">
     (() => {
       if (window.location.pathname.toLowerCase().includes('projector')) return;
       try {
@@ -180,20 +180,6 @@
   <script data-cfasync="false" src="./js/theme.js"></script>
   <script data-cfasync="false" src="./js/ws.js"></script>
   <script data-cfasync="false" src="./js/ta.js"></script>
-  <script data-cfasync="false">
-    // Helper to make the ServingNotice behave well
-    const notice = document.getElementById('taServingNotice');
-    if (notice) {
-      const observer = new MutationObserver(() => {
-        if (notice.textContent.trim() === '') {
-          notice.classList.add('hidden');
-        } else {
-          notice.classList.remove('hidden');
-        }
-      });
-      observer.observe(notice, { childList: true, characterData: true, subtree: true });
-    }
-  </script>
 </body>
 
 </html>

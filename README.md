@@ -30,6 +30,7 @@ Current/active domains include:
   - Enforces authentication, RBAC, validation, and DB transactions.
 - **Frontend (`public/`)**
   - Vanilla JS/CSS application shell under `/signoff/`.
+  - HTML templates live outside the webroot in `templates/pages/` and are rendered by `public/html.php` with a per-response CSP nonce.
   - Consumes REST endpoints and realtime events.
 - **Python WebSocket relay (`ws_server.py`)**
   - Handles connection lifecycle, subscriptions, and broadcast fanout.

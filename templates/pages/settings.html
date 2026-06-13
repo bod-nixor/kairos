@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Manage your Kairos account preferences and interface settings." />
     <link rel="icon" type="image/png" href="./images/logo.png" />
-    <script data-cfasync="false">(function () { try { var s = localStorage.getItem('kairos-theme'); if (s) { document.documentElement.dataset.theme = s; } else { var d = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = d ? 'dark' : 'light'; } } catch (e) { document.documentElement.dataset.theme = 'light'; } })()</script>
+    <script data-cfasync="false" nonce="{{CSP_NONCE}}">(function () { try { var s = localStorage.getItem('kairos-theme'); if (s) { document.documentElement.dataset.theme = s; } else { var d = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = d ? 'dark' : 'light'; } } catch (e) { document.documentElement.dataset.theme = 'light'; } })()</script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
     <link rel="stylesheet" href="./css/kairos-ui.css" />
@@ -210,135 +210,7 @@
 
     <script data-cfasync="false" src="./js/theme.js"></script>
     <script data-cfasync="false" src="./js/lms-core.js"></script>
-    <script data-cfasync="false">
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Boot auth/sidebar wiring from the shared entrypoint
-            try {
-                if (window.KairosLMS && typeof window.KairosLMS.boot === 'function') {
-                    await window.KairosLMS.boot();
-                }
-            } catch (err) {
-                console.error('[Settings] boot failed:', err);
-                return; // abort UI setup if auth fails
-            }
-
-            const renderThemeCards = () => {
-                const grid = document.getElementById('themeGrid');
-                const themes = window.KairosTheme && typeof window.KairosTheme.getThemes === 'function'
-                    ? window.KairosTheme.getThemes()
-                    : [];
-                const escapeHtml = window.KairosTheme && typeof window.KairosTheme.escapeHtml === 'function'
-                    ? window.KairosTheme.escapeHtml
-                    : null;
-                const sanitizePreviewColor = window.KairosTheme && typeof window.KairosTheme.sanitizePreviewColor === 'function'
-                    ? window.KairosTheme.sanitizePreviewColor
-                    : null;
-                if (!grid || !themes.length || !escapeHtml || !sanitizePreviewColor) return [];
-                const nextGrid = grid;
-                nextGrid.innerHTML = themes.map((theme, index) => `
-                    <div class="k-theme-card" data-theme-value="${escapeHtml(theme.value)}" role="radio" aria-checked="false"
-                        tabindex="${index === 0 ? '0' : '-1'}">
-                        <div class="k-theme-preview">
-                            <div class="k-theme-preview-sidebar" style="background:${sanitizePreviewColor(theme.preview && theme.preview.sidebar, '#111827')}"></div>
-                            <div class="k-theme-preview-main" style="background:${sanitizePreviewColor(theme.preview && theme.preview.main, '#1f2937')}">
-                                <div class="k-theme-preview-card" style="background:${sanitizePreviewColor(theme.preview && theme.preview.card, '#374151')}; border-color:${sanitizePreviewColor(theme.preview && theme.preview.border, '#4b5563')}"></div>
-                                <div class="k-theme-preview-card" style="width: 60%; background:${sanitizePreviewColor(theme.preview && theme.preview.card, '#374151')}; border-color:${sanitizePreviewColor(theme.preview && theme.preview.border, '#4b5563')}"></div>
-                            </div>
-                        </div>
-                        <div class="k-theme-card-title">
-                            <span>${escapeHtml(theme.label)}</span>
-                            <span class="k-theme-check"></span>
-                        </div>
-                    </div>
-                `).join('');
-                nextGrid.querySelectorAll('.k-theme-check').forEach((node) => {
-                    node.innerHTML = '&#10003;';
-                });
-                return Array.from(nextGrid.querySelectorAll('.k-theme-card'));
-            };
-
-            const cards = renderThemeCards();
-
-            const updateActiveCard = () => {
-                const currentTheme = document.documentElement.dataset.theme || 'light';
-                cards.forEach(c => {
-                    const isActive = c.dataset.themeValue === currentTheme;
-                    c.classList.toggle('is-active', isActive);
-                    c.setAttribute('aria-checked', String(isActive));
-                    c.setAttribute('tabindex', isActive ? '0' : '-1');
-                });
-                // Ensure at least one card is tabbable
-                if (!cards.some(c => c.getAttribute('tabindex') === '0') && cards.length) {
-                    cards[0].setAttribute('tabindex', '0');
-                }
-            };
-
-            const focusCard = (card) => {
-                cards.forEach(c => c.setAttribute('tabindex', '-1'));
-                card.setAttribute('tabindex', '0');
-                card.focus();
-            };
-
-            const syncControlsFromTheme = () => {
-                updateActiveCard();
-                if (!window.KairosTheme) return;
-                const settings = window.KairosTheme.readSettings();
-                const compactNode = document.getElementById('kInputCompact');
-                const motionNode = document.getElementById('kInputMotion');
-                if (compactNode) compactNode.checked = !!settings.compactMode;
-                if (motionNode) motionNode.checked = !!settings.reduceMotion;
-            };
-
-            cards.forEach(card => {
-                card.addEventListener('click', () => {
-                    const themeValue = card.dataset.themeValue;
-                    if (window.KairosTheme) {
-                        window.KairosTheme.applyTheme(themeValue, true);
-                        syncControlsFromTheme();
-                    }
-                });
-
-                card.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        card.click();
-                        return;
-                    }
-                    const arrows = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-                    if (!arrows.includes(e.key)) return;
-                    e.preventDefault();
-                    const idx = cards.indexOf(card);
-                    let next;
-                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                        next = (idx + 1) % cards.length;
-                    } else {
-                        next = (idx - 1 + cards.length) % cards.length;
-                    }
-                    focusCard(cards[next]);
-                });
-            });
-
-            if (window.KairosTheme) {
-                const compactNode = document.getElementById('kInputCompact');
-                const motionNode = document.getElementById('kInputMotion');
-
-                if (compactNode) {
-                    compactNode.addEventListener('change', (e) => {
-                        window.KairosTheme.saveSettings({ compactMode: e.target.checked });
-                    });
-                }
-
-                if (motionNode) {
-                    motionNode.addEventListener('change', (e) => {
-                        window.KairosTheme.saveSettings({ reduceMotion: e.target.checked });
-                    });
-                }
-            }
-
-            syncControlsFromTheme();
-            document.addEventListener('kairos:ui-settings', syncControlsFromTheme);
-        });
-    </script>
+    <script data-cfasync="false" src="./js/settings.js"></script>
 </body>
 
 </html>

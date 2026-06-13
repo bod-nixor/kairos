@@ -6,7 +6,7 @@
   <title>Manager Dashboard · Kairos</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/png" href="./images/logo.png" />
-  <script data-cfasync="false">
+  <script data-cfasync="false" nonce="{{CSP_NONCE}}">
     (() => {
       if (window.location.pathname.toLowerCase().includes('projector')) return;
       try {
@@ -280,18 +280,6 @@
   <script data-cfasync="false" src="./js/ws.js"></script>
   <script data-cfasync="false" src="./js/session-roles.js"></script>
   <script data-cfasync="false" src="./js/manager.js"></script>
-  <script data-cfasync="false">
-    // Fix for dialog modal using old classes in script
-    const pm = document.getElementById('progressModal');
-    if (pm) {
-      // Overwrite manager.js handling of showing/hiding this, or rely on .showModal()
-      const closeBtns = pm.querySelectorAll('[data-modal-close]');
-      closeBtns.forEach(b => b.addEventListener('click', () => {
-        if (pm.close) pm.close();
-        else pm.classList.remove('is-open');
-      }));
-    }
-  </script>
 </body>
 
 </html>

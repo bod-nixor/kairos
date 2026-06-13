@@ -13,9 +13,10 @@
 Deploy the complete repository change set, including:
 
 - `.htaccess` and `public/.htaccess`
-- all changed `public/*.html` entry points
+- `public/html.php`, `public/index.php`, and `src/html_response.php`
+- all page templates under `templates/pages/`
 - `public/css/kairos-ui.css`
-- `public/js/ws.js`, `public/js/lms-ws.js`, and `public/js/lms-core.js`
+- `public/js/ws.js`, `public/js/lms-ws.js`, `public/js/lms-core.js`, `public/js/index-page.js`, and `public/js/settings.js`
 - `public/assets/vendor/socket.io/4.7.5/socket.io.min.js` and `LICENSE`
 - changed PHP API and RBAC consumers under `public/api/`
 - `composer.json` and `composer.lock`
@@ -44,14 +45,20 @@ No SQL migration is required.
 - [ ] Follow `docs/runbooks/google_drive_storage.md` before enabling writes.
 - [ ] Run the opt-in Drive integration test against a dedicated test Shared Drive/root; never point it at production.
 - [ ] Confirm the Google OAuth client includes `https://kairos.nixorcorporate.com` and the production callback/origin configuration.
-- [ ] If deploying to a non-production hostname, update the exact HTTPS/WSS origins in both `.htaccess` files before that deployment.
+- [ ] If deploying to a non-production hostname, update the exact HTTPS/WSS CSP origins in `src/html_response.php` before that deployment.
+- [ ] Confirm PHP has access to `random_bytes()`; PHP 8.1+ provides it without an extra package.
 
 ## Cloudflare
 
+- [ ] Keep Cloudflare Bot Fight Mode enabled.
+- [ ] Keep JavaScript Detections enabled. Bot Fight Mode enables it automatically.
+- [ ] Do not create a Bot Fight Mode bypass for `/signoff/`; Bot Fight Mode is expected to inject its detection script into HTML.
 - [ ] Create a configuration rule for `/signoff/*` that disables Rocket Loader.
 - [ ] Disable Browser Insights/Web Analytics script injection for `/signoff/*`. If route-level exclusion is unavailable, disable it for the zone/application.
 - [ ] Do not add `static.cloudflareinsights.com` to Kairos CSP merely to silence an optional beacon.
 - [ ] Do not add `play.google.com` to CSP; blocked Google telemetry is not required by Kairos.
+- [ ] Bypass Cloudflare HTML caching for Kairos or confirm the cache honors `Cache-Control: private, no-store`; a cached HTML response would reuse its nonce.
+- [ ] Static JavaScript, CSS, images, and the vendored Socket.IO client may retain their existing cache policy.
 - [ ] Ensure WebSocket proxying is enabled.
 - [ ] Purge cached `/signoff/*` HTML, JavaScript, CSS, and `.htaccess`-affected responses after file deployment.
 
@@ -61,6 +68,11 @@ All critical scripts also carry `data-cfasync="false"` as a repository-side defe
 
 - [ ] Confirm `mod_headers`, `mod_rewrite`, `mod_proxy`, `mod_proxy_http`, and `mod_proxy_wstunnel` are enabled as required by the hosting layout.
 - [ ] Confirm the effective document root uses the deployed `.htaccess` policy.
+- [ ] Apply the HTML routing rules documented in `docs/runbooks/csp_nonce_apache_routing.md`.
+- [ ] Confirm known page routes such as `/signoff/course`, `/signoff/course.html`, and `/signoff/` execute `public/html.php` instead of serving template files directly.
+- [ ] Confirm the HTML rewrite rules remain after API/realtime proxy rules and before the generic `public/` fallback.
+- [ ] Confirm `/signoff/templates/pages/index.html` returns 403/404 when the repository root is web-accessible.
+- [ ] Confirm `/signoff/api/config.php`, `/signoff/assets/`, and `/signoff/websocket/socket.io/` retain their existing handlers and do not route through `html.php`.
 - [ ] Confirm `/signoff/assets/vendor/socket.io/4.7.5/socket.io.min.js` returns HTTP 200 and a JavaScript content type.
 - [ ] Confirm `/signoff/vendor/autoload.php`, `/signoff/composer.json`, and `/signoff/composer.lock` return 403/404.
 - [ ] Confirm `/signoff/websocket/socket.io/?EIO=4&transport=polling` reaches the Python service.
@@ -88,6 +100,13 @@ curl -sSI https://kairos.nixorcorporate.com/signoff/ \
   | tr -d '\r' \
   | grep -iE 'content-security-policy|cross-origin-opener-policy|x-content-type-options'
 
+curl -sS -D /tmp/kairos-csp-1.headers -o /tmp/kairos-csp-1.html \
+  https://kairos.nixorcorporate.com/signoff/
+curl -sS -D /tmp/kairos-csp-2.headers -o /tmp/kairos-csp-2.html \
+  https://kairos.nixorcorporate.com/signoff/
+grep -oi "'nonce-[^']*'" /tmp/kairos-csp-1.headers /tmp/kairos-csp-2.headers
+grep -o 'nonce="[^"]*"' /tmp/kairos-csp-1.html /tmp/kairos-csp-2.html
+
 curl -sSI https://kairos.nixorcorporate.com/signoff/assets/vendor/socket.io/4.7.5/socket.io.min.js
 
 curl -sS "https://kairos.nixorcorporate.com/signoff/websocket/socket.io/?EIO=4&transport=polling"
@@ -98,13 +117,17 @@ The effective CSP must:
 - allow `https://accounts.google.com` in `style-src-elem`;
 - allow `wss://kairos.nixorcorporate.com` in `connect-src`;
 - retain `object-src 'none'`, `base-uri 'self'`, and `script-src-attr 'none'`;
-- omit `'unsafe-inline'` from script directives and include the reviewed inline script hashes;
+- contain the same fresh nonce in `script-src`, `script-src-elem`, and rendered inline theme scripts;
+- produce different nonce values for the two separate HTML requests above;
+- omit `'unsafe-inline'` from script directives;
 - omit the Socket.IO CDN, Cloudflare Insights, and `play.google.com`.
 
 ## Browser Smoke Tests
 
 - [ ] Hard-refresh the login page with DevTools open and cache disabled.
 - [ ] Confirm no CSP violation for Socket.IO or Google Sign-In styles.
+- [ ] Confirm Cloudflare JavaScript Detections executes without an inline-script CSP violation.
+- [ ] Confirm Cloudflare copied the response-header nonce onto any injected inline detection script.
 - [ ] Confirm `typeof window.io === "function"`.
 - [ ] Confirm the Google button is styled and interactive.
 - [ ] Confirm no `ReferenceError: io is not defined`.
@@ -146,7 +169,7 @@ Use non-production test accounts and do not alter real grades/submissions:
 
 ## Rollback
 
-1. Restore the pre-deployment file backup, including both `.htaccess` files.
+1. Restore the pre-deployment file backup, including both `.htaccess` files, `public/` entrypoints, and the prior HTML files.
 2. Restore the previous `ws_server.py` artifact and restart the Python service.
 3. Revert the Cloudflare route rules only if required by the previous release.
 4. Purge `/signoff/*` from Cloudflare and server caches.
