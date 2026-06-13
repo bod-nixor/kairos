@@ -63,6 +63,7 @@ $assert(strpos($rootHtaccess, 'wss://kairos.nixorcorporate.com') !== false, 'CSP
 $assert(strpos($rootHtaccess, 'static.cloudflareinsights.com') === false, 'optional Cloudflare analytics should not weaken CSP');
 $assert(strpos($rootHtaccess, 'play.google.com') === false, 'browser telemetry endpoints should not be allowlisted');
 $assert(strpos($rootHtaccess, "script-src-attr 'none'") !== false, 'inline script attributes should remain prohibited');
+$assert(!preg_match('/script-src(?:-elem)?\s+[^;"]*\'unsafe-inline\'/', $rootHtaccess), 'inline scripts should require CSP hashes');
 
 if ($failed) {
     fwrite(STDERR, implode(PHP_EOL, $failed) . PHP_EOL);

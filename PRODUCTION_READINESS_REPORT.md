@@ -153,7 +153,7 @@ Vendored Socket.IO SHA-256:
 
 ## Optional Follow-ups
 
-- Move inline bootstrap/theme code to external files and adopt CSP nonces or hashes so `'unsafe-inline'` can be removed.
+- Prefer external scripts for new bootstrap behavior; existing inline scripts are restricted by immutable CSP hashes.
 - Replace the legacy `sections_reorder_endpoint_test.php` schema setup with current migrations and transaction-based fixtures.
 - Add an automated browser suite with test OAuth/session fixtures for every role and all six themes.
 - Cache websocket authorization mappings briefly to reduce information-schema queries at high connection volume.

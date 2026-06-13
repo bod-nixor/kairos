@@ -85,6 +85,18 @@ WS_ALLOWED_ORIGINS = [
 WS_EMIT_MAX_BYTES = int(os.getenv("WS_EMIT_MAX_BYTES", "65536") or 65536)
 WS_LOG_DEBUG = (os.getenv("WS_LOG_DEBUG", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
 EVENT_NAME_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
+COURSE_ACCESS_MAPPINGS: Dict[str, tuple[str, str, str, Optional[str]]] = {
+    "manager_courses": ("manager_courses", "user_id", "course_id", None),
+    "course_staff": ("course_staff", "user_id", "course_id", "role"),
+    "course_roles": ("course_roles", "user_id", "course_id", "role"),
+    "enrollments": ("enrollments", "user_id", "course_id", "role"),
+    "user_courses": ("user_courses", "user_id", "course_id", "role"),
+    "ta_courses": ("ta_courses", "ta_user_id", "course_id", None),
+    "course_tas": ("course_tas", "user_id", "course_id", None),
+    "ta_enrollments": ("ta_enrollments", "user_id", "course_id", None),
+    "staff_courses": ("staff_courses", "user_id", "course_id", None),
+    "student_courses": ("student_courses", "user_id", "course_id", None),
+}
 
 OUTBOX_POLL_SECONDS = float(os.getenv("LMS_OUTBOX_POLL_SECONDS", "1") or 1)
 LMS_OUTBOX_ENABLED = (os.getenv("LMS_OUTBOX_ENABLED", "1") or "1").strip() not in {"0", "false", "False"}
@@ -113,14 +125,15 @@ def _open_db(*, autocommit: bool = True):
 def _mapping_grants(
     cursor: Any,
     *,
-    table: str,
-    user_column: str,
-    course_column: str,
+    mapping_key: str,
     user_id: int,
     course_id: int,
-    role_column: Optional[str] = None,
     allowed_roles: Optional[Set[str]] = None,
 ) -> bool:
+    if mapping_key not in COURSE_ACCESS_MAPPINGS:
+        raise ValueError(f"Unsupported course access mapping: {mapping_key}")
+    table, user_column, course_column, role_column = COURSE_ACCESS_MAPPINGS[mapping_key]
+
     columns = [user_column, course_column]
     if role_column:
         columns.append(role_column)
@@ -171,37 +184,34 @@ def _user_can_access_course(user_id: int, course_id: int) -> bool:
             mappings = []
             if role == "manager":
                 mappings.extend([
-                    ("manager_courses", "user_id", "course_id", None, None),
-                    ("course_staff", "user_id", "course_id", "role", {"manager"}),
-                    ("course_roles", "user_id", "course_id", "role", {"manager"}),
-                    ("enrollments", "user_id", "course_id", "role", {"manager"}),
-                    ("user_courses", "user_id", "course_id", "role", {"manager"}),
+                    ("manager_courses", None),
+                    ("course_staff", {"manager"}),
+                    ("course_roles", {"manager"}),
+                    ("enrollments", {"manager"}),
+                    ("user_courses", {"manager"}),
                 ])
             elif role == "ta":
                 mappings.extend([
-                    ("course_staff", "user_id", "course_id", "role", {"ta", "manager"}),
-                    ("course_roles", "user_id", "course_id", "role", {"ta", "manager"}),
-                    ("enrollments", "user_id", "course_id", "role", {"ta", "manager"}),
-                    ("user_courses", "user_id", "course_id", "role", {"ta", "manager"}),
-                    ("ta_courses", "ta_user_id", "course_id", None, None),
-                    ("course_tas", "user_id", "course_id", None, None),
-                    ("ta_enrollments", "user_id", "course_id", None, None),
-                    ("staff_courses", "user_id", "course_id", None, None),
+                    ("course_staff", {"ta", "manager"}),
+                    ("course_roles", {"ta", "manager"}),
+                    ("enrollments", {"ta", "manager"}),
+                    ("user_courses", {"ta", "manager"}),
+                    ("ta_courses", None),
+                    ("course_tas", None),
+                    ("ta_enrollments", None),
+                    ("staff_courses", None),
                 ])
             elif role == "student":
-                mappings.append(("student_courses", "user_id", "course_id", None, None))
+                mappings.append(("student_courses", None))
             else:
                 return False
 
-            for table, user_col, course_col, role_col, allowed_roles in mappings:
+            for mapping_key, allowed_roles in mappings:
                 if _mapping_grants(
                     cursor,
-                    table=table,
-                    user_column=user_col,
-                    course_column=course_col,
+                    mapping_key=mapping_key,
                     user_id=user_id,
                     course_id=course_id,
-                    role_column=role_col,
                     allowed_roles=allowed_roles,
                 ):
                     return True

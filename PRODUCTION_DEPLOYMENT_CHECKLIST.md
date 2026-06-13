@@ -98,6 +98,7 @@ The effective CSP must:
 - allow `https://accounts.google.com` in `style-src-elem`;
 - allow `wss://kairos.nixorcorporate.com` in `connect-src`;
 - retain `object-src 'none'`, `base-uri 'self'`, and `script-src-attr 'none'`;
+- omit `'unsafe-inline'` from script directives and include the reviewed inline script hashes;
 - omit the Socket.IO CDN, Cloudflare Insights, and `play.google.com`.
 
 ## Browser Smoke Tests

@@ -424,6 +424,9 @@ final class GoogleDriveStorage implements DriveStorageInterface
         if (!is_object($body)) {
             throw new DriveStorageException('download_failed', 'Drive returned an unsupported download response.');
         }
+        if (!method_exists($body, 'read')) {
+            throw new DriveStorageException('download_failed', 'Drive returned an unreadable download response.');
+        }
 
         if (method_exists($body, 'rewind')) {
             $body->rewind();

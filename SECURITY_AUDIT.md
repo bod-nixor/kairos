@@ -95,7 +95,7 @@ Blocked locally:
 
 ## Residual Risks
 
-- CSP currently includes `'unsafe-inline'` because the frontend has many inline theme bootstrap scripts. Full nonce/hash CSP requires moving inline scripts to external files or rendering per-response nonces.
+- Inline scripts are restricted to immutable SHA-256 hashes in both Apache CSP variants; updating inline script content requires updating the matching hashes.
 - CSRF protection is currently enforced through SameSite cookies, exact Origin/Referer checks, content-type controls, and no CORS reflection. A per-session CSRF token should be added once all direct `fetch()` call sites can consistently send the token.
 - WebSocket `/emit` still accepts the legacy `secret` query parameter for compatibility. Remove query-secret support after all deployments use `X-Kairos-WS-Secret`.
 - Drive integration is currently a stub. Real Drive upload/download permission reconciliation must be implemented and verified before relying on Drive-backed files for sensitive submissions.
@@ -108,7 +108,7 @@ Blocked locally:
 - Confirm `users.is_active`, `users.role_id`, and `roles.name` exist in the deployed schema before enabling the refreshed-session behavior.
 - Confirm Apache `mod_headers`, `mod_rewrite`, and `mod_proxy` modules are available and the `.htaccess` rules are honored by cPanel.
 - Confirm whether public document root is repository root or `public/`; both paths now have protections, but hosting should prefer `public/` when possible.
-- Review frontend inline scripts and plan CSP nonce/hash migration.
+- Confirm CSP hash coverage after any inline bootstrap script change.
 
 ## Infrastructure-Dependent Controls
 

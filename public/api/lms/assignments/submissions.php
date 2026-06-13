@@ -82,13 +82,16 @@ try {
             ];
         }
         if ($row['resource_id'] !== null) {
+            $hasDriveFile = $row['drive_file_id'] !== null;
             $items[$submissionId]['files'][] = [
                 'resource_id' => (int)$row['resource_id'],
                 'name' => (string)($row['file_name'] ?? ''),
                 'mime_type' => (string)($row['mime_type'] ?? ''),
                 'file_size' => $row['file_size'] === null ? null : (int)$row['file_size'],
-                'download_url' => lms_drive_internal_url((int)$row['resource_id']),
-                'preview_url' => lms_drive_inline_allowed((string)($row['mime_type'] ?? ''))
+                'download_url' => $hasDriveFile
+                    ? lms_drive_internal_url((int)$row['resource_id'])
+                    : '',
+                'preview_url' => $hasDriveFile && lms_drive_inline_allowed((string)($row['mime_type'] ?? ''))
                     ? lms_drive_internal_url((int)$row['resource_id'], 'inline')
                     : '',
             ];

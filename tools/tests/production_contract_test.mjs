@@ -1,21 +1,44 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+const findHtmlFiles = (directory) => fs.readdirSync(directory, { withFileTypes: true })
+  .flatMap((entry) => {
+    const absolutePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return findHtmlFiles(absolutePath);
+    if (!entry.isFile() || !entry.name.endsWith('.html')) return [];
+    return [path.relative(root, absolutePath).split(path.sep).join('/')];
+  });
 
-const htmlFiles = fs.readdirSync(path.join(root, 'public'))
-  .filter((name) => name.endsWith('.html'))
-  .map((name) => `public/${name}`);
+const htmlFiles = findHtmlFiles(path.join(root, 'public')).sort();
+// The projector is a purpose-built fullscreen display, not a navigable app page.
+const shellExemptHtmlFiles = new Set([
+  'public/projector.html',
+]);
+const inlineScriptHashes = new Set();
+const hasClass = (html, className) => new RegExp(
+  `class=["'][^"']*\\b${className}\\b[^"']*["']`,
+  'i',
+).test(html);
 
 for (const htmlFile of htmlFiles) {
   const html = read(htmlFile);
   assert.doesNotMatch(html, /cdn\.socket\.io/i, `${htmlFile} must not use the Socket.IO CDN`);
-  const externalScripts = html.match(/<script\b[^>]*\bsrc="[^"]+"[^>]*>/gi) || [];
-  for (const script of externalScripts) {
+  const scripts = html.match(/<script\b[^>]*>/gi) || [];
+  for (const script of scripts) {
     assert.match(script, /\bdata-cfasync="false"/i, `${htmlFile} has a script without Rocket Loader exclusion`);
+  }
+  for (const match of html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+    inlineScriptHashes.add(`'sha256-${crypto.createHash('sha256').update(match[1], 'utf8').digest('base64')}'`);
+  }
+  if (!shellExemptHtmlFiles.has(htmlFile)) {
+    for (const className of ['k-layout', 'k-sidebar', 'k-topbar', 'k-main']) {
+      assert.ok(hasClass(html, className), `${htmlFile} must use the shared .${className} wrapper`);
+    }
   }
 }
 
@@ -52,6 +75,10 @@ for (const htaccessFile of ['.htaccess', 'public/.htaccess']) {
   assert.doesNotMatch(policy, /play\.google\.com/);
   assert.match(policy, /object-src 'none'/);
   assert.match(policy, /script-src-attr 'none'/);
+  assert.doesNotMatch(policy, /script-src(?:-elem)?\s+[^;"]*'unsafe-inline'/);
+  for (const hash of inlineScriptHashes) {
+    assert.ok(policy.includes(hash), `${htaccessFile} is missing CSP hash ${hash}`);
+  }
 }
 
 const coursePages = [
@@ -111,6 +138,11 @@ assert.match(driveDownload, /lms_authorize_resource_access/);
 assert.match(driveDownload, /resource_id/);
 assert.doesNotMatch(driveDownload, /\$_GET\['file_id'\]/);
 
+const submissionList = read('public/api/lms/assignments/submissions.php');
+assert.match(submissionList, /\$hasDriveFile\s*=\s*\$row\['drive_file_id'\]\s*!==\s*null/);
+assert.match(submissionList, /'download_url'\s*=>\s*\$hasDriveFile/);
+assert.match(submissionList, /'preview_url'\s*=>\s*\$hasDriveFile\s*&&\s*lms_drive_inline_allowed/);
+
 const composer = JSON.parse(read('composer.json'));
 assert.match(composer.require['google/apiclient'], /^\^2\./);
 assert.equal(composer.require['google/apiclient-services'], '0.444.0');
@@ -125,5 +157,7 @@ const websocketServer = read('ws_server.py');
 assert.match(websocketServer, /_user_can_access_course/);
 assert.match(websocketServer, /realtime subscription denied/);
 assert.match(websocketServer, /_emit_scoped_event/);
+assert.match(websocketServer, /COURSE_ACCESS_MAPPINGS/);
+assert.match(websocketServer, /if mapping_key not in COURSE_ACCESS_MAPPINGS/);
 
 console.log('production contract tests passed');

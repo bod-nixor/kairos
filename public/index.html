@@ -8,7 +8,7 @@
   <meta name="description" content="Kairos academic platform — your courses, queues, and progress." />
   <link rel="icon" type="image/png" href="./images/logo.png" />
   <!-- Theme flash prevention -->
-  <script>
+  <script data-cfasync="false">
     (function () {
       try {
         var s = localStorage.getItem('kairos-theme');
@@ -257,7 +257,7 @@
   <script data-cfasync="false" src="./js/lms-core.js"></script>
   <script data-cfasync="false" src="./js/lms-ws.js"></script>
   <script data-cfasync="false" src="./script.js"></script>
-  <script>
+  <script data-cfasync="false">
     /* Sidebar nav view switching — bridge to script.js */
     document.addEventListener('DOMContentLoaded', function () {
       window.showKairosView = function (view) {

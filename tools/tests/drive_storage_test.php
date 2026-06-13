@@ -139,6 +139,27 @@ $assert(!lms_drive_inline_allowed('text/html'), 'HTML must never render inline')
 $assert(!lms_drive_inline_allowed('image/svg+xml'), 'SVG must never render inline');
 $assert(lms_drive_inline_allowed('application/pdf'), 'PDF should support protected inline preview');
 
+$storageReflection = new ReflectionClass(GoogleDriveStorage::class);
+$storageWithoutConstructor = $storageReflection->newInstanceWithoutConstructor();
+$writeResponseBody = $storageReflection->getMethod('writeResponseBody');
+$writeResponseBody->setAccessible(true);
+$unreadableStream = fopen('php://temp', 'w+b');
+try {
+    $writeResponseBody->invoke($storageWithoutConstructor, new class {
+        public function eof(): bool
+        {
+            return false;
+        }
+    }, $unreadableStream);
+    $failed[] = 'Drive response bodies without read() should fail closed';
+} catch (DriveStorageException $e) {
+    $assert($e->reason() === 'download_failed', 'unreadable Drive responses should report download_failed');
+} finally {
+    if (is_resource($unreadableStream)) {
+        fclose($unreadableStream);
+    }
+}
+
 $tmp = tempnam(sys_get_temp_dir(), 'kairos_drive_');
 if ($tmp === false) {
     $failed[] = 'failed to create upload fixture';
@@ -261,12 +282,32 @@ $getSource = (string)file_get_contents($root . '/public/api/lms/resources/get.ph
 $driveClientSource = (string)file_get_contents($root . '/public/api/lms/drive_client.php');
 
 $assert(strpos($uploadSource, "lms_require_roles(['manager','admin'])") !== false, 'course file upload should remain manager/admin only');
-$assert(strpos($uploadSource, '$storage->upload') < strpos($uploadSource, '$pdo->beginTransaction'), 'resource bytes must persist before the DB transaction');
-$assert(strpos($uploadSource, 'updateAppProperties') < strpos($uploadSource, '$pdo->commit'), 'resource Drive metadata must finalize before DB commit');
-$assert(strpos($uploadSource, 'lms_drive_try_cleanup') !== false, 'resource DB failures must compensate the remote upload');
-$assert(strpos($submitSource, '$storage->upload') < strpos($submitSource, '$pdo->beginTransaction'), 'submission bytes must persist before the DB transaction');
-$assert(strpos($submitSource, 'lms_drive_try_cleanup') !== false, 'submission DB failures must compensate the remote upload');
-$assert(strpos($deleteSource, 'SET deleted_at = CURRENT_TIMESTAMP') < strpos($deleteSource, 'lms_drive_try_cleanup'), 'local deletion must precede destructive Drive cleanup');
+$pUpload = strpos($uploadSource, '$storage->upload');
+$pUploadBegin = strpos($uploadSource, '$pdo->beginTransaction');
+$pMetadataUpdate = strpos($uploadSource, 'updateAppProperties');
+$pUploadCommit = strpos($uploadSource, '$pdo->commit');
+$pUploadCleanup = strpos($uploadSource, 'lms_drive_try_cleanup');
+$pSubmitUpload = strpos($submitSource, '$storage->upload');
+$pSubmitBegin = strpos($submitSource, '$pdo->beginTransaction');
+$pSubmitCleanup = strpos($submitSource, 'lms_drive_try_cleanup');
+$pDeleteSoft = strpos($deleteSource, 'SET deleted_at = CURRENT_TIMESTAMP');
+$pDeleteCleanup = strpos($deleteSource, 'lms_drive_try_cleanup');
+
+$assert($pUpload !== false, 'resource upload endpoint must call storage upload');
+$assert($pUploadBegin !== false, 'resource upload endpoint must begin a DB transaction');
+$assert($pMetadataUpdate !== false, 'resource upload endpoint must update Drive metadata');
+$assert($pUploadCommit !== false, 'resource upload endpoint must commit its DB transaction');
+$assert($pUploadCleanup !== false, 'resource DB failures must compensate the remote upload');
+$assert($pSubmitUpload !== false, 'submission endpoint must call storage upload');
+$assert($pSubmitBegin !== false, 'submission endpoint must begin a DB transaction');
+$assert($pSubmitCleanup !== false, 'submission DB failures must compensate the remote upload');
+$assert($pDeleteSoft !== false, 'resource deletion endpoint must soft-delete locally');
+$assert($pDeleteCleanup !== false, 'resource deletion endpoint must clean up Drive storage');
+
+$assert($pUpload !== false && $pUploadBegin !== false && $pUpload < $pUploadBegin, 'resource bytes must persist before the DB transaction');
+$assert($pMetadataUpdate !== false && $pUploadCommit !== false && $pMetadataUpdate < $pUploadCommit, 'resource Drive metadata must finalize before DB commit');
+$assert($pSubmitUpload !== false && $pSubmitBegin !== false && $pSubmitUpload < $pSubmitBegin, 'submission bytes must persist before the DB transaction');
+$assert($pDeleteSoft !== false && $pDeleteCleanup !== false && $pDeleteSoft < $pDeleteCleanup, 'local deletion must precede destructive Drive cleanup');
 $assert(strpos($downloadSource, "\$_GET['resource_id']") !== false, 'download endpoint should accept a local resource identifier');
 $assert(strpos($downloadSource, "\$_GET['file_id']") === false, 'download endpoint must not accept arbitrary Drive identifiers');
 $assert(strpos($downloadSource, "lms_require_roles(['student', 'ta', 'manager', 'admin'])") !== false, 'download endpoint must require authentication');
