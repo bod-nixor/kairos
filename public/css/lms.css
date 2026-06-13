@@ -512,6 +512,26 @@
     flex-shrink: 0;
 }
 
+.k-item-reorder-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.k-module-reorder-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.k-item-reorder-controls .k-btn-icon:disabled,
+.k-module-reorder-controls .k-btn-icon:disabled {
+    cursor: not-allowed;
+    opacity: .35;
+}
+
 .k-btn-icon {
     display: inline-flex;
     align-items: center;
@@ -1917,6 +1937,49 @@
     -webkit-box-orient: vertical;
 }
 
+.k-announcement__view {
+    margin-top: 4px;
+    padding-inline: 0;
+}
+
+.k-announcement-detail__course {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.k-announcement-detail__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: var(--font-sm);
+}
+
+.k-announcement-detail__body {
+    margin-top: 20px;
+    color: var(--text);
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.k-announcement-detail__audit {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.k-announcement-detail__audit h4 {
+    margin: 0 0 8px;
+}
+
+.k-announcement-detail__audit ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--muted);
+    font-size: var(--font-sm);
+}
+
 /* ── Resource Viewer ────────────────────────────────────────── */
 .k-resource-viewer {
     height: calc(100vh - var(--k-topbar-height) - 80px);
@@ -2024,6 +2087,15 @@
     }
 
     .k-module-item__admin-actions {
+        padding-top: 6px;
+    }
+
+    .k-drag-handle--item {
+        display: none;
+    }
+
+    .k-item-reorder-controls {
+        display: inline-flex;
         padding-top: 6px;
     }
 
@@ -2919,20 +2991,20 @@ dialog.k-modal::backdrop {
 .k-form-field select {
     padding: 10px 12px;
     border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg);
+    border: 1px solid var(--control-border);
+    background: var(--input-bg);
     color: var(--text);
     font-size: var(--font-sm);
     font-family: inherit;
     transition: border-color .15s;
 }
 
-.k-form-field input:focus,
-.k-form-field textarea:focus,
-.k-form-field select:focus {
+.k-form-field input:focus-visible,
+.k-form-field textarea:focus-visible,
+.k-form-field select:focus-visible {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, .15);
+    border-color: var(--focus-ring, var(--primary));
+    box-shadow: 0 0 0 3px var(--primary-ghost);
 }
 
 .k-form-field textarea {

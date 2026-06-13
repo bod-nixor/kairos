@@ -74,8 +74,8 @@ Client-provided `course_id` is context only. It must match the relationship load
 | `lms/courses/join.php`, `courses_join.php` | POST | student | public/allowlisted course, authenticated email | 403/404/422 |
 | `lms/courses/visibility.php`, `allowlist.php`, `preenroll.php`, settings endpoints | GET/POST | `manage_course` | assigned course; stored course ID | 403/404 |
 | `lms/modules.php`, `lessons.php`, `lessons/get.php`, `resources/get.php`, `quizzes.php`, `quiz/get.php`, `assignments.php`, `assignments/get.php` | GET | `view_course` | object belongs to accessible course; TA/student published-only | 403/404 |
-| `lms/sections/{create,update,delete,reorder}.php` | POST | `manage_course` | section and complete reorder set belong to course | 403/404/422 |
-| `lms/module_items/{create,update,delete,reorder}.php` | POST | `manage_course` | item and section belong to course; reorder set is exact | 403/404/422 |
+| `lms/sections/{create,update,delete,reorder}.php` | POST | `manage_course` | section and complete reorder set belong to course; stale expected order rejected | 403/404/409/422 |
+| `lms/module_items/{create,update,delete,reorder}.php` | POST | `manage_course` | item and section belong to course; reorder set is exact; rows locked before write | 403/404/409/422 |
 | `lms/lessons/{create,save,update,publish,delete}.php`, `lesson_blocks/*` | POST | `manage_course` | lesson/block chain resolves to assigned course | 403/404 |
 | `lms/resources/{create,upload,update,delete}.php` | POST | `manage_course` | resource belongs to assigned course | 403/404/422 |
 | `lms/resources/download.php` | GET | `view_course` or submission access | local `resource_id`; never accepts arbitrary Drive ID | 403/404 |
@@ -92,6 +92,7 @@ Client-provided `course_id` is context only. It must match the relationship load
 | `lms/grading/submission/{grade,release}.php`, `grade_submission.php`, `grade_release_all.php` | POST | `grade_course` | stored submission chain; TA assignment; audit required | 403/404/422 |
 | `lms/analytics_*.php`, `analytics/course/get.php` | GET | `manage_course` | assigned course; assignment filters must match course | 403/404 |
 | `lms/announcements.php` | GET | `view_course` | student/TA published-only; manager/admin include drafts | 403 |
+| `lms/announcements/detail.php` | GET | `view_course` | stored announcement and requested course must match; student/TA published-only; audit summaries manager/admin only | 403/404 |
 | `lms/announcements/{create,update,delete}.php` | POST | `manage_course_announcements` | stored announcement course; soft delete and audit | 403/404/422 |
 | `lms/announcements_read.php`, `notifications_seen*.php` | GET/POST | `view_course` | visible event/announcement belongs to course and current user | 403/422 |
 | `ta/student_progress.php`, `ta/comment.php`, `ta/update_progress.php` | GET/POST | `update_student_progress` | TA course assignment plus target student enrollment | 403/404 |

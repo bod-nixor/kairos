@@ -151,6 +151,7 @@ The effective CSP must:
 - [ ] Restart the service or restore connectivity: verify the client reconnects.
 - [ ] Test `390x844`, `768x1024`, `1440x900`, and a large desktop viewport for horizontal overflow.
 - [ ] Check Default Dark, Light, Midnight, Graphite, Indigo, and Emerald themes.
+- [ ] In Light Mode, verify muted text, placeholders, disabled controls, links, focus rings, borders, status badges, the top bar, and announcement bell remain legible.
 - [ ] Keyboard-test navigation, appearance controls, forms, and dialogs; verify visible focus, Escape close, focus trap, and focus return.
 
 ## Role and Authorization Smoke Tests
@@ -170,6 +171,13 @@ Use non-production test accounts and do not alter real grades/submissions:
 - [ ] Course breadcrumb returns to `course.html?course_id=<id>` from every nested course page.
 - [ ] Course navigation ordering and profile identity remain stable across direct loads and page transitions.
 - [ ] Module accordions work with click, Enter, Space, and narrow touch input; item links remain tappable beside edit controls.
+- [ ] Manager reorders module items by drag and by mobile up/down controls; rapid duplicate input produces one save and no HTTP 500.
+- [ ] Two manager sessions reorder the same module; the stale session receives `409 reorder_conflict`, refreshes, and does not overwrite the committed order.
+- [ ] Student/TA reorder requests return 403 and foreign/missing/duplicate item IDs return 403/404/422.
+- [ ] Announcement bell keeps seen entries, distinguishes unread entries, and opens full detail; deleted/unpublished stale entries show “Announcement unavailable.”
+- [ ] Student/TA cannot open draft announcement detail; manager/admin can view change-history summaries.
+- [ ] Test YouTube watch/shorts, Vimeo, Google Docs/Slides/Drive, Office, and managed PDF previews; verify lazy loading, meaningful titles, and original-resource fallbacks.
+- [ ] Confirm no iframe warning combines `allow-scripts` with `allow-same-origin`; do not treat blocked optional provider telemetry as an application failure.
 - [ ] Settings cog is centered in all six themes and required viewports.
 - [ ] Queue participant and ETA endpoints reject a queue outside the user's courses.
 - [ ] WebSocket subscription to an unauthorized course is rejected.

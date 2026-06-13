@@ -8,8 +8,9 @@
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
+require_once dirname(__DIR__) . '/_reorder.php';
 
-$user = lms_require_roles(['manager', 'admin']);
+$user = require_login();
 $in = lms_json_input();
 $courseId = (int) ($in['course_id'] ?? 0);
 
@@ -17,44 +18,38 @@ if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
 
-$sectionIds = $in['section_ids'] ?? [];
-if (!is_array($sectionIds) || count($sectionIds) === 0) {
-    lms_error('validation_error', 'section_ids must be a non-empty array', 422);
+try {
+    $sectionIds = lms_reorder_positive_ids($in, 'section_ids');
+    $expectedSectionIds = array_key_exists('expected_section_ids', $in)
+        ? lms_reorder_positive_ids($in, 'expected_section_ids')
+        : null;
+} catch (InvalidArgumentException $e) {
+    lms_error('validation_error', $e->getMessage(), 422);
 }
 
-$sectionIds = array_map('intval', $sectionIds);
-foreach ($sectionIds as $id) {
-    if ($id <= 0) {
-        lms_error('validation_error', 'section_ids must contain positive integers', 422);
-    }
-}
-
-if (count(array_unique($sectionIds)) !== count($sectionIds)) {
-    lms_error('validation_error', 'section_ids must not contain duplicates', 422);
-}
-
-lms_course_access($user, $courseId);
+lms_require_course_capability($user, 'manage_course', $courseId);
 
 $pdo = db();
-
-// Verify the payload includes exactly all active sections in the course exactly once
-$verifyStmt = $pdo->prepare('SELECT section_id FROM lms_course_sections WHERE course_id = :cid AND deleted_at IS NULL');
-$verifyStmt->execute([':cid' => $courseId]);
-$existingIds = array_map('intval', $verifyStmt->fetchAll(PDO::FETCH_COLUMN));
-
-if (count($existingIds) !== count($sectionIds)) {
-    lms_error('validation_error', 'section_ids must include all active sections exactly once', 422);
-}
-
-$diff1 = array_diff($existingIds, $sectionIds);
-$diff2 = array_diff($sectionIds, $existingIds);
-if (count($diff1) > 0 || count($diff2) > 0) {
-    lms_error('validation_error', 'section_ids must include all active sections exactly once', 422);
-}
-
-// Update positions in a transaction
-$pdo->beginTransaction();
 try {
+    $pdo->beginTransaction();
+
+    $verifyStmt = $pdo->prepare(
+        'SELECT section_id FROM lms_course_sections'
+        . ' WHERE course_id = :cid AND deleted_at IS NULL'
+        . ' ORDER BY position ASC, section_id ASC FOR UPDATE'
+    );
+    $verifyStmt->execute([':cid' => $courseId]);
+    $currentIds = array_map('intval', $verifyStmt->fetchAll(PDO::FETCH_COLUMN));
+
+    if (!lms_reorder_same_id_set($currentIds, $sectionIds)) {
+        $pdo->rollBack();
+        lms_error('validation_error', 'section_ids must include all active sections exactly once', 422);
+    }
+    if ($expectedSectionIds !== null && $expectedSectionIds !== $currentIds) {
+        $pdo->rollBack();
+        lms_error('reorder_conflict', 'The module order changed before this request was saved. Refresh and try again.', 409);
+    }
+
     $updateStmt = $pdo->prepare('UPDATE lms_course_sections SET position = :pos, updated_at = CURRENT_TIMESTAMP WHERE section_id = :id AND course_id = :cid AND deleted_at IS NULL');
     foreach ($sectionIds as $position => $sectionId) {
         $updateStmt->execute([
@@ -62,7 +57,22 @@ try {
             ':id' => $sectionId,
             ':cid' => $courseId,
         ]);
+        if ($updateStmt->rowCount() > 1) {
+            throw new RuntimeException('Unexpected section reorder row count');
+        }
     }
+
+    lms_emit_event($pdo, 'sections.reordered', [
+        'event_name' => 'sections.reordered',
+        'event_id' => lms_uuid_v4(),
+        'occurred_at' => gmdate('Y-m-d H:i:s'),
+        'actor_id' => (int)($user['user_id'] ?? 0),
+        'entity_type' => 'course',
+        'entity_id' => $courseId,
+        'course_id' => $courseId,
+        'section_ids' => $sectionIds,
+    ]);
+
     $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {

@@ -128,10 +128,19 @@
         }
     }
 
-    function hardenPreviewIframe(iframe) {
-        if (!iframe) return;
-        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+    function applyIframePolicy(iframe, descriptor) {
+        if (!iframe || !descriptor) return false;
+        iframe.removeAttribute('sandbox');
+        iframe.removeAttribute('allow');
+        iframe.removeAttribute('allowfullscreen');
+        iframe.src = descriptor.embedUrl;
+        iframe.title = descriptor.title || 'Embedded resource';
+        iframe.loading = 'lazy';
         iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        if (descriptor.sandbox) iframe.setAttribute('sandbox', descriptor.sandbox);
+        if (descriptor.allow) iframe.setAttribute('allow', descriptor.allow);
+        if (descriptor.allowFullscreen) iframe.setAttribute('allowfullscreen', '');
+        return true;
     }
 
     function confirmExternalNavigation(url, isDownload) {
@@ -210,12 +219,26 @@
         if ($('externalDesc')) $('externalDesc').textContent = message;
     }
 
+    function setPreviewFallback(rawUrl, resource, label = 'Open original resource') {
+        const fallback = $('previewFallback');
+        const link = $('previewFallbackLink');
+        if (!fallback || !link) return;
+        const managed = isManagedResource(resource);
+        const target = managed ? (resource?.download_url || '') : (resource?.original_url || rawUrl);
+        if (managed) applyManagedLink(link, target, label, true);
+        else applySafeExternalLink(link, target, label);
+        fallback.classList.toggle('hidden', managed ? !isSameOriginUrl(target) : !isHttpUrl(target));
+    }
+
     function renderPdfLikePreview(rawUrl, resource) {
         const managed = isManagedResource(resource);
-        const iframeSrc = managed ? (resource?.preview_url || '') : LMS.toDrivePreviewUrl(rawUrl);
-        const validPreview = managed ? isSameOriginUrl(iframeSrc) : isHttpUrl(iframeSrc);
-        if (!validPreview) {
-            const fallbackUrl = resource?.download_url || rawUrl;
+        const iframeSrc = managed ? (resource?.preview_url || '') : rawUrl;
+        const descriptor = LMS.getEmbedDescriptor(iframeSrc, {
+            sameOriginPdf: managed,
+            title: `${resource?.title || 'Resource'} preview`,
+        });
+        if (!descriptor) {
+            const fallbackUrl = resource?.original_url || resource?.download_url || rawUrl;
             if (managed) applyManagedLink($('downloadFallbackBtn'), fallbackUrl, 'Download Resource', true);
             else applySafeExternalLink($('downloadFallbackBtn'), fallbackUrl, 'Open Resource', false);
             showViewerState('unsupportedWrap');
@@ -224,57 +247,27 @@
 
         const iframe = $('resourceIframe');
         if (!iframe) return;
-        hardenPreviewIframe(iframe);
-        hideEl('externalWrap');
-        iframe.src = iframeSrc;
+        applyIframePolicy(iframe, descriptor);
+        setPreviewFallback(rawUrl, resource, managed ? 'Download original file' : 'Open original resource');
 
         if (managed) {
             iframe.onerror = () => {
-                setExternalDescription('Preview failed to load. Download the file instead.');
-                applyManagedLink($('externalLink'), resource?.download_url || rawUrl, 'Download file', true);
-                showEl('externalWrap');
+                LMS.toast('Preview failed to load. Use the download link below.', 'warning');
             };
-            applyManagedLink($('externalLink'), resource?.download_url || rawUrl, 'Download file', true);
             showViewerState('iframeWrap');
             return;
         }
 
-        let failed = false;
-        const markFailed = () => {
-            if (failed) return;
-            failed = true;
-            setExternalDescription('Preview failed to load. Please open the file in Drive.');
-            applySafeExternalLink($('externalLink'), rawUrl, 'Open in Drive');
-            showEl('externalWrap');
+        iframe.onerror = () => {
+            LMS.toast('Preview failed to load. Use the original-resource link below.', 'warning');
         };
-
-        iframe.onerror = markFailed;
-        const onloadTimer = setTimeout(markFailed, 7000);
-
-        iframe.onload = () => {
-            if (failed) return;
-            clearTimeout(onloadTimer);
-            setExternalDescription('Having trouble viewing? Open in Drive.');
-            hideEl('externalWrap');
-            try {
-                const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                if (doc) {
-                    const bodyText = String(doc.body?.innerText || '').toLowerCase();
-                    if (!doc.body || !doc.body.childElementCount || bodyText.includes('access denied') || bodyText.includes('refused to connect')) {
-                        markFailed();
-                    }
-                }
-            } catch (_) {
-                // Cross-origin iframe content cannot be inspected. Assume the preview loaded.
-            }
-        };
-
-        applySafeExternalLink($('externalLink'), rawUrl, 'Open in Drive');
         showViewerState('iframeWrap');
     }
 
     function renderVideo(rawUrl, resource) {
-        const embedUrl = LMS.toYoutubeEmbedUrl(rawUrl);
+        const descriptor = LMS.getEmbedDescriptor(resource?.original_url || rawUrl, {
+            title: resource?.title || 'Embedded video',
+        });
         const videoWrap = $('videoWrap');
         if (!videoWrap) return;
         videoWrap.innerHTML = '';
@@ -302,16 +295,12 @@
             return;
         }
 
-        if (embedUrl) {
+        if (descriptor && (descriptor.provider === 'youtube' || descriptor.provider === 'vimeo')) {
             videoWrap.classList.add('k-embed-16x9');
             const iframe = document.createElement('iframe');
-            iframe.setAttribute('src', embedUrl);
-            iframe.setAttribute('title', 'Embedded video');
-            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
-            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
-            iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-            iframe.setAttribute('allowfullscreen', 'true');
+            applyIframePolicy(iframe, descriptor);
             videoWrap.appendChild(iframe);
+            setPreviewFallback(resource?.original_url || rawUrl, resource, 'Open video on provider');
             showViewerState('videoWrap');
             return;
         }
@@ -378,27 +367,27 @@
 
     function renderSlides(rawUrl) {
         const iframe = $('resourceIframe');
-        const src = LMS.toDrivePreviewUrl(rawUrl);
-        if (!iframe || !isHttpUrl(src)) {
+        const descriptor = LMS.getEmbedDescriptor(rawUrl, { title: currentResource?.title || 'Slides preview' });
+        if (!iframe || !descriptor) {
             applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource', false);
             showViewerState('unsupportedWrap');
             return;
         }
-        hardenPreviewIframe(iframe);
-        iframe.src = src;
+        applyIframePolicy(iframe, descriptor);
+        setPreviewFallback(rawUrl, currentResource);
         showViewerState('iframeWrap');
     }
 
     function renderPpt(rawUrl) {
-        const officeUrl = LMS.toOfficeViewerUrl(rawUrl);
         const iframe = $('resourceIframe');
-        if (!iframe || !officeUrl) {
+        const descriptor = LMS.getEmbedDescriptor(rawUrl, { title: currentResource?.title || 'Presentation preview' });
+        if (!iframe || !descriptor) {
             applySafeExternalLink($('downloadFallbackBtn'), rawUrl, 'Open Resource', false);
             showViewerState('unsupportedWrap');
             return;
         }
-        hardenPreviewIframe(iframe);
-        iframe.src = officeUrl;
+        applyIframePolicy(iframe, descriptor);
+        setPreviewFallback(rawUrl, currentResource);
         showViewerState('iframeWrap');
     }
 
@@ -413,7 +402,7 @@
         downloadBtn?.classList.add('hidden');
         openBtn?.classList.add('hidden');
 
-        const rawUrl = resource?.url || resource?.preview_url || resource?.drive_preview_url || '';
+        const rawUrl = resource?.original_url || resource?.url || resource?.preview_url || resource?.drive_preview_url || '';
         if (isManagedResource(resource)) {
             const downloadUrl = resource?.download_url || '';
             const previewUrl = resource?.preview_url || '';
@@ -431,7 +420,7 @@
             return;
         }
 
-        if (!rawUrl || type === 'link' || !isHttpUrl(rawUrl)) return;
+        if (!rawUrl || !isHttpUrl(rawUrl)) return;
 
         const downloadUrl = LMS.toDriveDownloadUrl(rawUrl);
         if (downloadBtn && downloadUrl) {

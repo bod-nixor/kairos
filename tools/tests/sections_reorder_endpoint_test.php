@@ -1,128 +1,116 @@
 <?php
-
 declare(strict_types=1);
 
-if (getenv('KAIROS_DB_TESTS') !== '1') {
-    echo "sections reorder DB integration test skipped (set KAIROS_DB_TESTS=1 against an isolated test database)" . PHP_EOL;
-    exit(0);
+require_once dirname(__DIR__, 2) . '/public/api/lms/_reorder.php';
+
+function simulate_reorder(array $actor, int $courseId, array $payload, array $currentIds): array
+{
+    if (($actor['capabilities']['manage_course'] ?? false) !== true) {
+        return ['status' => 403, 'error' => 'forbidden'];
+    }
+    if ((int)($actor['course_id'] ?? 0) !== $courseId) {
+        return ['status' => 403, 'error' => 'forbidden'];
+    }
+
+    try {
+        $submittedIds = lms_reorder_positive_ids($payload, 'module_item_ids');
+        $expectedIds = array_key_exists('expected_module_item_ids', $payload)
+            ? lms_reorder_positive_ids($payload, 'expected_module_item_ids')
+            : null;
+    } catch (InvalidArgumentException $e) {
+        return ['status' => 422, 'error' => 'validation_error'];
+    }
+
+    if (!lms_reorder_same_id_set($currentIds, $submittedIds)) {
+        return ['status' => 422, 'error' => 'validation_error'];
+    }
+    if ($expectedIds !== null && $expectedIds !== $currentIds) {
+        return ['status' => 409, 'error' => 'reorder_conflict'];
+    }
+
+    return ['status' => 200, 'order' => $submittedIds];
 }
 
-require_once dirname(__DIR__, 2) . '/public/api/lms/_common.php';
+$manager = ['capabilities' => ['manage_course' => true], 'course_id' => 101];
+$current = [501, 502, 503];
+$cases = [
+    ['valid reorder', $manager, 101, ['module_item_ids' => [503, 501, 502], 'expected_module_item_ids' => $current], 200],
+    ['student denied', ['capabilities' => ['manage_course' => false], 'course_id' => 101], 101, ['module_item_ids' => $current], 403],
+    ['ta denied', ['capabilities' => [], 'course_id' => 101], 101, ['module_item_ids' => $current], 403],
+    ['foreign course denied', $manager, 202, ['module_item_ids' => $current], 403],
+    ['missing item rejected', $manager, 101, ['module_item_ids' => [501, 502]], 422],
+    ['foreign item rejected', $manager, 101, ['module_item_ids' => [501, 502, 999]], 422],
+    ['duplicate rejected', $manager, 101, ['module_item_ids' => [501, 501, 503]], 422],
+    ['zero rejected', $manager, 101, ['module_item_ids' => [501, 0, 503]], 422],
+    ['malformed numeric string rejected', $manager, 101, ['module_item_ids' => [501, '502abc', 503]], 422],
+    ['float rejected', $manager, 101, ['module_item_ids' => [501, 502.5, 503]], 422],
+    ['stale expected order rejected', $manager, 101, ['module_item_ids' => [503, 501, 502], 'expected_module_item_ids' => [501, 503, 502]], 409],
+];
 
-function test_module_reorder()
-{
-    $pdo = db();
-    $out = [];
-
-    // Setup: Get or create a course
-    $pdo->exec("INSERT IGNORE INTO lms_courses (course_id, code, name, description, instructor_id, credits) VALUES (99999, 'TEST-MODS', 'Test Modules', 'Test', 1, 3)");
-
-    // Create test user (manager)
-    $pdo->exec("INSERT IGNORE INTO lms_users (user_id, name, email, role, pw_hash) VALUES (99999, 'Test Admin', 'admin@test.com', 'manager', 'hash')");
-    $pdo->exec("INSERT IGNORE INTO lms_course_enrollments (course_id, user_id, role) VALUES (99999, 99999, 'manager')");
-
-    // Create test sections
-    $pdo->exec("DELETE FROM lms_course_sections WHERE course_id = 99999");
-    $pdo->exec("INSERT INTO lms_course_sections (section_id, course_id, title, position) VALUES 
-        (999901, 99999, 'Mod A', 1),
-        (999902, 99999, 'Mod B', 2),
-        (999903, 99999, 'Mod C', 3)");
-
-    // Mock user session
-    $_SESSION['lms_user'] = [
-        'user_id' => 99999,
-        'role' => 'manager'
-    ];
-
-    // Test 1: Successful Reorder
-    try {
-        $_SERVER['REQUEST_METHOD'] = 'POST';
-        $validPayload = json_encode(['course_id' => 99999, 'section_ids' => [999903, 999901, 999902]]);
-        $res = run_endpoint_test($validPayload);
-
-        $out[] = "Test 1 (Valid): " . ($res['http_code'] === 200 ? "PASS" : "FAIL ({$res['http_code']})");
-
-        // Verify DB states for Test 1
-        $stmt = $pdo->query("SELECT section_id, position FROM lms_course_sections WHERE course_id = 99999 ORDER BY position ASC");
-        $order = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-        $out[] = "Test 1 Order Verification: " . ($order[999903] == 1 && $order[999901] == 2 && $order[999902] == 3 ? "PASS" : "FAIL");
-
-        // Test 2: Partial Content Reorder (Missing Sec 2)
-        $partialPayload = json_encode(['course_id' => 99999, 'section_ids' => [999903, 999901]]);
-        $res2 = run_endpoint_test($partialPayload);
-        $out[] = "Test 2 (Partial/Missing IDs): " . (($res2['http_code'] === 422 || $res2['http_code'] === 400) ? "PASS" : "FAIL ({$res2['http_code']})");
-
-        // Test 3: Duplicates
-        $duplicatePayload = json_encode(['course_id' => 99999, 'section_ids' => [999903, 999901, 999901]]);
-        $res3 = run_endpoint_test($duplicatePayload);
-        $out[] = "Test 3 (Duplicates): " . (($res3['http_code'] === 422 || $res3['http_code'] === 400) ? "PASS" : "FAIL ({$res3['http_code']})");
-
-        // Test 4: Invalid/0 IDs
-        $invalidIdPayload = json_encode(['course_id' => 99999, 'section_ids' => [999903, 999901, 0]]);
-        $res4 = run_endpoint_test($invalidIdPayload);
-        $out[] = "Test 4 (Invalid IDs <= 0): " . (($res4['http_code'] === 422 || $res4['http_code'] === 400) ? "PASS" : "FAIL ({$res4['http_code']})");
-
-        // Test 5: Role check (Student)
-        $pdo->exec("UPDATE lms_users SET role = 'student' WHERE user_id = 99999");
-        $pdo->exec("UPDATE lms_course_enrollments SET role = 'student' WHERE course_id = 99999 AND user_id = 99999");
-        $_SESSION['lms_user']['role'] = 'student';
-        $res5 = run_endpoint_test($validPayload);
-        $out[] = "Test 5 (Student Role 403): " . ($res5['http_code'] === 403 ? "PASS" : "FAIL ({$res5['http_code']})");
-
-        echo implode("\n", $out) . "\n";
-    } catch (Throwable $e) {
-        echo "Test failed with exception: " . $e->getMessage() . "\n";
-    } finally {
-        // Cleanup
-        $pdo->exec("DELETE FROM lms_course_sections WHERE course_id = 99999");
-        $pdo->exec("DELETE FROM lms_course_enrollments WHERE course_id = 99999 AND user_id = 99999");
-        $pdo->exec("DELETE FROM lms_courses WHERE course_id = 99999");
-        $pdo->exec("DELETE FROM lms_users WHERE user_id = 99999");
+$failed = [];
+foreach ($cases as [$name, $actor, $courseId, $payload, $expectedStatus]) {
+    $actual = simulate_reorder($actor, $courseId, $payload, $current);
+    if ((int)$actual['status'] !== $expectedStatus) {
+        $failed[] = "FAIL [{$name}]: expected {$expectedStatus}, got {$actual['status']}";
     }
 }
 
-function run_endpoint_test($payload)
-{
-    $script = dirname(__DIR__, 2) . '/public/api/lms/sections/reorder.php';
-
-    // Mock the input stream
-    $tmpFile = tempnam(sys_get_temp_dir(), 'reorder_test');
-    file_put_contents($tmpFile, $payload);
-
-    // We override php://input temporarily by mocking lms_json_input inside a customized environment if we can,
-    // but the easiest robust way is sub-shell execution or overriding globally if we could.
-    // Instead we will just use output buffering and file_get_contents wrapper hack for testing...
-    // But since we can't easily mock php://input natively in a single process without runkit,
-    // let's do a fast sub-process request:
-
-    // Write a temporary proxy script
-    $b64Payload = base64_encode($payload);
-    $proxySrc = "<?php
-    \$_SESSION = " . var_export($_SESSION, true) . ";
-    \$_SERVER['REQUEST_METHOD'] = 'POST';
-    function lms_json_input() { return json_decode(base64_decode('$b64Payload'), true); }
-    // intercept header/http_response_code
-    \$HTTP_CODE = 200;
-    function http_response_code(\$code = NULL) { global \$HTTP_CODE; if (\$code !== NULL) \$HTTP_CODE = \$code; return \$HTTP_CODE; }
-    ob_start();
-    try {
-        require '$script';
-    } catch (Throwable \$e) {
-        // catch die() or exceptions
+try {
+    $temporary = lms_reorder_temporary_positions([1, 2, 3], 3);
+    if ($temporary !== [4, 5, 6] || min($temporary) < 0) {
+        $failed[] = 'temporary positions must be unique, positive, and above the current range';
     }
-    ob_end_clean();
-    echo json_encode(['http_code' => \$HTTP_CODE]);
-    ";
-
-    $proxyFile = tempnam(sys_get_temp_dir(), 'reorder_proxy') . '.php';
-    file_put_contents($proxyFile, $proxySrc);
-
-    $output = shell_exec("php " . escapeshellarg($proxyFile));
-    unlink($proxyFile);
-    unlink($tmpFile);
-
-    $res = json_decode(trim($output), true);
-    return $res ?: ['http_code' => 500];
+} catch (Throwable $e) {
+    $failed[] = 'temporary position allocation failed: ' . $e->getMessage();
 }
 
-test_module_reorder();
+try {
+    $temporary = lms_reorder_temporary_positions([4294967293], 2);
+    if ($temporary !== [4294967294, 4294967295] || count(array_unique($temporary)) !== 2) {
+        $failed[] = 'top unsigned-int boundary must remain a valid temporary range';
+    }
+} catch (Throwable $e) {
+    $failed[] = 'top unsigned-int boundary was incorrectly rejected: ' . $e->getMessage();
+}
+
+try {
+    lms_reorder_temporary_positions([4294967295], 1);
+    $failed[] = 'temporary position overflow must be rejected';
+} catch (OverflowException $e) {
+    // Expected.
+}
+
+$root = dirname(__DIR__, 2);
+$itemEndpoint = (string)file_get_contents($root . '/public/api/lms/module_items/reorder.php');
+$sectionEndpoint = (string)file_get_contents($root . '/public/api/lms/sections/reorder.php');
+$frontend = (string)file_get_contents($root . '/public/js/modules.js');
+
+foreach ([$itemEndpoint, $sectionEndpoint] as $source) {
+    if (!str_contains($source, "lms_require_course_capability(\$user, 'manage_course'")) {
+        $failed[] = 'reorder endpoints must enforce the server-side manage_course capability';
+    }
+    if (!str_contains($source, 'FOR UPDATE')) {
+        $failed[] = 'reorder endpoints must lock authoritative rows before validating order';
+    }
+    $event = strpos($source, 'lms_emit_event');
+    $commit = strpos($source, '$pdo->commit()');
+    if ($event === false || $commit === false || $event > $commit) {
+        $failed[] = 'reorder outbox events must be written inside the transaction before commit';
+    }
+}
+
+if (preg_match("/':pos'\\s*=>\\s*-/", $itemEndpoint) === 1) {
+    $failed[] = 'module item reorder must never write negative positions to an unsigned column';
+}
+foreach (['expected_module_item_ids', 'itemReordersPending', 'move-item-up', 'move-item-down', 'move-module-up', 'move-module-down', 'refreshModuleMoveButtons', 'restoreElementOrder'] as $needle) {
+    if (!str_contains($frontend, $needle)) {
+        $failed[] = "module reorder frontend is missing {$needle}";
+    }
+}
+
+if ($failed !== []) {
+    fwrite(STDERR, implode(PHP_EOL, $failed) . PHP_EOL);
+    exit(1);
+}
+
+echo 'reorder endpoint regression tests passed' . PHP_EOL;

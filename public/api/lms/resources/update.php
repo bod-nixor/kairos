@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/_embed.php';
 
 /**
  * POST /api/lms/resources/update.php
@@ -45,11 +46,15 @@ if ($url !== null && $url !== '') {
     if (!preg_match('/^https?:\/\//i', $url)) {
         lms_error('validation_error', 'URL must start with http:// or https://.', 422);
     }
+    $embed = lms_external_embed_descriptor($url);
+    $previewUrl = $embed['embed_url'] ?? $url;
     $updates[] = 'drive_preview_url = :url';
-    $params[':url'] = $url;
-    // Update metadata_json with the url
+    $params[':url'] = $previewUrl;
     $meta = json_decode($resource['metadata_json'] ?: '{}', true) ?: [];
     $meta['url'] = $url;
+    $meta['preview_url'] = $previewUrl;
+    $meta['embed_provider'] = $embed['provider'] ?? null;
+    $meta['share_warning'] = null;
     $updates[] = 'metadata_json = :meta';
     $params[':meta'] = json_encode($meta, JSON_THROW_ON_ERROR);
 }

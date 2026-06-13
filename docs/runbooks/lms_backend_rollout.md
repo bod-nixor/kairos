@@ -5,7 +5,11 @@ Run manual SQL migration in order:
 
 ```bash
 mariadb -u <user> -p < sql/20260221_1200_lms_expansion_core.sql
+mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_audit.sql
 ```
+
+The announcement migration must run before deploying the announcement detail/mutation UI. Reorder and embed
+hardening require no schema change.
 
 ## Drive configuration
 Install locked PHP dependencies before enabling Drive:
@@ -49,5 +53,5 @@ canonical Drive mapping and cleanup state.
 - Quiz: CRUD, questions, attempts under `/api/lms/quiz/...`
 - Assignments: CRUD, submission, TA assignment under `/api/lms/assignments/...`
 - Grading: queue/details/grade/release under `/api/lms/grading/...`
-- Announcements: list/create under `/api/lms/announcements...`
+- Announcements: list/detail/create/update/delete/read under `/api/lms/announcements...`
 - Analytics: `/api/lms/analytics/course/get.php`

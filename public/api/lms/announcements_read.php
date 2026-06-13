@@ -28,14 +28,29 @@ if (!is_array($ids) || empty($ids)) {
 
 lms_course_access($user, $courseId);
 
-// Deduplicate and normalize IDs
-$ids = array_values(array_filter(
-    array_unique(array_map('intval', $ids)),
-    static fn(int $id): bool => $id > 0
-));
-if (!$ids) {
-    lms_error('validation_error', 'ids must contain valid announcement IDs', 422);
+if (count($ids) > LMS_MAX_ANNOUNCEMENT_READ_IDS) {
+    lms_error('validation_error', 'Too many announcement IDs', 422);
 }
+
+// Deduplicate only after strict validation; values such as "12abc" must not become 12.
+$normalizedIds = [];
+foreach ($ids as $rawId) {
+    if (is_int($rawId)) {
+        $id = $rawId;
+    } elseif (is_string($rawId) && preg_match('/^[1-9][0-9]*$/D', $rawId) === 1) {
+        $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) {
+            lms_error('validation_error', 'ids contains an out-of-range announcement ID', 422);
+        }
+    } else {
+        lms_error('validation_error', 'ids must contain positive integer announcement IDs', 422);
+    }
+    if ($id <= 0) {
+        lms_error('validation_error', 'ids must contain positive integer announcement IDs', 422);
+    }
+    $normalizedIds[] = $id;
+}
+$ids = array_values(array_unique($normalizedIds, SORT_NUMERIC));
 if (count($ids) > LMS_MAX_ANNOUNCEMENT_READ_IDS) {
     lms_error('validation_error', 'Too many announcement IDs', 422);
 }

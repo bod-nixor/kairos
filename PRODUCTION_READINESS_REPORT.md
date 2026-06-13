@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-This pass fixed the known production CSP and realtime failures, centralized course capabilities, closed additional publication and object-scope authorization gaps, added auditable announcement management, stabilized the shared course shell and module interactions, implemented durable private Google Drive storage, and added repeatable regression coverage.
+This pass fixed the known production CSP and realtime failures, centralized course capabilities, closed additional publication and object-scope authorization gaps, added auditable announcement management, repaired transactional module ordering, hardened external embeds, improved Light Mode contrast, stabilized the shared course shell and module interactions, implemented durable private Google Drive storage, and added repeatable regression coverage.
 
 The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` is required before the new announcement endpoints are deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
 
@@ -60,6 +60,8 @@ Production inspection and repository review identified:
 - Added stored submission/assignment/course ownership checks and assignment-level TA grading checks.
 - Required target-student enrollment for TA progress reads and writes.
 - Added announcement draft/publish state, soft deletion, durable mutation audit, and transactional outbox events.
+- Added a course-scoped announcement detail read model, persistent bell read state, safe manager audit summaries, and draft-safe realtime deltas.
+- Replaced unsigned-column-breaking negative reorder positions with locked positive temporary positions, strict ID validation, stale-order conflict detection, and transactional reorder events.
 - Restricted managers and TAs to assigned courses; only administrators retain global course access.
 - Scoped the LMS course list by accessible course IDs.
 - Added queue-scope authorization to participant and ETA endpoints.
@@ -83,6 +85,10 @@ Production inspection and repository review identified:
 - Centralized role-aware course navigation in `public/js/lms-core.js`, including grading/analytics capability gates and direct-load breadcrumb repair.
 - Replaced module fake buttons and nested interactions with native accordion buttons, real item anchors, stable delegation, and mobile-size targets.
 - Added authorized announcement edit/delete controls and destructive confirmation.
+- Added full announcement detail actions from the feed and notification bell without removing read entries.
+- Added touch-friendly module-item move controls, duplicate-submission guards, and clean UI rollback/reload on reorder conflicts.
+- Added provider-specific iframe policies, privacy-enhanced YouTube URLs, lazy loading, and persistent external/download fallbacks.
+- Added semantic Light Mode tokens and automated contrast checks for text, links, focus, controls, placeholders, disabled states, and statuses.
 - Normalized the appearance settings launcher with explicit flex centering and icon metrics.
 - Verified explicit theme token sets for Default Dark, Light, Midnight, Graphite, Indigo, and Emerald.
 
@@ -103,7 +109,7 @@ Local static browser verification after changes:
 - Mobile settings control measured `46x46` pixels.
 - Theme switching was exercised for dark, light, and midnight; all six theme definitions and required tokens are covered by the production contract test.
 - The resource viewer and its updated JavaScript loaded successfully from a local PHP server; the unauthenticated request redirected to the login shell as expected.
-- The in-app screenshot capture command timed out, but DOM, computed-style, viewport, and network checks completed.
+- No new in-app browser screenshots were captured in this hardening pass because the browser could not establish its local navigation security handoff. The automated UI contract and contrast checks completed successfully.
 
 Authenticated student/TA/manager/admin workflows could not be exercised locally without OAuth credentials, a test database, and the Python realtime dependencies. Exact deployment smoke tests are in the deployment checklist.
 
@@ -118,23 +124,24 @@ bash tools/check-errors.sh
 node tools/tests/realtime_runtime_test.mjs
 node tools/tests/production_contract_test.mjs
 node tools/tests/course_ui_contract_test.mjs
+node tools/tests/ui_hardening_contract_test.mjs
 php tools/tests/course_authorization_policy_test.php
 php tools/tests/announcement_authorization_test.php
+php tools/tests/resource_embed_policy_test.php
+php tools/tests/sections_reorder_endpoint_test.php
 php tools/tests/drive_storage_test.php
 php tools/tests/drive_storage_integration_test.php  # safe default: skipped
 git diff --check
 ```
 
-All safe PHP tests passed. The real Drive integration test and destructive DB integration test skipped safely unless explicitly enabled:
+All safe PHP tests passed. The real Drive integration test skipped safely unless explicitly enabled:
 
 ```bash
 KAIROS_DRIVE_TESTS=1 php tools/tests/drive_storage_integration_test.php
-KAIROS_DB_TESTS=1 php tools/tests/sections_reorder_endpoint_test.php
 ```
 
 Run the Drive test only with the dedicated test Shared Drive variables in `docs/runbooks/google_drive_storage.md`.
-Run the DB command only against an isolated test database. The current DB test uses legacy LMS table names and may
-require separate modernization before it can validate the current schema.
+The reorder regression test is deterministic and does not connect to a database or mutate schema.
 
 Additional checks:
 
@@ -167,6 +174,5 @@ Vendored Socket.IO SHA-256:
 ## Optional Follow-ups
 
 - Prefer external scripts for new bootstrap behavior; existing inline scripts are restricted by immutable CSP hashes.
-- Replace the legacy `sections_reorder_endpoint_test.php` schema setup with current migrations and transaction-based fixtures.
 - Add an automated browser suite with test OAuth/session fixtures for every role and all six themes.
 - Cache websocket authorization mappings briefly to reduce information-schema queries at high connection volume.

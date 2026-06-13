@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 require_once dirname(__DIR__) . '/lessons/_sanitize.php';
+require_once dirname(__DIR__) . '/resources/_embed.php';
 
 $user = lms_require_roles(['manager','admin']);
 $in = lms_json_input();
@@ -58,14 +59,20 @@ try {
             }
             lms_error('validation_error', 'Valid url is required for file/video/link', 422);
         }
-        $meta = json_encode(['url' => $url], JSON_THROW_ON_ERROR);
+        $embed = lms_external_embed_descriptor($url);
+        $previewUrl = $embed['embed_url'] ?? $url;
+        $meta = json_encode([
+            'url' => $url,
+            'preview_url' => $previewUrl,
+            'embed_provider' => $embed['provider'] ?? null,
+        ], JSON_THROW_ON_ERROR);
         $resourceType = $itemType === 'video' ? 'video' : ($itemType === 'link' ? 'link' : 'file');
         $stmt = $pdo->prepare('INSERT INTO lms_resources (course_id,title,resource_type,drive_preview_url,access_scope,metadata_json,created_by) VALUES (:c,:t,:rt,:url,\'course\',:meta,:u)');
         $stmt->execute([
             ':c' => $courseId,
             ':t' => $title,
             ':rt' => $resourceType,
-            ':url' => $url,
+            ':url' => $previewUrl,
             ':meta' => $meta,
             ':u' => (int)$user['user_id'],
         ]);
