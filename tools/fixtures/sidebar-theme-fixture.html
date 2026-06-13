@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kairos sidebar theme fixture</title>
+  <link rel="stylesheet" href="../../public/css/style.css" />
+  <link rel="stylesheet" href="../../public/css/lms.css" />
+  <link rel="stylesheet" href="../../public/css/kairos-ui.css" />
+</head>
+<body class="k-page-body">
+  <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Main navigation">
+    <a class="k-sidebar__brand" href="#" aria-label="Nixor College home">
+      <div class="k-sidebar__logo"><img src="../../public/images/logo.png" alt="" /></div>
+      <span class="k-sidebar__wordmark">Nixor College</span>
+    </a>
+    <div class="k-sidebar__scroll">
+      <nav class="k-nav-group" aria-label="Global">
+        <a class="k-nav-item is-active" href="#" aria-current="page">
+          <span class="k-nav-item__icon" aria-hidden="true">D</span>
+          <span class="k-nav-item__text">Dashboard</span>
+        </a>
+        <button class="k-nav-item" type="button" disabled>
+          <span class="k-nav-item__icon" aria-hidden="true">R</span>
+          <span class="k-nav-item__text">Rooms</span>
+        </button>
+      </nav>
+      <nav class="k-nav-group" aria-label="Role tools">
+        <div class="k-nav-group__label">Tools</div>
+        <a class="k-nav-item" href="#" data-role-item="ta">
+          <span class="k-nav-item__icon" aria-hidden="true">T</span>
+          <span class="k-nav-item__text">TA Dashboard</span>
+        </a>
+        <a class="k-nav-item" href="#" data-role-item="manager">
+          <span class="k-nav-item__icon" aria-hidden="true">M</span>
+          <span class="k-nav-item__text">Manager</span>
+        </a>
+        <a class="k-nav-item" href="#" data-role-item="admin">
+          <span class="k-nav-item__icon" aria-hidden="true">A</span>
+          <span class="k-nav-item__text">Admin</span>
+        </a>
+      </nav>
+    </div>
+    <div class="k-sidebar__user">
+      <div class="k-sidebar__avatar" aria-hidden="true"></div>
+      <div class="k-sidebar__user-info">
+        <div class="k-sidebar__user-name">Alex Nixor</div>
+        <div class="k-sidebar__user-role" id="fixtureRole">Student</div>
+      </div>
+      <button class="k-sidebar__logout" type="button" aria-label="Collapse navigation">&lt;</button>
+    </div>
+  </aside>
+  <div class="k-layout">
+    <header class="k-topbar">
+      <div class="k-topbar__left">
+        <button class="k-hamburger hidden" id="fixtureMenu" type="button" aria-label="Menu" aria-expanded="true">Menu</button>
+        <strong>Sidebar verification fixture</strong>
+      </div>
+    </header>
+    <main class="k-main">
+      <div class="k-page">
+        <section class="k-card">
+          <div class="k-card__body">
+            <h1>Light mode sidebar QA</h1>
+            <p class="muted">Use role, theme, and drawer query parameters to verify shared shell states.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const role = params.get('role') || 'student';
+    const theme = params.get('theme') || 'light';
+    document.documentElement.dataset.theme = theme;
+    document.getElementById('fixtureRole').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+    document.querySelectorAll('[data-role-item]').forEach((item) => {
+      const allowed = role === 'admin'
+        || (role === 'manager' && item.dataset.roleItem !== 'admin')
+        || (role === 'ta' && item.dataset.roleItem === 'ta');
+      item.classList.toggle('hidden', !allowed);
+    });
+    if (params.get('drawer') === 'open') {
+      document.getElementById('kSidebar').classList.add('is-open');
+      document.body.classList.add('k-shell-drawer-open');
+    }
+  </script>
+</body>
+</html>

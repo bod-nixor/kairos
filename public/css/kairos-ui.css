@@ -34,7 +34,7 @@ body.k-modal-open {
   [tabindex]:not([tabindex="-1"]),
   [contenteditable="true"]
 ):focus-visible {
-  outline: 3px solid var(--focus-ring) !important;
+  outline: 3px solid var(--focus-ring-context, var(--focus-ring)) !important;
   outline-offset: 3px;
 }
 
@@ -124,9 +124,10 @@ body.k-shell-drawer-open .k-shell-overlay {
 
 .k-sidebar {
   width: var(--k-sidebar-width);
+  --focus-ring-context: var(--sidebar-focus-ring);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 26%),
-    var(--sidebar);
+    linear-gradient(180deg, var(--sidebar-sheen), transparent 26%),
+    var(--sidebar-bg);
   box-shadow: 24px 0 48px rgba(11, 18, 37, 0.14);
 }
 
@@ -1551,7 +1552,7 @@ body.k-shell-drawer-open .k-shell-overlay {
   .k-nav-group+.k-nav-group {
     border-left: 0 !important;
     padding-left: 0 !important;
-    border-top: 1px solid var(--k-sidebar-border);
+    border-top: 1px solid var(--sidebar-border);
   }
 
   .k-nav-item {
@@ -1655,7 +1656,7 @@ body.k-shell-drawer-open .k-shell-overlay {
     height: 100vh;
     width: var(--k-drawer-width, 260px);
     flex-direction: column !important;
-    border-right: 1px solid var(--k-sidebar-border);
+    border-right: 1px solid var(--sidebar-border);
     border-top: 0 !important;
     z-index: 1200;
     transform: translateX(-100%);
