@@ -141,9 +141,22 @@
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;
 
-    // Fix all Drive iframe srcs within rendered lesson content to use /preview
+    // Reapply canonical provider URLs and iframe permissions after rendering.
     document.querySelectorAll('#lessonContent iframe[src], #lessonEditor iframe[src]').forEach((iframe) => {
-      iframe.src = LMS.toDrivePreviewUrl(iframe.src);
+      const descriptor = LMS.getEmbedDescriptor(iframe.src, { title: iframe.title || 'Lesson embed' });
+      if (!descriptor) {
+        iframe.remove();
+        return;
+      }
+      iframe.src = descriptor.embedUrl;
+      iframe.title = descriptor.title;
+      iframe.loading = 'lazy';
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+      iframe.removeAttribute('sandbox');
+      iframe.removeAttribute('allow');
+      iframe.removeAttribute('allowfullscreen');
+      if (descriptor.allow) iframe.allow = descriptor.allow;
+      if (descriptor.allowFullscreen) iframe.setAttribute('allowfullscreen', '');
     });
 
     const isPublished = Number(lesson.published_flag || 0) === 1;
@@ -291,7 +304,7 @@
       if (embedUrl) {
         const safeUrl = escAttr(embedUrl);
         const fallback = escAttr(url);
-        const snippet = `<div class="k-embed-16x9"><iframe src="${safeUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab</a></p>`;
+        const snippet = `<div class="k-embed-16x9"><iframe src="${safeUrl}" title="${escAttr(title)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p><a href="${fallback}" target="_blank" rel="noopener noreferrer">Open video in new tab</a></p>`;
         document.execCommand('insertHTML', false, snippet);
       } else {
         const viewerHref = `./resource-viewer.html?course_id=${encodeURIComponent(courseId)}&resource_id=${encodeURIComponent(resourceId)}`;

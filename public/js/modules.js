@@ -11,6 +11,8 @@
     let isAdmin = false;
     const expandedModules = new Set();
     let modulesData = []; // cached for reorder operations
+    let moduleReorderPending = false;
+    const itemReordersPending = new Set();
 
     const TYPE_ICONS = { lesson: '📝', assignment: '📤', quiz: '🧪', file: '📄', video: '🎬', link: '🔗', resource: '📎', page: '📘', text: '📝' };
     const TYPE_ICON_CLASS = { lesson: 'lesson', assignment: 'assign', quiz: 'quiz', file: 'file', video: 'video', link: 'link', resource: 'resource', page: 'lesson', text: 'lesson' };
@@ -227,7 +229,7 @@
     /* =========================================================
        Render: Module Item Row
        ========================================================= */
-    function renderModuleItem(item) {
+    function renderModuleItem(item, itemIndex, itemCount) {
         const typeKey = String(item.type || item.item_type || '').toLowerCase();
         const iconClass = `k-module-item__icon--${LMS.escHtml(TYPE_ICON_CLASS[typeKey] || 'default')}`;
         const icon = TYPE_ICONS[typeKey] || '📌';
@@ -245,6 +247,11 @@
         if (isMandatory) statusBadges.push('<span class="k-badge k-badge--mandatory" title="Mandatory">Required</span>');
 
         const mid = parseInt(item.module_item_id || 0, 10);
+        const reorderBtns = isAdmin ? `
+          <span class="k-item-reorder-controls" aria-label="Reorder item">
+            <button class="k-btn-icon" type="button" title="Move item up" aria-label="Move item up" data-action="move-item-up" data-mid="${mid}"${itemIndex === 0 ? ' disabled' : ''}>↑</button>
+            <button class="k-btn-icon" type="button" title="Move item down" aria-label="Move item down" data-action="move-item-down" data-mid="${mid}"${itemIndex === itemCount - 1 ? ' disabled' : ''}>↓</button>
+          </span>` : '';
         const adminBtns = isAdmin ? `
           <span class="k-module-item__admin-actions">
             <button class="k-btn-icon" title="Edit settings" aria-label="Edit settings" data-action="edit-item-settings" data-mid="${mid}">
@@ -285,6 +292,7 @@
          class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}">
         ${dragHandle}
         ${itemLink}
+        ${reorderBtns}
         ${adminBtns}
       </div>`;
     }
@@ -319,7 +327,7 @@
         const hdrId = `mod-hdr-${moduleId}`;
         const items = Array.isArray(mod.items) ? mod.items : [];
         const itemsHtml = items.length
-            ? items.map(renderModuleItem).join('')
+            ? items.map((item, index) => renderModuleItem(item, index, items.length)).join('')
             : '<div class="k-empty k-empty-inline"><p class="k-empty__desc">No items in this module.</p></div>';
 
         const dragHandle = isAdmin ? `<span class="k-drag-handle k-drag-handle--module" draggable="true" title="Drag to reorder module" aria-label="Drag to reorder module">⋮⋮</span>` : '';
@@ -341,10 +349,123 @@
        ========================================================= */
     let draggedModuleEl = null;
 
+    function orderedIds(container, selector, dataKey) {
+        return Array.from(container.querySelectorAll(selector))
+            .map(el => parseInt(el.dataset[dataKey] || '0', 10))
+            .filter(id => id > 0);
+    }
+
+    function restoreElementOrder(container, selector, dataKey, ids) {
+        const elements = new Map(
+            Array.from(container.querySelectorAll(selector))
+                .map(el => [parseInt(el.dataset[dataKey] || '0', 10), el])
+        );
+        ids.forEach(id => {
+            const element = elements.get(id);
+            if (element) container.appendChild(element);
+        });
+    }
+
+    function setItemReorderBusy(itemsContainer, busy) {
+        itemsContainer.setAttribute('aria-busy', busy ? 'true' : 'false');
+        itemsContainer.querySelectorAll('[data-action="move-item-up"], [data-action="move-item-down"]').forEach(button => {
+            button.disabled = busy;
+        });
+        itemsContainer.querySelectorAll('.k-drag-handle--item').forEach(handle => {
+            handle.setAttribute('draggable', busy ? 'false' : 'true');
+            handle.setAttribute('aria-disabled', busy ? 'true' : 'false');
+        });
+    }
+
+    function syncItemOrder(sectionId, itemIds) {
+        const module = modulesData.find(entry => parseInt(entry.section_id ?? entry.id ?? 0, 10) === sectionId);
+        if (!module || !Array.isArray(module.items)) return;
+        const byId = new Map(module.items.map(item => [parseInt(item.module_item_id || 0, 10), item]));
+        module.items = itemIds.map((id, index) => {
+            const item = byId.get(id);
+            if (item) item.position = index + 1;
+            return item;
+        }).filter(Boolean);
+    }
+
+    async function persistModuleOrder(container, originalOrder) {
+        if (moduleReorderPending) {
+            restoreElementOrder(container, '.k-module[data-module-id]', 'moduleId', originalOrder);
+            return false;
+        }
+
+        const newOrder = orderedIds(container, '.k-module[data-module-id]', 'moduleId');
+        if (newOrder.join(',') === originalOrder.join(',')) return true;
+
+        moduleReorderPending = true;
+        container.setAttribute('aria-busy', 'true');
+        try {
+            const res = await LMS.api('POST', './api/lms/sections/reorder.php', {
+                course_id: COURSE_ID_INT,
+                section_ids: newOrder,
+                expected_section_ids: originalOrder,
+            });
+            if (!res.ok) {
+                restoreElementOrder(container, '.k-module[data-module-id]', 'moduleId', originalOrder);
+                if (res.data?.error?.code === 'reorder_conflict') await loadPage();
+                LMS.toast(res.data?.error?.message || 'Reorder failed', 'error');
+                return false;
+            }
+            const byId = new Map(modulesData.map(module => [parseInt(module.section_id ?? module.id ?? 0, 10), module]));
+            modulesData = newOrder.map((id, index) => {
+                const module = byId.get(id);
+                if (module) module.position = index + 1;
+                return module;
+            }).filter(Boolean);
+            LMS.toast('Modules reordered', 'success');
+            return true;
+        } finally {
+            moduleReorderPending = false;
+            container.setAttribute('aria-busy', 'false');
+        }
+    }
+
+    async function persistItemOrder(itemsContainer, sectionId, originalOrder) {
+        if (itemReordersPending.has(sectionId)) {
+            restoreElementOrder(itemsContainer, '.k-module-item[data-module-item-id]', 'moduleItemId', originalOrder);
+            return false;
+        }
+
+        const newOrder = orderedIds(itemsContainer, '.k-module-item[data-module-item-id]', 'moduleItemId');
+        if (newOrder.join(',') === originalOrder.join(',')) return true;
+
+        itemReordersPending.add(sectionId);
+        setItemReorderBusy(itemsContainer, true);
+        try {
+            const res = await LMS.api('POST', './api/lms/module_items/reorder.php', {
+                course_id: COURSE_ID_INT,
+                section_id: sectionId,
+                module_item_ids: newOrder,
+                expected_module_item_ids: originalOrder,
+            });
+            if (!res.ok) {
+                restoreElementOrder(itemsContainer, '.k-module-item[data-module-item-id]', 'moduleItemId', originalOrder);
+                if (res.data?.error?.code === 'reorder_conflict') await loadPage();
+                LMS.toast(res.data?.error?.message || 'Reorder failed', 'error');
+                return false;
+            }
+            syncItemOrder(sectionId, newOrder);
+            LMS.toast('Items reordered', 'success');
+            return true;
+        } finally {
+            itemReordersPending.delete(sectionId);
+            if (document.body.contains(itemsContainer)) setItemReorderBusy(itemsContainer, false);
+        }
+    }
+
     function setupModuleDragDrop(container) {
         if (!isAdmin) return;
         container.querySelectorAll('.k-drag-handle--module').forEach(handle => {
             handle.addEventListener('dragstart', (e) => {
+                if (moduleReorderPending) {
+                    e.preventDefault();
+                    return;
+                }
                 draggedModuleEl = handle.closest('.k-module');
                 if (!draggedModuleEl) return;
                 draggedModuleEl.classList.add('k-dragging');
@@ -378,7 +499,8 @@
             moduleEl.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 moduleEl.classList.remove('k-drag-over');
-                if (!draggedModuleEl || draggedModuleEl === moduleEl) return;
+                if (moduleReorderPending || !draggedModuleEl || draggedModuleEl === moduleEl) return;
+                const originalOrder = orderedIds(container, '.k-module[data-module-id]', 'moduleId');
                 // Reorder in DOM
                 const rect = moduleEl.getBoundingClientRect();
                 const midY = rect.top + rect.height / 2;
@@ -388,20 +510,7 @@
                     container.insertBefore(draggedModuleEl, moduleEl.nextSibling);
                 }
                 draggedModuleEl.classList.remove('k-dragging');
-                // Persist the new order
-                const newOrder = Array.from(container.querySelectorAll('.k-module[data-module-id]'))
-                    .map(el => parseInt(el.dataset.moduleId, 10))
-                    .filter(id => id > 0);
-                const res = await LMS.api('POST', './api/lms/sections/reorder.php', {
-                    course_id: COURSE_ID_INT,
-                    section_ids: newOrder,
-                });
-                if (res.ok) {
-                    LMS.toast('Modules reordered', 'success');
-                } else {
-                    LMS.toast(res.data?.error?.message || 'Reorder failed', 'error');
-                    await loadPage(); // revert
-                }
+                await persistModuleOrder(container, originalOrder);
             });
         });
     }
@@ -417,6 +526,12 @@
             handle.addEventListener('dragstart', (e) => {
                 draggedItemEl = handle.closest('.k-module-item');
                 if (!draggedItemEl) return;
+                const sectionId = parseInt(draggedItemEl.closest('.k-module[data-module-id]')?.dataset.moduleId || '0', 10);
+                if (itemReordersPending.has(sectionId)) {
+                    draggedItemEl = null;
+                    e.preventDefault();
+                    return;
+                }
                 draggedItemEl.classList.add('k-dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', draggedItemEl.dataset.moduleItemId || '');
@@ -450,7 +565,7 @@
             itemsContainer.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 itemsContainer.querySelectorAll('.k-module-item').forEach(m => m.classList.remove('k-drag-over'));
-                if (!draggedItemEl) return;
+                if (!draggedItemEl || itemReordersPending.has(sectionId)) return;
 
                 const originalSectionEl = draggedItemEl.closest('.k-module[data-module-id]');
                 const originalSectionId = parseInt(originalSectionEl?.dataset.moduleId || '0', 10);
@@ -461,6 +576,7 @@
                     return;
                 }
 
+                const originalOrder = orderedIds(itemsContainer, '.k-module-item[data-module-item-id]', 'moduleItemId');
                 const afterEl = getDragAfterElement(itemsContainer, e.clientY);
                 if (afterEl) {
                     itemsContainer.insertBefore(draggedItemEl, afterEl);
@@ -468,22 +584,8 @@
                     itemsContainer.appendChild(draggedItemEl);
                 }
                 draggedItemEl.classList.remove('k-dragging');
-
-                // Persist
-                const newOrder = Array.from(itemsContainer.querySelectorAll('.k-module-item[data-module-item-id]'))
-                    .map(el => parseInt(el.dataset.moduleItemId, 10))
-                    .filter(id => id > 0);
-                const res = await LMS.api('POST', './api/lms/module_items/reorder.php', {
-                    course_id: COURSE_ID_INT,
-                    section_id: sectionId,
-                    module_item_ids: newOrder,
-                });
-                if (res.ok) {
-                    LMS.toast('Items reordered', 'success');
-                } else {
-                    LMS.toast(res.data?.error?.message || 'Reorder failed', 'error');
-                    await loadPage();
-                }
+                await persistItemOrder(itemsContainer, sectionId, originalOrder);
+                renderModules(modulesData);
             });
         });
     }
@@ -721,7 +823,7 @@
         // Setup singleton delegated handlers
         const container = $('moduleList');
         if (container) {
-            container.addEventListener('click', (e) => {
+            container.addEventListener('click', async (e) => {
                 const action = e.target.closest('[data-action]');
                 if (action) {
                     const actionName = action.dataset.action || '';
@@ -747,6 +849,22 @@
                     if (actionName === 'open-add-item') openCreateModal('module_item', action.dataset.moduleId || '');
                     else if (actionName === 'edit-module' && mod) openEditModuleModal(mod);
                     else if (actionName === 'delete-module' && mod) confirmDeleteModule(mod);
+                    else if ((actionName === 'move-item-up' || actionName === 'move-item-down') && item) {
+                        const itemEl = action.closest('.k-module-item[data-module-item-id]');
+                        const itemsContainer = itemEl?.closest('.k-module__items');
+                        const sectionId = parseInt(itemEl?.closest('.k-module[data-module-id]')?.dataset.moduleId || '0', 10);
+                        if (!itemEl || !itemsContainer || sectionId <= 0 || itemReordersPending.has(sectionId)) return;
+                        const originalOrder = orderedIds(itemsContainer, '.k-module-item[data-module-item-id]', 'moduleItemId');
+                        if (actionName === 'move-item-up' && itemEl.previousElementSibling?.classList.contains('k-module-item')) {
+                            itemsContainer.insertBefore(itemEl, itemEl.previousElementSibling);
+                        } else if (actionName === 'move-item-down' && itemEl.nextElementSibling?.classList.contains('k-module-item')) {
+                            itemsContainer.insertBefore(itemEl.nextElementSibling, itemEl);
+                        } else {
+                            return;
+                        }
+                        await persistItemOrder(itemsContainer, sectionId, originalOrder);
+                        renderModules(modulesData);
+                    }
                     else if (actionName === 'edit-item-settings' && item) openEditItemModal(item);
                     else if (actionName === 'delete-item' && item) confirmDeleteItem(item);
                     else if (actionName === 'edit-item') navigateToHref(action.dataset.href || '');

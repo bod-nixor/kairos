@@ -662,7 +662,7 @@
       const parsed = new URL(inputUrl);
       const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
       let videoId = '';
-      if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
         if (parsed.pathname === '/watch') videoId = parsed.searchParams.get('v') || '';
         else if (parsed.pathname.startsWith('/embed/')) videoId = parsed.pathname.split('/')[2] || '';
         else if (parsed.pathname.startsWith('/shorts/')) videoId = parsed.pathname.split('/')[2] || '';
@@ -671,7 +671,7 @@
       }
       if (!videoId) return null;
       const start = parseStartSeconds(parsed.searchParams.get('t') || parsed.searchParams.get('start') || '');
-      const embed = new URL(`https://www.youtube.com/embed/${videoId}`);
+      const embed = new URL(`https://www.youtube-nocookie.com/embed/${videoId}`);
       if (start > 0) embed.searchParams.set('start', String(start));
       return embed.toString();
     } catch (_) {
@@ -872,11 +872,116 @@
       const parsed = new URL(String(rawUrl));
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
       const pathname = String(parsed.pathname || '').toLowerCase();
-      if (!/\.pptx?$/.test(pathname)) return '';
+      if (!/\.(?:docx?|xlsx?|pptx?)$/.test(pathname)) return '';
       return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
     } catch (_) {
       return '';
     }
+  }
+
+  function toVimeoEmbedUrl(inputUrl) {
+    if (!inputUrl) return '';
+    try {
+      const parsed = new URL(String(inputUrl));
+      const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+      if (host !== 'vimeo.com' && host !== 'player.vimeo.com') return '';
+      const match = parsed.pathname.match(/\/(?:video\/)?([0-9]+)/);
+      return match ? `https://player.vimeo.com/video/${match[1]}` : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * Return a provider-specific iframe policy. Unsupported URLs return null and
+   * must be presented as external links instead of generic iframes.
+   */
+  function getEmbedDescriptor(rawUrl, options = {}) {
+    if (!rawUrl) return null;
+    let parsed;
+    try {
+      parsed = new URL(String(rawUrl), options.baseUrl || global.location?.href);
+    } catch (_) {
+      return null;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+
+    const origin = options.origin || global.location?.origin || '';
+    if (options.sameOriginPdf && origin && parsed.origin === origin) {
+      return {
+        provider: 'kairos_pdf',
+        embedUrl: parsed.toString(),
+        title: options.title || 'Kairos PDF preview',
+        sandbox: 'allow-same-origin',
+        allow: '',
+        allowFullscreen: false,
+      };
+    }
+    if (parsed.protocol !== 'https:') return null;
+
+    const youtubeUrl = toYoutubeEmbedUrl(parsed.toString());
+    if (youtubeUrl) {
+      return {
+        provider: 'youtube',
+        embedUrl: youtubeUrl,
+        title: options.title || 'YouTube video',
+        sandbox: '',
+        allow: 'encrypted-media; picture-in-picture; fullscreen',
+        allowFullscreen: true,
+      };
+    }
+
+    const vimeoUrl = toVimeoEmbedUrl(parsed.toString());
+    if (vimeoUrl) {
+      return {
+        provider: 'vimeo',
+        embedUrl: vimeoUrl,
+        title: options.title || 'Vimeo video',
+        sandbox: '',
+        allow: 'picture-in-picture; fullscreen',
+        allowFullscreen: true,
+      };
+    }
+
+    const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+    if (host === 'docs.google.com' || host === 'drive.google.com') {
+      const previewUrl = toDrivePreviewUrl(parsed.toString());
+      if (previewUrl !== parsed.toString() || /\/(?:preview|embed)(?:$|\?)/.test(parsed.pathname + parsed.search)) {
+        return {
+          provider: host === 'drive.google.com' ? 'google_drive' : 'google_workspace',
+          embedUrl: previewUrl,
+          title: options.title || 'Google document preview',
+          sandbox: '',
+          allow: '',
+          allowFullscreen: false,
+        };
+      }
+    }
+
+    if (host === 'view.officeapps.live.com' && parsed.pathname === '/op/embed.aspx') {
+      return {
+        provider: 'office',
+        embedUrl: parsed.toString(),
+        title: options.title || 'Microsoft Office preview',
+        sandbox: '',
+        allow: '',
+        allowFullscreen: false,
+      };
+    }
+
+    const officeUrl = toOfficeViewerUrl(parsed.toString());
+    if (officeUrl) {
+      return {
+        provider: 'office',
+        embedUrl: officeUrl,
+        title: options.title || 'Microsoft Office preview',
+        sandbox: '',
+        allow: '',
+        allowFullscreen: false,
+      };
+    }
+
+    return null;
   }
 
   /* ── Export ──────────────────────────────────────────────── */
@@ -908,10 +1013,12 @@
     setProgressRing,
     parseStartSeconds,
     toYoutubeEmbedUrl,
+    toVimeoEmbedUrl,
     extractDriveFileId,
     toDrivePreviewUrl,
     toDriveDownloadUrl,
     toOfficeViewerUrl,
+    getEmbedDescriptor,
     markdownToHtml,
     htmlToMarkdown,
     sanitizeForRender,

@@ -11,6 +11,9 @@ if ($courseId <= 0) {
 }
 
 lms_course_access($user, $courseId);
+if (count($eventIds) > 100) {
+    lms_error('validation_error', 'Too many event IDs', 422);
+}
 $pdo = db();
 $st = $pdo->prepare('INSERT INTO lms_notification_reads (user_id, course_id, event_id) VALUES (:uid, :cid, :event_id) ON DUPLICATE KEY UPDATE seen_at = CURRENT_TIMESTAMP');
 foreach ($eventIds as $eventId) {
@@ -20,6 +23,9 @@ foreach ($eventIds as $eventId) {
     }
     if (strlen($eventId) > 128) {
         lms_error('validation_error', 'event_id length must be <= 128 characters', 422);
+    }
+    if (preg_match('/^[A-Za-z0-9:_.+\- T]+$/D', $eventId) !== 1) {
+        lms_error('validation_error', 'event_id contains unsupported characters', 422);
     }
     $st->execute([':uid' => (int)$user['user_id'], ':cid' => $courseId, ':event_id' => $eventId]);
 }

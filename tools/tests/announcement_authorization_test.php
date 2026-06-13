@@ -24,11 +24,33 @@ function mutate_announcement(array $actor, int $requestedCourseId, int $announce
     return 200;
 }
 
+function view_announcement(array $actor, int $courseId, int $announcementId, array $state): int
+{
+    $row = $state['announcements'][$announcementId] ?? null;
+    if (!$row || $row['deleted_at'] !== null || (int)$row['course_id'] !== $courseId) {
+        return 404;
+    }
+    $role = strtolower((string)$actor['role']);
+    $hasCourseAccess = $role === 'admin'
+        || in_array($courseId, $state['course_access'][$actor['user_id']] ?? [], true);
+    if (!$hasCourseAccess) {
+        return 403;
+    }
+    $canManage = $role === 'admin'
+        || ($role === 'manager' && in_array($courseId, $state['manager_courses'][$actor['user_id']] ?? [], true));
+    if ($row['status'] !== 'published' && !$canManage) {
+        return 404;
+    }
+    return 200;
+}
+
 $base = [
     'manager_courses' => [30 => [101]],
+    'course_access' => [10 => [101], 20 => [101], 30 => [101]],
     'announcements' => [
-        1 => ['course_id' => 101, 'title' => 'Original', 'deleted_at' => null],
-        2 => ['course_id' => 202, 'title' => 'Foreign', 'deleted_at' => null],
+        1 => ['course_id' => 101, 'title' => 'Original', 'status' => 'published', 'deleted_at' => null],
+        2 => ['course_id' => 202, 'title' => 'Foreign', 'status' => 'published', 'deleted_at' => null],
+        3 => ['course_id' => 101, 'title' => 'Draft', 'status' => 'draft', 'deleted_at' => null],
     ],
 ];
 $cases = [
@@ -38,6 +60,16 @@ $cases = [
     [['user_id' => 30, 'role' => 'manager'], 101, 2, 'update', 404],
     [['user_id' => 30, 'role' => 'manager'], 101, 1, 'update', 200],
     [['user_id' => 40, 'role' => 'admin'], 202, 2, 'delete', 200],
+];
+
+$viewCases = [
+    [['user_id' => 10, 'role' => 'student'], 101, 1, 200],
+    [['user_id' => 20, 'role' => 'ta'], 101, 1, 200],
+    [['user_id' => 10, 'role' => 'student'], 101, 3, 404],
+    [['user_id' => 20, 'role' => 'ta'], 101, 3, 404],
+    [['user_id' => 30, 'role' => 'manager'], 101, 3, 200],
+    [['user_id' => 10, 'role' => 'student'], 202, 2, 403],
+    [['user_id' => 40, 'role' => 'admin'], 202, 2, 200],
 ];
 
 $failed = [];
@@ -52,6 +84,12 @@ foreach ($cases as $index => [$actor, $courseId, $announcementId, $action, $expe
     }
     if ($actual === 200 && $action === 'delete' && $state['announcements'][$announcementId]['deleted_at'] === null) {
         $failed[] = "case {$index} did not soft delete the record";
+    }
+}
+foreach ($viewCases as $index => [$actor, $courseId, $announcementId, $expected]) {
+    $actual = view_announcement($actor, $courseId, $announcementId, $base);
+    if ($actual !== $expected) {
+        $failed[] = "view case {$index} expected {$expected}, got {$actual}";
     }
 }
 
@@ -84,6 +122,9 @@ if (!str_contains($read, 'announcement_id IN')) {
 if (!str_contains($read, 'LMS_MAX_ANNOUNCEMENT_READ_IDS') || !str_contains($read, "lms_error('validation_error', 'Too many announcement IDs'")) {
     $failed[] = 'announcement read tracking must reject oversized ID batches';
 }
+if (str_contains($read, "array_map('intval', \$ids)")) {
+    $failed[] = 'announcement read tracking must not coerce malformed IDs with intval';
+}
 
 $update = (string)file_get_contents("{$root}/public/api/lms/announcements/update.php");
 $rowGuard = strpos($update, '$stmt->rowCount() !== 1');
@@ -93,6 +134,28 @@ if ($rowGuard === false || $audit === false || $rowGuard > $audit) {
 }
 if (!str_contains($update, 'No announcement changes supplied')) {
     $failed[] = 'announcement updates must reject no-op writes before starting side effects';
+}
+
+$detail = (string)file_get_contents("{$root}/public/api/lms/announcements/detail.php");
+foreach (['a.announcement_id = :announcement_id', 'a.course_id = :course_id', "a.status = 'published'", '$canManage', 'lms_announcement_audit'] as $needle) {
+    if (!str_contains($detail, $needle)) {
+        $failed[] = "announcement detail endpoint is missing {$needle}";
+    }
+}
+
+$helpers = (string)file_get_contents("{$root}/public/api/lms/announcements/_helpers.php");
+if (!str_contains($helpers, "'audience' => \$visibleToCourse ? 'course' : 'course_staff'")) {
+    $failed[] = 'announcement events must declare course versus course_staff audience';
+}
+if (!str_contains($helpers, "if (\$status === 'published')")) {
+    $failed[] = 'announcement events must omit titles for drafts';
+}
+
+$courseJs = (string)file_get_contents("{$root}/public/js/course.js");
+foreach (['openAnnouncementDetail', 'View full announcement', 'announcements_read.php', 'k-notification-item--unread', 'Announcement unavailable'] as $needle) {
+    if (!str_contains($courseJs, $needle)) {
+        $failed[] = "course announcement UI is missing {$needle}";
+    }
 }
 
 if ($failed) {

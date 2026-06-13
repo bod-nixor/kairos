@@ -108,7 +108,7 @@
 
           <div class="k-resource-viewer hidden" id="resourceViewer">
             <div class="k-resource-frame hidden" id="iframeWrap">
-              <iframe id="resourceIframe" title="Resource viewer" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" allowfullscreen></iframe>
+              <iframe id="resourceIframe" title="Resource viewer" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
             </div>
 
             <div class="k-resource-video-frame hidden" id="videoWrap">
@@ -137,6 +137,11 @@
                 <p class="k-empty__desc">This file type cannot be previewed in the browser.</p>
                 <a href="#" id="downloadFallbackBtn" class="btn btn-primary">Open Resource</a>
               </div>
+            </div>
+
+            <div class="k-resource-preview-fallback hidden" id="previewFallback">
+              <span>Preview unavailable or incomplete?</span>
+              <a href="#" id="previewFallbackLink" class="btn btn-ghost btn-sm">Open original resource</a>
             </div>
           </div>
 

@@ -34,8 +34,27 @@ body.k-modal-open {
   [tabindex]:not([tabindex="-1"]),
   [contenteditable="true"]
 ):focus-visible {
-  outline: 3px solid var(--primary) !important;
+  outline: 3px solid var(--focus-ring) !important;
   outline-offset: 3px;
+}
+
+:where(.k-input, .k-select, .k-textarea, .k-form-field input, .k-form-field select, .k-form-field textarea) {
+  border-color: var(--control-border);
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+:where(.k-input, .k-textarea, .k-form-field input, .k-form-field textarea)::placeholder {
+  color: var(--placeholder);
+  opacity: 1;
+}
+
+:where(.k-input, .k-select, .k-textarea, .k-form-field input, .k-form-field select, .k-form-field textarea):disabled {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .k-realtime-status {
@@ -712,6 +731,25 @@ body.k-shell-drawer-open .k-shell-overlay {
   background: #000;
 }
 
+.k-resource-preview-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .k-resource-preview-fallback {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .k-resource-text {
   min-height: 400px;
 }
@@ -1091,7 +1129,7 @@ body.k-shell-drawer-open .k-shell-overlay {
 }
 
 .k-text-link {
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
 }
 

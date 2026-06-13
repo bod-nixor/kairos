@@ -1,44 +1,27 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__) . '/resources/_embed.php';
 
 function lms_sanitize_iframe(DOMElement $node): bool
 {
     $src = trim((string)$node->getAttribute('src'));
-    if ($src === '' || !preg_match('/^https:\/\//i', $src)) {
+    $descriptor = lms_external_embed_descriptor($src);
+    if ($descriptor === null) {
         return false;
     }
 
-    $parts = parse_url($src);
-    $host = strtolower((string)($parts['host'] ?? ''));
-    $allowedHosts = [
-        'www.youtube.com',
-        'youtube.com',
-        'youtu.be',
-        'player.vimeo.com',
-        'vimeo.com',
-        'docs.google.com',
-        'drive.google.com',
-    ];
-
-    if ($host === '' || !in_array($host, $allowedHosts, true)) {
-        return false;
+    $node->setAttribute('src', $descriptor['embed_url']);
+    $node->setAttribute('title', $descriptor['title']);
+    $node->setAttribute('loading', 'lazy');
+    $node->setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    $node->removeAttribute('sandbox');
+    if ($descriptor['allow'] !== '') {
+        $node->setAttribute('allow', $descriptor['allow']);
+        $node->setAttribute('allowfullscreen', '');
+    } else {
+        $node->removeAttribute('allow');
+        $node->removeAttribute('allowfullscreen');
     }
-
-    $safeAllow = ['autoplay', 'encrypted-media', 'fullscreen', 'picture-in-picture'];
-    $allowValue = trim((string)$node->getAttribute('allow'));
-    $requested = array_filter(array_map('trim', explode(';', strtolower($allowValue))));
-    $filtered = [];
-    foreach ($requested as $token) {
-        if (in_array($token, $safeAllow, true)) {
-            $filtered[] = $token;
-        }
-    }
-    if (!in_array('encrypted-media', $filtered, true)) {
-        $filtered[] = 'encrypted-media';
-    }
-
-    $node->setAttribute('allow', implode('; ', array_values(array_unique($filtered))));
-    $node->setAttribute('referrerpolicy', 'no-referrer');
     if (!$node->hasAttribute('width')) {
         $node->setAttribute('width', '640');
     }
@@ -69,7 +52,7 @@ function lms_sanitize_lesson_html(string $html): string
     ];
     $allowedAttrs = [
         'a' => ['href', 'target', 'rel'],
-        'iframe' => ['src', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder'],
+        'iframe' => ['src', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'title', 'loading', 'referrerpolicy'],
         'span' => ['class'],
     ];
 

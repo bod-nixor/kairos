@@ -44,7 +44,7 @@ try {
         $announcementId,
         $courseId,
         'announcement.created',
-        ['title' => $values['title'], 'status' => $values['status']]
+        lms_announcement_event_delta($values)
     );
     lms_emit_event($pdo, 'announcement.created', $event);
     $pdo->commit();

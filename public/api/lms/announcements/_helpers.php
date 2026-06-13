@@ -81,3 +81,17 @@ function lms_announcement_event(
         'course_id' => $courseId,
     ], $delta);
 }
+
+function lms_announcement_event_delta(array $values, ?string $previousStatus = null): array
+{
+    $status = (string)($values['status'] ?? 'draft');
+    $visibleToCourse = $status === 'published' || $previousStatus === 'published';
+    $delta = [
+        'status' => $status,
+        'audience' => $visibleToCourse ? 'course' : 'course_staff',
+    ];
+    if ($status === 'published') {
+        $delta['title'] = (string)($values['title'] ?? '');
+    }
+    return $delta;
+}

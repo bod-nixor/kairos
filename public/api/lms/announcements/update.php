@@ -64,7 +64,7 @@ try {
         $announcementId,
         $courseId,
         'announcement.updated',
-        ['title' => $values['title'], 'status' => $values['status']]
+        lms_announcement_event_delta($values, (string)$existing['status'])
     );
     lms_emit_event($pdo, 'announcement.updated', $event);
     $pdo->commit();

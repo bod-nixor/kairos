@@ -101,6 +101,14 @@ Activation sequence:
 - Downloads accept only a local `resource_id`. Kairos resolves the stored Drive ID server-side, applies course/submission RBAC, rechecks metadata and SHA-256, and streams bytes with private no-store headers.
 - HTML, SVG, JavaScript, XML, and other active types are never served inline.
 
+## Browser Preview Policy
+
+Managed PDFs preview only through the authenticated same-origin Kairos inline endpoint. The iframe uses
+`sandbox="allow-same-origin"` without script permission and always provides the authenticated download fallback.
+External Google Drive/Docs/Slides links use their canonical `/preview` or `/embed` forms and retain an original-link
+fallback. Office documents use the Microsoft Office viewer only when the source URL is a direct HTTPS document URL.
+The complete provider matrix is in `docs/ui/resource_embed_policy.md`.
+
 ## Smoke Tests
 
 Use test courses and test accounts only.

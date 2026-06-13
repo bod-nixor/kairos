@@ -1,37 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
-
-function lms_drive_preview_url_from_url(string $url): string
-{
-    if (!preg_match('/^https?:\/\//i', $url)) {
-        return $url;
-    }
-
-    $parts = parse_url($url);
-    if (!is_array($parts)) {
-        return $url;
-    }
-
-    $host = strtolower((string)($parts['host'] ?? ''));
-    $host = preg_replace('/^www\./', '', $host);
-    if ($host !== 'drive.google.com') {
-        return $url;
-    }
-
-    $path = (string)($parts['path'] ?? '');
-    if (preg_match('#/file/d/([^/]+)#', $path, $m)) {
-        return 'https://drive.google.com/file/d/' . $m[1] . '/preview';
-    }
-
-    parse_str((string)($parts['query'] ?? ''), $query);
-    $fileId = (string)($query['id'] ?? '');
-    if ($fileId !== '') {
-        return 'https://drive.google.com/file/d/' . rawurlencode($fileId) . '/preview';
-    }
-
-    return $url;
-}
+require_once __DIR__ . '/_embed.php';
 
 $user = lms_require_roles(['manager','admin']);
 $in = lms_json_input();
@@ -63,9 +33,10 @@ if (!isset($typeMap[$type])) {
 
 lms_course_access($user, $courseId);
 
-$previewUrl = $type === 'pdf' ? lms_drive_preview_url_from_url($url) : $url;
+$embed = lms_external_embed_descriptor($url);
+$previewUrl = $embed['embed_url'] ?? $url;
 $shareWarning = null;
-if ($type === 'pdf' && str_contains($url, 'drive.google.com') && !str_contains($previewUrl, '/preview')) {
+if ($type === 'pdf' && str_contains($url, 'drive.google.com') && ($embed['provider'] ?? '') !== 'google_drive') {
     $shareWarning = 'Drive link could not be normalized to preview URL. Ensure sharing settings allow viewers.';
 }
 
@@ -76,7 +47,12 @@ $stmt->execute([
     ':title' => $title,
     ':resource_type' => $typeMap[$type],
     ':url' => $previewUrl,
-    ':metadata' => json_encode(['url' => $url, 'preview_url' => $previewUrl, 'share_warning' => $shareWarning], JSON_THROW_ON_ERROR),
+    ':metadata' => json_encode([
+        'url' => $url,
+        'preview_url' => $previewUrl,
+        'embed_provider' => $embed['provider'] ?? null,
+        'share_warning' => $shareWarning,
+    ], JSON_THROW_ON_ERROR),
     ':created_by' => (int)$user['user_id'],
 ]);
 

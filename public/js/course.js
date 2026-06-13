@@ -16,25 +16,32 @@
     const queuedNotifications = [];
     const announcementsById = new Map();
     let canManageAnnouncements = false;
+    let currentCourseLabel = 'Course';
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
 
     function pushNotification(entry) {
-        if (!entry || !entry.message) return;
+        if (!entry || !(entry.title || entry.message)) return;
         if (!seenNotificationsHydrated) {
             queuedNotifications.push(entry);
             return;
         }
         const eventId = String(entry.event_id || `${entry.type || 'event'}:${entry.created_at || Date.now()}`);
-        if (notifications.some(n => n.event_id === eventId) || seenNotificationIds.has(eventId)) return;
-        notifications.unshift({
+        const normalized = {
             event_id: eventId,
             type: entry.type || 'update',
-            message: entry.message,
+            announcement_id: Number(entry.announcement_id || 0),
+            title: entry.title || entry.message,
+            excerpt: entry.excerpt || '',
+            course_name: entry.course_name || currentCourseLabel,
             created_at: entry.created_at || new Date().toISOString(),
-        });
+            read: entry.read === true || seenNotificationIds.has(eventId),
+        };
+        const existingIndex = notifications.findIndex(n => n.event_id === eventId);
+        if (existingIndex >= 0) notifications.splice(existingIndex, 1);
+        notifications.unshift(normalized);
         if (notifications.length > 25) notifications.length = 25;
         renderNotifications();
     }
@@ -49,12 +56,14 @@
             return;
         }
         list.innerHTML = notifications.map((n) => `
-          <article class="k-notification-item">
-            <div class="k-notification-item__title">${LMS.escHtml(n.message)}</div>
-            <div class="k-notification-item__meta">${LMS.timeAgo(n.created_at)}</div>
+          <article class="k-notification-item${n.read ? '' : ' k-notification-item--unread'}">
+            <div class="k-notification-item__title">${LMS.escHtml(n.title)}</div>
+            ${n.excerpt ? `<div class="k-notification-item__excerpt">${LMS.escHtml(n.excerpt)}</div>` : ''}
+            <div class="k-notification-item__meta">${LMS.escHtml(n.course_name || currentCourseLabel)} · ${LMS.timeAgo(n.created_at)}</div>
+            ${n.announcement_id > 0 ? `<button type="button" class="btn btn-link btn-sm k-notification-item__action" data-view-announcement="${n.announcement_id}">View full announcement</button>` : ''}
           </article>
         `).join('');
-        if (dot) dot.classList.remove('hidden');
+        if (dot) dot.classList.toggle('hidden', !notifications.some(n => !n.read));
     }
 
     function setupNotificationsPanel() {
@@ -64,20 +73,28 @@
         bell.addEventListener('click', (e) => {
             e.stopPropagation();
             panel.classList.toggle('hidden');
-            if (!panel.classList.contains('hidden')) {
-                $('kBellDot')?.classList.add('hidden');
-            }
         });
         $('kNotifClearBtn')?.addEventListener('click', async () => {
-            const ids = notifications.map((n) => n.event_id).filter(Boolean);
-            notifications.length = 0;
+            const unread = notifications.filter(n => !n.read);
+            const ids = unread.map((n) => n.event_id).filter(Boolean);
+            const announcementIds = unread.map(n => n.announcement_id).filter(id => id > 0);
             ids.forEach((id) => seenNotificationIds.add(String(id)));
+            notifications.forEach(n => { n.read = true; });
             renderNotifications();
-            $('kBellDot')?.classList.add('hidden');
-            panel.classList.add('hidden');
             if (ids.length) {
                 await LMS.api('POST', './api/lms/notifications_seen.php', { course_id: Number(COURSE_ID), event_ids: ids });
             }
+            if (announcementIds.length) {
+                await LMS.api('POST', './api/lms/announcements_read.php', {
+                    course_id: Number(COURSE_ID),
+                    ids: [...new Set(announcementIds)],
+                });
+            }
+        });
+        $('kNotificationsList')?.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-view-announcement]');
+            if (!button) return;
+            openAnnouncementDetail(Number(button.dataset.viewAnnouncement || 0));
         });
         document.addEventListener('click', (e) => {
             if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !bell.contains(e.target)) {
@@ -147,6 +164,81 @@
         }
     }
 
+    async function markAnnouncementRead(announcementId) {
+        if (announcementId <= 0) return;
+        const res = await LMS.api('POST', './api/lms/announcements_read.php', {
+            course_id: Number(COURSE_ID),
+            ids: [announcementId],
+        });
+        if (!res.ok) return;
+        const eventId = `announcement:${announcementId}`;
+        seenNotificationIds.add(eventId);
+        notifications.forEach(notification => {
+            if (notification.announcement_id === announcementId) notification.read = true;
+        });
+        const cached = announcementsById.get(announcementId);
+        if (cached) cached.read_at = cached.read_at || new Date().toISOString();
+        document.querySelector(`.k-announcement[data-announcement-id="${announcementId}"]`)?.classList.remove('k-announcement--unread');
+        const hasUnreadAnnouncements = Array.from(announcementsById.values()).some(announcement => !announcement.read_at);
+        $('newAnnBadge')?.classList.toggle('hidden', !hasUnreadAnnouncements);
+        renderNotifications();
+    }
+
+    function announcementDetailBody(announcement, audit) {
+        const bodyHtml = LMS.escHtml(announcement.body || '').replace(/\r?\n/g, '<br>');
+        const courseName = announcement.course_name || announcement.course_code || currentCourseLabel;
+        const published = announcement.published_at
+            ? `<span>Published ${LMS.fmtDateTime(announcement.published_at)}</span>`
+            : '<span>Not published</span>';
+        const edited = announcement.updated_at && announcement.updated_at !== announcement.created_at
+            ? `<span>Edited ${LMS.fmtDateTime(announcement.updated_at)}</span>`
+            : '';
+        const auditHtml = canManageAnnouncements && Array.isArray(audit) && audit.length
+            ? `<div class="k-announcement-detail__audit">
+                <h4>Change history</h4>
+                <ul>${audit.map(entry => `<li>${LMS.escHtml(entry.actor_name || 'Staff')} ${LMS.escHtml(entry.action || 'updated')} this announcement · ${LMS.fmtDateTime(entry.created_at)}</li>`).join('')}</ul>
+              </div>`
+            : '';
+        return `
+          <article class="k-announcement-detail">
+            <div class="k-announcement-detail__course">${LMS.escHtml(courseName)}</div>
+            <div class="k-announcement-detail__meta">
+              <span>By ${LMS.escHtml(announcement.author_name || 'Instructor')}</span>
+              ${published}
+              ${edited}
+              ${announcement.status === 'draft' ? '<span class="k-status k-status--warning k-status--dense">Draft</span>' : ''}
+            </div>
+            <div class="k-announcement-detail__body">${bodyHtml}</div>
+            ${auditHtml}
+          </article>`;
+    }
+
+    async function openAnnouncementDetail(announcementId) {
+        if (announcementId <= 0) return;
+        const res = await LMS.api(
+            'GET',
+            `./api/lms/announcements/detail.php?course_id=${encodeURIComponent(COURSE_ID)}&announcement_id=${encodeURIComponent(announcementId)}`
+        );
+        if (!res.ok) {
+            LMS.openModal({
+                title: 'Announcement unavailable',
+                body: '<p>This announcement was removed, unpublished, or is no longer available to you.</p>',
+                narrow: true,
+                actions: [{ id: 'close', label: 'Close', class: 'btn-primary', onClick: LMS.closeModal }],
+            });
+            return;
+        }
+        const payload = res.data?.data || res.data || {};
+        const announcement = payload.announcement || {};
+        announcementsById.set(announcementId, announcement);
+        LMS.openModal({
+            title: announcement.title || 'Announcement',
+            body: announcementDetailBody(announcement, payload.audit || []),
+            actions: [{ id: 'close', label: 'Close', class: 'btn-primary', onClick: LMS.closeModal }],
+        });
+        await markAnnouncementRead(announcementId);
+    }
+
     // ── Announcements feed rendering ──────────────────────────
     function renderAnnouncementsFeed(announcements) {
         const container = $('announcementsFeed');
@@ -156,10 +248,7 @@
             return;
         }
         const unread = announcements.filter(a => !a.read && !a.read_at).length;
-        if (unread > 0) {
-            const badge = $('newAnnBadge');
-            if (badge) badge.classList.remove('hidden');
-        }
+        $('newAnnBadge')?.classList.toggle('hidden', unread === 0);
         announcementsById.clear();
         announcements.forEach(ann => announcementsById.set(Number(ann.announcement_id), ann));
         container.innerHTML = `<div class="k-announcements">${announcements.slice(0, 6).map(ann => {
@@ -185,6 +274,7 @@
             </div>
             <p class="k-announcement__title">${LMS.escHtml(ann.title)}</p>
             <p class="k-announcement__preview">${LMS.escHtml(ann.body || '')}</p>
+            <button type="button" class="btn btn-link btn-sm k-announcement__view" data-ann-action="view" data-announcement-id="${announcementId}">View full announcement</button>
           </div>
         </div>`;
         }).join('')}</div>`;
@@ -248,6 +338,7 @@
         const activity = Array.isArray(actPayload) ? actPayload : [];
 
         const courseLabel = course.name || course.code || 'Course';
+        currentCourseLabel = courseLabel;
         LMS.nav.setCourseContext(COURSE_ID, courseLabel, course);
         LMS.nav.setActive('home');
         LMS.nav.setBreadcrumb([
@@ -289,15 +380,20 @@
             pushNotification({
                 event_id: `announcement:${a.announcement_id || a.id || a.created_at}`,
                 type: 'announcement',
-                message: `New announcement: ${a.title || 'Course update'}`,
+                announcement_id: Number(a.announcement_id || a.id || 0),
+                title: a.title || 'Course update',
+                excerpt: a.body || '',
+                course_name: courseLabel,
                 created_at: a.created_at,
+                read: !!a.read_at,
             });
         });
         activity.slice(0, 10).forEach((evt) => {
             pushNotification({
                 event_id: `activity:${evt.id || evt.event_id || evt.created_at}:${evt.type || 'event'}`,
                 type: evt.type || 'activity',
-                message: evt.message || 'Course activity updated',
+                title: evt.message || 'Course activity updated',
+                course_name: courseLabel,
                 created_at: evt.created_at,
             });
         });
@@ -372,10 +468,14 @@
 
         $('announcementsFeed')?.addEventListener('click', (event) => {
             const button = event.target.closest('[data-ann-action]');
-            if (!button || !canManageAnnouncements) return;
+            if (!button) return;
             const announcementId = Number(button.dataset.announcementId || 0);
             const announcement = announcementsById.get(announcementId);
-            if (!announcement) return;
+            if (button.dataset.annAction === 'view') {
+                openAnnouncementDetail(announcementId);
+                return;
+            }
+            if (!canManageAnnouncements || !announcement) return;
             if (button.dataset.annAction === 'edit') {
                 openEdit(announcement);
                 return;
@@ -431,24 +531,34 @@
     if (window.LmsWS) {
         LmsWS.on('announcement.created', (payload) => {
             if (String(payload.course_id) !== String(COURSE_ID)) return;
+            if (payload.audience === 'course_staff' && !canManageAnnouncements) return;
             const badge = $('newAnnBadge');
             if (badge) badge.classList.remove('hidden');
-            LMS.toast('New announcement posted!', 'info');
+            LMS.toast(payload.status === 'published' ? 'New announcement posted!' : 'Announcement draft created.', 'info');
             pushNotification({
                 event_id: `announcement:${payload.announcement_id || payload.event_id || Date.now()}`,
                 type: 'announcement',
-                message: `New announcement: ${payload.title || 'Course update'}`,
-                created_at: payload.created_at || new Date().toISOString(),
+                announcement_id: Number(payload.announcement_id || 0),
+                title: payload.title || (payload.status === 'published' ? 'New course announcement' : 'Announcement draft created'),
+                course_name: currentCourseLabel,
+                created_at: payload.occurred_at || payload.created_at || new Date().toISOString(),
+                read: false,
             });
             loadPage();
         });
         LmsWS.on('announcement.updated', (payload) => {
             if (String(payload.course_id) !== String(COURSE_ID)) return;
+            if (payload.audience === 'course_staff' && !canManageAnnouncements) return;
             LMS.toast('Announcement updated.', 'info');
             loadPage();
         });
         LmsWS.on('announcement.deleted', (payload) => {
             if (String(payload.course_id) !== String(COURSE_ID)) return;
+            const announcementId = Number(payload.announcement_id || payload.entity_id || 0);
+            announcementsById.delete(announcementId);
+            const notificationIndex = notifications.findIndex(n => n.announcement_id === announcementId);
+            if (notificationIndex >= 0) notifications.splice(notificationIndex, 1);
+            renderNotifications();
             LMS.toast('Announcement removed.', 'info');
             loadPage();
         });
