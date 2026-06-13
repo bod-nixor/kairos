@@ -53,7 +53,7 @@
   <div class="k-layout">
     <header class="k-topbar">
       <div class="k-topbar__left">
-        <button class="k-hamburger hidden" id="fixtureMenu" type="button" aria-label="Menu" aria-expanded="true">Menu</button>
+        <button class="k-hamburger hidden" id="fixtureMenu" type="button" aria-label="Menu" aria-expanded="false">Menu</button>
         <strong>Sidebar verification fixture</strong>
       </div>
     </header>
@@ -83,6 +83,7 @@
     if (params.get('drawer') === 'open') {
       document.getElementById('kSidebar').classList.add('is-open');
       document.body.classList.add('k-shell-drawer-open');
+      document.getElementById('fixtureMenu').setAttribute('aria-expanded', 'true');
     }
   </script>
 </body>
