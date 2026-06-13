@@ -38,22 +38,6 @@
       .replace(/>/g, '&gt;');
   }
 
-
-  function sanitizeForRender(html) {
-    const template = document.createElement('template');
-    template.innerHTML = html || '';
-    template.content.querySelectorAll('script,style,object,embed').forEach((node) => node.remove());
-    template.content.querySelectorAll('*').forEach((node) => {
-      [...node.attributes].forEach((attr) => {
-        const name = attr.name.toLowerCase();
-        if (name.startsWith('on')) {
-          node.removeAttribute(attr.name);
-        }
-      });
-    });
-    return template.innerHTML;
-  }
-
   function renderDebug() {
     if (!debugMode) return;
     const debug = $('lessonDebug');
@@ -85,7 +69,7 @@
     const lessonTitle = lesson.title || 'Lesson';
     const modulesHref = `./modules.html?course_id=${encodeURIComponent(currentCourseId)}`;
 
-    LMS.nav.setCourseContext(currentCourseId, courseName);
+    LMS.nav.setCourseContext(currentCourseId, courseName, course);
     LMS.nav.setActive('modules');
     LMS.nav.setBreadcrumb([
       { name: 'All Courses', href: '/signoff/' },
@@ -93,14 +77,6 @@
       { name: 'Modules', href: modulesHref },
       { name: lessonTitle },
     ]);
-
-    const courseRole = LMS.resolveCourseRoleFlags(course);
-    if (courseRole.ta || courseRole.manager || courseRole.admin) {
-      $('kNavGrading')?.classList.remove('hidden');
-    }
-    if (courseRole.manager || courseRole.admin) {
-      $('kNavAnalytics')?.classList.remove('hidden');
-    }
 
     $('kBreadCourse') && ($('kBreadCourse').textContent = courseName);
     $('kBreadModules') && ($('kBreadModules').href = modulesHref);
@@ -137,7 +113,7 @@
     const lesson = state.lesson || {};
     $('lessonTitle').textContent = lesson.title || 'Lesson';
     $('lessonSubtitle').textContent = lesson.summary || '';
-    const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>');
+    const html = LMS.sanitizeForRender(lesson.html_content || '<p>No lesson content yet.</p>', { allowEmbeds: true });
     $('lessonContent').innerHTML = html;
     $('lessonEditor').innerHTML = html;
 

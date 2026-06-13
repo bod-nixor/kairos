@@ -52,16 +52,12 @@
         return resource?.storage_backend === 'google_drive';
     }
 
-    function getCurrentCourseRoleFlags() {
-        return LMS.resolveCourseRoleFlags(currentCourse || {});
-    }
-
     function syncShell(resource = currentResource) {
         const courseName = currentCourse?.name || currentCourse?.code || 'Course';
         const currentCourseId = COURSE_ID || resource?.course_id || '';
         const resourceTitle = resource?.title || 'Resource';
 
-        LMS.nav.setCourseContext(currentCourseId, courseName);
+        LMS.nav.setCourseContext(currentCourseId, courseName, currentCourse);
         LMS.nav.setActive('modules');
         LMS.nav.setBreadcrumb([
             { name: 'All Courses', href: '/signoff/' },
@@ -69,14 +65,6 @@
             { name: 'Modules', href: `./modules.html?course_id=${encodeURIComponent(currentCourseId)}` },
             { name: resourceTitle },
         ]);
-
-        const courseRole = getCurrentCourseRoleFlags();
-        if (courseRole.ta || courseRole.manager || courseRole.admin) {
-            $('kNavGrading')?.classList.remove('hidden');
-        }
-        if (courseRole.manager || courseRole.admin) {
-            $('kNavAnalytics')?.classList.remove('hidden');
-        }
 
         $('resourceTitle') && ($('resourceTitle').textContent = resourceTitle);
         document.title = `${resourceTitle} - ${courseName} - ${LMS.getProductName()}`;
@@ -589,8 +577,7 @@
 
         await Promise.all([loadCourse(), loadPage()]);
 
-        const courseRole = getCurrentCourseRoleFlags();
-        const canEditResource = !!(courseRole.manager || courseRole.admin);
+        const canEditResource = !!currentCourse?.capabilities?.manage_course;
         if (URL_MODE === 'edit' && !canEditResource) {
             hideEl('resourceViewer');
             hideEl('resourceEditPanel');

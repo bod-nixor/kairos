@@ -6,6 +6,7 @@
 
     const $ = id => document.getElementById(id);
     const LMS = window.KairosLMS;
+    const Management = window.KairosLMSManagement;
     const params = new URLSearchParams(location.search);
     const COURSE_ID = params.get('course_id') || '';
 
@@ -20,29 +21,47 @@
             return;
         }
 
-        container.innerHTML = '<div class="k-list" role="list">' + items.map(item => {
+        container.innerHTML = '<div class="k-lms-card-grid" role="list">' + items.map(item => {
             const dueStr = (item.available_until || item.due_date) ? `Due ${LMS.fmtDateTime(item.available_until || item.due_date)}` : 'No due date';
-            const metaStr = [
+            const meta = [
                 (item.time_limit_min || item.time_limit_minutes) ? `${item.time_limit_min || item.time_limit_minutes} min` : null,
                 item.max_attempts ? `${item.max_attempts} attempts max` : null
-            ].filter(Boolean).join(' • ');
-
-            const safeDueStr = LMS.escHtml(dueStr);
-            const safeMetaStr = LMS.escHtml(metaStr);
+            ].filter(Boolean);
+            const excerpt = LMS.richTextExcerpt(item.instructions || item.description || '', 190);
+            const status = String(item.status || '').toLowerCase();
 
             return `
-            <a href="./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${encodeURIComponent(item.assessment_id || item.id)}" class="k-list-item" role="listitem">
-                <div class="k-list-item__icon" aria-hidden="true">⚡</div>
-                <div class="k-list-item__content">
-                    <div class="k-list-item__title">${LMS.escHtml(item.title || 'Untitled Quiz')}</div>
-                    <div class="k-list-item__desc">${LMS.escHtml(item.instructions || item.description || '')}</div>
-                    <div class="k-list-item__meta">
-                        <span>${safeDueStr}</span>
-                        ${safeMetaStr ? `<span>• ${safeMetaStr}</span>` : ''}
+            <a href="./quiz.html?course_id=${encodeURIComponent(COURSE_ID)}&quiz_id=${encodeURIComponent(item.assessment_id || item.id)}" class="k-lms-content-card" role="listitem">
+                <div class="k-lms-content-card__top">
+                    <span class="k-lms-content-card__icon" aria-hidden="true">Q</span>
+                    ${status ? `<span class="k-status ${status === 'published' ? 'k-status--success' : 'k-status--neutral'}">${LMS.escHtml(status === 'published' ? 'Published' : 'Draft')}</span>` : ''}
+                </div>
+                <div class="k-lms-content-card__body">
+                    <h2>${LMS.escHtml(item.title || 'Untitled Quiz')}</h2>
+                    <p>${LMS.escHtml(excerpt || 'No instructions provided.')}</p>
+                    <div class="k-lms-content-card__meta">
+                        <span>${LMS.escHtml(dueStr)}</span>
+                        ${meta.map((itemMeta) => `<span>${LMS.escHtml(itemMeta)}</span>`).join('')}
                     </div>
                 </div>
             </a>`;
         }).join('') + '</div>';
+    }
+
+    async function createQuiz() {
+        await Management.openQuizEditor({}, {
+            mode: 'create',
+            onSubmit: async (payload) => {
+                const res = await LMS.api('POST', './api/lms/quiz/create.php', {
+                    course_id: Number(COURSE_ID),
+                    ...payload,
+                });
+                if (!res.ok) return res;
+                LMS.toast('Quiz created as a draft.', 'success');
+                await loadPage();
+                return res;
+            },
+        });
     }
 
     async function loadPage() {
@@ -66,7 +85,12 @@
             return;
         }
 
-        const course = courseRes.ok ? (courseRes.data?.data || courseRes.data) : null;
+        if (!courseRes.ok || !listRes.ok) {
+            showEl('errorView');
+            return;
+        }
+
+        const course = courseRes.data?.data || courseRes.data;
         if (course) {
             document.title = `Quizzes — ${course.name || 'Course'} — Kairos`;
             $('pageSubtitle') && ($('pageSubtitle').textContent = `${course.name} · ${course.code || ''}`);
@@ -81,11 +105,7 @@
             });
             LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course', course);
             LMS.nav.setActive('quizzes');
-        }
-
-        if (!listRes.ok) {
-            showEl('errorView');
-            return;
+            $('createQuizBtn')?.classList.toggle('hidden', !course.capabilities?.manage_course);
         }
 
         const itemsPayload = listRes.data?.data || listRes.data || [];
@@ -101,6 +121,7 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        $('createQuizBtn')?.addEventListener('click', createQuiz);
         await loadPage();
     });
 

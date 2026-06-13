@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/_common.php';
+require_once dirname(__DIR__) . '/_helpers.php';
 
 lms_require_feature(['quiz', 'quizzes', 'lms_quizzes']);
 $user = lms_require_roles(['manager', 'admin']);
@@ -15,14 +15,6 @@ if ($assessmentId <= 0 || $prompt === '' || $questionType === '') {
     lms_error('validation_error', 'assessment_id, prompt, question_type required', 422);
 }
 
-$allowedQuestionTypes = ['mcq', 'multi_select', 'multiple_select', 'true_false', 'short_answer', 'long_answer', 'file_upload'];
-if ($questionType === 'multi_select') {
-    $questionType = 'multiple_select';
-}
-if (!in_array($questionType, $allowedQuestionTypes, true)) {
-    lms_error('validation_error', 'question_type is invalid', 422);
-}
-
 $pdo = db();
 $assessmentStmt = $pdo->prepare('SELECT assessment_id, course_id FROM lms_assessments WHERE assessment_id = :assessment_id AND deleted_at IS NULL LIMIT 1');
 $assessmentStmt->execute([':assessment_id' => $assessmentId]);
@@ -31,7 +23,7 @@ if (!$assessment) {
     lms_error('not_found', 'Quiz not found', 404);
 }
 
-lms_course_access($user, (int)$assessment['course_id']);
+lms_require_course_capability($user, 'manage_course', (int)$assessment['course_id']);
 
 $points = isset($in['points']) && is_numeric($in['points']) ? (float)$in['points'] : 1.0;
 $isRequired = !empty($in['is_required']) ? 1 : 0;
@@ -48,6 +40,16 @@ if (array_key_exists('options', $in) && is_array($in['options'])) {
 if (!is_array($settings)) {
     $settings = [];
 }
+$settings['options'] = $options;
+try {
+    $definition = lms_validate_question_definition($questionType, $points, $options, $answerKey);
+} catch (InvalidArgumentException $e) {
+    lms_error('validation_error', $e->getMessage(), 422);
+}
+$questionType = $definition['question_type'];
+$points = $definition['points'];
+$options = $definition['options'];
+$answerKey = $definition['answer_key'];
 $settings['options'] = $options;
 
 $answerKeyJson = $answerKey === null

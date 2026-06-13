@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
 require_once dirname(__DIR__) . '/drive_client.php';
+require_once __DIR__ . '/_restriction_helpers.php';
 
 const LMS_MAX_TEXT_SUBMISSION_LENGTH = 20000;
 const LMS_MAX_SUBMISSION_COMMENT_LENGTH = 2000;
@@ -14,14 +15,6 @@ if ($assignmentId <= 0) {
     lms_error('validation_error', 'assignment_id required', 422);
 }
 
-$uploadMeta = null;
-if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-    $uploadMeta = lms_validate_uploaded_file(
-        $_FILES['file'],
-        lms_drive_upload_limit((int)env('LMS_UPLOAD_MAX_BYTES', 10485760))
-    );
-}
-
 $textSubmission = trim((string)($_POST['text_submission'] ?? ''));
 if ($textSubmission !== '' && function_exists('mb_strlen') && mb_strlen($textSubmission) > LMS_MAX_TEXT_SUBMISSION_LENGTH) {
     lms_error('validation_error', 'text_submission is too long', 422);
@@ -29,7 +22,7 @@ if ($textSubmission !== '' && function_exists('mb_strlen') && mb_strlen($textSub
 if ($textSubmission !== '' && !function_exists('mb_strlen') && strlen($textSubmission) > LMS_MAX_TEXT_SUBMISSION_LENGTH) {
     lms_error('validation_error', 'text_submission is too long', 422);
 }
-if ($textSubmission === '' && $uploadMeta === null) {
+if ($textSubmission === '' && (empty($_FILES['file']) || ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE)) {
     lms_error('validation_error', 'Provide text_submission or a file', 422);
 }
 
@@ -60,22 +53,21 @@ if ($late && (int)$assignment['late_allowed'] === 0) {
     lms_error('late_not_allowed', 'Late submissions are not allowed for this assignment', 422);
 }
 
-
-if ($uploadMeta !== null) {
-    $maxMb = max(1, (int)($assignment['max_file_mb'] ?? 50));
-    $maxBytesForAssignment = $maxMb * 1024 * 1024;
-    if ((int)$uploadMeta['size'] > $maxBytesForAssignment) {
-        lms_error('validation_error', 'file exceeds assignment max size of ' . $maxMb . 'MB', 422);
-    }
-
+$uploadMeta = null;
+if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
     $allowedExtRaw = trim(strtolower((string)($assignment['allowed_file_extensions'] ?? '')));
-    if ($allowedExtRaw !== '') {
-        $allowedExts = array_values(array_filter(array_map(static fn($v) => trim((string)$v), explode(',', $allowedExtRaw)), static fn($v) => $v !== ''));
-        $ext = trim(strtolower((string)($uploadMeta['extension'] ?? '')));
-        if ($ext === '' || !in_array($ext, $allowedExts, true)) {
-            lms_error('validation_error', 'file type .' . ($ext !== '' ? $ext : '?') . ' is not allowed for this assignment', 422);
-        }
-    }
+    $allowedExts = $allowedExtRaw === ''
+        ? null
+        : array_values(array_filter(array_map(
+            static fn($value): string => trim((string)$value),
+            explode(',', $allowedExtRaw)
+        )));
+    $maxMb = max(1, (int)($assignment['max_file_mb'] ?? 50));
+    $uploadMeta = lms_validate_uploaded_file(
+        $_FILES['file'],
+        lms_assignment_effective_max_bytes($maxMb),
+        $allowedExts
+    );
 }
 
 $uploadedDriveMeta = null;

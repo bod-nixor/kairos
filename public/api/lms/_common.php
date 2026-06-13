@@ -128,6 +128,18 @@ function lms_course_role(array $user, int $courseId): ?string
     return rbac_course_role(db(), $user, $courseId);
 }
 
+function lms_course_capabilities(array $user, int $courseId): array
+{
+    $pdo = db();
+    return [
+        'view_course' => rbac_can($pdo, $user, 'view_course', $courseId),
+        'manage_course' => rbac_can($pdo, $user, 'manage_course', $courseId),
+        'grade_course' => rbac_can($pdo, $user, 'grade_course', $courseId),
+        'update_student_progress' => rbac_can($pdo, $user, 'update_student_progress', $courseId),
+        'manage_course_announcements' => rbac_can($pdo, $user, 'manage_course_announcements', $courseId),
+    ];
+}
+
 function lms_can_view_unpublished(array $user, int $courseId): bool
 {
     return rbac_can_manage_course(db(), $user, $courseId);

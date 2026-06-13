@@ -105,6 +105,19 @@ composer install --no-dev --classmap-authoritative --no-interaction
 
 See `docs/runbooks/google_drive_storage.md` before enabling private file storage.
 
+### LMS rich text and assignment uploads
+
+- Assignment list cards derive plain excerpts from centrally sanitized rich text; they never print stored markup.
+- Assignment detail renders the full sanitized instruction document. Scripts, event attributes, forms, active content,
+  unsafe links, and iframes are removed.
+- Lesson content uses the same sanitizer with an explicit provider-embed mode. Only URLs accepted by the documented
+  embed policy can become iframes.
+- Assignment staff choose upload presets or supported custom extensions. The resolved lowercase, deduplicated list is
+  stored in `lms_assignments.allowed_file_extensions` and reflected in the student file picker.
+- PHP validates the assignment restriction, server-detected MIME, container signatures where applicable, and the
+  effective assignment/Drive size limit before any Drive upload or submission DB transaction.
+- SVG, HTML, JavaScript, PHP, XML, and executable/script formats are not assignment-upload formats.
+
 ### OAuth + local dev caveat
 
 If your Google OAuth app is locked down to production domains and `nixorcollege.edu.pk`, localhost sign-in may not fully work. In that case:
@@ -219,6 +232,8 @@ Course authorization is capability-based and course-scoped. The authoritative ro
 - Endpoint path mismatch or JSON shape mismatch between UI and API.
 - Role/capability caching leading to stale nav or permissions.
 - Course context nav disappearing on some pages.
+- Assignment/quiz management dialogs use `public/js/lms-management-ui.js`; keep create and edit flows on the shared
+  component so preset rehydration, loading states, validation, and mobile behavior do not drift.
 - Notifications “mark seen” not persisting server-side.
 - Grade UI regressions due to CSS grid/stacking updates.
 

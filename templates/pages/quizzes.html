@@ -102,6 +102,9 @@
                         <h1 class="k-page-title">Quizzes</h1>
                         <p class="k-page-subtitle" id="pageSubtitle">Loading…</p>
                     </div>
+                    <div class="k-page-header__actions">
+                        <button class="btn btn-primary hidden" id="createQuizBtn" type="button">New Quiz</button>
+                    </div>
                 </div>
 
                 <div id="skeletonView" class="k-skeleton-stack">
@@ -110,9 +113,7 @@
                 </div>
 
                 <div id="loadedView" class="hidden">
-                    <div class="k-card">
-                        <div id="listContainer"></div>
-                    </div>
+                    <div id="listContainer"></div>
                 </div>
 
                 <div id="accessDenied" class="hidden"></div>
@@ -129,6 +130,7 @@
 
     <script data-cfasync="false" src="./js/theme.js"></script>
     <script data-cfasync="false" src="./js/lms-core.js"></script>
+    <script data-cfasync="false" src="./js/lms-management-ui.js"></script>
     <script data-cfasync="false" src="./js/quizzes.js"></script>
 </body>
 

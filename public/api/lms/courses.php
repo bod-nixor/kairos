@@ -49,13 +49,7 @@ if (!$course) {
 
 $courseRole = lms_course_role($user, $courseId);
 $course['my_role'] = $courseRole;
-$course['capabilities'] = [
-    'view_course' => $courseRole !== null,
-    'manage_course' => rbac_can($pdo, $user, 'manage_course', $courseId),
-    'grade_course' => rbac_can($pdo, $user, 'grade_course', $courseId),
-    'update_student_progress' => rbac_can($pdo, $user, 'update_student_progress', $courseId),
-    'manage_course_announcements' => rbac_can($pdo, $user, 'manage_course_announcements', $courseId),
-];
+$course['capabilities'] = lms_course_capabilities($user, $courseId);
 $course['code'] = $course['code'] ?? $course['name'];
 
 lms_ok($course);

@@ -59,6 +59,8 @@ try {
         ':course_id' => (int)$row['course_id'],
     ]);
     $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['required_flag' => 0];
+    $courseNameStmt = $pdo->prepare('SELECT name FROM courses WHERE course_id = :course_id LIMIT 1');
+    $courseNameStmt->execute([':course_id' => (int)$row['course_id']]);
 
     $response = [
         'quiz_id' => (int)$row['assessment_id'], // deprecated alias for assessment_id
@@ -76,6 +78,9 @@ try {
         'available_from' => $row['available_from'],
         'due_at' => $row['due_at'],
         'required_flag' => (int)$module['required_flag'],
+        'course_name' => (string)($courseNameStmt->fetchColumn() ?: ''),
+        'course_role' => lms_course_role($user, (int)$row['course_id']),
+        'capabilities' => lms_course_capabilities($user, (int)$row['course_id']),
     ];
     if ($debugMode) {
         $response['debug'] = $debug;

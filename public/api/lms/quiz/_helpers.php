@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/question/_validation.php';
 
 function lms_require_published_assessment(int $assessmentId, array $user): array
 {

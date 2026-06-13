@@ -60,4 +60,28 @@ assert.match(analytics, /course\.capabilities\?\.manage_course/);
 const quizzes = read('public/js/quizzes.js');
 assert.doesNotMatch(quizzes, /resolveCourseRoleFlags/);
 
+const coursePages = [
+  'course.html',
+  'modules.html',
+  'lesson.html',
+  'resource-viewer.html',
+  'quizzes.html',
+  'quiz.html',
+  'assignments.html',
+  'assignment.html',
+  'grading.html',
+  'analytics.html',
+];
+for (const page of coursePages) {
+  const html = read(`templates/pages/${page}`);
+  assert.match(html, /id="kNavCourse"/, `${page} must expose the authoritative course nav mount`);
+  assert.match(html, /id="kSidebarName"/, `${page} must retain the profile identity block`);
+}
+
+for (const script of ['lesson.js', 'resource-viewer.js', 'quiz.js', 'assignment.js']) {
+  const source = read(`public/js/${script}`);
+  assert.doesNotMatch(source, /kNav(?:Grading|Analytics)(?:['"]\s*\)?)?\s*(?:\?\.|\.)classList\.remove/, `${script} must not override capability navigation`);
+  assert.match(source, /setCourseContext\([^;]+,\s*[^;]+,\s*[^;)]+\)/, `${script} must pass capability context to shared navigation`);
+}
+
 console.log('course UI contract tests passed');

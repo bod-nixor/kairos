@@ -7,6 +7,11 @@
 
 This pass fixed the known production CSP and realtime failures, centralized course capabilities, closed additional publication and object-scope authorization gaps, added auditable announcement management, repaired transactional module ordering, hardened external embeds, improved Light Mode contrast, stabilized the shared course shell and module interactions, implemented durable private Google Drive storage, and added repeatable regression coverage.
 
+The assignment and quiz polish pass additionally replaced raw assignment markup in list cards with sanitized excerpts,
+added a shared production-quality assignment/quiz/question editor, introduced rehydratable upload presets and custom
+extension controls, enforced assignment extension/MIME/size policy before storage, and removed page-local navigation
+capability guesses.
+
 The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` is required before the new announcement endpoints are deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
 
 ## Baseline Findings
@@ -91,6 +96,21 @@ Production inspection and repository review identified:
 - Added semantic Light Mode tokens and automated contrast checks for text, links, focus, controls, placeholders, disabled states, and statuses.
 - Normalized the appearance settings launcher with explicit flex centering and icon metrics.
 - Verified explicit theme token sets for Default Dark, Light, Midnight, Graphite, Indigo, and Emerald.
+- Added polished assignment/quiz cards and shared sectioned management dialogs with inline validation, disabled save
+  states, native-dialog keyboard behavior, focus restoration, and responsive one-column layouts.
+- Added student-facing assignment upload guidance for resolved types, effective size limit, and points, plus a filtered
+  file picker and selected-file display.
+- Centralized rich-text sanitization. Assignment and quiz content strips active tags, event attributes, unsafe links,
+  and iframes; lesson embeds require an explicit provider-approved mode.
+
+### Assignment Upload Enforcement
+
+- Added Documents, Images, Video, Audio, Archives, Code, PDF-only, Spreadsheets, Presentations, and Custom selectors.
+- Normalized extensions to lowercase, removed leading dots, deduplicated overlaps, and restored preset/custom state on edit.
+- Excluded SVG and active web/script/executable formats from both UI presets and server policy.
+- Added server MIME detection and OOXML/ODF/container checks before Drive upload or DB transaction.
+- Returned stable sanitized `422` messages for disallowed type, content mismatch, and effective size limit failures.
+- Reused the existing assignment restriction columns; no migration was added for this pass.
 
 ## Browser Verification
 
@@ -109,7 +129,15 @@ Local static browser verification after changes:
 - Mobile settings control measured `46x46` pixels.
 - Theme switching was exercised for dark, light, and midnight; all six theme definitions and required tokens are covered by the production contract test.
 - The resource viewer and its updated JavaScript loaded successfully from a local PHP server; the unauthenticated request redirected to the login shell as expected.
-- No new in-app browser screenshots were captured in this hardening pass because the browser could not establish its local navigation security handoff. The automated UI contract and contrast checks completed successfully.
+- The in-app browser could not establish its local navigation security handoff. Installed headless Chrome was used
+  against the local preview harness instead.
+- Captured assignment list screenshots in Light and Default Dark, an assignment editor phone screenshot, the upload
+  preset editor in Light, and the quiz editor at tablet size.
+- Verified no document or modal horizontal overflow at `390x844`, `768x1024`, `1440x900`, and `1920x1080`.
+- Verified sanitized assignment output contained zero script/iframe/event-handler nodes and list excerpts contained no markup.
+- Verified runtime navigation sets: student gets core links, TA adds Grading, manager/admin add Grading and Analytics.
+- Verified modal focus starts inside the dialog, save disables controls and sets busy state, and Escape closes with focus
+  restored to the trigger.
 
 Authenticated student/TA/manager/admin workflows could not be exercised locally without OAuth credentials, a test database, and the Python realtime dependencies. Exact deployment smoke tests are in the deployment checklist.
 
@@ -124,12 +152,14 @@ bash tools/check-errors.sh
 node tools/tests/realtime_runtime_test.mjs
 node tools/tests/production_contract_test.mjs
 node tools/tests/course_ui_contract_test.mjs
+node tools/tests/lms_management_contract_test.mjs
 node tools/tests/ui_hardening_contract_test.mjs
 php tools/tests/course_authorization_policy_test.php
 php tools/tests/announcement_authorization_test.php
 php tools/tests/resource_embed_policy_test.php
 php tools/tests/sections_reorder_endpoint_test.php
 php tools/tests/drive_storage_test.php
+php tools/tests/lms_upload_and_question_policy_test.php
 php tools/tests/drive_storage_integration_test.php  # safe default: skipped
 git diff --check
 ```
