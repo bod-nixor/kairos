@@ -16,7 +16,7 @@ Deploy the complete repository change set, including:
 - `public/html.php`, `public/index.php`, and `src/html_response.php`
 - all page templates under `templates/pages/`
 - `public/css/kairos-ui.css`
-- `public/js/ws.js`, `public/js/lms-ws.js`, `public/js/lms-core.js`, `public/js/index-page.js`, and `public/js/settings.js`
+- `public/js/ws.js`, `public/js/lms-ws.js`, `public/js/lms-core.js`, `public/js/index-page.js`, `public/js/settings.js`, `public/js/manager.js`, and `public/js/ta.js`
 - `public/assets/vendor/socket.io/4.7.5/socket.io.min.js` and `LICENSE`
 - changed PHP API and RBAC consumers under `public/api/`
 - `composer.json` and `composer.lock`

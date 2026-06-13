@@ -70,6 +70,7 @@ assert.ok(fs.statSync(vendorClient).size > 10000, 'vendored Socket.IO client loo
 
 const htmlResponse = read('src/html_response.php');
 assert.match(htmlResponse, /random_bytes\(24\)/);
+assert.match(htmlResponse, /\(\?<!\[A-Za-z0-9_-\]\)src/);
 assert.match(htmlResponse, /script-src \{\$scriptSources\}/);
 assert.match(htmlResponse, /script-src-elem \{\$scriptSources\}/);
 assert.match(htmlResponse, /script-src-attr 'none'/);
@@ -99,6 +100,13 @@ assert.ok(
   rootApache.indexOf('public/html.php?page=index') < rootApache.indexOf('RewriteRule ^(.*)$ public/$1'),
   'HTML routing must remain before the generic public fallback',
 );
+
+const deploymentChecklist = read('PRODUCTION_DEPLOYMENT_CHECKLIST.md');
+assert.match(deploymentChecklist, /public\/js\/manager\.js/);
+assert.match(deploymentChecklist, /public\/js\/ta\.js/);
+
+const managerJs = read('public/js/manager.js');
+assert.doesNotMatch(managerJs, /setupProgressModalDialog/);
 
 const coursePages = [
   'course.html',

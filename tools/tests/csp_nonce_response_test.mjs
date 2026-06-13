@@ -30,6 +30,18 @@ php.stderr.on('data', (chunk) => {
 
 const endpoint = `http://127.0.0.1:${port}/html.php?page=index`;
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const inlineScriptPattern = /<script\b(?![^>]*?(?<![A-Za-z0-9_-])src\b\s*=)[^>]*>/gi;
+
+assert.equal(
+  Array.from('<script data-src="lazy.js" nonce="test"></script>'.matchAll(inlineScriptPattern)).length,
+  1,
+  'data-src must not make an inline script look external',
+);
+assert.equal(
+  Array.from('<script src="app.js"></script>'.matchAll(inlineScriptPattern)).length,
+  0,
+  'a real src attribute must identify an external script',
+);
 
 async function waitForServer() {
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -61,7 +73,7 @@ function responseNonce(response, html) {
   assert.doesNotMatch(policy, /static\.cloudflareinsights\.com/);
 
   const inlineTags = Array.from(
-    html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>/gi),
+    html.matchAll(inlineScriptPattern),
     (entry) => entry[0],
   );
   assert.ok(inlineTags.length > 0, 'rendered HTML should contain the pre-paint inline theme script');
@@ -87,9 +99,15 @@ try {
   const firstHtml = await first.text();
   const second = await fetch(endpoint);
   const secondHtml = await second.text();
+  const missingHead = await fetch(`http://127.0.0.1:${port}/html.php?page=missing`, {
+    method: 'HEAD',
+  });
+  const missingHeadBody = await missingHead.text();
 
   assert.equal(first.status, 200);
   assert.equal(second.status, 200);
+  assert.equal(missingHead.status, 404);
+  assert.equal(missingHeadBody, '', 'HEAD failures must not include a response body');
   assert.match(first.headers.get('cache-control') || '', /\bno-store\b/);
   assert.match(second.headers.get('cache-control') || '', /\bno-store\b/);
 

@@ -79,7 +79,7 @@ function kairos_render_html_template(string $page, string $nonce): string
         throw new RuntimeException('Unable to load HTML template.');
     }
 
-    preg_match_all('/<script\b(?![^>]*\bsrc\s*=)[^>]*>/i', $html, $inlineScripts);
+    preg_match_all('/<script\b(?![^>]*?(?<![A-Za-z0-9_-])src\b\s*=)[^>]*>/i', $html, $inlineScripts);
     foreach ($inlineScripts[0] as $scriptTag) {
         if (!str_contains($scriptTag, 'nonce="{{CSP_NONCE}}"')) {
             throw new RuntimeException('Inline scripts must explicitly opt in to the response nonce.');
