@@ -17,6 +17,7 @@ $_SERVER['HTTPS'] = 'on';
 require_once dirname(__DIR__, 2) . '/public/api/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/public/api/lms/_common.php';
 require_once dirname(__DIR__, 2) . '/public/api/lms/drive_client.php';
+require_once dirname(__DIR__, 2) . '/src/html_response.php';
 
 $failed = [];
 
@@ -55,15 +56,28 @@ if ($tmp === false) {
 
 $rootHtaccess = (string)file_get_contents(dirname(__DIR__, 2) . '/.htaccess');
 $publicHtaccess = (string)file_get_contents(dirname(__DIR__, 2) . '/public/.htaccess');
-$assert(strpos($rootHtaccess, '^(\\.git|\\.env|config|db|docs|sql|src|tools|storage|logs|vendor)') !== false, 'root .htaccess should block repository internals and Composer dependencies');
+$assert(strpos($rootHtaccess, '^(\\.git|\\.env|config|db|docs|sql|src|templates|tools|storage|logs|vendor)') !== false, 'root .htaccess should block repository internals, templates, and Composer dependencies');
 $assert(strpos($publicHtaccess, '^(includes|logs)(/|$)') !== false, 'public .htaccess should block public includes/logs');
-$assert(strpos($rootHtaccess, 'Content-Security-Policy') !== false, 'root .htaccess should define a CSP');
-$assert(strpos($rootHtaccess, 'https://accounts.google.com https://fonts.googleapis.com') !== false, 'CSP should permit Google Sign-In styles narrowly');
-$assert(strpos($rootHtaccess, 'wss://kairos.nixorcorporate.com') !== false, 'CSP should permit the canonical secure WebSocket origin');
-$assert(strpos($rootHtaccess, 'static.cloudflareinsights.com') === false, 'optional Cloudflare analytics should not weaken CSP');
-$assert(strpos($rootHtaccess, 'play.google.com') === false, 'browser telemetry endpoints should not be allowlisted');
-$assert(strpos($rootHtaccess, "script-src-attr 'none'") !== false, 'inline script attributes should remain prohibited');
-$assert(!preg_match('/script-src(?:-elem)?\s+[^;"]*\'unsafe-inline\'/', $rootHtaccess), 'inline scripts should require CSP hashes');
+$assert(strpos($rootHtaccess, 'Content-Security-Policy') === false, 'Apache should not emit a static HTML CSP');
+$assert(strpos($publicHtaccess, 'Content-Security-Policy') === false, 'public Apache rules should not emit a static HTML CSP');
+$assert(strpos($rootHtaccess, 'public/html.php?page=') !== false, 'root Apache rules should route known HTML pages through PHP');
+$assert(strpos($publicHtaccess, 'html.php?page=') !== false, 'public webroot rules should route known HTML pages through PHP');
+
+$firstNonce = kairos_generate_csp_nonce();
+$secondNonce = kairos_generate_csp_nonce();
+$assert($firstNonce !== $secondNonce, 'CSP nonces must not be reused');
+$policy = kairos_build_html_csp($firstNonce);
+$renderedHtml = kairos_render_html_template('index', $firstNonce);
+$assert(strpos($policy, "script-src 'self' 'nonce-{$firstNonce}'") !== false, 'script-src should contain the response nonce');
+$assert(strpos($policy, "script-src-elem 'self' 'nonce-{$firstNonce}'") !== false, 'script-src-elem should contain the response nonce');
+$assert(strpos($policy, "script-src-attr 'none'") !== false, 'inline script attributes should remain prohibited');
+$assert(strpos($policy, 'https://accounts.google.com') !== false, 'CSP should preserve Google Sign-In compatibility');
+$assert(strpos($policy, 'wss://kairos.nixorcorporate.com') !== false, 'CSP should permit the canonical secure WebSocket origin');
+$assert(strpos($policy, 'static.cloudflareinsights.com') === false, 'optional Cloudflare analytics should not weaken CSP');
+$assert(strpos($policy, 'play.google.com') === false, 'browser telemetry endpoints should not be allowlisted');
+$assert(!preg_match('/script-src(?:-elem)?\s+[^;]*\'unsafe-inline\'/', $policy), 'inline scripts should require the response nonce');
+$assert(strpos($renderedHtml, 'nonce="' . $firstNonce . '"') !== false, 'rendered inline scripts should receive the response nonce');
+$assert(strpos($renderedHtml, '{{CSP_NONCE}}') === false, 'rendered HTML should not expose the nonce placeholder');
 
 if ($failed) {
     fwrite(STDERR, implode(PHP_EOL, $failed) . PHP_EOL);

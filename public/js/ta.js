@@ -341,7 +341,10 @@ function renderQueues() {
   list.innerHTML = '';
   taState.queueRefs = new Map();
   taState.studentDirectory = {};
-  if (notice) notice.textContent = '';
+  if (notice) {
+    notice.textContent = '';
+    notice.classList.add('hidden');
+  }
 
   if (!taState.selectedRoom) {
     list.innerHTML = '<div class="card">Select a room to view queues.</div>';
@@ -687,6 +690,7 @@ function updateServingNotice() {
     }
   }
   notice.textContent = message;
+  notice.classList.toggle('hidden', message === '');
 }
 
 function handleQueueBroadcast(message) {
@@ -1140,4 +1144,3 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
-

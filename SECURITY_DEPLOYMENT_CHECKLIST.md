@@ -54,7 +54,7 @@ Use this checklist before deploying Kairos to production or staging. Do not run 
 
 - Preferred webroot: `public/`.
 - If the cPanel webroot must be the repository root, keep the root `.htaccess` active.
-- Verify `.git`, `.env`, `config/`, `docs/`, `sql/`, `src/`, `tools/`, `storage/`, markdown docs, lock/config files, backups, and logs return `403` or `404`.
+- Verify `.git`, `.env`, `config/`, `docs/`, `sql/`, `src/`, `templates/`, `tools/`, `storage/`, markdown docs, lock/config files, backups, and logs return `403` or `404`.
 - Keep uploaded/private files outside public webroot.
 - Disable directory listing.
 
@@ -62,6 +62,7 @@ Use this checklist before deploying Kairos to production or staging. Do not run 
 
 - Required Apache modules: `mod_rewrite`, `mod_headers`; `mod_proxy`/WebSocket proxy support if using the included `/ws` and `/emit` reverse proxy rules.
 - Verify `/signoff/api/*` routes to `public/api/*`.
+- Verify known HTML pages route through `public/html.php` and never serve `templates/pages/*` directly.
 - Verify `/signoff/ws` upgrades to the local relay.
 - Verify `/signoff/emit` only reaches the local relay and is not publicly useful without `WS_SHARED_SECRET`.
 - Do not enable `TRUST_PROXY_HEADERS=true` unless the app is behind a trusted proxy that strips spoofed `X-Forwarded-*` headers.
@@ -75,6 +76,8 @@ Use this checklist before deploying Kairos to production or staging. Do not run 
   - `X-Frame-Options: SAMEORIGIN`
   - `Referrer-Policy: strict-origin-when-cross-origin`
   - `Permissions-Policy`
+- Verify two separate HTML requests have different CSP nonces, with each response's nonce matching its rendered inline theme script.
+- Verify `script-src` and `script-src-elem` contain the nonce and `script-src-attr 'none'` remains enforced.
 - Verify API JSON responses include no-store cache headers and a restrictive JSON CSP.
 - Enable HSTS only after HTTPS is stable for all required hosts. Start without `preload` and without `includeSubDomains` unless approved.
 

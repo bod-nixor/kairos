@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,12 +13,11 @@ const findHtmlFiles = (directory) => fs.readdirSync(directory, { withFileTypes: 
     return [path.relative(root, absolutePath).split(path.sep).join('/')];
   });
 
-const htmlFiles = findHtmlFiles(path.join(root, 'public')).sort();
+const htmlFiles = findHtmlFiles(path.join(root, 'templates/pages')).sort();
 // The projector is a purpose-built fullscreen display, not a navigable app page.
 const shellExemptHtmlFiles = new Set([
-  'public/projector.html',
+  'templates/pages/projector.html',
 ]);
-const inlineScriptHashes = new Set();
 const hasClass = (html, className) => new RegExp(
   `class=["'][^"']*\\b${className}\\b[^"']*["']`,
   'i',
@@ -33,7 +31,10 @@ for (const htmlFile of htmlFiles) {
     assert.match(script, /\bdata-cfasync="false"/i, `${htmlFile} has a script without Rocket Loader exclusion`);
   }
   for (const match of html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
-    inlineScriptHashes.add(`'sha256-${crypto.createHash('sha256').update(match[1], 'utf8').digest('base64')}'`);
+    assert.match(match[0], /\bnonce="\{\{CSP_NONCE\}\}"/, `${htmlFile} has an inline script without the nonce placeholder`);
+  }
+  for (const match of html.matchAll(/<script\b[^>]*\bsrc=[^>]*>/gi)) {
+    assert.doesNotMatch(match[0], /\bnonce=/i, `${htmlFile} should not nonce external scripts`);
   }
   if (!shellExemptHtmlFiles.has(htmlFile)) {
     for (const className of ['k-layout', 'k-sidebar', 'k-topbar', 'k-main']) {
@@ -57,7 +58,7 @@ const realtimePages = [
 ];
 for (const page of realtimePages) {
   assert.match(
-    read(`public/${page}`),
+    read(`templates/pages/${page}`),
     /vendor\/socket\.io\/4\.7\.5\/socket\.io\.min\.js/,
     `${page} must load the repository-controlled Socket.IO client`,
   );
@@ -67,19 +68,45 @@ const vendorClient = path.join(root, 'public/assets/vendor/socket.io/4.7.5/socke
 assert.equal(fs.existsSync(vendorClient), true, 'vendored Socket.IO client is missing');
 assert.ok(fs.statSync(vendorClient).size > 10000, 'vendored Socket.IO client looks incomplete');
 
+const htmlResponse = read('src/html_response.php');
+assert.match(htmlResponse, /random_bytes\(24\)/);
+assert.match(htmlResponse, /\(\?<!\[A-Za-z0-9_-\]\)src/);
+assert.match(htmlResponse, /script-src \{\$scriptSources\}/);
+assert.match(htmlResponse, /script-src-elem \{\$scriptSources\}/);
+assert.match(htmlResponse, /script-src-attr 'none'/);
+assert.match(htmlResponse, /style-src-elem[^"]*https:\/\/accounts\.google\.com/);
+assert.match(htmlResponse, /connect-src[^"]*wss:\/\/kairos\.nixorcorporate\.com/);
+assert.doesNotMatch(htmlResponse, /static\.cloudflareinsights\.com/);
+assert.doesNotMatch(htmlResponse, /play\.google\.com/);
+assert.match(htmlResponse, /object-src 'none'/);
+assert.doesNotMatch(htmlResponse, /script-src(?:-elem)?[^"]*'unsafe-inline'/);
+
 for (const htaccessFile of ['.htaccess', 'public/.htaccess']) {
-  const policy = read(htaccessFile);
-  assert.match(policy, /style-src-elem[^"]*https:\/\/accounts\.google\.com/);
-  assert.match(policy, /connect-src[^"]*wss:\/\/kairos\.nixorcorporate\.com/);
-  assert.doesNotMatch(policy, /static\.cloudflareinsights\.com/);
-  assert.doesNotMatch(policy, /play\.google\.com/);
-  assert.match(policy, /object-src 'none'/);
-  assert.match(policy, /script-src-attr 'none'/);
-  assert.doesNotMatch(policy, /script-src(?:-elem)?\s+[^;"]*'unsafe-inline'/);
-  for (const hash of inlineScriptHashes) {
-    assert.ok(policy.includes(hash), `${htaccessFile} is missing CSP hash ${hash}`);
-  }
+  const apacheConfig = read(htaccessFile);
+  assert.doesNotMatch(apacheConfig, /Header always set Content-Security-Policy/);
+  assert.match(apacheConfig, /html\.php\?page=/);
 }
+const rootApache = read('.htaccess');
+assert.match(rootApache, /\|templates\|/);
+assert.match(rootApache, /RewriteRule \^composer\\\.\(json\|lock\)\$/);
+assert.match(rootApache, /RewriteRule \^api\/\(\.\*\)\$ public\/api\/\$1 \[L\]/);
+assert.match(rootApache, /RewriteRule \^ws\$ ws:\/\/127\.0\.0\.1:8090\/ws \[P,L\]/);
+assert.match(rootApache, /RewriteRule \^emit\$ http:\/\/127\.0\.0\.1:8090\/emit \[P,L\]/);
+assert.ok(
+  rootApache.indexOf('RewriteRule ^api/(.*)$') < rootApache.indexOf('public/html.php?page=index'),
+  'API routing must remain before HTML routing',
+);
+assert.ok(
+  rootApache.indexOf('public/html.php?page=index') < rootApache.indexOf('RewriteRule ^(.*)$ public/$1'),
+  'HTML routing must remain before the generic public fallback',
+);
+
+const deploymentChecklist = read('PRODUCTION_DEPLOYMENT_CHECKLIST.md');
+assert.match(deploymentChecklist, /public\/js\/manager\.js/);
+assert.match(deploymentChecklist, /public\/js\/ta\.js/);
+
+const managerJs = read('public/js/manager.js');
+assert.doesNotMatch(managerJs, /setupProgressModalDialog/);
 
 const coursePages = [
   'course.html',
@@ -94,7 +121,7 @@ const coursePages = [
   'analytics.html',
 ];
 for (const page of coursePages) {
-  const html = read(`public/${page}`);
+  const html = read(`templates/pages/${page}`);
   for (const label of ['Home', 'Modules', 'Quizzes', 'Assignments']) {
     assert.ok(html.includes(`>${label}<`), `${page} is missing the ${label} course navigation item`);
   }
