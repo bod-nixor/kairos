@@ -19,7 +19,10 @@ if ($submissionId <= 0) {
 $pdo = db();
 
 // Fetch submission for course context (for RBAC + feature flag check before transaction)
-$subStmt = $pdo->prepare('SELECT course_id FROM lms_submissions WHERE submission_id = :s LIMIT 1');
+$subStmt = $pdo->prepare(
+    'SELECT submission_id, assignment_id, course_id, student_user_id'
+    . ' FROM lms_submissions WHERE submission_id = :s LIMIT 1'
+);
 $subStmt->execute([':s' => $submissionId]);
 $sub = $subStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -29,34 +32,11 @@ if (!$sub) {
 
 $courseId = (int)$sub['course_id'];
 
-// Pre-check course access
-lms_course_access($user, $courseId);
+lms_require_submission_access($pdo, $user, $sub, false, true);
 
 // Pre-check feature flag before transaction
 if (!lms_feature_enabled('lms_expansion_grading_modes', $courseId)) {
     lms_error('not_found', 'Grading via API is not enabled for this course', 404);
-}
-
-// TA restriction: only assigned submissions
-if ($user['role_name'] === 'ta') {
-    $subDetailStmt = $pdo->prepare(
-        'SELECT assignment_id FROM lms_submissions WHERE submission_id = :s LIMIT 1'
-    );
-    $subDetailStmt->execute([':s' => $submissionId]);
-    $subDetail = $subDetailStmt->fetch(PDO::FETCH_ASSOC);
-    if ($subDetail) {
-        $assignmentId = (int)($subDetail['assignment_id'] ?? 0);
-        if ($assignmentId <= 0) {
-            lms_error('bad_request', 'Submission is not linked to an assignment', 400);
-        }
-        $chk = $pdo->prepare(
-            'SELECT 1 FROM lms_assignment_tas WHERE assignment_id = :a AND ta_user_id = :u LIMIT 1'
-        );
-        $chk->execute([':a' => $assignmentId, ':u' => (int)$user['user_id']]);
-        if (!$chk->fetchColumn()) {
-            lms_error('forbidden', 'TA not assigned to this assignment', 403);
-        }
-    }
 }
 
 $pdo->beginTransaction();

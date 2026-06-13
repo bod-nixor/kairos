@@ -102,35 +102,110 @@ function lms_require_feature(array $flags, ?int $courseId = null): void
 
 function lms_course_access(array $user, int $courseId, bool $allowStaff = true): void
 {
-    $role = $user['role_name'] ?? lms_user_role($user);
     $pdo = db();
-    if ($role === 'admin') {
-        return;
-    }
-
-    if ($role === 'manager') {
-        if (rbac_can_manage_course($pdo, $user, $courseId)) {
+    if (rbac_can_access_course($pdo, $user, $courseId)) {
+        if ($allowStaff || rbac_course_role($pdo, $user, $courseId) === 'student') {
             return;
         }
-        lms_error('forbidden', 'Manager access to this course is required.', 403);
     }
 
-    if ($role === 'ta') {
-        if ($allowStaff && rbac_can_act_as_ta($pdo, $user, $courseId)) {
-            return;
-        }
-        lms_error('forbidden', 'Staff access to this course is required.', 403);
-    }
+    lms_error('forbidden', 'Course access is required.', 403);
+}
 
-    if ($role === 'student' && in_array(
-        $courseId,
-        rbac_student_course_ids($pdo, (int)($user['user_id'] ?? 0)),
-        true
-    )) {
+function lms_require_course_capability(array $user, string $capability, int $courseId): void
+{
+    if ($courseId <= 0) {
+        lms_error('validation_error', 'course_id required', 422);
+    }
+    if (rbac_can(db(), $user, $capability, $courseId)) {
         return;
     }
+    lms_error('forbidden', 'Insufficient permissions for this course.', 403);
+}
 
-    lms_error('forbidden', 'You are not enrolled in this course.', 403);
+function lms_course_role(array $user, int $courseId): ?string
+{
+    return rbac_course_role(db(), $user, $courseId);
+}
+
+function lms_can_view_unpublished(array $user, int $courseId): bool
+{
+    return rbac_can_manage_course(db(), $user, $courseId);
+}
+
+function lms_assignment_scope(PDO $pdo, int $assignmentId): ?array
+{
+    if ($assignmentId <= 0) {
+        return null;
+    }
+    $stmt = $pdo->prepare(
+        'SELECT assignment_id, course_id, status'
+        . ' FROM lms_assignments'
+        . ' WHERE assignment_id = :assignment_id AND deleted_at IS NULL'
+        . ' LIMIT 1'
+    );
+    $stmt->execute([':assignment_id' => $assignmentId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function lms_submission_scope(PDO $pdo, int $submissionId): ?array
+{
+    if ($submissionId <= 0) {
+        return null;
+    }
+    $stmt = $pdo->prepare(
+        'SELECT s.submission_id, s.assignment_id, s.course_id, s.student_user_id'
+        . ' FROM lms_submissions s'
+        . ' JOIN lms_assignments a ON a.assignment_id = s.assignment_id AND a.deleted_at IS NULL'
+        . ' WHERE s.submission_id = :submission_id'
+        . ' LIMIT 1'
+    );
+    $stmt->execute([':submission_id' => $submissionId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function lms_ta_assigned_to_assignment(PDO $pdo, int $userId, int $assignmentId): bool
+{
+    if ($userId <= 0 || $assignmentId <= 0) {
+        return false;
+    }
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM lms_assignment_tas'
+        . ' WHERE assignment_id = :assignment_id AND ta_user_id = :user_id'
+        . ' LIMIT 1'
+    );
+    $stmt->execute([
+        ':assignment_id' => $assignmentId,
+        ':user_id' => $userId,
+    ]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function lms_require_submission_access(
+    PDO $pdo,
+    array $user,
+    array $submission,
+    bool $allowOwner = true,
+    bool $requireGrader = false
+): void {
+    $courseId = (int)($submission['course_id'] ?? 0);
+    $assignmentId = (int)($submission['assignment_id'] ?? 0);
+    $studentUserId = (int)($submission['student_user_id'] ?? 0);
+    $userId = (int)($user['user_id'] ?? 0);
+    $courseRole = rbac_course_role($pdo, $user, $courseId);
+
+    if ($allowOwner && !$requireGrader && $courseRole === 'student' && $studentUserId === $userId) {
+        return;
+    }
+    if ($courseRole === 'ta' && lms_ta_assigned_to_assignment($pdo, $userId, $assignmentId)) {
+        return;
+    }
+    if (in_array($courseRole, ['manager', 'admin'], true)) {
+        return;
+    }
+    lms_error('forbidden', 'Submission access is required.', 403);
 }
 
 function lms_is_staff_role(string $role): bool

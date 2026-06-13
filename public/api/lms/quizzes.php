@@ -24,8 +24,7 @@ try {
 
 lms_course_access($user, $courseId);
 
-$role = strtolower($user['role_name'] ?? lms_user_role($user));
-$statusFilter = ($role === 'student') ? "AND status = 'published'" : "";
+$statusFilter = lms_can_view_unpublished($user, $courseId) ? '' : "AND status = 'published'";
 
 $pdo = db();
 try {

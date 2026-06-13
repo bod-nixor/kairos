@@ -39,7 +39,7 @@
             `</div>`;
 
         if (opts.autoMarkRead) {
-            const unread = announcements.filter(a => !a.read_at).map(a => a.id);
+            const unread = announcements.filter(a => !a.read_at).map(a => a.announcement_id);
             if (unread.length) markRead(courseId, unread);
         }
     }
@@ -48,7 +48,7 @@
         const initials = (ann.author_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         const unread = !ann.read_at;
         return `
-      <div class="k-announcement${unread ? ' k-announcement--unread' : ''}" data-ann-id="${LMS.escHtml(String(ann.id))}">
+      <div class="k-announcement${unread ? ' k-announcement--unread' : ''}" data-ann-id="${LMS.escHtml(String(ann.announcement_id))}">
         <div class="k-announcement__avatar">
           ${LMS.escHtml(initials)}
         </div>
@@ -70,10 +70,12 @@
 
     // Listen for WS new announcement events
     if (global.LmsWS) {
-        global.LmsWS.on('announcement.created', function (payload) {
+        ['announcement.created', 'announcement.updated', 'announcement.deleted'].forEach(function (eventName) {
+          global.LmsWS.on(eventName, function () {
             // Pages that have a bell dot should light it up
             const dot = document.getElementById('kBellDot');
             if (dot) dot.classList.remove('hidden');
+          });
         });
     }
 

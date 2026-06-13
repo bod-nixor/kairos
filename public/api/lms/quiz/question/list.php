@@ -27,7 +27,7 @@ try {
 
     lms_course_access($user, (int)$assessment['course_id']);
     $role = lms_user_role($user);
-    if (!lms_is_staff_role($role) && (string)$assessment['status'] !== 'published') {
+    if (!lms_can_view_unpublished($user, (int)$assessment['course_id']) && (string)$assessment['status'] !== 'published') {
         lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
     }
 

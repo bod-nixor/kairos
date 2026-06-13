@@ -47,25 +47,15 @@ if (!$course) {
     lms_error('not_found', 'Course not found.', 404);
 }
 
-// Determine the user's role in this course context
-$role = lms_user_role($user);
-
-// Check for course-level staff role (TA/manager assigned to this course)
-if ($role === 'ta' || $role === 'student') {
-    try {
-        $staffStmt = $pdo->prepare('SELECT role FROM course_staff WHERE user_id = :uid AND course_id = :cid LIMIT 1');
-        $staffStmt->execute([':uid' => (int) $user['user_id'], ':cid' => $courseId]);
-        $staffRole = $staffStmt->fetchColumn();
-        if ($staffRole) {
-            $role = strtolower($staffRole);
-        }
-    } catch (\PDOException $e) {
-        error_log('lms/courses.php: course_staff lookup failed: ' . $e->getMessage());
-    }
-}
-
-$course['my_role'] = $role;
+$courseRole = lms_course_role($user, $courseId);
+$course['my_role'] = $courseRole;
+$course['capabilities'] = [
+    'view_course' => $courseRole !== null,
+    'manage_course' => rbac_can($pdo, $user, 'manage_course', $courseId),
+    'grade_course' => rbac_can($pdo, $user, 'grade_course', $courseId),
+    'update_student_progress' => rbac_can($pdo, $user, 'update_student_progress', $courseId),
+    'manage_course_announcements' => rbac_can($pdo, $user, 'manage_course_announcements', $courseId),
+];
 $course['code'] = $course['code'] ?? $course['name'];
 
 lms_ok($course);
-

@@ -35,19 +35,11 @@ if (!$row) {
     lms_error('not_found', 'Submission not found', 404);
 }
 
-// Enforce course-scoped access for all roles (prevents IDOR via direct submission_id)
-lms_course_access($user, (int) $row['course_id']);
-
-// TA restriction: only assigned items
-if ($user['role_name'] === 'ta') {
-    $chk = $pdo->prepare(
-        'SELECT 1 FROM lms_assignment_tas WHERE assignment_id = :a AND ta_user_id = :u LIMIT 1'
-    );
-    $chk->execute([':a' => (int) $row['assignment_id'], ':u' => (int) $user['user_id']]);
-    if (!$chk->fetchColumn()) {
-        lms_error('forbidden', 'TA not assigned to this assignment', 403);
-    }
-}
+lms_require_submission_access($pdo, $user, [
+    'course_id' => (int)$row['course_id'],
+    'assignment_id' => (int)$row['assignment_id'],
+    'student_user_id' => (int)$row['student_user_id'],
+], false, true);
 
 // Submission files
 $files = $pdo->prepare(

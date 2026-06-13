@@ -82,7 +82,7 @@
             document.querySelectorAll('[data-course-href]').forEach(el => {
                 el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`;
             });
-            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+            LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course', course);
             LMS.nav.setActive('assignments');
             const courseRole = String(course.my_role || '').toLowerCase();
             if (courseRole === 'ta' || courseRole === 'manager' || courseRole === 'admin') {

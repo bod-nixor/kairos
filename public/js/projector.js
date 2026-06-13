@@ -33,7 +33,7 @@ async function ensureTaAccess() {
   if (!res.ok) throw new Error('auth');
   const json = await res.json();
   const roles = window.normalizeSessionRoles(json);
-  if (!roles.ta) {
+  if (!(roles.ta || roles.manager || roles.admin)) {
     throw new Error('forbidden');
   }
 }

@@ -14,6 +14,8 @@
     const seenNotificationIds = new Set();
     let seenNotificationsHydrated = false;
     const queuedNotifications = [];
+    const announcementsById = new Map();
+    let canManageAnnouncements = false;
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -158,11 +160,19 @@
             const badge = $('newAnnBadge');
             if (badge) badge.classList.remove('hidden');
         }
+        announcementsById.clear();
+        announcements.forEach(ann => announcementsById.set(Number(ann.announcement_id), ann));
         container.innerHTML = `<div class="k-announcements">${announcements.slice(0, 6).map(ann => {
             const initials = (ann.author_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
             const safeInitials = LMS.escHtml(initials);
+            const announcementId = Number(ann.announcement_id || 0);
+            const controls = canManageAnnouncements ? `
+              <span class="k-announcement__actions">
+                <button type="button" class="k-btn-icon" data-ann-action="edit" data-announcement-id="${announcementId}" aria-label="Edit ${LMS.escHtml(ann.title)}">✏️</button>
+                <button type="button" class="k-btn-icon k-btn-icon--danger" data-ann-action="delete" data-announcement-id="${announcementId}" aria-label="Delete ${LMS.escHtml(ann.title)}">🗑️</button>
+              </span>` : '';
             return `
-        <div class="k-announcement${!ann.read_at ? ' k-announcement--unread' : ''}">
+        <div class="k-announcement${!ann.read_at ? ' k-announcement--unread' : ''}" data-announcement-id="${announcementId}">
           <div class="k-announcement__avatar">
             ${safeInitials}
           </div>
@@ -170,6 +180,8 @@
             <div class="k-announcement__meta">
               <span class="k-announcement__author">${LMS.escHtml(ann.author_name || 'Instructor')}</span>
               <span class="k-announcement__time">${LMS.timeAgo(ann.created_at)}</span>
+              ${ann.status === 'draft' ? '<span class="k-status k-status--warning k-status--dense">Draft</span>' : ''}
+              ${controls}
             </div>
             <p class="k-announcement__title">${LMS.escHtml(ann.title)}</p>
             <p class="k-announcement__preview">${LMS.escHtml(ann.body || '')}</p>
@@ -236,7 +248,7 @@
         const activity = Array.isArray(actPayload) ? actPayload : [];
 
         const courseLabel = course.name || course.code || 'Course';
-        LMS.nav.setCourseContext(COURSE_ID, courseLabel);
+        LMS.nav.setCourseContext(COURSE_ID, courseLabel, course);
         LMS.nav.setActive('home');
         LMS.nav.setBreadcrumb([
             { name: 'All Courses', href: '/signoff/' },
@@ -259,13 +271,8 @@
         $('statAssignments') && ($('statAssignments').textContent = stats.assignments ?? '—');
         $('statQuizzes') && ($('statQuizzes').textContent = stats.quizzes ?? '—');
 
-        // Show role-specific nav items (TA/Manager/Admin see grading + analytics)
-        const role = String(course.my_role || '').toLowerCase();
-        if (role === 'ta' || role === 'manager' || role === 'admin') {
-            $('kNavGrading') && $('kNavGrading').classList.remove('hidden');
-        }
-        if (role === 'manager' || role === 'admin') {
-            $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden');
+        canManageAnnouncements = !!course.capabilities?.manage_course_announcements;
+        if (canManageAnnouncements) {
             $('postAnnBtn') && $('postAnnBtn').classList.remove('hidden');
         }
 
@@ -306,10 +313,26 @@
         const form = $('kAnnForm');
         if (!modal || !form) return;
 
-        $('postAnnBtn')?.addEventListener('click', () => {
+        const openCreate = () => {
+            form.reset();
+            form.elements.announcement_id.value = '';
+            form.elements.status.value = 'published';
+            $('kAnnModalTitle').textContent = 'Post Announcement';
+            $('kAnnModalSubmit').textContent = 'Post Announcement';
             modal.showModal();
             setTimeout(() => { const f = form.querySelector('input'); if (f) f.focus(); }, 100);
-        });
+        };
+        const openEdit = (announcement) => {
+            form.elements.announcement_id.value = String(announcement.announcement_id);
+            form.elements.title.value = announcement.title || '';
+            form.elements.body.value = announcement.body || '';
+            form.elements.status.value = announcement.status || 'published';
+            $('kAnnModalTitle').textContent = 'Edit Announcement';
+            $('kAnnModalSubmit').textContent = 'Save Changes';
+            modal.showModal();
+            setTimeout(() => form.elements.title.focus(), 100);
+        };
+        $('postAnnBtn')?.addEventListener('click', openCreate);
         $('kAnnModalClose')?.addEventListener('click', () => modal.close());
         $('kAnnModalCancel')?.addEventListener('click', () => modal.close());
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
@@ -317,26 +340,64 @@
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = $('kAnnModalSubmit');
-            btn.disabled = true; btn.textContent = 'Posting…';
+            const fd = new FormData(form);
+            const announcementId = Number(fd.get('announcement_id') || 0);
+            const isEdit = announcementId > 0;
+            btn.disabled = true; btn.textContent = isEdit ? 'Saving…' : 'Posting…';
             try {
-                const fd = new FormData(form);
-                const res = await LMS.api('POST', './api/lms/announcements/create.php', {
+                const res = await LMS.api('POST', isEdit
+                    ? './api/lms/announcements/update.php'
+                    : './api/lms/announcements/create.php', {
+                    announcement_id: isEdit ? announcementId : undefined,
                     course_id: parseInt(COURSE_ID),
                     title: fd.get('title'),
                     body: fd.get('body'),
+                    status: fd.get('status'),
                 });
                 if (res.ok) {
-                    LMS.toast('Announcement posted!', 'success');
+                    LMS.toast(isEdit ? 'Announcement updated.' : 'Announcement posted.', 'success');
                     modal.close();
                     form.reset();
-                    await loadPage(); // Refresh to show new announcement
+                    await loadPage();
                 } else {
                     LMS.toast(res.data?.error?.message || 'Failed to post announcement.', 'error');
                 }
             } catch (err) {
                 LMS.toast('Network error. Please try again.', 'error');
             } finally {
-                btn.disabled = false; btn.textContent = 'Post Announcement';
+                btn.disabled = false;
+                btn.textContent = announcementId > 0 ? 'Save Changes' : 'Post Announcement';
+            }
+        });
+
+        $('announcementsFeed')?.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-ann-action]');
+            if (!button || !canManageAnnouncements) return;
+            const announcementId = Number(button.dataset.announcementId || 0);
+            const announcement = announcementsById.get(announcementId);
+            if (!announcement) return;
+            if (button.dataset.annAction === 'edit') {
+                openEdit(announcement);
+                return;
+            }
+            if (button.dataset.annAction === 'delete') {
+                LMS.confirm(
+                    'Delete Announcement',
+                    `Delete "${announcement.title}"? This removes it from the active course feed.`,
+                    async () => {
+                        const res = await LMS.api('POST', './api/lms/announcements/delete.php', {
+                            announcement_id: announcementId,
+                            course_id: Number(COURSE_ID),
+                        });
+                        if (res.ok) {
+                            LMS.toast('Announcement deleted.', 'success');
+                            await loadPage();
+                        } else {
+                            LMS.toast(res.data?.error?.message || 'Failed to delete announcement.', 'error');
+                        }
+                    },
+                    { okLabel: 'Delete', okClass: 'btn-danger' }
+                );
             }
         });
     }
@@ -379,6 +440,17 @@
                 message: `New announcement: ${payload.title || 'Course update'}`,
                 created_at: payload.created_at || new Date().toISOString(),
             });
+            loadPage();
+        });
+        LmsWS.on('announcement.updated', (payload) => {
+            if (String(payload.course_id) !== String(COURSE_ID)) return;
+            LMS.toast('Announcement updated.', 'info');
+            loadPage();
+        });
+        LmsWS.on('announcement.deleted', (payload) => {
+            if (String(payload.course_id) !== String(COURSE_ID)) return;
+            LMS.toast('Announcement removed.', 'info');
+            loadPage();
         });
         LmsWS.on('quiz.published', (payload) => {
             pushCourseEventNotification(payload, 'quiz.published', `Quiz published: ${payload.title || 'New quiz available'}`);

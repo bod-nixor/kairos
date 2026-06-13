@@ -11,6 +11,8 @@
 declare(strict_types=1);
 require_once __DIR__ . '/_common.php';
 
+const LMS_MAX_ANNOUNCEMENT_READ_IDS = 100;
+
 $user = require_login();
 $in = lms_json_input();
 $courseId = (int)($in['course_id'] ?? 0);
@@ -27,14 +29,29 @@ if (!is_array($ids) || empty($ids)) {
 lms_course_access($user, $courseId);
 
 // Deduplicate and normalize IDs
-$ids = array_values(array_unique(array_map('intval', $ids)));
+$ids = array_values(array_filter(
+    array_unique(array_map('intval', $ids)),
+    static fn(int $id): bool => $id > 0
+));
+if (!$ids) {
+    lms_error('validation_error', 'ids must contain valid announcement IDs', 422);
+}
+if (count($ids) > LMS_MAX_ANNOUNCEMENT_READ_IDS) {
+    lms_error('validation_error', 'Too many announcement IDs', 422);
+}
 
 $userId = (int)$user['user_id'];
 $pdo = db();
 
 // Validate that all announcement IDs belong to this course
 $placeholders = implode(',', array_fill(0, count($ids), '?'));
-$validateStmt = $pdo->prepare("SELECT COUNT(*) AS cnt FROM lms_announcements WHERE id IN ($placeholders) AND course_id = ?");
+$visibilitySql = lms_can_view_unpublished($user, $courseId) ? '' : " AND status = 'published'";
+$validateStmt = $pdo->prepare(
+    "SELECT COUNT(*) AS cnt FROM lms_announcements"
+    . " WHERE announcement_id IN ($placeholders)"
+    . ' AND course_id = ? AND deleted_at IS NULL'
+    . $visibilitySql
+);
 $validateIds = array_merge($ids, [$courseId]);
 $validateStmt->execute($validateIds);
 $result = $validateStmt->fetch(PDO::FETCH_ASSOC);

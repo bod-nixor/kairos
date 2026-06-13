@@ -11,8 +11,7 @@ if ($courseId <= 0 || $lessonId <= 0) {
 }
 
 lms_course_access($user, $courseId);
-$role = lms_user_role($user);
-$isStaff = lms_is_staff_role($role);
+$canManage = lms_can_view_unpublished($user, $courseId);
 
 $pdo = db();
 $lessonStmt = $pdo->prepare(
@@ -34,7 +33,7 @@ if (!$lesson) {
     lms_error('not_found', 'Lesson not found', 404);
 }
 
-if (!$isStaff && (int)$lesson['published_flag'] !== 1) {
+if (!$canManage && (int)$lesson['published_flag'] !== 1) {
     lms_error('forbidden', 'Lesson is not published', 403);
 }
 

@@ -28,11 +28,11 @@ try {
     lms_course_access($user, (int)$quiz['course_id']);
 
     $role = lms_user_role($user);
-    if (!lms_is_staff_role($role) && (string)$quiz['status'] !== 'published') {
+    if (!lms_can_view_unpublished($user, (int)$quiz['course_id']) && (string)$quiz['status'] !== 'published') {
         lms_error('forbidden', 'Quiz is not published', 403, $debugMode ? $debug : null);
     }
 
-    $all = in_array($role, ['manager', 'admin', 'ta'], true) ? 1 : 0;
+    $all = rbac_can($pdo, $user, 'grade_course', (int)$quiz['course_id']) ? 1 : 0;
     $attemptSql = 'SELECT attempt_id, assessment_id, user_id, status, score, max_score, started_at, submitted_at, grading_status
                    FROM lms_assessment_attempts
                    WHERE assessment_id = :assessment_id

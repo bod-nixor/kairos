@@ -96,6 +96,42 @@ function ta_has_course(PDO $pdo, int $taUserId, int $courseId): bool {
     return false;
 }
 
+function ta_student_in_course(PDO $pdo, int $studentUserId, int $courseId): bool {
+    if ($studentUserId <= 0 || $courseId <= 0) {
+        return false;
+    }
+
+    $mappings = [
+        ['table' => 'student_courses', 'user_col' => 'user_id', 'course_col' => 'course_id'],
+        ['table' => 'enrollments', 'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role', 'role_value' => 'student'],
+        ['table' => 'course_users', 'user_col' => 'user_id', 'course_col' => 'course_id'],
+        ['table' => 'user_courses', 'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role', 'role_value' => 'student'],
+    ];
+    foreach ($mappings as $map) {
+        $columns = [$map['user_col'], $map['course_col']];
+        if (isset($map['role_col'])) {
+            $columns[] = $map['role_col'];
+        }
+        if (!ta_table_has_columns($pdo, $map['table'], $columns)) {
+            continue;
+        }
+        $sql = "SELECT 1 FROM `{$map['table']}`"
+             . " WHERE `{$map['user_col']}` = :uid AND `{$map['course_col']}` = :cid";
+        $args = [':uid' => $studentUserId, ':cid' => $courseId];
+        if (isset($map['role_col'], $map['role_value'])) {
+            $sql .= " AND LOWER(`{$map['role_col']}`) = :role";
+            $args[':role'] = strtolower((string)$map['role_value']);
+        }
+        $sql .= ' LIMIT 1';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($args);
+        if ($stmt->fetchColumn()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Helper to fetch all courses a TA (or elevated role) is linked with.
  */

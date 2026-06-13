@@ -1,13 +1,13 @@
 # Kairos Production Readiness Report
 
-**Review date:** June 12, 2026  
+**Review date:** June 13, 2026
 **Production route:** `https://kairos.nixorcorporate.com/signoff/`
 
 ## Executive Summary
 
-This pass fixed the known production CSP and realtime failures, closed additional course-scope authorization gaps, implemented durable private Google Drive storage, improved shared responsive/accessibility behavior, and added repeatable regression coverage.
+This pass fixed the known production CSP and realtime failures, centralized course capabilities, closed additional publication and object-scope authorization gaps, added auditable announcement management, stabilized the shared course shell and module interactions, implemented durable private Google Drive storage, and added repeatable regression coverage.
 
-The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. No database migration is required. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
+The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` is required before the new announcement endpoints are deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
 
 ## Baseline Findings
 
@@ -55,6 +55,11 @@ Production inspection and repository review identified:
 ### Backend Enforcement and Data Integrity
 
 - Centralized LMS course checks on existing DB-driven RBAC policies.
+- Added named `view_course`, `manage_course`, `grade_course`, progress, announcement, course-creation, and staff-assignment capabilities.
+- Restricted TA reads to published course content and filtered student grade reads to released grades.
+- Added stored submission/assignment/course ownership checks and assignment-level TA grading checks.
+- Required target-student enrollment for TA progress reads and writes.
+- Added announcement draft/publish state, soft deletion, durable mutation audit, and transactional outbox events.
 - Restricted managers and TAs to assigned courses; only administrators retain global course access.
 - Scoped the LMS course list by accessible course IDs.
 - Added queue-scope authorization to participant and ETA endpoints.
@@ -75,6 +80,10 @@ Production inspection and repository review identified:
 - Improved phone modal sizing with visual-viewport limits.
 - Improved shared modal focus placement, focus restoration, Escape handling, and background-scroll locking.
 - Kept the existing unified `.k-sidebar`, `.k-topbar`, `.k-main` shell and verified consistent Home/Modules/Quizzes/Assignments navigation across ten LMS surfaces.
+- Centralized role-aware course navigation in `public/js/lms-core.js`, including grading/analytics capability gates and direct-load breadcrumb repair.
+- Replaced module fake buttons and nested interactions with native accordion buttons, real item anchors, stable delegation, and mobile-size targets.
+- Added authorized announcement edit/delete controls and destructive confirmation.
+- Normalized the appearance settings launcher with explicit flex centering and icon metrics.
 - Verified explicit theme token sets for Default Dark, Light, Midnight, Graphite, Indigo, and Emerald.
 
 ## Browser Verification
@@ -108,6 +117,9 @@ Passed:
 bash tools/check-errors.sh
 node tools/tests/realtime_runtime_test.mjs
 node tools/tests/production_contract_test.mjs
+node tools/tests/course_ui_contract_test.mjs
+php tools/tests/course_authorization_policy_test.php
+php tools/tests/announcement_authorization_test.php
 php tools/tests/drive_storage_test.php
 php tools/tests/drive_storage_integration_test.php  # safe default: skipped
 git diff --check
@@ -144,12 +156,13 @@ Vendored Socket.IO SHA-256:
 
 ## Remaining Requirements
 
-1. Deploy the full change set, purge Cloudflare caches, and restart the Python realtime service.
-2. Disable Cloudflare Browser Insights injection and Rocket Loader for `/signoff/*`.
-3. Install locked Composer dependencies and configure the private Shared Drive/service account.
-4. Enable Drive reads first, then writes only after the staging storage smoke test passes.
-5. Run authenticated role and cross-course authorization smoke tests after deployment.
-6. Confirm Apache applies the new CSP and blocks `/vendor`, `composer.json`, and `composer.lock`.
+1. Back up the database and apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql`.
+2. Deploy the full change set, purge Cloudflare caches, and restart the Python realtime service.
+3. Disable Cloudflare Browser Insights injection and Rocket Loader for `/signoff/*`.
+4. Install locked Composer dependencies and configure the private Shared Drive/service account.
+5. Enable Drive reads first, then writes only after the staging storage smoke test passes.
+6. Run authenticated role and cross-course authorization smoke tests after deployment.
+7. Confirm Apache applies the new CSP and blocks `/vendor`, `composer.json`, and `composer.lock`.
 
 ## Optional Follow-ups
 

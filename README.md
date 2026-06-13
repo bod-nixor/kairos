@@ -173,6 +173,8 @@ WS_SHARED_SECRET=replace-with-random-hex python ws_server.py
 
 Realtime consumers should treat events as advisory (idempotent and potentially out of order).
 
+Course authorization is capability-based and course-scoped. The authoritative role, page, endpoint, and object-chain policy is documented in `docs/security/course_authorization_matrix.md`.
+
 ---
 
 ## Developer workflows
@@ -197,6 +199,7 @@ Realtime consumers should treat events as advisory (idempotent and potentially o
 4. Return sanitized, stable errors (`4xx` for user issues, `5xx` for system faults).
 5. Enforce RBAC and entity context scoping (IDOR-safe).
 6. Add/update migrations if schema changes are needed.
+7. Use named course capabilities from `src/rbac.php`; do not add endpoint-local role shortcuts.
 
 ### Test locally vs staging/live
 

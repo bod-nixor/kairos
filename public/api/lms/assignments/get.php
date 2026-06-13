@@ -48,7 +48,10 @@ try {
     $moduleStmt->execute([':id' => $assignmentId]);
     $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['required_flag' => 0, 'published_flag' => ((string)$assignment['status'] === 'published' ? 1 : 0)];
 
-    if (!lms_is_staff_role($role) && ((int)$module['published_flag'] !== 1 || (string)$assignment['status'] !== 'published')) {
+    if (
+        !lms_can_view_unpublished($user, (int)$assignment['course_id'])
+        && ((int)$module['published_flag'] !== 1 || (string)$assignment['status'] !== 'published')
+    ) {
         lms_error('forbidden', 'Assignment is not published', 403);
     }
 

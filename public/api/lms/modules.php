@@ -17,11 +17,17 @@ lms_course_access($user, $courseId);
 
 $pdo = db();
 $userId = (int) $user['user_id'];
-$role = lms_user_role($user);
-$isStaff = in_array($role, ['admin', 'manager', 'ta'], true) ? 1 : 0;
+$canManage = lms_can_view_unpublished($user, $courseId) ? 1 : 0;
 
-$stmt = $pdo->prepare('SELECT s.section_id, s.title AS name, s.description, s.position FROM lms_course_sections s WHERE s.course_id = :cid AND s.deleted_at IS NULL ORDER BY s.position ASC, s.section_id ASC');
-$stmt->execute([':cid' => $courseId]);
+$stmt = $pdo->prepare(
+    'SELECT s.section_id, s.title AS name, s.description, s.position'
+    . ' FROM lms_course_sections s'
+    . ' WHERE s.course_id = :cid'
+    . ' AND s.deleted_at IS NULL'
+    . ' AND (:can_manage = 1 OR s.is_published = 1)'
+    . ' ORDER BY s.position ASC, s.section_id ASC'
+);
+$stmt->execute([':cid' => $courseId, ':can_manage' => $canManage]);
 $modules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $itemsStmt = $pdo->prepare(
@@ -32,10 +38,10 @@ $itemsStmt = $pdo->prepare(
      LEFT JOIN lms_lesson_completions lc ON mi.item_type = \'lesson\' AND lc.lesson_id = mi.entity_id AND lc.user_id = :uid
      LEFT JOIN lms_resources r ON mi.item_type IN (\'file\',\'video\',\'link\',\'resource\') AND r.resource_id = mi.entity_id
      WHERE mi.course_id = :cid
-       AND (mi.published_flag = 1 OR :is_staff = 1)
+       AND (mi.published_flag = 1 OR :can_manage = 1)
      ORDER BY mi.section_id, mi.position, mi.module_item_id'
 );
-$itemsStmt->execute([':cid' => $courseId, ':uid' => $userId, ':is_staff' => $isStaff]);
+$itemsStmt->execute([':cid' => $courseId, ':uid' => $userId, ':can_manage' => $canManage]);
 $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $bySection = [];

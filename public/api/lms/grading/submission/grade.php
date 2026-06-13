@@ -36,20 +36,11 @@ if (!$s) {
     lms_error('not_found', 'Submission not found', 404);
 }
 
-// Enforce course-scoped access
-lms_course_access($user, (int)$s['course_id']);
+lms_require_submission_access($pdo, $user, $s, false, true);
 
 // Feature-gate the grading workflow
 if (!lms_feature_enabled('lms_expansion_grading_modes', (int)$s['course_id'])) {
     lms_error('not_found', 'Grading via API is not enabled for this course', 404);
-}
-
-if ($user['role_name'] === 'ta') {
-    $chk = $pdo->prepare('SELECT 1 FROM lms_assignment_tas WHERE assignment_id=:a AND ta_user_id=:u');
-    $chk->execute([':a' => (int)$s['assignment_id'], ':u' => (int)$user['user_id']]);
-    if (!$chk->fetchColumn()) {
-        lms_error('forbidden', 'TA not assigned', 403);
-    }
 }
 
 // Resolve authoritative max_points from assignment BEFORE payload processing

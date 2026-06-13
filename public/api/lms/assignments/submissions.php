@@ -29,23 +29,24 @@ try {
 
     lms_course_access($user, (int)$assignment['course_id']);
 
-    $canViewAll = in_array($role, ['admin', 'manager'], true);
-    if ($role === 'ta') {
-        $taStmt = $pdo->prepare('SELECT 1 FROM lms_assignment_tas WHERE assignment_id=:assignment_id AND ta_user_id=:user_id LIMIT 1');
-        $taStmt->execute([':assignment_id' => $assignmentId, ':user_id' => (int)$user['user_id']]);
-        $canViewAll = (bool)$taStmt->fetchColumn();
+    $courseRole = lms_course_role($user, (int)$assignment['course_id']);
+    $canViewAll = in_array($courseRole, ['admin', 'manager'], true);
+    if ($courseRole === 'ta') {
+        $canViewAll = lms_ta_assigned_to_assignment($pdo, (int)$user['user_id'], $assignmentId);
     }
 
-    if (!$canViewAll && $role === 'student' && (string)$assignment['status'] !== 'published') {
+    if (!$canViewAll && (string)$assignment['status'] !== 'published') {
         lms_error('forbidden', 'Assignment is not published', 403);
     }
 
+    $gradeStatusFilter = $canViewAll ? '' : " AND g2.status = 'released'";
     $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, s.version, s.status, s.submitted_at, s.is_late,
         s.text_submission, s.submission_comment, g.score AS grade, g.feedback,
         r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_file_id
         FROM lms_submissions s
         LEFT JOIN lms_grades g ON g.grade_id = (
-            SELECT g2.grade_id FROM lms_grades g2 WHERE g2.submission_id = s.submission_id ORDER BY g2.updated_at DESC, g2.grade_id DESC LIMIT 1
+            SELECT g2.grade_id FROM lms_grades g2 WHERE g2.submission_id = s.submission_id'
+            . $gradeStatusFilter . ' ORDER BY g2.updated_at DESC, g2.grade_id DESC LIMIT 1
         )
         LEFT JOIN lms_submission_files sf ON sf.submission_id = s.submission_id
         LEFT JOIN lms_resources r ON r.resource_id = sf.resource_id

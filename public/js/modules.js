@@ -262,28 +262,30 @@
 
         const titleText = LMS.escHtml(item.name || item.title || 'Untitled Module');
         const titleMarkup = `<span>${titleText}</span>`;
+        const itemContent = `
+          <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
+          <div class="k-module-item__body">
+            <div class="k-module-item__title">
+              ${titleMarkup}
+              ${statusBadges.join(' ')}
+            </div>
+            ${metaParts.length ? `<div class="k-module-item__meta">${LMS.escHtml(metaParts.join(' · '))}</div>` : ''}
+          </div>
+          <div class="k-module-item__right">
+            ${done ? '<span class="k-status k-status--success" aria-label="Completed">✓</span>' : ''}
+            ${locked ? '<span class="k-module-item__lock" aria-label="Locked">🔒</span>' : ''}
+          </div>`;
+        const itemLink = locked
+            ? `<div class="k-module-item__link" aria-disabled="true">${itemContent}</div>`
+            : `<a class="k-module-item__link" href="${LMS.escHtml(itemHref(item, 'view'))}">${itemContent}</a>`;
 
         return `
       <div
          data-module-item-id="${mid}"
-         ${!locked ? `data-href="${LMS.escHtml(itemHref(item, 'view'))}" tabindex="0"` : ''}
-         class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}${!locked ? ' k-module-item--interactive' : ''}"
-         aria-disabled="${locked ? 'true' : 'false'}"
-         role="button">
+         class="k-module-item${locked ? ' k-module-item--locked' : ''}${done ? ' k-module-item--completed' : ''}${isDraft ? ' k-module-item--draft' : ''}">
         ${dragHandle}
-        <div class="k-module-item__icon ${iconClass}" aria-hidden="true">${done ? '✅' : icon}</div>
-        <div class="k-module-item__body">
-          <div class="k-module-item__title">
-            ${titleMarkup}
-            ${statusBadges.join(' ')}
-          </div>
-          ${metaParts.length ? `<div class="k-module-item__meta">${LMS.escHtml(metaParts.join(' · '))}</div>` : ''}
-        </div>
-        <div class="k-module-item__right">
-          ${adminBtns}
-          ${done ? '<span class="k-status k-status--success" aria-label="Completed">✓</span>' : ''}
-          ${locked ? '<span class="k-module-item__lock" aria-label="Locked">🔒</span>' : ''}
-        </div>
+        ${itemLink}
+        ${adminBtns}
       </div>`;
     }
 
@@ -328,8 +330,8 @@
           <button type="button" class="k-btn-icon k-btn-icon--danger" title="Delete module" data-action="delete-module" data-module-id="${moduleId}">🗑️</button>
         ` : '';
 
-        const headerHtml = `<div class="k-module__header" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}">${dragHandle}<span class="k-module__chevron" aria-hidden="true">▶</span><h2 class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</h2><div class="k-module__meta">${adminHeaderBtns}</div></div>`;
-        const itemsWrapHtml = `<div class="k-module__items${isExpanded ? '' : ' hidden'}" id="${bodyId}" role="list" aria-labelledby="${hdrId}">${itemsHtml}</div>`;
+        const headerHtml = `<div class="k-module__header">${dragHandle}<button type="button" class="k-module__toggle" data-action="toggle-module" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="${bodyId}" id="${hdrId}"><span class="k-module__chevron" aria-hidden="true">▶</span><span class="k-module__title">${LMS.escHtml(mod.name || mod.title || 'Untitled Module')}</span></button><div class="k-module__meta">${adminHeaderBtns}</div></div>`;
+        const itemsWrapHtml = `<div class="k-module__items${isExpanded ? '' : ' hidden'}" id="${bodyId}" aria-labelledby="${hdrId}">${itemsHtml}</div>`;
 
         return `<section class="k-module${isExpanded ? ' is-open' : ''}" data-module-id="${moduleId}">${headerHtml}${itemsWrapHtml}</section>`;
     }
@@ -515,73 +517,6 @@
             return renderModuleHtml(mod, isExpanded);
         }).join('');
 
-        // Expand/collapse toggle
-        container.querySelectorAll('.k-module__header').forEach(header => {
-            const toggle = (e) => {
-                // Don't toggle when clicking admin buttons or drag handles
-                if (e.target.closest('[data-action]') || e.target.closest('.k-drag-handle') || e.target.closest('.k-btn-icon') || e.target.closest('.k-admin-btn')) return;
-                const moduleEl = header.closest('[data-module-id]');
-                const moduleId = parseInt(moduleEl?.dataset.moduleId || '0', 10);
-                const expanded = header.getAttribute('aria-expanded') === 'true';
-                header.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-                const panel = container.querySelector(`#${header.getAttribute('aria-controls')}`);
-                if (panel) panel.classList.toggle('hidden', expanded);
-                if (moduleEl) moduleEl.classList.toggle('is-open', !expanded);
-                if (expanded) expandedModules.delete(moduleId); else expandedModules.add(moduleId);
-            };
-            header.addEventListener('click', toggle);
-            header.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); }
-            });
-        });
-
-        // Admin: Add Item, Edit Module, Delete Module
-        if (isAdmin) {
-            container.querySelectorAll('[data-action="open-add-item"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    openCreateModal('module_item', btn.dataset.moduleId || '');
-                });
-            });
-
-            container.querySelectorAll('[data-action="edit-module"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const moduleId = parseInt(btn.dataset.moduleId || '0', 10);
-                    const mod = modulesData.find(m => parseInt(m.section_id ?? m.id ?? 0, 10) === moduleId);
-                    if (mod) openEditModuleModal(mod);
-                });
-            });
-
-            container.querySelectorAll('[data-action="delete-module"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const moduleId = parseInt(btn.dataset.moduleId || '0', 10);
-                    const mod = modulesData.find(m => parseInt(m.section_id ?? m.id ?? 0, 10) === moduleId);
-                    if (mod) confirmDeleteModule(mod);
-                });
-            });
-
-            // Item-level: edit settings, delete
-            container.querySelectorAll('[data-action="edit-item-settings"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const mid = parseInt(btn.dataset.mid || '0', 10);
-                    const item = findItemById(mid);
-                    if (item) openEditItemModal(item);
-                });
-            });
-
-            container.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const mid = parseInt(btn.dataset.mid || '0', 10);
-                    const item = findItemById(mid);
-                    if (item) confirmDeleteItem(item);
-                });
-            });
-        }
-
         // Setup drag-and-drop after rendering
         setupModuleDragDrop(container);
         setupItemDragDrop(container);
@@ -721,7 +656,10 @@
         }
 
         const course = courseRes.data?.data || courseRes.data || {};
-        LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course');
+        isAdmin = !!course.capabilities?.manage_course;
+        if (isAdmin) showEl('addModuleBtn');
+        else hideEl('addModuleBtn');
+        LMS.nav.setCourseContext(COURSE_ID, course.name || course.code || 'Course', course);
         LMS.nav.setActive('modules');
         const modules = modulesRes.data?.data || modulesRes.data || [];
 
@@ -734,12 +672,6 @@
         modulesData = modules; // cache for data lookups
 
         $('modulesSubtitle') && ($('modulesSubtitle').textContent = `${course.name || ''} · ${course.code || ''}`);
-        const role = String(course.my_role || '').toLowerCase();
-        if (role === 'ta' || role === 'manager' || role === 'admin') { $('kNavGrading') && $('kNavGrading').classList.remove('hidden'); }
-        if (role === 'manager' || role === 'admin') { $('kNavAnalytics') && $('kNavAnalytics').classList.remove('hidden'); }
-        $('kBreadCourse') && ($('kBreadCourse').textContent = course.name || 'Course');
-        document.querySelectorAll('[data-course-href]').forEach(el => el.href = `${el.dataset.courseHref}?course_id=${encodeURIComponent(COURSE_ID)}`);
-
         // Progress
         let totalItems = 0, completedItems = 0;
         modules.forEach(m => {
@@ -781,37 +713,49 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
-        const roles = session.caps?.roles || {};
-        isAdmin = !!(roles.admin || roles.manager);
-        if (isAdmin) {
-            showEl('addModuleBtn');
-            $('addModuleBtn')?.addEventListener('click', () => openCreateModal('module'));
-        }
+        $('addModuleBtn')?.addEventListener('click', () => {
+            if (isAdmin) openCreateModal('module');
+        });
         setupCreateModal();
 
         // Setup singleton delegated handlers
         const container = $('moduleList');
         if (container) {
             container.addEventListener('click', (e) => {
-                const editBtn = e.target.closest('[data-action="edit-item"]');
-                if (editBtn) {
-                    const href = editBtn.dataset.href || '';
-                    if (navigateToHref(href)) {
-                        e.preventDefault();
-                        e.stopPropagation();
+                const action = e.target.closest('[data-action]');
+                if (action) {
+                    const actionName = action.dataset.action || '';
+                    if (actionName === 'toggle-module') {
+                        const moduleEl = action.closest('.k-module[data-module-id]');
+                        const moduleId = parseInt(moduleEl?.dataset.moduleId || '0', 10);
+                        const expanded = action.getAttribute('aria-expanded') === 'true';
+                        action.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                        const panel = document.getElementById(action.getAttribute('aria-controls'));
+                        if (panel) panel.classList.toggle('hidden', expanded);
+                        if (moduleEl) moduleEl.classList.toggle('is-open', !expanded);
+                        if (expanded) expandedModules.delete(moduleId);
+                        else expandedModules.add(moduleId);
+                        return;
                     }
+                    if (!isAdmin) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const moduleId = parseInt(action.dataset.moduleId || '0', 10);
+                    const mid = parseInt(action.dataset.mid || '0', 10);
+                    const mod = modulesData.find(m => parseInt(m.section_id ?? m.id ?? 0, 10) === moduleId);
+                    const item = findItemById(mid);
+                    if (actionName === 'open-add-item') openCreateModal('module_item', action.dataset.moduleId || '');
+                    else if (actionName === 'edit-module' && mod) openEditModuleModal(mod);
+                    else if (actionName === 'delete-module' && mod) confirmDeleteModule(mod);
+                    else if (actionName === 'edit-item-settings' && item) openEditItemModal(item);
+                    else if (actionName === 'delete-item' && item) confirmDeleteItem(item);
+                    else if (actionName === 'edit-item') navigateToHref(action.dataset.href || '');
                     return;
                 }
-                // Don't navigate when clicking other admin buttons
-                if (e.target.closest('[data-action]') || e.target.closest('.k-drag-handle')) return;
 
-                const target = e.target.closest('[data-href], a');
-                if (target && target.dataset.href) {
-                    if (navigateToHref(target.dataset.href)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                } else if (target && target.tagName === 'A') {
+                if (e.target.closest('.k-drag-handle')) return;
+                const target = e.target.closest('a');
+                if (target) {
                     const href = target.getAttribute('href') || '';
                     if (isExternalHttpUrl(href)) {
                         if (navigateToHref(href)) {
@@ -824,17 +768,6 @@
                 }
             });
 
-            container.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    const editBtn = e.target.closest('[data-action="edit-item"]');
-                    const target = e.target.closest('[data-href]');
-                    const href = (editBtn && editBtn.dataset.href) || (target && target.dataset.href) || '';
-                    if (href && navigateToHref(href)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                }
-            });
         }
 
         await loadPage();

@@ -15,7 +15,7 @@ $courseId = (int) ($_GET['course_id'] ?? 0);
 if ($courseId <= 0) {
     lms_error('validation_error', 'course_id required', 422);
 }
-lms_course_access($user, $courseId);
+lms_require_course_capability($user, 'manage_course', $courseId);
 $pdo = db();
 
 // Total lessons — abort on failure (bogus 0 would report 0% completion for everyone)

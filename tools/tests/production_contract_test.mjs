@@ -143,7 +143,9 @@ assert.match(uiCss, /@media \(max-width: 640px\)/);
 
 const lmsCommon = read('public/api/lms/_common.php');
 assert.match(lmsCommon, /rbac_can_manage_course/);
-assert.match(lmsCommon, /rbac_can_act_as_ta/);
+assert.match(lmsCommon, /rbac_can\(db\(\), \$user, \$capability, \$courseId\)/);
+assert.match(lmsCommon, /lms_require_course_capability/);
+assert.match(lmsCommon, /lms_require_submission_access/);
 assert.doesNotMatch(lmsCommon, /in_array\(\$role, \['admin', 'manager'\], true\)\s*\{\s*return;/);
 
 const driveClient = read('public/api/lms/drive_client.php');
@@ -186,5 +188,27 @@ assert.match(websocketServer, /realtime subscription denied/);
 assert.match(websocketServer, /_emit_scoped_event/);
 assert.match(websocketServer, /COURSE_ACCESS_MAPPINGS/);
 assert.match(websocketServer, /if mapping_key not in COURSE_ACCESS_MAPPINGS/);
+assert.match(websocketServer, /course_pre_enroll/);
+assert.match(websocketServer, /_pre_enroll_schema_valid:\s*Optional\[bool\]\s*=\s*None/);
+assert.match(websocketServer, /def _check_pre_enroll_schema/);
+assert.match(websocketServer, /WHERE email = %s AND course_id = %s/);
+assert.doesNotMatch(websocketServer, /WHERE LOWER\(email\) = %s AND course_id = %s/);
+
+const managerCourses = read('public/api/manager/courses.php');
+assert.match(managerCourses, /\$isAdmin\s*=\s*user_role_at_least\(\$pdo,\s*\$user,\s*'admin'\)/);
+
+const taCommon = read('public/api/ta/common.php');
+assert.match(taCommon, /'table'\s*=>\s*'enrollments'[\s\S]*?'role_col'\s*=>\s*'role'[\s\S]*?'role_value'\s*=>\s*'student'/);
+assert.match(taCommon, /'table'\s*=>\s*'user_courses'[\s\S]*?'role_col'\s*=>\s*'role'[\s\S]*?'role_value'\s*=>\s*'student'/);
+
+assert.match(submissionList, /if \(\$courseRole === 'ta'\)/);
+
+const announcementMigration = read('db/migrations/20260613_1430_add_announcement_publication_audit.sql');
+assert.match(announcementMigration, /lms_announcement_audit/);
+assert.match(announcementMigration, /idx_lms_announcements_course_status/);
+
+const courseNav = read('public/js/lms-core.js');
+assert.match(courseNav, /COURSE_NAV_ITEMS/);
+assert.match(courseNav, /manage_course_announcements/);
 
 console.log('production contract tests passed');

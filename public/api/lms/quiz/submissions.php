@@ -28,7 +28,7 @@ try {
         lms_error('not_found', 'Quiz not found in this course', 404);
     }
 
-    lms_course_access($user, (int)$quiz['course_id']);
+    lms_require_course_capability($user, 'grade_course', (int)$quiz['course_id']);
 
     $rows = $pdo->prepare('SELECT a.attempt_id, a.user_id AS student_user_id, a.status, a.grading_status, a.score, a.max_score, a.started_at, a.submitted_at,
            SUM(CASE WHEN r.needs_manual_grading = 1 THEN 1 ELSE 0 END) AS manual_review_count

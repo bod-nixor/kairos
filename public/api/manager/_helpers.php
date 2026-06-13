@@ -104,6 +104,15 @@ function assert_manager_controls_course(PDO $pdo, int $userId, int $courseId): v
     if ($courseId <= 0) {
         json_out(['error' => 'invalid_course', 'message' => 'course_id required'], 400);
     }
+    $roleStmt = $pdo->prepare(
+        'SELECT LOWER(r.name)'
+        . ' FROM users u JOIN roles r ON r.role_id = u.role_id'
+        . ' WHERE u.user_id = :uid LIMIT 1'
+    );
+    $roleStmt->execute([':uid' => $userId]);
+    if (strtolower((string)$roleStmt->fetchColumn()) === 'admin') {
+        return;
+    }
     $courses = fetch_manager_course_ids($pdo, $userId);
     if (!in_array($courseId, $courses, true)) {
         json_out(['error' => 'forbidden', 'message' => 'not enrolled as manager for this course'], 403);

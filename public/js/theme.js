@@ -601,7 +601,7 @@
       replacement.setAttribute('type', 'button');
       replacement.setAttribute('aria-label', 'Open appearance settings');
       replacement.setAttribute('aria-expanded', 'false');
-      replacement.innerHTML = settingsButton.innerHTML || '&#9881;';
+      replacement.innerHTML = '<span class="k-settings-fab__icon" aria-hidden="true">&#9881;</span>';
       settingsButton.replaceWith(replacement);
       settingsButton = replacement;
     }
@@ -610,10 +610,10 @@
       settingsButton = document.createElement('button');
       settingsButton.id = 'kSettingsFab';
       settingsButton.type = 'button';
-      settingsButton.className = 'k-settings-fab flex align-center justify-center';
+      settingsButton.className = 'k-settings-fab';
       settingsButton.setAttribute('aria-label', 'Open appearance settings');
       settingsButton.setAttribute('aria-expanded', 'false');
-      settingsButton.innerHTML = '&#9881;';
+      settingsButton.innerHTML = '<span class="k-settings-fab__icon" aria-hidden="true">&#9881;</span>';
       document.body.appendChild(settingsButton);
     }
 

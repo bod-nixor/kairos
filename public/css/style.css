@@ -932,11 +932,25 @@ body {
   z-index: 1200;
   width: 44px;
   height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--panel);
   cursor: pointer;
   box-shadow: var(--elev-2);
+}
+
+.k-settings-fab__icon {
+  display: block;
+  width: 1em;
+  height: 1em;
+  font-size: 22px;
+  line-height: 1;
+  text-align: center;
 }
 
 .k-settings-panel {
