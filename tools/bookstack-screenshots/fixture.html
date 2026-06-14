@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kairos documentation screenshot</title>
+  <link rel="stylesheet" href="../../public/css/style.css" />
+  <link rel="stylesheet" href="../../public/css/lms.css" />
+  <link rel="stylesheet" href="../../public/css/manager.css" />
+  <link rel="stylesheet" href="../../public/css/admin.css" />
+  <link rel="stylesheet" href="../../public/css/kairos-ui.css" />
+  <style>
+    body { min-height: 900px; }
+    .fixture-shell { min-height: 900px; }
+    .fixture-main { padding-bottom: 56px; }
+    .fixture-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: var(--primary-ghost);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .fixture-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .fixture-two {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(320px, .8fr);
+      gap: 22px;
+    }
+    .fixture-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .fixture-row:last-child { border-bottom: 0; }
+    .fixture-course {
+      min-height: 176px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .fixture-course h3,
+    .fixture-row h3 { margin: 0 0 6px; }
+    .fixture-course p,
+    .fixture-row p { margin: 0; }
+    .fixture-note {
+      border-left: 4px solid var(--primary);
+      padding: 12px 14px;
+      background: var(--primary-ghost);
+      border-radius: 8px;
+    }
+    .fixture-module {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      background: var(--panel);
+    }
+    .fixture-module__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 18px;
+      background: var(--panel-subtle);
+      border-bottom: 1px solid var(--border);
+    }
+    .fixture-module__item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .fixture-module__item:last-child { border-bottom: 0; }
+    .fixture-icon {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      color: var(--primary);
+      background: var(--primary-ghost);
+      font-weight: 800;
+    }
+    .fixture-score {
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+    .fixture-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .fixture-table th,
+    .fixture-table td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .fixture-table th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .fixture-queue {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      min-height: 610px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .fixture-queue__list {
+      border-right: 1px solid var(--border);
+      padding: 18px;
+      background: var(--panel-subtle);
+    }
+    .fixture-queue__work { padding: 22px; }
+    .fixture-bar {
+      height: 9px;
+      border-radius: 999px;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .fixture-bar span {
+      display: block;
+      height: 100%;
+      background: var(--primary);
+    }
+    .fixture-auth-note {
+      text-align: center;
+      margin-top: 12px;
+    }
+    @media (max-width: 900px) {
+      .fixture-grid,
+      .fixture-two,
+      .fixture-queue { grid-template-columns: 1fr; }
+      .fixture-queue__list { border-right: 0; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body class="k-page-body">
+  <div id="fixtureRoot"></div>
+  <script>
+    const root = document.getElementById('fixtureRoot');
+    const view = new URLSearchParams(location.search).get('view') || 'dashboard';
+
+    const navByRole = {
+      Student: ['Dashboard', 'My Courses'],
+      TA: ['All Courses', 'TA Dashboard'],
+      Manager: ['All Courses', 'Manager', 'TA Dashboard'],
+      Admin: ['All Courses', 'Admin', 'Manager', 'TA Dashboard'],
+    };
+
+    function sidebar(role, active, courseNav) {
+      const globalNav = navByRole[role].map((item) => `
+        <a class="k-nav-item${item === active ? ' is-active' : ''}" href="#">
+          <span class="k-nav-item__icon" aria-hidden="true">${item.charAt(0)}</span>
+          <span class="k-nav-item__text">${item}</span>
+        </a>`).join('');
+      const courseItems = role === 'Student'
+        ? ['Home', 'Modules', 'Quizzes', 'Assignments']
+        : role === 'TA'
+          ? ['Home', 'Modules', 'Quizzes', 'Assignments', 'Grading']
+          : ['Home', 'Modules', 'Quizzes', 'Assignments', 'Grading', 'Analytics'];
+      const course = courseNav ? `
+        <div class="k-sidebar__course-header">
+          <div class="k-sidebar__course-name">CS 101</div>
+        </div>
+        <nav class="k-nav-group" aria-label="Course sections">
+          ${courseItems.map((item) => `
+            <a class="k-nav-item${item === active ? ' is-active' : ''}" href="#">
+              <span class="k-nav-item__icon" aria-hidden="true">${item.charAt(0)}</span>
+              <span class="k-nav-item__text">${item}</span>
+            </a>`).join('')}
+        </nav>` : '';
+      return `
+        <aside class="k-sidebar" role="navigation" aria-label="Main navigation">
+          <a class="k-sidebar__brand" href="#">
+            <div class="k-sidebar__logo"><img class="k-brand-badge" src="../../public/images/logo.png" alt="" /></div>
+            <span class="k-sidebar__wordmark">Kairo<span>s</span></span>
+          </a>
+          <div class="k-sidebar__scroll">
+            <nav class="k-nav-group">${globalNav}</nav>
+            ${course}
+          </div>
+          <div class="k-sidebar__user">
+            <div class="k-sidebar__avatar" style="display:grid;place-items:center;font-weight:800">NK</div>
+            <div class="k-sidebar__user-info">
+              <div class="k-sidebar__user-name">Nixor User</div>
+              <div class="k-sidebar__user-role">${role}</div>
+            </div>
+            <button class="k-sidebar__logout" aria-label="Logout">Exit</button>
+          </div>
+        </aside>`;
+    }
+
+    function shell({ role = 'Student', active = 'Dashboard', title = active, courseNav = false, content }) {
+      root.innerHTML = `
+        <div class="fixture-shell">
+          ${sidebar(role, active, courseNav)}
+          <div class="k-layout">
+            <header class="k-topbar">
+              <div class="k-topbar__left">
+                <nav class="k-breadcrumb" aria-label="Breadcrumb">
+                  <span class="k-breadcrumb__item">Kairos</span>
+                  <span class="k-breadcrumb__sep">/</span>
+                  <span class="k-breadcrumb__item is-current">${title}</span>
+                </nav>
+              </div>
+              <div class="k-topbar__actions">
+                <button class="k-topbar__icon-btn" aria-label="Notifications">N</button>
+                <button class="k-topbar__icon-btn" aria-label="Theme">T</button>
+              </div>
+            </header>
+            <main class="k-main fixture-main">
+              <div class="k-page">${content}</div>
+            </main>
+          </div>
+        </div>`;
+    }
+
+    function authShell(title, subtitle, body) {
+      root.innerHTML = `
+        <main class="k-main" style="min-height:900px;display:grid;place-items:center">
+          <section class="centerbox k-auth-card" style="width:min(460px,92vw)">
+            <div class="k-card k-auth-panel">
+              <div class="k-auth-heading">
+                <div class="k-auth-logo"><img class="k-brand-badge" src="../../public/images/logo.png" alt="Kairos" /></div>
+                <h1 class="k-auth-title">${title}</h1>
+                <p class="k-auth-subtitle muted">${subtitle}</p>
+              </div>
+              ${body}
+            </div>
+          </section>
+        </main>`;
+    }
+
+    const views = {
+      login() {
+        authShell('Log in to Kairos', 'Nixor College operations platform', `
+          <button class="btn btn-primary k-auth-submit" type="button">Continue with Google</button>
+          <p class="k-auth-google-help">Use your @nixorcollege.edu.pk account.</p>
+          <div class="k-auth-divider"><span>or</span></div>
+          <div class="k-auth-form">
+            <div class="k-form-field"><label>Username or email</label><input class="k-input" value="example.user" /></div>
+            <div class="k-form-field"><label>Password</label><input class="k-input" type="password" value="example password" /></div>
+            <button class="btn btn-secondary k-auth-submit">Sign in with password</button>
+            <p class="fixture-auth-note"><a href="#">Forgot password?</a></p>
+          </div>`);
+      },
+      activation() {
+        authShell('Activate your account', 'Set a password that only you know.', `
+          <div class="k-auth-form">
+            <div class="k-form-field"><label>New password</label><input class="k-input" type="password" value="a long example passphrase" /></div>
+            <div class="k-form-field"><label>Confirm new password</label><input class="k-input" type="password" value="a long example passphrase" /></div>
+            <p class="muted small">Use at least 12 characters. Long passphrases work well.</p>
+            <button class="btn btn-primary k-auth-submit">Activate account</button>
+          </div>`);
+      },
+      dashboard() {
+        shell({ content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Good morning!</h1><p class="k-page-header__subtitle">Here's what's happening across your courses.</p></div></div>
+          <div class="k-stats-row">
+            <div class="k-stat-card"><span class="k-stat-card__label">My Courses</span><span class="k-stat-card__value">3</span></div>
+            <div class="k-stat-card"><span class="k-stat-card__label">Assignments Due</span><span class="k-stat-card__value">2</span></div>
+            <div class="k-stat-card"><span class="k-stat-card__label">Rooms Open</span><span class="k-stat-card__value">1</span></div>
+          </div>
+          <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">My Courses</h2></div><div class="k-card__body fixture-grid">
+            ${['Computer Science 101', 'Mathematics', 'Academic Skills'].map((name, i) => `<article class="k-card fixture-course"><div><span class="fixture-badge">${['CS 101', 'MATH', 'SKILLS'][i]}</span><h3 style="margin-top:16px">${name}</h3><p class="muted">Open the course to view modules, quizzes, assignments, and rooms.</p></div><button class="btn btn-primary">Open course</button></article>`).join('')}
+          </div></div>` });
+      },
+      settings() {
+        shell({ active: 'My Courses', title: 'Settings & Notifications', content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Interface Settings</h1><p class="k-page-header__subtitle">Customize your Kairos experience across devices.</p></div></div>
+          <div class="fixture-two">
+            <div>
+              <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Theme Palette</h2></div><div class="k-card__body fixture-grid">
+                <button class="k-theme-card is-active"><strong>Light</strong><span class="muted">Bright workspace</span></button>
+                <button class="k-theme-card"><strong>Dark</strong><span class="muted">Low-light workspace</span></button>
+                <button class="k-theme-card"><strong>System</strong><span class="muted">Follow device</span></button>
+              </div></div>
+              <div class="k-card k-panel-gap"><div class="k-card__header"><h2 class="k-card__title">Layout Preferences</h2></div><div class="k-card__body">
+                <label class="fixture-row"><span><strong>Compact Density</strong><br><span class="muted small">Fit more information on screen.</span></span><input type="checkbox" /></label>
+                <label class="fixture-row"><span><strong>Reduce Motion</strong><br><span class="muted small">Reduce non-essential animation.</span></span><input type="checkbox" /></label>
+              </div></div>
+            </div>
+            <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Notifications</h2><button class="btn btn-link btn-sm">Mark seen</button></div><div class="k-card__body">
+              <div class="fixture-row"><div><strong>Assignment due soon</strong><p class="muted small">CS 101 - Project brief</p></div><span class="fixture-badge">New</span></div>
+              <div class="fixture-row"><div><strong>Grade released</strong><p class="muted small">Mathematics - Quiz 2</p></div></div>
+              <div class="fixture-row"><div><strong>Course announcement</strong><p class="muted small">Academic Skills</p></div></div>
+            </div></div>
+          </div>` });
+      },
+      'student-modules'() {
+        shell({ active: 'Modules', title: 'Modules', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Modules</h1><p class="k-page-header__subtitle">Computer Science 101 - CS 101</p></div><button class="btn btn-ghost">Collapse All</button></div>
+          <div class="k-progress-row"><div class="k-progress"><div class="k-progress__fill" style="width:45%"></div></div><span class="muted small">45% complete</span></div>
+          <section class="fixture-module"><div class="fixture-module__head"><strong>Module 1: Foundations</strong><span class="fixture-badge">3 items</span></div>
+            <div class="fixture-module__item"><span class="fixture-icon">L</span><div><strong>Welcome and course outline</strong><p class="muted small">Lesson - Completed</p></div></div>
+            <div class="fixture-module__item"><span class="fixture-icon">R</span><div><strong>Programming reference sheet</strong><p class="muted small">PDF resource</p></div></div>
+            <div class="fixture-module__item"><span class="fixture-icon">Q</span><div><strong>Foundations check</strong><p class="muted small">Quiz - 10 points</p></div></div>
+          </section>
+          <section class="fixture-module"><div class="fixture-module__head"><strong>Module 2: Problem Solving</strong><span class="fixture-badge">2 items</span></div>
+            <div class="fixture-module__item"><span class="fixture-icon">L</span><div><strong>Decomposing a problem</strong><p class="muted small">Lesson</p></div></div>
+            <div class="fixture-module__item"><span class="fixture-icon">A</span><div><strong>Problem set 1</strong><p class="muted small">Assignment - Due Friday</p></div></div>
+          </section>` });
+      },
+      'student-assignment'() {
+        shell({ active: 'Assignments', title: 'Assignment', courseNav: true, content: `
+          <div class="k-assign-header"><h1 class="k-assign-header__title">Problem Set 1</h1><div class="k-assign-header__meta"><span>Due: Friday, 5:00 PM</span><span class="k-status k-status--neutral">Not Submitted</span></div></div>
+          <div class="k-assign-layout">
+            <div><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Assignment Details</h2></div><div class="k-card__body"><p>Complete the attached exercises and show your working clearly.</p></div></div>
+              <div class="k-card k-panel-gap"><div class="k-card__header"><h2 class="k-card__title">Grading Rubric</h2></div><div class="k-card__body"><table class="fixture-table"><tr><th>Criterion</th><th>Max Points</th></tr><tr><td>Correctness</td><td>60</td></tr><tr><td>Method</td><td>30</td></tr><tr><td>Presentation</td><td>10</td></tr></table></div></div>
+            </div>
+            <div class="k-submission-panel"><div class="k-submission-panel__head"><h2 class="k-submission-panel__title">Submit Your Work</h2></div><div class="k-submission-panel__body">
+              <label class="k-label">Upload File</label><div class="k-dropzone"><span class="k-dropzone__icon">Upload</span><span class="k-dropzone__label">Drop files here or click to browse</span><span class="k-dropzone__hint">PDF or DOCX - Maximum 25 MB</span></div>
+              <div class="k-field"><label class="k-label">Comment for staff</label><textarea class="k-textarea" rows="3" placeholder="Add context or notes for your submission..."></textarea></div>
+              <button class="btn btn-primary k-button-block">Submit</button>
+            </div></div>
+          </div>` });
+      },
+      'student-notes'() {
+        shell({ active: 'Assignments', title: 'My Private Notes', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Problem Set 1</h1><p class="k-page-header__subtitle">Assignment workspace</p></div></div>
+          <div class="fixture-two"><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Assignment Details</h2></div><div class="k-card__body"><p>Complete the attached exercises and show your working clearly.</p></div></div>
+          <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">My Private Notes</h2><span class="k-status k-status--success">Saved</span></div><div class="k-card__body"><p class="muted small">Graders and TAs cannot see these private notes.</p><textarea class="k-textarea" rows="9">Remember to ask about question 4 during office hours.</textarea></div></div></div>` });
+      },
+      'student-quiz'() {
+        shell({ active: 'Quizzes', title: 'Quiz', courseNav: true, content: `
+          <div class="k-page-header"><div><span class="fixture-badge">Question 2 of 5</span><h1 class="k-page-header__title" style="margin-top:10px">Foundations Check</h1></div><span class="k-status k-status--warning">08:42 remaining</span></div>
+          <div class="k-progress-row"><div class="k-progress"><div class="k-progress__fill" style="width:40%"></div></div><span class="muted small">2 / 5</span></div>
+          <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Which option best describes decomposition?</h2></div><div class="k-card__body">
+            ${['Breaking a larger problem into smaller parts', 'Writing the final answer first', 'Avoiding repeated steps', 'Testing only at the end'].map((x, i) => `<label class="fixture-row"><span><strong>${String.fromCharCode(65+i)}.</strong> ${x}</span><input type="radio" name="q" ${i===0?'checked':''}></label>`).join('')}
+          </div><div class="k-card__footer" style="display:flex;justify-content:space-between"><button class="btn btn-ghost">Previous</button><button class="btn btn-primary">Next</button></div></div>` });
+      },
+      'student-feedback'() {
+        shell({ active: 'Assignments', title: 'Grade Feedback', courseNav: true, content: `
+          <div class="k-assign-header"><h1 class="k-assign-header__title">Problem Set 1</h1><div class="k-assign-header__meta"><span class="k-status k-status--success">Grade Released</span></div></div>
+          <div class="fixture-two">
+            <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Grade Feedback</h2><span class="fixture-score">86/100</span></div><div class="k-card__body"><p>Strong reasoning and clear working. Review the edge case in question 4 before the next assignment.</p></div></div>
+            <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Rubric Results</h2></div><div class="k-card__body"><table class="fixture-table"><tr><th>Criterion</th><th>Score</th></tr><tr><td>Correctness</td><td>52 / 60</td></tr><tr><td>Method</td><td>25 / 30</td></tr><tr><td>Presentation</td><td>9 / 10</td></tr></table></div></div>
+          </div>` });
+      },
+      'ta-dashboard'() {
+        shell({ role: 'TA', active: 'TA Dashboard', content: `
+          <div class="k-page-header"><h1 class="k-page-header__title">TA Dashboard</h1></div>
+          <div class="k-card k-card__body k-ta-toolbar"><div class="k-form-field"><label>Course</label><select class="k-select"><option>Computer Science 101</option></select></div><div class="k-form-field"><label>Room</label><select class="k-select"><option>Lab 2</option></select></div><button class="btn btn-secondary">Projector View</button><span class="k-status k-status--info">Queue open</span></div>
+          <div class="k-ta-layout"><div><h3 class="k-section-heading">Student Queue</h3><div class="k-card"><div class="k-card__body">
+            <div class="fixture-row"><div><strong>Student One</strong><p class="muted small">Waiting 4 minutes</p></div><button class="btn btn-primary btn-sm">Select</button></div>
+            <div class="fixture-row"><div><strong>Student Two</strong><p class="muted small">Waiting 2 minutes</p></div><button class="btn btn-ghost btn-sm">Select</button></div>
+          </div></div><div class="k-card"><div class="k-card__header"><h3 class="k-card__title">Student One</h3><span class="fixture-badge">CS 101</span></div><div class="k-card__body"><h4>Progress</h4><div class="fixture-bar"><span style="width:62%"></span></div><h4 style="margin-top:24px">Comments</h4><textarea class="k-textarea" rows="4" placeholder="Add a note for other TAs..."></textarea><button class="btn btn-primary" style="margin-top:10px">Add comment</button></div></div></div>` });
+      },
+      'grading-workspace'() {
+        shell({ role: 'TA', active: 'Grading', title: 'Grading', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Grading</h1><p class="k-page-header__subtitle">Problem Set 1</p></div><select class="k-select"><option>Problem Set 1</option></select></div>
+          <div class="fixture-queue"><div class="fixture-queue__list"><h2>Submissions</h2><input class="k-input" placeholder="Search student..." />
+            <div class="fixture-row"><div><strong>Student One</strong><p class="muted small">Ungraded</p></div><span class="fixture-badge">New</span></div>
+            <div class="fixture-row"><div><strong>Student Two</strong><p class="muted small">Draft grade</p></div></div>
+          </div><div class="fixture-queue__work"><div class="k-page-header"><div><h2>Student One</h2><span class="k-status k-status--neutral">Draft</span></div></div>
+            <div class="fixture-note"><strong>Student Comment / Message to Grader</strong><p>Please review the alternative method used in question 4.</p></div>
+            <h3>Rubric</h3><table class="fixture-table"><tr><th>Criterion</th><th>Score</th><th>Maximum</th></tr><tr><td>Correctness</td><td><input class="k-input" value="52" /></td><td>60</td></tr><tr><td>Method</td><td><input class="k-input" value="25" /></td><td>30</td></tr><tr><td>Presentation</td><td><input class="k-input" value="9" /></td><td>10</td></tr></table>
+            <div class="fixture-two" style="margin-top:18px"><div class="k-field"><label class="k-label">Feedback to Student</label><textarea class="k-textarea" rows="3">Strong work. Review question 4.</textarea></div><div class="k-field"><label class="k-label">Private Note (not shown to student)</label><textarea class="k-textarea" rows="3">Discuss alternate method at moderation.</textarea></div></div>
+            <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn btn-ghost">Save Draft</button><button class="btn btn-primary">Release Grade</button></div>
+          </div></div>` });
+      },
+      'manager-dashboard'() {
+        shell({ role: 'Manager', active: 'Manager', content: `
+          <div class="k-page-header"><h1 class="k-page-header__title">Managed courses</h1></div>
+          <div class="fixture-grid">
+            ${['Computer Science 101', 'Programming Lab', 'Capstone Project'].map((name, i) => `<article class="k-card fixture-course"><div><span class="fixture-badge">${['CS 101','CS LAB','CAPSTONE'][i]}</span><h3 style="margin-top:16px">${name}</h3><p class="muted">Manage course settings, rooms, enrollment, learning content, grading, and analytics.</p></div><button class="btn btn-primary">Manage course</button></article>`).join('')}
+          </div>` });
+      },
+      'manager-course-settings'() {
+        shell({ role: 'Manager', active: 'Manager', title: 'Course Settings', content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Computer Science 101</h1><p class="k-page-header__subtitle">Assigned Manager controls</p></div><button class="btn btn-ghost">Back</button></div>
+          <div class="fixture-two"><div>
+            <section class="k-card"><div class="k-card__header"><h2 class="k-card__title">Course settings</h2></div><div class="k-card__body"><div class="k-form-field"><label>Visibility</label><select class="k-select"><option>Restricted</option><option>Public</option></select></div><button class="btn btn-primary">Save visibility</button><h3>Pre-enroll emails</h3><div style="display:flex;gap:10px"><input class="k-input" value="student@nixorcollege.edu.pk" /><button class="btn btn-secondary">Add</button></div></div></section>
+            <section class="k-card k-panel-gap"><div class="k-card__header"><h2 class="k-card__title">Rooms</h2><button class="btn btn-primary btn-sm">New room</button></div><div class="k-card__body"><div class="fixture-row"><strong>Lab 2</strong><span class="k-status k-status--success">Open</span></div></div></section>
+          </div><section class="k-card"><div class="k-card__header"><h2 class="k-card__title">Enrollment</h2></div><div class="k-card__body"><input class="k-input" placeholder="Search by name or email" /><button class="btn btn-primary" style="margin-top:10px">Search</button><h3>Current roster</h3><div class="fixture-row"><span>Student One</span><button class="btn btn-ghost btn-sm">Remove</button></div><div class="fixture-row"><span>Student Two</span><button class="btn btn-ghost btn-sm">Remove</button></div></div></section></div>` });
+      },
+      'manager-modules'() {
+        shell({ role: 'Manager', active: 'Modules', title: 'Modules', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Modules</h1><p class="k-page-header__subtitle">Computer Science 101</p></div><div><button class="btn btn-primary">New Module</button> <button class="btn btn-ghost">Collapse All</button></div></div>
+          <section class="fixture-module"><div class="fixture-module__head"><strong>Module 1: Foundations</strong><div><button class="btn btn-secondary btn-sm">Add Item</button> <button class="btn btn-ghost btn-sm">Edit</button></div></div>
+            <div class="fixture-module__item"><span class="fixture-icon">L</span><div style="flex:1"><strong>Welcome and course outline</strong><p class="muted small">Published lesson</p></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="fixture-module__item"><span class="fixture-icon">R</span><div style="flex:1"><strong>Programming reference sheet</strong><p class="muted small">PDF resource</p></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="fixture-module__item"><span class="fixture-icon">A</span><div style="flex:1"><strong>Problem Set 1</strong><p class="muted small">Draft assignment</p></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+          </section>` });
+      },
+      'assignment-editor'() {
+        shell({ role: 'Manager', active: 'Assignments', title: 'New Assignment', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Create Assignment</h1><p class="k-page-header__subtitle">Assignments are created as drafts.</p></div></div>
+          <div class="fixture-two"><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Assignment details</h2></div><div class="k-card__body">
+            <div class="k-form-field"><label>Title</label><input class="k-input" value="Problem Set 1" /></div>
+            <div class="k-form-field"><label>Instructions</label><textarea class="k-textarea" rows="6">Complete all questions and show your working.</textarea></div>
+            <div class="fixture-two"><div class="k-form-field"><label>Due date</label><input class="k-input" value="2026-06-19 17:00" /></div><div class="k-form-field"><label>Points</label><input class="k-input" value="100" /></div></div>
+            <h3>Allowed file types</h3><div style="display:flex;gap:8px"><span class="fixture-badge">PDF</span><span class="fixture-badge">Documents</span><span class="fixture-badge">Images</span></div>
+          </div></div><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Grading Rubric</h2></div><div class="k-card__body">
+            <div class="fixture-row"><input class="k-input" value="Correctness" /><input class="k-input" value="60" style="max-width:90px" /></div>
+            <div class="fixture-row"><input class="k-input" value="Method" /><input class="k-input" value="30" style="max-width:90px" /></div>
+            <div class="fixture-row"><input class="k-input" value="Presentation" /><input class="k-input" value="10" style="max-width:90px" /></div>
+            <button class="btn btn-secondary">Add criterion</button>
+          </div></div></div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px"><button class="btn btn-ghost">Cancel</button><button class="btn btn-primary">Create Assignment</button></div>` });
+      },
+      'quiz-editor'() {
+        shell({ role: 'Manager', active: 'Quizzes', title: 'New Quiz', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Create Quiz</h1><p class="k-page-header__subtitle">Create the quiz, then add questions before publishing.</p></div></div>
+          <div class="fixture-two"><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Quiz details</h2></div><div class="k-card__body">
+            <div class="k-form-field"><label>Title</label><input class="k-input" value="Foundations Check" /></div>
+            <div class="k-form-field"><label>Instructions</label><textarea class="k-textarea" rows="5">Answer all questions. You may attempt the quiz twice.</textarea></div>
+            <div class="fixture-two"><div class="k-form-field"><label>Time limit (minutes)</label><input class="k-input" value="15" /></div><div class="k-form-field"><label>Maximum attempts</label><input class="k-input" value="2" /></div></div>
+            <button class="btn btn-primary">Create Quiz</button>
+          </div></div><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Questions</h2><button class="btn btn-secondary btn-sm">Add Question</button></div><div class="k-card__body">
+            <div class="fixture-row"><div><strong>1. What is decomposition?</strong><p class="muted small">Multiple choice - 5 points</p></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+            <div class="fixture-row"><div><strong>2. Testing should happen only at the end.</strong><p class="muted small">True or false - 5 points</p></div><button class="btn btn-ghost btn-sm">Edit</button></div>
+          </div></div></div>` });
+      },
+      analytics() {
+        shell({ role: 'Manager', active: 'Analytics', title: 'Analytics', courseNav: true, content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Course Analytics</h1><p class="k-page-header__subtitle">Computer Science 101</p></div><div><select class="k-select"><option>Last 30 days</option></select> <button class="btn btn-ghost">Export CSV</button></div></div>
+          <div class="k-metric-grid">
+            <div class="k-metric-card"><span class="k-metric-card__label">Total Students</span><span class="k-metric-card__value">42</span><span class="k-metric-card__sub">enrolled</span></div>
+            <div class="k-metric-card"><span class="k-metric-card__label">Avg Completion</span><span class="k-metric-card__value">71%</span><span class="k-metric-card__sub">of modules</span></div>
+            <div class="k-metric-card"><span class="k-metric-card__label">Avg Grade</span><span class="k-metric-card__value">82</span><span class="k-metric-card__sub">across assignments</span></div>
+            <div class="k-metric-card"><span class="k-metric-card__label">Pending Reviews</span><span class="k-metric-card__value">8</span><span class="k-metric-card__sub">ungraded submissions</span></div>
+          </div>
+          <div class="k-tabs"><button class="k-tab-btn" aria-selected="true">Module Completion</button><button class="k-tab-btn">Grade Distribution</button><button class="k-tab-btn">Engagement</button><button class="k-tab-btn">Student Table</button></div>
+          <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Module Completion Rates</h2></div><div class="k-card__body">
+            ${[['Foundations',88],['Problem Solving',72],['Functions',61],['Final Project',34]].map(([label,pct])=>`<div class="fixture-row"><span style="width:160px"><strong>${label}</strong></span><div class="fixture-bar" style="flex:1"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`).join('')}
+          </div></div>` });
+      },
+      'admin-dashboard'() {
+        shell({ role: 'Admin', active: 'Admin', content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Admin Dashboard</h1><p class="k-page-header__subtitle">Manage global platform courses and settings.</p></div></div>
+          <div class="k-stats-row"><div class="k-stat-card"><span class="k-stat-card__label">Courses</span><span class="k-stat-card__value">12</span></div><div class="k-stat-card"><span class="k-stat-card__label">Pending Accounts</span><span class="k-stat-card__value">3</span></div><div class="k-stat-card"><span class="k-stat-card__label">Course Staff</span><span class="k-stat-card__value">24</span></div></div>
+          <div class="fixture-grid">
+            <article class="k-card fixture-course"><div><span class="fixture-badge">Accounts</span><h3 style="margin-top:16px">Invite local account</h3><p class="muted">Create a pending account and send an activation email.</p></div><button class="btn btn-primary">Open</button></article>
+            <article class="k-card fixture-course"><div><span class="fixture-badge">Courses</span><h3 style="margin-top:16px">Create or edit courses</h3><p class="muted">Manage course names, descriptions, visibility, and access.</p></div><button class="btn btn-primary">Open</button></article>
+            <article class="k-card fixture-course"><div><span class="fixture-badge">Roles</span><h3 style="margin-top:16px">Course staff</h3><p class="muted">Assign Managers and TAs to selected courses.</p></div><button class="btn btn-primary">Open</button></article>
+          </div>` });
+      },
+      'local-account-invite'() {
+        shell({ role: 'Admin', active: 'Admin', title: 'Invite Local Account', content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Invite local account</h1><p class="k-page-header__subtitle">Create a pending account and email an activation link.</p></div></div>
+          <div class="k-card"><div class="k-card__body"><div class="fixture-two"><div>
+            <div class="fixture-two"><div class="k-form-field"><label>Full name</label><input class="k-input" value="Example User" /></div><div class="k-form-field"><label>Email</label><input class="k-input" value="example@nixorcollege.edu.pk" /></div></div>
+            <div class="fixture-two"><div class="k-form-field"><label>Username</label><input class="k-input" value="example.user" /></div><div class="k-form-field"><label>Platform role</label><select class="k-select"><option>Student</option><option>TA</option><option>Manager</option><option>Admin</option></select></div></div>
+            <div class="fixture-two"><div class="k-form-field"><label>Optional course</label><select class="k-select"><option>Computer Science 101</option></select></div><div class="k-form-field"><label>Course access</label><select class="k-select"><option>Enrolled student</option><option>Assigned TA</option><option>Assigned manager</option></select></div></div>
+            <button class="btn btn-primary">Create account and send activation</button>
+          </div><div class="fixture-note"><strong>Administrators never set passwords.</strong><p>The invited user creates their own password from the activation email.</p></div></div></div></div>` });
+      },
+      'pending-accounts'() {
+        shell({ role: 'Admin', active: 'Admin', title: 'Pending Accounts', content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Pending accounts</h1><p class="k-page-header__subtitle">Accounts waiting for activation.</p></div><button class="btn btn-ghost">Refresh</button></div>
+          <div class="k-card"><div class="k-card__body">
+            <div class="fixture-row"><div><strong>Example Student</strong><p class="muted small">student.one@nixorcollege.edu.pk - Student</p></div><button class="btn btn-secondary">Resend activation</button></div>
+            <div class="fixture-row"><div><strong>Example TA</strong><p class="muted small">ta.one@nixorcollege.edu.pk - TA</p></div><button class="btn btn-secondary">Resend activation</button></div>
+          </div></div>` });
+      },
+      'course-staff'() {
+        shell({ role: 'Admin', active: 'Admin', title: 'Course Staff', content: `
+          <div class="k-page-header"><div><h1 class="k-page-header__title">Course staff</h1><p class="k-page-header__subtitle">Computer Science 101</p></div></div>
+          <div class="fixture-two"><div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Assign course role</h2></div><div class="k-card__body"><div class="k-form-field"><label>Search enrolled users</label><input class="k-input" value="name@nixorcollege.edu.pk" /></div><button class="btn btn-secondary">Search</button><div class="fixture-row"><strong>Example User</strong><button class="btn btn-ghost btn-sm">Select</button></div><div class="fixture-two"><div class="k-form-field"><label>User ID or email</label><input class="k-input" value="name@nixorcollege.edu.pk" /></div><div class="k-form-field"><label>Role</label><select class="k-select"><option>Manager</option><option>TA</option></select></div></div><button class="btn btn-primary">Assign</button></div></div>
+          <div class="k-card"><div class="k-card__header"><h2 class="k-card__title">Current course staff</h2></div><div class="k-card__body"><div class="fixture-row"><div><strong>Manager One</strong><p class="muted small">MANAGER</p></div><button class="btn btn-danger btn-sm">Remove</button></div><div class="fixture-row"><div><strong>TA One</strong><p class="muted small">TA</p></div><button class="btn btn-danger btn-sm">Remove</button></div></div></div></div>` });
+      },
+    };
+
+    (views[view] || views.dashboard)();
+  </script>
+</body>
+</html>

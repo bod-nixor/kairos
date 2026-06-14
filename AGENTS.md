@@ -273,6 +273,11 @@ When building or updating UI for Kairos, agents MUST follow the guidelines docum
    - entrypoints under `public/`,
    - careful relative URL handling,
    - same-origin credential/session behavior.
+10. **Keep user documentation current.**
+   - Any user-visible workflow, label, navigation, permission, or account change must update the relevant page under `docs/bookstack/kairos/` in the same change set.
+   - Refresh affected screenshots with `tools/generate_bookstack_screenshots.sh`.
+   - Keep BookStack pages concise, role-based, task-focused, and free of developer-only details.
+   - Mark uncertain user-facing behavior as `Confirm in Kairos before publishing`.
 
 ---
 
@@ -378,6 +383,7 @@ Before merge:
 - [ ] Logs are structured and sanitized
 - [ ] Feature flags/config updates documented
 - [ ] Docs/runbooks updated when operations are impacted
+- [ ] Relevant BookStack user documentation and screenshots updated for user-visible changes
 - [ ] Manual QA checklist included in PR/task handoff
 
 ---
