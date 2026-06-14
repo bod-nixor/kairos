@@ -188,6 +188,17 @@ Realtime consumers should treat events as advisory (idempotent and potentially o
 
 Course authorization is capability-based and course-scoped. The authoritative role, page, endpoint, and object-chain policy is documented in `docs/security/course_authorization_matrix.md`.
 
+### Public courses and dual course context
+
+- Any authenticated active Kairos user may preview an active public course, regardless of their sitewide role.
+- Public preview is metadata-only. Modules, quizzes, assignments, announcements, rooms, queues, attempts, and submissions still require student enrollment or an explicit staff/admin grant.
+- Self-enrollment writes only `student_courses`; it never creates TA, manager, or admin authority.
+- A TA or manager may therefore be assigned staff in Course A and participate as a student in Course B.
+- Course capability responses distinguish `view_course_public`, `view_course`, `participate_as_student`, `grade_course`, `manage_course`, and `admin_course`.
+- Realtime subscriptions continue to require enrolled or assigned course access. Public preview alone never grants a course event room.
+
+Course navigation uses ordinary shareable URLs. Supported browsers may speculatively prefetch same-origin course pages, while all browsers retain normal navigation as the fallback. A full partial-navigation router is intentionally deferred until every page controller has explicit mount/unmount lifecycle hooks; see `docs/architecture/navigation_performance.md`.
+
 ---
 
 ## Developer workflows

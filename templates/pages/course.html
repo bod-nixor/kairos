@@ -15,7 +15,7 @@
     <script data-cfasync="false" src="./js/config.js"></script>
 </head>
 
-<body class="k-page-body">
+    <body class="k-page-body" data-realtime-defer-course>
 
     <!-- ── Sidebar ──────────────────────────────────────────── -->
     <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Course navigation">
@@ -46,16 +46,16 @@
                     <span class="k-nav-item__icon" aria-hidden="true">🏠</span>
                     <span class="k-nav-item__text">Home</span>
                 </a>
-                <a class="k-nav-item" data-nav-key="modules" data-course-href="./modules.html" href="#">
+                <a class="k-nav-item hidden" data-nav-key="modules" data-course-href="./modules.html" href="#">
                     <span class="k-nav-item__icon" aria-hidden="true">📦</span>
                     <span class="k-nav-item__text">Modules</span>
                 </a>
-                <a class="k-nav-item" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
+                <a class="k-nav-item hidden" data-nav-key="quizzes" data-course-href="./quizzes.html" href="#"
                     id="kNavQuizzes">
                     <span class="k-nav-item__icon" aria-hidden="true">⚡</span>
                     <span class="k-nav-item__text">Quizzes</span>
                 </a>
-                <a class="k-nav-item" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
+                <a class="k-nav-item hidden" data-nav-key="assignments" data-course-href="./assignments.html" href="#"
                     id="kNavAssignments">
                     <span class="k-nav-item__icon" aria-hidden="true">📤</span>
                     <span class="k-nav-item__text">Assignments</span>
@@ -230,6 +230,8 @@
 
                     </div><!-- /courseBody -->
                 </div><!-- /courseLoaded -->
+
+                <div id="coursePublicPreview" class="hidden"></div>
 
                 <!-- Access denied state -->
                 <div id="courseAccessDenied" class="hidden"></div>

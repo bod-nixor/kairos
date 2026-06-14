@@ -3,11 +3,6 @@ declare(strict_types=1);
 
 function simulate_courses_join(array $sessionUser, array $payload, array &$studentCourses, array $courses, array $allowlist): array
 {
-    $role = strtolower((string)($sessionUser['role_name'] ?? ''));
-    if ($role !== 'student') {
-        return ['status' => 403, 'error' => 'forbidden'];
-    }
-
     $courseId = (int)($payload['course_id'] ?? 0);
     if ($courseId <= 0) {
         return ['status' => 422, 'error' => 'validation_error'];
@@ -15,6 +10,9 @@ function simulate_courses_join(array $sessionUser, array $payload, array &$stude
 
     $course = $courses[$courseId] ?? null;
     if ($course === null) {
+        return ['status' => 404, 'error' => 'not_found'];
+    }
+    if (empty($course['is_active'])) {
         return ['status' => 404, 'error' => 'not_found'];
     }
 
@@ -37,8 +35,9 @@ function simulate_courses_join(array $sessionUser, array $payload, array &$stude
 }
 
 $courses = [
-    10 => ['visibility' => 'public'],
-    20 => ['visibility' => 'restricted'],
+    10 => ['visibility' => 'public', 'is_active' => true],
+    20 => ['visibility' => 'restricted', 'is_active' => true],
+    30 => ['visibility' => 'public', 'is_active' => false],
 ];
 
 $allowlist = [
@@ -48,10 +47,18 @@ $allowlist = [
 $studentCourses = [];
 $cases = [
     [
-        'name' => 'non-student role denied',
+        'name' => 'manager can enroll as student in another public course',
         'session' => ['user_id' => 1, 'role_name' => 'manager', 'email' => 'x@nixorcollege.edu.pk'],
         'payload' => ['course_id' => 10],
-        'status' => 403,
+        'status' => 200,
+        'idempotent' => true,
+    ],
+    [
+        'name' => 'TA can enroll as student in another public course',
+        'session' => ['user_id' => 5, 'role_name' => 'ta', 'email' => 'ta@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 10],
+        'status' => 200,
+        'idempotent' => true,
     ],
     [
         'name' => 'public course enrollment succeeds',
@@ -72,6 +79,12 @@ $cases = [
         'payload' => ['course_id' => 20],
         'status' => 200,
         'idempotent' => true,
+    ],
+    [
+        'name' => 'inactive course remains unavailable',
+        'session' => ['user_id' => 6, 'role_name' => 'student', 'email' => 'any@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 30],
+        'status' => 404,
     ],
 ];
 

@@ -1,24 +1,26 @@
 # Course Authorization Matrix
 
-**Effective date:** June 13, 2026  
-**Policy source:** `src/rbac.php`, consumed by `public/api/lms/_common.php`
+**Effective date:** June 14, 2026
+**Policy source:** `src/course_access_policy.php` and `src/rbac.php`, consumed by `public/api/lms/_common.php`
 
 ## Role Definitions
 
 | Role | Course scope | Intended authority |
 |---|---|---|
-| Student | Enrolled or legitimate pre-enrollment only | Published content, own attempts/submissions/files, own released grades, ordinary preferences |
-| TA | Explicitly assigned courses only | Published content, assigned grading, relevant student progress/sign-off, queue/room operations |
-| Manager | Explicitly assigned courses only | Full operational and editorial control for assigned courses |
+| Student | Public preview plus enrolled courses | Published enrolled content, own attempts/submissions/files, own released grades, ordinary preferences |
+| TA | Public preview, student enrollment, and explicitly assigned courses | Student participation outside assigned courses; assigned grading/progress/queue authority only where mapped |
+| Manager | Public preview, student enrollment, and explicitly assigned courses | Student participation outside assigned courses; full operational/editorial control only where mapped |
 | Admin | Every course | Manager-equivalent course control plus global course creation and staff assignment |
 
-Global role rank is not a course grant. A manager or TA must also have a recognized course mapping. Admin access is explicit.
+Global role rank is not a course grant. Student participation is independent of global role, so a TA or manager may also have a `student_courses` row for another course. Staff assignment always wins when deriving the display context for the same course. Admin access is explicit.
 
 ## Capability Matrix
 
 | Capability | Student | TA | Manager | Admin |
 |---|---:|---:|---:|---:|
-| `view_course` | scoped | scoped | scoped | all |
+| `view_course_public` | public active | public active | public active | public active |
+| `view_course` | enrolled | enrolled or assigned | enrolled or assigned | all active |
+| `participate_as_student` | enrolled | enrolled | enrolled | no implicit student actions |
 | `manage_course` | no | no | scoped | all |
 | `grade_course` | no | scoped | scoped | all |
 | `update_student_progress` | no | scoped | scoped | all |
@@ -29,13 +31,14 @@ Global role rank is not a course grant. A manager or TA must also have a recogni
 | View another student's submission | no | assigned grading only | scoped | all |
 | View grade drafts | no | assigned grading only | scoped | all |
 
-For assignment grading, a TA must also appear in `lms_assignment_tas`. Students receive only the latest grade whose status is `released`.
+`view_course_public` grants course metadata and the enrol CTA only. It does not grant dependent LMS objects, rooms, queues, or realtime subscriptions. For assignment grading, a TA must also appear in `lms_assignment_tas`. Students receive only the latest grade whose status is `released`.
 
 ## Page Matrix
 
 | Page/surface | Student | TA | Manager | Admin | Guard |
 |---|---:|---:|---:|---:|---|
-| Course, modules, lessons, resources, quizzes, assignments | scoped published | scoped published | scoped full | full | `courses.php` capability payload plus protected APIs |
+| Course home metadata | public/enrolled | public/enrolled/assigned | public/enrolled/assigned | all active | `view_course_home` |
+| Modules, lessons, resources, quizzes, assignments | enrolled published | enrolled published or assigned published | enrolled published or assigned full | full | `view_course` plus object policy |
 | Grading | no | scoped/assigned | scoped | all | `grade_course` |
 | Analytics | no | no | scoped | all | `manage_course` |
 | Course settings/edit controls | no | no | scoped | all | `manage_course` |
@@ -73,8 +76,10 @@ Client-provided `course_id` is context only. It must match the relationship load
 
 | Endpoint family | Method | Capability/role | Scope and ownership | Unauthorized response |
 |---|---|---|---|---|
-| `lms/courses.php`, `courses/list.php`, `courses/sections.php`, discovery/list reads | GET | `view_course` or accessible-course list | DB enrollment/staff/pre-enrollment mappings | 403 |
-| `lms/courses/join.php`, `courses_join.php` | POST | student | public/allowlisted course, authenticated email | 403/404/422 |
+| `lms/courses.php` | GET | `view_course_home` | active public/invited course, enrollment, staff assignment, or admin | 404 for foreign private/inactive |
+| `lms/courses/list.php`, discovery/list reads | GET | authenticated | unified access context per active course | hidden when foreign private |
+| `lms/courses/join.php`, `courses_join.php` | POST | authenticated | active public/allowlisted/pre-enrolled course; transactional `student_courses` write only | 403/404/422 |
+| `lms/courses/sections.php` and dependent LMS reads | GET | `view_course` | enrolled student, assigned staff, or admin | 403 |
 | `lms/courses/visibility.php`, `allowlist.php`, `preenroll.php`, settings endpoints | GET/POST | `manage_course` | assigned course; stored course ID | 403/404 |
 | `lms/modules.php`, `lessons.php`, `lessons/get.php`, `resources/get.php`, `quizzes.php`, `quiz/get.php`, `assignments.php`, `assignments/get.php` | GET | `view_course` | object belongs to accessible course; TA/student published-only | 403/404 |
 | `lms/sections/{create,update,delete,reorder}.php` | POST | `manage_course` | section and complete reorder set belong to course; stale expected order rejected | 403/404/409/422 |
@@ -125,14 +130,14 @@ and oversized files. Validation completes before Drive upload and before the sub
 1. Domain writes and their `lms_event_outbox` row share one DB transaction.
 2. A rollback removes both; the worker can only observe committed events.
 3. Course events require `course_id` and publish to `course:<id>`.
-4. Socket connection authorization checks the same enrollment/staff/pre-enrollment sources.
+4. Socket connection authorization checks current role, `student_courses`, and staff mappings. Public preview, allowlist, and unclaimed pre-enrollment do not grant a course room.
 5. Clients refresh authoritative REST state on announcement create/update/delete.
 
 ## Manual Smoke Plan
 
-1. Student: verify published content only, own released grade only, no grading/analytics/settings/edit controls, and foreign IDs return 403/404.
-2. TA: verify assigned-course published content, assigned grading/progress, no course/announcement editing, and foreign course/student IDs fail.
-3. Manager: verify full assigned-course editing, announcement create/edit/unpublish/delete, and foreign course failure.
+1. Student: preview a public foreign course, enrol, then verify published content only and own released grade only.
+2. TA: verify assigned-course grading/progress; preview and enrol in another public course without receiving foreign staff controls.
+3. Manager: verify full assigned-course editing; preview and enrol in another public course without receiving foreign management controls.
 4. Admin: verify all-course management, course creation, and staff assign/remove.
 5. For each role, directly open grading, analytics, lesson edit, assignment edit, and course settings URLs.
 6. Verify queue/room and WebSocket subscriptions reject mismatched or foreign course context.
@@ -143,3 +148,5 @@ and oversized files. Validation completes before Drive upload and before the sub
 ## Migration Note
 
 Apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql` before deploying the announcement API/UI. It adds publication state, a lookup index, and `lms_announcement_audit`. The application does not mutate schema at runtime.
+
+The June 14 public-course access pass adds no migration. It uses existing `courses.visibility`, `courses.is_active`, `course_allowlist`, `course_pre_enroll`, and `student_courses` structures.

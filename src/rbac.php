@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/public/includes/logger.php';
 require_once dirname(__DIR__) . '/public/api/_helpers.php';
 require_once dirname(__DIR__) . '/public/api/ta/common.php';
+require_once __DIR__ . '/course_access_policy.php';
 
 function rbac_user_id(array $user): int
 {
@@ -184,9 +185,9 @@ function rbac_ta_course_ids(PDO $pdo, int $userId): array
 function rbac_student_course_mappings(): array
 {
     return [
-        ['table' => 'student_courses', 'user_col' => 'user_id', 'course_col' => 'course_id'],
-        ['table' => 'user_courses',    'user_col' => 'user_id', 'course_col' => 'course_id'],
-        ['table' => 'enrollments',     'user_col' => 'user_id', 'course_col' => 'course_id'],
+        ['table' => 'student_courses', 'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => null],
+        ['table' => 'user_courses',    'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role'],
+        ['table' => 'enrollments',     'user_col' => 'user_id', 'course_col' => 'course_id', 'role_col' => 'role'],
     ];
 }
 
@@ -202,6 +203,10 @@ function rbac_student_course_ids(PDO $pdo, int $userId): array
     $ids = [];
     foreach (rbac_student_course_mappings() as $map) {
         $columns = [$map['user_col'], $map['course_col']];
+        $roleCol = $map['role_col'] ?? null;
+        if ($roleCol !== null) {
+            $columns[] = $roleCol;
+        }
         if (!rbac_table_has_columns($pdo, $map['table'], $columns)) {
             continue;
         }
@@ -209,6 +214,10 @@ function rbac_student_course_ids(PDO $pdo, int $userId): array
         $userCol = rbac_quote_identifier($map['user_col']);
         $courseCol = rbac_quote_identifier($map['course_col']);
         $sql = "SELECT DISTINCT CAST($courseCol AS UNSIGNED) AS cid FROM $table WHERE $userCol = :uid";
+        if ($roleCol !== null) {
+            $roleIdentifier = rbac_quote_identifier($roleCol);
+            $sql .= " AND ($roleIdentifier IS NULL OR LOWER($roleIdentifier) = 'student')";
+        }
         $stmt = $pdo->prepare($sql);
         $stmt->execute([':uid' => $userId]);
         foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $cid) {
@@ -266,6 +275,103 @@ function rbac_pre_enrolled_course_ids(PDO $pdo, array $user): array
     return $cache[$key] = $ids;
 }
 
+function rbac_course_record(PDO $pdo, int $courseId): ?array
+{
+    if ($courseId <= 0 || !rbac_table_has_columns($pdo, 'courses', ['course_id', 'is_active'])) {
+        return null;
+    }
+
+    static $cache = [];
+    if (array_key_exists($courseId, $cache)) {
+        return $cache[$courseId];
+    }
+
+    $visibilitySql = rbac_table_has_columns($pdo, 'courses', ['visibility'])
+        ? 'COALESCE(visibility, "public")'
+        : '"public"';
+    $stmt = $pdo->prepare(
+        'SELECT CAST(course_id AS UNSIGNED) AS course_id,'
+        . '       CAST(is_active AS UNSIGNED) AS is_active,'
+        . "       $visibilitySql AS visibility"
+        . '  FROM courses'
+        . ' WHERE course_id = :cid'
+        . ' LIMIT 1'
+    );
+    $stmt->execute([':cid' => $courseId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return $cache[$courseId] = null;
+    }
+
+    return $cache[$courseId] = [
+        'course_id' => (int)$row['course_id'],
+        'is_active' => (int)$row['is_active'] === 1,
+        'visibility' => strtolower((string)$row['visibility']) === 'restricted' ? 'restricted' : 'public',
+    ];
+}
+
+function rbac_user_is_course_allowlisted(PDO $pdo, array $user, int $courseId): bool
+{
+    $email = strtolower(trim((string)($user['email'] ?? '')));
+    if ($courseId <= 0 || $email === '' || !rbac_table_has_columns($pdo, 'course_allowlist', ['course_id', 'email'])) {
+        return false;
+    }
+
+    static $cache = [];
+    $key = $courseId . '|' . $email;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM course_allowlist'
+        . ' WHERE course_id = :cid AND LOWER(email) = :email'
+        . ' LIMIT 1'
+    );
+    $stmt->execute([':cid' => $courseId, ':email' => $email]);
+    return $cache[$key] = (bool)$stmt->fetchColumn();
+}
+
+function rbac_course_access_context(PDO $pdo, array $user, int $courseId): array
+{
+    $course = rbac_course_record($pdo, $courseId);
+    $userId = rbac_user_id($user);
+    $authenticated = $userId > 0;
+    $active = (bool)($course['is_active'] ?? false);
+    $isAdmin = $authenticated && rbac_is_admin($pdo, $user);
+    $studentCourseIds = $authenticated ? rbac_student_course_ids($pdo, $userId) : [];
+    $isEnrolled = $active && in_array($courseId, $studentCourseIds, true);
+    $isManager = $active
+        && $authenticated
+        && rbac_is_manager($pdo, $user)
+        && in_array($courseId, rbac_manager_course_ids($pdo, $userId), true);
+    $isTa = $active
+        && $authenticated
+        && rbac_is_ta($pdo, $user)
+        && in_array($courseId, rbac_ta_course_ids($pdo, $userId), true);
+    $isAllowlisted = $active && $authenticated && rbac_user_is_course_allowlisted($pdo, $user, $courseId);
+    $isPreEnrolled = $active
+        && $authenticated
+        && in_array($courseId, rbac_pre_enrolled_course_ids($pdo, $user), true);
+    $decision = kairos_course_access_decision([
+        'authenticated' => $authenticated,
+        'course_active' => $active,
+        'visibility' => $course['visibility'] ?? 'restricted',
+        'is_admin' => $isAdmin,
+        'assigned_manager' => $isManager,
+        'assigned_ta' => $isTa,
+        'enrolled_student' => $isEnrolled,
+        'allowlisted' => $isAllowlisted,
+        'pre_enrolled' => $isPreEnrolled,
+    ]);
+
+    return $decision + [
+        'course_exists' => $course !== null,
+        'course_active' => $active,
+        'visibility' => $course['visibility'] ?? null,
+    ];
+}
+
 function rbac_accessible_course_ids(PDO $pdo, array $user): ?array
 {
     if (rbac_is_admin($pdo, $user)) {
@@ -282,13 +388,7 @@ function rbac_accessible_course_ids(PDO $pdo, array $user): ?array
     if (rbac_is_ta($pdo, $user)) {
         $courses = array_merge($courses, rbac_ta_course_ids($pdo, $userId));
     }
-    if (rbac_is_student($pdo, $user)) {
-        $courses = array_merge(
-            $courses,
-            rbac_student_course_ids($pdo, $userId),
-            rbac_pre_enrolled_course_ids($pdo, $user)
-        );
-    }
+    $courses = array_merge($courses, rbac_student_course_ids($pdo, $userId));
     $courses = array_values(array_unique(array_map('intval', $courses)));
     sort($courses);
     return $courses;
@@ -296,108 +396,48 @@ function rbac_accessible_course_ids(PDO $pdo, array $user): ?array
 
 function rbac_can_manage_course(PDO $pdo, array $user, int $courseId): bool
 {
-    if ($courseId <= 0) {
-        return false;
-    }
-    if (rbac_is_admin($pdo, $user)) {
-        return true;
-    }
-    if (!rbac_is_manager($pdo, $user)) {
-        return false;
-    }
-    $userId = rbac_user_id($user);
-    if ($userId <= 0) {
-        return false;
-    }
-    return in_array($courseId, rbac_manager_course_ids($pdo, $userId), true);
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['manage_course'] ?? false);
 }
 
 function rbac_can_act_as_ta(PDO $pdo, array $user, int $courseId): bool
 {
-    if ($courseId <= 0) {
-        return false;
-    }
-    if (rbac_is_admin($pdo, $user)) {
-        return true;
-    }
-    $userId = rbac_user_id($user);
-    if ($userId <= 0) {
-        return false;
-    }
-    if (rbac_is_manager($pdo, $user) && in_array($courseId, rbac_manager_course_ids($pdo, $userId), true)) {
-        return true;
-    }
-    if (!rbac_is_ta($pdo, $user)) {
-        return false;
-    }
-    return in_array($courseId, rbac_ta_course_ids($pdo, $userId), true);
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['grade_course'] ?? false);
 }
 
 function rbac_can_access_course(PDO $pdo, array $user, int $courseId): bool
 {
-    if ($courseId <= 0) {
-        return false;
-    }
-    if (rbac_is_admin($pdo, $user)) {
-        return true;
-    }
-    $userId = rbac_user_id($user);
-    if ($userId <= 0) {
-        return false;
-    }
-    if (rbac_is_manager($pdo, $user) && in_array($courseId, rbac_manager_course_ids($pdo, $userId), true)) {
-        return true;
-    }
-    if (rbac_is_ta($pdo, $user) && in_array($courseId, rbac_ta_course_ids($pdo, $userId), true)) {
-        return true;
-    }
-    if (rbac_is_student($pdo, $user)) {
-        $studentCourseIds = array_merge(
-            rbac_student_course_ids($pdo, $userId),
-            rbac_pre_enrolled_course_ids($pdo, $user)
-        );
-        if (in_array($courseId, $studentCourseIds, true)) {
-            return true;
-        }
-    }
-    return false;
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['view_course'] ?? false);
+}
+
+function rbac_can_view_course_home(PDO $pdo, array $user, int $courseId): bool
+{
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['view_course_home'] ?? false);
+}
+
+function rbac_can_view_public_course(PDO $pdo, array $user, int $courseId): bool
+{
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['view_course_public'] ?? false);
+}
+
+function rbac_can_participate_as_student(PDO $pdo, array $user, int $courseId): bool
+{
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['participate_as_student'] ?? false);
 }
 
 function rbac_course_role(PDO $pdo, array $user, int $courseId): ?string
 {
-    if ($courseId <= 0) {
-        return null;
-    }
-    if (rbac_is_admin($pdo, $user)) {
-        return 'admin';
-    }
-
-    $userId = rbac_user_id($user);
-    if ($userId <= 0) {
-        return null;
-    }
-    if (rbac_is_manager($pdo, $user) && in_array($courseId, rbac_manager_course_ids($pdo, $userId), true)) {
-        return 'manager';
-    }
-    if (rbac_is_ta($pdo, $user) && in_array($courseId, rbac_ta_course_ids($pdo, $userId), true)) {
-        return 'ta';
-    }
-
-    $studentCourseIds = array_merge(
-        rbac_student_course_ids($pdo, $userId),
-        rbac_pre_enrolled_course_ids($pdo, $user)
-    );
-    return in_array($courseId, $studentCourseIds, true) ? 'student' : null;
+    $role = rbac_course_access_context($pdo, $user, $courseId)['course_role'] ?? null;
+    return is_string($role) && $role !== '' ? $role : null;
 }
 
 function rbac_can_grade_course(PDO $pdo, array $user, int $courseId): bool
 {
-    return rbac_can_act_as_ta($pdo, $user, $courseId);
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['grade_course'] ?? false);
 }
 
 function rbac_can_update_student_progress(PDO $pdo, array $user, int $courseId): bool
 {
-    return rbac_can_act_as_ta($pdo, $user, $courseId);
+    return (bool)(rbac_course_access_context($pdo, $user, $courseId)['grade_course'] ?? false);
 }
 
 function rbac_can_manage_course_announcements(PDO $pdo, array $user, int $courseId): bool
@@ -418,9 +458,13 @@ function rbac_can_create_course(PDO $pdo, array $user): bool
 function rbac_can(PDO $pdo, array $user, string $capability, ?int $courseId = null): bool
 {
     return match ($capability) {
+        'view_course_public' => $courseId !== null && rbac_can_view_public_course($pdo, $user, $courseId),
+        'view_course_home' => $courseId !== null && rbac_can_view_course_home($pdo, $user, $courseId),
         'view_course' => $courseId !== null && rbac_can_access_course($pdo, $user, $courseId),
+        'view_course_enrolled', 'participate_as_student' => $courseId !== null && rbac_can_participate_as_student($pdo, $user, $courseId),
         'manage_course' => $courseId !== null && rbac_can_manage_course($pdo, $user, $courseId),
         'grade_course' => $courseId !== null && rbac_can_grade_course($pdo, $user, $courseId),
+        'admin_course' => $courseId !== null && (bool)(rbac_course_access_context($pdo, $user, $courseId)['admin_course'] ?? false),
         'update_student_progress' => $courseId !== null && rbac_can_update_student_progress($pdo, $user, $courseId),
         'manage_course_announcements' => $courseId !== null && rbac_can_manage_course_announcements($pdo, $user, $courseId),
         'assign_course_staff' => rbac_can_assign_course_staff($pdo, $user),

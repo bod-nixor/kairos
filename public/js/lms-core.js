@@ -129,6 +129,27 @@
   const APP_BASE = '/signoff/';
   const REDIRECT_SENTINEL_KEY = 'kairos:lastRedirect';
   const REDIRECT_SENTINEL_WINDOW_MS = 2000;
+  const GET_CACHE_TTL_MS = 12000;
+  const _apiGetCache = new Map();
+  const _apiInFlight = new Map();
+  let _accessCacheGeneration = 0;
+
+  function isCacheableGet(path) {
+    const normalized = String(path || '');
+    return normalized.includes('/api/me.php')
+      || normalized.includes('/api/session_capabilities.php')
+      || normalized.includes('/api/lms/courses.php')
+      || normalized.includes('/api/lms/features.php');
+  }
+
+  function invalidateAccessCache() {
+    _accessCacheGeneration += 1;
+    _apiGetCache.clear();
+    _apiInFlight.clear();
+    _me = null;
+    _caps = null;
+    _featureCache.clear();
+  }
 
   function isSignoffHomePath(pathname) {
     const normalized = normalizePathname(pathname);
@@ -170,50 +191,76 @@
       console.warn('[LMS] api() called with invalid path:', path);
       return { ok: false, status: 0, error: 'Invalid API path', data: null };
     }
-    const opts = {
-      method: method.toUpperCase(),
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-    };
-    if (body !== undefined) {
-      if (body instanceof FormData) {
-        opts.body = body;
-      } else {
-        opts.headers['Content-Type'] = 'application/json';
-        opts.body = JSON.stringify(body);
+    const normalizedMethod = method.toUpperCase();
+    const cacheable = normalizedMethod === 'GET' && isCacheableGet(path);
+    const cacheKey = cacheable ? `${normalizedMethod}:${path}` : null;
+    if (cacheKey) {
+      const cached = _apiGetCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) return cached.value;
+      if (_apiInFlight.has(cacheKey)) return _apiInFlight.get(cacheKey);
+    } else if (normalizedMethod !== 'GET') {
+      invalidateAccessCache();
+    }
+
+    const requestGeneration = _accessCacheGeneration;
+    const request = (async () => {
+      const opts = {
+        method: normalizedMethod,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      };
+      if (body !== undefined) {
+        if (body instanceof FormData) {
+          opts.body = body;
+        } else {
+          opts.headers['Content-Type'] = 'application/json';
+          opts.body = JSON.stringify(body);
+        }
+      }
+      try {
+        const resp = await fetch(path, opts);
+        if (resp.status === 401) {
+          redirectToSignoffHome();
+          return { ok: false, status: 401, error: 'Unauthorized', data: null };
+        }
+        let data = null;
+        const ctype = resp.headers.get('content-type') || '';
+        if (ctype.includes('application/json')) {
+          try { data = await resp.json(); } catch { data = null; }
+        }
+        if (!resp.ok) {
+          const errorPayload = data && data.error;
+          const errMsg = typeof errorPayload === 'string'
+            ? errorPayload
+            : (errorPayload && typeof errorPayload.message === 'string'
+              ? errorPayload.message
+              : `HTTP ${resp.status}`);
+          return {
+            ok: false,
+            status: resp.status,
+            error: errMsg,
+            errorCode: errorPayload && typeof errorPayload === 'object' ? errorPayload.code || null : null,
+            errorDetails: errorPayload && typeof errorPayload === 'object' ? errorPayload.details || null : null,
+            data,
+          };
+        }
+        return { ok: true, status: resp.status, error: null, data };
+      } catch (err) {
+        return { ok: false, status: 0, error: err.message || 'Network error', data: null };
+      }
+    })();
+
+    if (cacheKey) _apiInFlight.set(cacheKey, request);
+    const result = await request;
+    if (cacheKey) {
+      if (_apiInFlight.get(cacheKey) === request) {
+        _apiInFlight.delete(cacheKey);
+      }
+      if (result.ok && requestGeneration === _accessCacheGeneration) {
+        _apiGetCache.set(cacheKey, { value: result, expiresAt: Date.now() + GET_CACHE_TTL_MS });
       }
     }
-    try {
-      const resp = await fetch(path, opts);
-      if (resp.status === 401) {
-        redirectToSignoffHome();
-        return { ok: false, status: 401, error: 'Unauthorized', data: null };
-      }
-      let data = null;
-      const ctype = resp.headers.get('content-type') || '';
-      if (ctype.includes('application/json')) {
-        try { data = await resp.json(); } catch { data = null; }
-      }
-      if (!resp.ok) {
-        const errorPayload = data && data.error;
-        const errMsg = typeof errorPayload === 'string'
-          ? errorPayload
-          : (errorPayload && typeof errorPayload.message === 'string'
-            ? errorPayload.message
-            : `HTTP ${resp.status}`);
-        return {
-          ok: false,
-          status: resp.status,
-          error: errMsg,
-          errorCode: errorPayload && typeof errorPayload === 'object' ? errorPayload.code || null : null,
-          errorDetails: errorPayload && typeof errorPayload === 'object' ? errorPayload.details || null : null,
-          data,
-        };
-      }
-      return { ok: true, status: resp.status, error: null, data };
-    } catch (err) {
-      return { ok: false, status: 0, error: err.message || 'Network error', data: null };
-    }
+    return result;
   }
 
   /* ── Reactive State Store ────────────────────────────────── */
@@ -411,14 +458,18 @@
 
   async function loadMe() {
     if (_me) return _me;
+    const generation = _accessCacheGeneration;
     const r = await api('GET', './api/me.php');
+    if (generation !== _accessCacheGeneration) return loadMe();
     _me = r.ok ? r.data : null;
     return _me;
   }
 
   async function loadCaps() {
     if (_caps) return _caps;
+    const generation = _accessCacheGeneration;
     const r = await api('GET', './api/session_capabilities.php');
+    if (generation !== _accessCacheGeneration) return loadCaps();
     if (r.ok && r.data && r.data.ok === true && r.data.data && r.data.data.user) {
       const role = String(r.data.data.user.role || 'student').toLowerCase();
       _caps = {
@@ -474,9 +525,9 @@
   /* ── Nav / Sidebar ───────────────────────────────────────── */
   const COURSE_NAV_ITEMS = [
     { key: 'home', label: 'Home', icon: '🏠', href: './course.html' },
-    { key: 'modules', label: 'Modules', icon: '📦', href: './modules.html' },
-    { key: 'quizzes', label: 'Quizzes', icon: '⚡', href: './quizzes.html', id: 'kNavQuizzes' },
-    { key: 'assignments', label: 'Assignments', icon: '📤', href: './assignments.html', id: 'kNavAssignments' },
+    { key: 'modules', label: 'Modules', icon: '📦', href: './modules.html', capability: 'view_course' },
+    { key: 'quizzes', label: 'Quizzes', icon: '⚡', href: './quizzes.html', id: 'kNavQuizzes', capability: 'view_course' },
+    { key: 'assignments', label: 'Assignments', icon: '📤', href: './assignments.html', id: 'kNavAssignments', capability: 'view_course' },
     { key: 'grading', label: 'Grading', icon: '🧑‍🏫', href: './grading.html', id: 'kNavGrading', capability: 'grade_course' },
     { key: 'analytics', label: 'Analytics', icon: '📊', href: './analytics.html', id: 'kNavAnalytics', capability: 'manage_course' },
   ];
@@ -487,7 +538,9 @@
     }
     const roleFlags = resolveCourseRoleFlags(context || getRole());
     return {
+      view_course_public: false,
       view_course: roleFlags.student || roleFlags.ta || roleFlags.manager || roleFlags.admin,
+      participate_as_student: roleFlags.student,
       manage_course: roleFlags.manager || roleFlags.admin,
       grade_course: roleFlags.ta || roleFlags.manager || roleFlags.admin,
       manage_course_announcements: roleFlags.manager || roleFlags.admin,
@@ -837,6 +890,10 @@
     return { me, caps };
   }
 
+  function invalidateSessionContext() {
+    invalidateAccessCache();
+  }
+
   /* ── Progress ring helper ────────────────────────────────── */
   function setProgressRing(svgEl, pct) {
     if (!svgEl) return;
@@ -1093,6 +1150,8 @@
     featureEnabled,
     loadMe,
     loadCaps,
+    invalidateSessionContext,
+    invalidateAccessCache,
     getRole,
     resolveCourseRoleFlags,
     boot,

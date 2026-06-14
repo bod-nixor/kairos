@@ -21,11 +21,15 @@ if ($courseId > 0) {
         json_out(['error' => 'not_found', 'message' => 'course not found'], 404);
     }
     if (!rbac_can_access_course($pdo, $user, $courseId)) {
+        $context = rbac_course_access_context($pdo, $user, $courseId);
         rbac_debug_deny('rooms.course.forbidden', [
             'user_id'   => rbac_user_id($user),
             'course_id' => $courseId,
         ]);
-        json_out(['error' => 'forbidden', 'message' => 'course access denied'], 403);
+        $message = $context['view_course_home'] && $context['can_self_enroll']
+            ? 'course enrollment required before accessing rooms'
+            : 'course access denied';
+        json_out(['error' => 'forbidden', 'message' => $message], 403);
     }
     $courseFilter = [$courseId];
 } else {

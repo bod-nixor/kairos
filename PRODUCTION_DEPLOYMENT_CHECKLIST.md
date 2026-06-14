@@ -17,6 +17,8 @@ Deploy the complete repository change set, including:
 - all page templates under `templates/pages/`
 - `public/css/kairos-ui.css`
 - `public/js/ws.js`, `public/js/lms-ws.js`, `public/js/lms-core.js`, `public/js/index-page.js`, `public/js/settings.js`, `public/js/manager.js`, and `public/js/ta.js`
+- `public/js/navigation.js`, `public/js/course.js`, and `public/script.js`
+- `src/course_access_policy.php` and `src/rbac.php`
 - `public/assets/vendor/socket.io/4.7.5/socket.io.min.js` and `LICENSE`
 - changed PHP API and RBAC consumers under `public/api/`
 - `composer.json` and `composer.lock`
@@ -160,7 +162,12 @@ The effective CSP must:
 
 Use non-production test accounts and do not alter real grades/submissions:
 
-- [ ] Student: can read enrolled courses only; direct foreign course/queue requests return 403.
+- [ ] Student: can read protected content only in enrolled courses; direct foreign course/queue requests return 403.
+- [ ] Student: can preview an active public course before enrollment and sees an enrol CTA instead of a generic 403.
+- [ ] TA/Manager: can preview and enroll in a public foreign course without receiving staff controls there.
+- [ ] Self-enrollment creates only `student_courses`; no TA/manager/admin mapping is added.
+- [ ] Public preview cannot read modules/assignments/quizzes/announcements, rooms/queues, or subscribe to the course realtime room.
+- [ ] Downgraded former admin receives current DB role capabilities on the next request and has no stale admin controls.
 - [ ] TA: can access assigned courses/rooms/queues only.
 - [ ] Manager: can manage assigned courses only; another manager's course returns 403.
 - [ ] Admin: retains intended global access.
@@ -202,6 +209,9 @@ Use non-production test accounts and do not alter real grades/submissions:
 - [ ] Delete a test resource and confirm the DB record is hidden before the Drive file moves to trash.
 - [ ] Text assignment submission and link-based resources remain available if Drive writes are disabled.
 - [ ] Grade/release actions remain audited and role-gated.
+- [ ] Internal course links remain shareable URLs; modifier-click, direct refresh, Back, and Forward use native browser behavior.
+- [ ] Supported browsers prefetch likely same-origin course links; unsupported browsers navigate normally.
+- [ ] Navigation does not create duplicate WebSocket connections or use WebSockets as a page transport.
 
 ## Cache and Monitoring
 

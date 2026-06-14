@@ -97,8 +97,6 @@ COURSE_ACCESS_MAPPINGS: Dict[str, tuple[str, str, str, Optional[str]]] = {
     "staff_courses": ("staff_courses", "user_id", "course_id", None),
     "student_courses": ("student_courses", "user_id", "course_id", None),
 }
-_pre_enroll_schema_valid: Optional[bool] = None
-
 OUTBOX_POLL_SECONDS = float(os.getenv("LMS_OUTBOX_POLL_SECONDS", "1") or 1)
 LMS_OUTBOX_ENABLED = (os.getenv("LMS_OUTBOX_ENABLED", "1") or "1").strip() not in {"0", "false", "False"}
 
@@ -163,21 +161,6 @@ def _mapping_grants(
     return cursor.fetchone() is not None
 
 
-def _check_pre_enroll_schema(cursor: Any) -> bool:
-    global _pre_enroll_schema_valid
-    if _pre_enroll_schema_valid is not None:
-        return _pre_enroll_schema_valid
-
-    cursor.execute(
-        "SELECT COUNT(*) AS column_count FROM information_schema.COLUMNS "
-        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_pre_enroll' "
-        "AND COLUMN_NAME IN ('course_id', 'email')"
-    )
-    columns_row = cursor.fetchone() or {}
-    _pre_enroll_schema_valid = int(columns_row.get("column_count") or 0) == 2
-    return _pre_enroll_schema_valid
-
-
 def _user_can_access_course(user_id: int, course_id: int) -> bool:
     if user_id <= 0 or course_id <= 0:
         return False
@@ -187,18 +170,17 @@ def _user_can_access_course(user_id: int, course_id: int) -> bool:
         connection = _open_db()
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT LOWER(r.name) AS role_name, LOWER(u.email) AS email "
+                "SELECT LOWER(r.name) AS role_name "
                 "FROM users u JOIN roles r ON r.role_id = u.role_id "
                 "WHERE u.user_id = %s LIMIT 1",
                 (user_id,),
             )
             role_row = cursor.fetchone() or {}
             role = str(role_row.get("role_name") or "").lower()
-            email = str(role_row.get("email") or "").strip().lower()
             if role == "admin":
                 return True
 
-            mappings = []
+            mappings = [("student_courses", None)]
             if role == "manager":
                 mappings.extend([
                     ("manager_courses", None),
@@ -218,9 +200,7 @@ def _user_can_access_course(user_id: int, course_id: int) -> bool:
                     ("ta_enrollments", None),
                     ("staff_courses", None),
                 ])
-            elif role == "student":
-                mappings.append(("student_courses", None))
-            else:
+            elif role != "student":
                 return False
 
             for mapping_key, allowed_roles in mappings:
@@ -233,15 +213,6 @@ def _user_can_access_course(user_id: int, course_id: int) -> bool:
                 ):
                     return True
 
-            if role == "student" and email:
-                if _check_pre_enroll_schema(cursor):
-                    cursor.execute(
-                        "SELECT 1 FROM course_pre_enroll "
-                        "WHERE email = %s AND course_id = %s LIMIT 1",
-                        (email, course_id),
-                    )
-                    if cursor.fetchone() is not None:
-                        return True
     except Exception:
         app.logger.exception(
             "realtime course authorization failed user=%s course=%s",

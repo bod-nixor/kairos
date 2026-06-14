@@ -188,11 +188,8 @@ assert.match(websocketServer, /realtime subscription denied/);
 assert.match(websocketServer, /_emit_scoped_event/);
 assert.match(websocketServer, /COURSE_ACCESS_MAPPINGS/);
 assert.match(websocketServer, /if mapping_key not in COURSE_ACCESS_MAPPINGS/);
-assert.match(websocketServer, /course_pre_enroll/);
-assert.match(websocketServer, /_pre_enroll_schema_valid:\s*Optional\[bool\]\s*=\s*None/);
-assert.match(websocketServer, /def _check_pre_enroll_schema/);
-assert.match(websocketServer, /WHERE email = %s AND course_id = %s/);
-assert.doesNotMatch(websocketServer, /WHERE LOWER\(email\) = %s AND course_id = %s/);
+assert.match(websocketServer, /mappings\s*=\s*\[\s*\(\s*"student_courses"\s*,\s*None\s*\)\s*\]/);
+assert.doesNotMatch(websocketServer, /course_pre_enroll/);
 
 const managerCourses = read('public/api/manager/courses.php');
 assert.match(managerCourses, /\$isAdmin\s*=\s*user_role_at_least\(\$pdo,\s*\$user,\s*'admin'\)/);
