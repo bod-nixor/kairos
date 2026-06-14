@@ -169,7 +169,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   if (me.google_linked) {
-    if (googleDescription) googleDescription.textContent = 'A Nixor Google account is linked and can be used to sign in.';
+    if (googleDescription) {
+      googleDescription.textContent = 'A Nixor Google account is linked and can be used to sign in. For account security, it cannot currently be removed.';
+    }
     if (startGoogleLinkBtn) {
       startGoogleLinkBtn.textContent = 'Google account linked';
       startGoogleLinkBtn.disabled = true;

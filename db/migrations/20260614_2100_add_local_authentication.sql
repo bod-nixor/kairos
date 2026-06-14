@@ -2,8 +2,26 @@
 -- Apply before deploying the local-auth API/UI. This migration is additive
 -- except for allowing users.google_id to be NULL for local-only accounts.
 
-ALTER TABLE users
-  MODIFY COLUMN google_id VARCHAR(255) NULL;
+SET @kairos_google_id_requires_modify = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'users'
+    AND COLUMN_NAME = 'google_id'
+    AND (
+      IS_NULLABLE <> 'YES'
+      OR DATA_TYPE <> 'varchar'
+      OR CHARACTER_MAXIMUM_LENGTH <> 255
+    )
+);
+SET @kairos_google_id_modify_sql = IF(
+  @kairos_google_id_requires_modify > 0,
+  'ALTER TABLE users MODIFY COLUMN google_id VARCHAR(255) NULL',
+  'SELECT 1'
+);
+PREPARE kairos_google_id_modify_stmt FROM @kairos_google_id_modify_sql;
+EXECUTE kairos_google_id_modify_stmt;
+DEALLOCATE PREPARE kairos_google_id_modify_stmt;
 
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS username VARCHAR(64) NULL AFTER google_id,
@@ -16,15 +34,19 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS locked_until DATETIME NULL AFTER failed_login_count,
   ADD COLUMN IF NOT EXISTS auth_session_version INT UNSIGNED NOT NULL DEFAULT 1 AFTER locked_until;
 
-UPDATE users
-SET google_email = email
-WHERE google_id IS NOT NULL
-  AND google_email IS NULL;
+START TRANSACTION;
 
 UPDATE users
-SET account_status = CASE WHEN is_active = 1 THEN 'active' ELSE 'disabled' END
-WHERE account_status IS NULL
-   OR account_status = '';
+  SET google_email = email
+  WHERE google_id IS NOT NULL
+    AND google_email IS NULL;
+
+UPDATE users
+  SET account_status = CASE WHEN is_active = 1 THEN 'active' ELSE 'disabled' END
+  WHERE account_status IS NULL
+     OR account_status = '';
+
+COMMIT;
 
 ALTER TABLE users
   ADD UNIQUE INDEX IF NOT EXISTS uk_users_username (username),

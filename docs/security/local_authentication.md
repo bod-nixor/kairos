@@ -79,7 +79,9 @@ The Settings flow:
 4. Rejects a Google subject already linked to another user.
 5. Stores `google_id` and `google_email`, consumes the state token, and audits the result.
 
-Unlinking is intentionally not implemented, so Kairos cannot accidentally remove a user's last login method.
+Unlinking is intentionally not implemented, so Kairos cannot accidentally remove a user's last login method. Settings
+explains that a linked Google account cannot currently be removed for account-security reasons; users can continue using
+either their password or the linked Google account to sign in.
 
 ## Audit Events
 

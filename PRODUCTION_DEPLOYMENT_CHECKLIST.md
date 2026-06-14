@@ -54,8 +54,20 @@ mariadb -u <user> -p < db/migrations/20260614_2100_add_local_authentication.sql
 - [ ] Verify `lms_assignments.allowed_file_extensions` and `lms_assignments.max_file_mb`.
 - [ ] Verify the table `lms_assignment_notes` has been created with primary keys and `student_user_id` index.
 - [ ] Verify the table `lms_grades` contains columns: `staff_private_note`, `grade_override`, `rubric_grades_json`.
-- [ ] Verify `users.google_id` is nullable and local-auth columns/indexes exist.
-- [ ] Verify `auth_tokens`, `auth_audit_log`, and `auth_rate_limits` plus foreign keys/indexes exist.
+- [ ] Verify `users.google_id` is nullable; columns `username`, `google_email`, `password_hash`, `account_status`,
+  `password_changed_at`, `last_login_at`, `failed_login_count`, `locked_until`, `auth_session_version`, `created_at`,
+  and `updated_at` exist; and indexes `uk_users_username`, `uk_users_google_email`, `idx_users_account_status`, and
+  `idx_users_locked_until` exist.
+- [ ] Verify `auth_tokens` has `token_id`, `user_id`, `purpose`, `token_hash`, `expires_at`, `used_at`, `revoked_at`,
+  `created_ip_hash`, `user_agent_hash`, and `created_at`; primary/unique/index keys `PRIMARY`, `uk_auth_tokens_hash`,
+  `idx_auth_tokens_user_purpose`, and `idx_auth_tokens_expiry`; and foreign key `fk_auth_tokens_user`.
+- [ ] Verify `auth_audit_log` has `auth_audit_id`, `event_name`, `actor_user_id`, `subject_user_id`, `identifier_hash`,
+  `ip_hash`, `user_agent_hash`, `status`, `metadata_json`, and `occurred_at`; indexes `idx_auth_audit_event_time`,
+  `idx_auth_audit_actor_time`, and `idx_auth_audit_subject_time`; and foreign keys `fk_auth_audit_actor` and
+  `fk_auth_audit_subject`.
+- [ ] Verify `auth_rate_limits` has `bucket_hash`, `window_started_at`, `attempt_count`, `blocked_until`, and
+  `updated_at`; primary key `PRIMARY`; and indexes `idx_auth_rate_limits_blocked_until` and
+  `idx_auth_rate_limits_updated_at`.
 - [ ] Do not run the rollback unless application code has first been rolled back and audit retention has been approved.
 
 ## Environment Verification

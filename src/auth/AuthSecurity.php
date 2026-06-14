@@ -37,7 +37,12 @@ final class AuthSecurity
         if (str_contains($value, '\\') || str_contains($decoded, '\\')) {
             return null;
         }
-        if (!str_starts_with($value, '/signoff/') || str_starts_with($value, '//')) {
+        $configuredPath = (string)(parse_url($this->config->appBaseUrl, PHP_URL_PATH) ?? '');
+        $basePath = '/' . trim($configuredPath, '/') . '/';
+        if ($basePath === '//') {
+            $basePath = '/';
+        }
+        if (str_starts_with($value, '//') || !str_starts_with($value, $basePath)) {
             return null;
         }
         $parts = parse_url($value);

@@ -36,6 +36,13 @@ final class AuthConfig
         $minLength = self::intEnv('PASSWORD_MIN_LENGTH', 12);
         $maxLength = self::intEnv('PASSWORD_MAX_LENGTH', 1024);
         $privacySecret = trim((string)\env('AUTH_PRIVACY_HASH_SECRET', ''));
+        $loginIpLimit = self::intEnv('AUTH_LOGIN_IP_LIMIT', 30);
+        $loginIdentifierLimit = self::intEnv('AUTH_LOGIN_IDENTIFIER_LIMIT', 10);
+        $rateLimitWindowSeconds = self::intEnv('LOCAL_AUTH_RATE_LIMIT_WINDOW_SECONDS', 900);
+        $rateLimitBlockSeconds = self::intEnv('LOCAL_AUTH_RATE_LIMIT_BLOCK_SECONDS', 900);
+        $accountFailureThreshold = self::intEnv('AUTH_ACCOUNT_FAILURE_THRESHOLD', 8);
+        $accountLockSeconds = self::intEnv('AUTH_ACCOUNT_LOCK_SECONDS', 900);
+        $allowedDomain = ltrim(strtolower(trim((string)\env('ALLOWED_DOMAIN', ''))), '@');
 
         if ($enabled && !defined('PASSWORD_ARGON2ID')) {
             throw new \RuntimeException('Local authentication requires PHP Argon2id support.');
@@ -54,6 +61,21 @@ final class AuthConfig
         }
         if ($enabled && strlen($privacySecret) < 32) {
             throw new \RuntimeException('AUTH_PRIVACY_HASH_SECRET must contain at least 32 characters.');
+        }
+        foreach ([
+            'AUTH_LOGIN_IP_LIMIT' => $loginIpLimit,
+            'AUTH_LOGIN_IDENTIFIER_LIMIT' => $loginIdentifierLimit,
+            'LOCAL_AUTH_RATE_LIMIT_WINDOW_SECONDS' => $rateLimitWindowSeconds,
+            'LOCAL_AUTH_RATE_LIMIT_BLOCK_SECONDS' => $rateLimitBlockSeconds,
+            'AUTH_ACCOUNT_FAILURE_THRESHOLD' => $accountFailureThreshold,
+            'AUTH_ACCOUNT_LOCK_SECONDS' => $accountLockSeconds,
+        ] as $key => $value) {
+            if ($value <= 0) {
+                throw new \RuntimeException($key . ' must be a positive integer.');
+            }
+        }
+        if ($enabled && $allowedDomain === '') {
+            throw new \RuntimeException('ALLOWED_DOMAIN must be configured when local authentication is enabled.');
         }
 
         $origin = rtrim((string)\env('PUBLIC_APP_ORIGIN', \env('APP_ORIGIN', '')), '/');
@@ -75,15 +97,15 @@ final class AuthConfig
             self::intEnv('AUTH_ACTIVATION_TTL_SECONDS', 86400),
             self::intEnv('AUTH_RESET_TTL_SECONDS', 3600),
             self::intEnv('AUTH_GOOGLE_LINK_TTL_SECONDS', 600),
-            self::intEnv('AUTH_LOGIN_IP_LIMIT', 30),
-            self::intEnv('AUTH_LOGIN_IDENTIFIER_LIMIT', 10),
-            self::intEnv('LOCAL_AUTH_RATE_LIMIT_WINDOW_SECONDS', 900),
-            self::intEnv('LOCAL_AUTH_RATE_LIMIT_BLOCK_SECONDS', 900),
-            self::intEnv('AUTH_ACCOUNT_FAILURE_THRESHOLD', 8),
-            self::intEnv('AUTH_ACCOUNT_LOCK_SECONDS', 900),
+            $loginIpLimit,
+            $loginIdentifierLimit,
+            $rateLimitWindowSeconds,
+            $rateLimitBlockSeconds,
+            $accountFailureThreshold,
+            $accountLockSeconds,
             $privacySecret,
             $origin . $basePath,
-            ltrim(strtolower((string)\env('ALLOWED_DOMAIN', '')), '@'),
+            $allowedDomain,
         );
     }
 

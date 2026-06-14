@@ -467,7 +467,6 @@ final class AuthService
         if (!$this->validRawToken($rawToken)) {
             throw new AuthException('invalid_token', 422, 'This link is invalid or has expired.');
         }
-        $hash = $this->passwords->hash($password);
         $this->repository->begin();
         try {
             $token = $this->repository->findUsableToken($purpose, $this->security->tokenHash($rawToken));
@@ -479,6 +478,7 @@ final class AuthService
                 throw new AuthException('invalid_token', 422, 'This link is invalid or has expired.');
             }
             $userId = (int)$token['user_id'];
+            $hash = $this->passwords->hash($password);
             $this->repository->setPasswordAndStatus($userId, $hash, 'active', true);
             $this->repository->consumeToken((int)$token['token_id']);
             $this->repository->revokeTokens($userId, $purpose);

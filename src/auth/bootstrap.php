@@ -54,14 +54,15 @@ function kairos_record_auth_audit(
     string $status,
     ?int $subjectUserId = null,
     string $identifier = '',
-    array $metadata = []
+    array $metadata = [],
+    ?int $actorUserId = null
 ): void {
     $config = kairos_auth_config();
     $security = new AuthSecurity($config);
     $context = kairos_auth_context();
     (new PdoAuthRepository(db()))->audit([
         'event_name' => $eventName,
-        'actor_user_id' => $subjectUserId,
+        'actor_user_id' => $actorUserId,
         'subject_user_id' => $subjectUserId,
         'identifier_hash' => $security->privacyHash($identifier),
         'ip_hash' => $security->privacyHash((string)$context['ip']),

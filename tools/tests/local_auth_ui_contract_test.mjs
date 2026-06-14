@@ -32,6 +32,7 @@ assert.match(localForm, /Create account and send activation/);
 const settings = read('templates/pages/settings.html');
 assert.match(settings, /id="changePasswordForm"/);
 assert.match(settings, /id="startGoogleLinkBtn"/);
+assert.match(read('public/js/settings.js'), /For account security, it cannot currently be removed/);
 
 const adminEndpoint = read('public/api/admin/local_accounts.php');
 assert.match(adminEndpoint, /require_role_or_higher\(\$pdo, \$user, 'admin'\)/);
@@ -45,5 +46,12 @@ const authService = read('src/auth/AuthService.php');
 assert.match(authService, /array_key_exists\('password', \$input\)/);
 assert.match(authService, /google_link_state/);
 assert.match(authService, /password_needs_rehash|needsRehash/);
+
+const authBootstrap = read('src/auth/bootstrap.php');
+assert.match(authBootstrap, /'actor_user_id'\s*=>\s*\$actorUserId/);
+
+const localAuthMigration = read('db/migrations/20260614_2100_add_local_authentication.sql');
+assert.match(localAuthMigration, /INFORMATION_SCHEMA\.COLUMNS/);
+assert.match(localAuthMigration, /START TRANSACTION;[\s\S]*UPDATE users[\s\S]*UPDATE users[\s\S]*COMMIT;/);
 
 console.log('local auth UI and endpoint contract tests passed');

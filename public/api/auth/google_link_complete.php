@@ -25,7 +25,8 @@ kairos_auth_json(function (): void {
             'failed',
             (int)$user['user_id'],
             '',
-            ['reason' => $error->errorCode]
+            ['reason' => $error->errorCode],
+            (int)$user['user_id']
         );
         throw $error;
     }

@@ -162,7 +162,9 @@ final class MemoryMailer implements AuthMailer
 
 $config = new AuthConfig(
     true, 19456, 2, 1, 12, 1024, 86400, 3600, 600, 30, 10, 900, 900, 8, 900,
-    str_repeat('s', 32), 'https://kairos.example/signoff/', 'nixorcollege.edu.pk'
+    '9f2c7b5e1a8046d3c8f0742be6519da7c4e819b2f0635ad87e1c4b9206f3d5a8',
+    'https://kairos.example/signoff/',
+    'nixorcollege.edu.pk'
 );
 $repo = new MemoryAuthRepository();
 $mailer = new MemoryMailer();
@@ -219,6 +221,7 @@ $assert($repo->users[$userId]['account_status'] === 'active', 'activation must s
 $assert($repo->tokens[$storedActivation['token_id']]['used_at'] !== null, 'activation token must be marked used');
 $expectCode(fn() => $service->activate($activationToken, 'another secure passphrase', $context), 'invalid_token');
 $expectCode(fn() => $service->activate('bad-token', 'another secure passphrase', $context), 'invalid_token');
+$expectCode(fn() => $service->activate(str_repeat('a', 43), 'password1234', $context), 'invalid_token');
 
 $byUsername = $service->passwordLogin('local.student', 'correct horse battery staple', $context);
 $byEmail = $service->passwordLogin('local@example.net', 'correct horse battery staple', $context);
@@ -249,6 +252,18 @@ $service->completeGoogleLink($userId, $state['state'], [
     'picture' => 'https://example.test/avatar.png',
 ], $context);
 $assert($repo->users[$userId]['google_id'] === 'google-sub-1', 'allowed Google account must link');
+$assert($repo->users[$userId]['google_email'] === 'student@nixorcollege.edu.pk', 'linked Google email must persist');
+$assert($repo->users[$userId]['picture_url'] === 'https://example.test/avatar.png', 'linked Google picture must persist');
+
+$alternateConfig = new AuthConfig(
+    true, 19456, 2, 1, 12, 1024, 86400, 3600, 600, 30, 10, 900, 900, 8, 900,
+    '5d8a1f4c7e2b9063d4a8c1f75e9b620df3a76c904e2b158d6f0c7a93b1e84526',
+    'https://kairos.example/campus/',
+    'nixorcollege.edu.pk'
+);
+$alternateSecurity = new AuthSecurity($alternateConfig);
+$assert($alternateSecurity->validateReturnUrl('/campus/course?course_id=12') !== null, 'configured base path must be accepted');
+$assert($alternateSecurity->validateReturnUrl('/signoff/course?course_id=12') === null, 'unconfigured base path must be rejected');
 
 $second = $service->createLocalAccount(99, [
     'name' => 'Second Student', 'email' => 'second@example.net', 'username' => 'second.student', 'role' => 'student',

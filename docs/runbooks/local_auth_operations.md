@@ -23,12 +23,19 @@ To recover a user who did not receive an activation email:
 3. Select **Resend activation**.
 4. Confirm the UI reports successful mail delivery.
 5. If delivery fails, verify `MAIL_FROM_ADDRESS`, the hosting account's mail routing, spam controls, and PHP mail logs.
+6. Verify the user's address for typos and soft-bounce evidence, then inspect mail-server logs and sender-specific spam
+   filter rules.
+7. If technical diagnosis is blocked, contact the user through an approved alternative such as phone or a support
+   ticket. Never issue a manual password or grant access directly; every retry must use the standard activation resend.
 
 Resending revokes previous unused activation tokens. Administrators must not set a password on the user's behalf.
 
 ## Temporary Lockout
 
 Password failures can set `users.locked_until`. First determine whether the activity is expected:
+
+**Security requirement:** Replace `<username>` and `<email>` only through prepared-statement parameters. If an approved
+database console cannot bind parameters, use values escaped by the database client; never interpolate untrusted input.
 
 ```sql
 SELECT user_id, username, email, account_status, failed_login_count, locked_until
@@ -67,10 +74,16 @@ WHERE user_id = <reviewed_user_id>;
 ## Password Reset Incident
 
 - Reset requests return a generic response, including for unknown users.
-- A successful reset increments `auth_session_version` and revokes other reset tokens.
+- A successful reset increments `auth_session_version` and calls `PdoAuthRepository::revokeTokens()` for
+  `password_reset`, which updates every other unused, unrevoked reset token with `revoked_at = UTC_TIMESTAMP()`.
 - If malicious reset mail is reported, review hashed audit events and delivery logs; do not request the raw token.
 - If account takeover is suspected, set `account_status='disabled'`, `is_active=0`, increment
   `auth_session_version`, and follow the institutional incident process.
+
+Every authenticated request passes through `require_login()` in `public/api/bootstrap.php`, which compares the current
+database `auth_session_version` with the version cached in the PHP session. A mismatch clears the session and returns
+`401`, forcing re-authentication. Incrementing the version has no invalidation effect unless that bootstrap equality
+check remains deployed and active.
 
 ## Mail Failure
 

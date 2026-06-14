@@ -123,7 +123,8 @@ historical submissions/attempts/grades. Active child/grading endpoints first req
 | `admin/courses.php`, `admin/assign.php`, `admin/users_search.php`, diagnostics | GET/POST | admin | global; staff assignment remains admin-only | 403/404 |
 | `queue_participants.php`, `queue_eta.php`, queue/room operational endpoints | GET/POST | queue capability | queue -> room -> course plus role/ownership rule | 403/404 |
 | `session_capabilities.php`, `me.php`, user settings | GET/POST | authenticated | current user only; ordinary theme/preferences | 401/403 |
-| `auth/login_password.php` | POST | anonymous with CSRF session | active admin-created local account; username/email and password | 401/403/429 |
+| `auth/csrf.php` | GET | anonymous | current session only; returns the CSRF token and public local-auth/password-policy configuration | 200; no authorization failure |
+| `auth/login_password.php` | POST | anonymous with CSRF session | active admin-created local account; username/email and password | 401 invalid credentials with generic response; 403 pending/disabled account; 429 temporary lockout or rate limit |
 | `auth/request_password_reset.php` | POST | anonymous with CSRF session | generic response; eligible active local account receives email | 200/429 |
 | `auth/{validate_token,activate,reset_password}.php` | POST | anonymous with CSRF session | purpose-bound, hashed, expiring single-use token | 422 |
 | `auth/change_password.php` | POST | authenticated local user | current user; current password required; session version increments | 401/422 |
