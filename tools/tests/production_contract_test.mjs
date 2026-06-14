@@ -188,7 +188,7 @@ assert.match(websocketServer, /realtime subscription denied/);
 assert.match(websocketServer, /_emit_scoped_event/);
 assert.match(websocketServer, /COURSE_ACCESS_MAPPINGS/);
 assert.match(websocketServer, /if mapping_key not in COURSE_ACCESS_MAPPINGS/);
-assert.match(websocketServer, /mappings = \[\("student_courses", None\)\]/);
+assert.match(websocketServer, /mappings\s*=\s*\[\s*\(\s*"student_courses"\s*,\s*None\s*\)\s*\]/);
 assert.doesNotMatch(websocketServer, /course_pre_enroll/);
 
 const managerCourses = read('public/api/manager/courses.php');
