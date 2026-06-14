@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/_common.php';
+require_once dirname(__DIR__) . '/_common.php';
 
 lms_require_feature(['assignments', 'lms_assignments']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
