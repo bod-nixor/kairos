@@ -119,13 +119,14 @@
 
             <div class="k-auth-google">
               <div id="googleBtn" class="k-auth-google-button"></div>
-              <p class="muted small">
-                Google is the primary login and the only public registration method for
-                <strong data-allowed-domain-text>@nixorcollege.edu.pk</strong>.
+              <p class="k-auth-google-help">
+                Google is the primary login method for
+                <strong data-allowed-domain-text>@nixorcollege.edu.pk</strong> accounts.
               </p>
             </div>
 
-            <div class="k-auth-divider" id="passwordLoginDivider" hidden><span>or</span></div>
+            <div class="k-auth-divider" id="passwordLoginDivider" role="separator"
+              aria-label="Or sign in with a password" hidden><span aria-hidden="true">or</span></div>
 
             <form id="passwordLoginForm" class="k-auth-form" hidden novalidate>
               <div class="k-form-field">
@@ -139,10 +140,10 @@
                   autocomplete="current-password" maxlength="1024" required />
               </div>
               <button class="btn btn-secondary k-auth-submit" type="submit">Sign in with password</button>
-              <p class="muted small k-auth-help">
-                For accounts created by a Kairos administrator.
-                <a href="./forgot-password">Forgot password?</a>
-              </p>
+              <div class="k-auth-help">
+                <p>For accounts created by a Kairos administrator.</p>
+                <a class="k-auth-recovery" href="./forgot-password">Forgot password?</a>
+              </div>
               <p id="passwordLoginStatus" class="k-auth-status" role="status" aria-live="polite" hidden></p>
             </form>
           </div>

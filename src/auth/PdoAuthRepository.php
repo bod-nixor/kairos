@@ -37,11 +37,14 @@ final class PdoAuthRepository implements AuthRepository
     {
         $stmt = $this->pdo->prepare(
             $this->userSelect()
-            . ' WHERE LOWER(u.email) = LOWER(:identifier)'
-            . ' OR LOWER(u.username) = LOWER(:identifier)'
+            . ' WHERE LOWER(u.email) = LOWER(:email_identifier)'
+            . ' OR LOWER(u.username) = LOWER(:username_identifier)'
             . ' LIMIT 1'
         );
-        $stmt->execute([':identifier' => $identifier]);
+        $stmt->execute([
+            ':email_identifier' => $identifier,
+            ':username_identifier' => $identifier,
+        ]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 

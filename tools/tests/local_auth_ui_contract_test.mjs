@@ -9,9 +9,14 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const login = read('templates/pages/index.html');
 assert.match(login, /id="googleBtn"/);
 assert.match(login, /id="passwordLoginForm"/);
-assert.match(login, /Google is the primary login and the only public registration method/);
+assert.match(login, /Google is the primary login method for/);
+assert.match(login, /role="separator"[\s\S]*aria-label="Or sign in with a password"/);
 assert.match(login, /For accounts created by a Kairos administrator/);
+assert.match(login, /class="k-auth-recovery" href="\.\/forgot-password"/);
 assert.doesNotMatch(login, /sign up with password|create password account/i);
+
+const loginScript = read('public/script.js');
+assert.match(loginScript, /width:\s*buttonWidth/);
 
 for (const page of ['activate.html', 'forgot-password.html', 'reset-password.html']) {
   const html = read(`templates/pages/${page}`);

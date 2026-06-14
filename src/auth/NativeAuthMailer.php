@@ -19,6 +19,6 @@ final class NativeAuthMailer implements AuthMailer
             'Content-Type: text/plain; charset=UTF-8',
             'MIME-Version: 1.0',
         ];
-        return mail($to, $safeSubject, $textBody, implode("\r\n", $headers));
+        return mail($to, $safeSubject, $textBody, implode("\r\n", $headers), '-f ' . escapeshellarg($fromAddress));
     }
 }
