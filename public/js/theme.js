@@ -151,6 +151,208 @@
     return email ? `email:${email}` : null;
   };
 
+  const KairosIdentity = {
+    me: null,
+    caps: null,
+    loading: true,
+    error: false,
+    fetchPromise: null,
+
+    async fetchSession() {
+      if (this.me && this.caps) {
+        return { me: this.me, caps: this.caps };
+      }
+      if (this.fetchPromise) {
+        return this.fetchPromise;
+      }
+      this.fetchPromise = (async () => {
+        try {
+          const [meRes, capsRes] = await Promise.all([
+            fetch('./api/me.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+            fetch('./api/session_capabilities.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+          ]);
+
+          if (meRes.status === 401 || capsRes.status === 401) {
+            this.handleSessionExpired();
+            return null;
+          }
+
+          if (!meRes.ok || !capsRes.ok) {
+            throw new Error('Failed to fetch session');
+          }
+
+          const me = await meRes.json();
+          const capsRaw = await capsRes.json();
+
+          if (!me || !me.email) {
+            this.handleSessionExpired();
+            return null;
+          }
+
+          this.me = me;
+
+          let resolvedCaps = { student: true, ta: false, manager: false, admin: false };
+          if (window.normalizeSessionRoles) {
+            resolvedCaps = window.normalizeSessionRoles(capsRaw);
+          } else if (capsRaw && capsRaw.ok && capsRaw.data && capsRaw.data.user) {
+            const role = String(capsRaw.data.user.role || 'student').toLowerCase();
+            resolvedCaps = {
+              student: true,
+              ta: role === 'ta' || role === 'manager' || role === 'admin',
+              manager: role === 'manager' || role === 'admin',
+              admin: role === 'admin',
+            };
+          } else if (capsRaw && capsRaw.roles) {
+            resolvedCaps = capsRaw.roles;
+          }
+          this.caps = resolvedCaps;
+
+          this.loading = false;
+          this.error = false;
+          return { me: this.me, caps: this.caps };
+        } catch (err) {
+          console.error('[Identity] failed to load session', err);
+          this.loading = false;
+          this.error = true;
+          this.renderError();
+          return null;
+        } finally {
+          this.fetchPromise = null;
+        }
+      })();
+      return this.fetchPromise;
+    },
+
+    handleSessionExpired() {
+      this.loading = false;
+      this.error = true;
+      this.renderSignedOut();
+
+      const pathname = window.location.pathname.toLowerCase();
+      const isPublic = pathname === '/signoff/' || pathname.endsWith('/index.html') || pathname.endsWith('/') || isPreAuthView();
+      if (!isPublic) {
+        try {
+          if (window.sessionStorage) {
+            const fullUrl = window.location.pathname + window.location.search + window.location.hash;
+            window.sessionStorage.setItem('kairos:returnUrl', fullUrl);
+          }
+        } catch (_) {}
+        window.location.replace('/signoff/');
+      }
+    },
+
+    render() {
+      const avatarEl = document.getElementById('kSidebarAvatar') || document.getElementById('avatar') || document.getElementById('taAvatar');
+      const nameEl = document.getElementById('kSidebarName') || document.getElementById('name') || document.getElementById('taName');
+      const roleEl = document.getElementById('kSidebarRole') || document.getElementById('email') || document.getElementById('taEmail');
+      const userContainer = document.querySelector('.k-sidebar__user');
+
+      if (this.loading) {
+        if (userContainer) userContainer.classList.add('is-loading');
+        return;
+      }
+
+      if (userContainer) {
+        userContainer.classList.remove('is-loading');
+      }
+
+      if (this.error || !this.me) {
+        this.renderError();
+        return;
+      }
+
+      const me = this.me;
+      const caps = this.caps;
+
+      if (nameEl) {
+        nameEl.textContent = me.name || me.email || 'User';
+      }
+
+      if (avatarEl) {
+        const initials = this.getInitials(me.name, me.email);
+        avatarEl.src = me.picture_url || this.getAvatarSvg(initials);
+        avatarEl.alt = me.name ? `${me.name} profile picture` : 'User profile picture';
+        avatarEl.onerror = () => {
+          avatarEl.src = this.getAvatarSvg(initials);
+          avatarEl.onerror = null;
+        };
+      }
+
+      if (roleEl) {
+        let roleLabel = 'Student';
+        if (caps.admin) roleLabel = 'Admin';
+        else if (caps.manager) roleLabel = 'Manager';
+        else if (caps.ta) roleLabel = 'TA';
+        roleEl.textContent = roleLabel;
+      }
+
+      if (typeof window.updateSidebarRoleLinks === 'function') {
+        window.updateSidebarRoleLinks(caps);
+      }
+    },
+
+    renderSignedOut() {
+      const nameEl = document.getElementById('kSidebarName') || document.getElementById('name') || document.getElementById('taName');
+      const roleEl = document.getElementById('kSidebarRole') || document.getElementById('email') || document.getElementById('taEmail');
+      const userContainer = document.querySelector('.k-sidebar__user');
+      if (userContainer) userContainer.classList.remove('is-loading');
+      if (nameEl) nameEl.textContent = 'Signed Out';
+      if (roleEl) roleEl.textContent = 'Please sign in';
+    },
+
+    renderError() {
+      const nameEl = document.getElementById('kSidebarName') || document.getElementById('name') || document.getElementById('taName');
+      const roleEl = document.getElementById('kSidebarRole') || document.getElementById('email') || document.getElementById('taEmail');
+      const userContainer = document.querySelector('.k-sidebar__user');
+      if (userContainer) userContainer.classList.remove('is-loading');
+      if (nameEl) nameEl.textContent = 'Error';
+      if (roleEl) roleEl.textContent = 'Session error';
+    },
+
+    getInitials(name, email) {
+      let text = '';
+      if (name) {
+        const parts = name.trim().split(/\s+/);
+        if (parts.length > 0) {
+          const first = parts[0][0] || '';
+          const last = parts.length > 1 ? (parts[parts.length - 1][0] || '') : '';
+          text = (first + last).toUpperCase();
+        }
+      }
+      if (!text && email) {
+        const prefix = email.split('@')[0] || '';
+        text = prefix.slice(0, 2).toUpperCase();
+      }
+      if (!text) text = '?';
+      return text;
+    },
+
+    getAvatarSvg(initials) {
+      return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="20" fill="%234f46e5"/><text x="20" y="25" text-anchor="middle" fill="white" font-family="system-ui, sans-serif" font-size="14" font-weight="bold">${initials}</text></svg>`;
+    },
+
+    validateReturnUrl(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const trimmed = raw.trim();
+      if (!trimmed.startsWith('/signoff/')) return null;
+      if (trimmed.includes('//')) return null;
+      if (trimmed.includes('\\')) return null;
+      if (trimmed.toLowerCase().includes('%5c')) return null;
+
+      try {
+        const base = 'https://kairos.nixorcorporate.com';
+        const parsed = new URL(trimmed, base);
+        if (parsed.origin !== base) return null;
+        if (!parsed.pathname.startsWith('/signoff/')) return null;
+        return trimmed;
+      } catch (_) {
+        return null;
+      }
+    }
+  };
+
+  window.KairosIdentity = KairosIdentity;
+
   const resolveStorageOwner = async () => {
     if (storageOwnerResolved) {
       return storageOwner;
@@ -168,20 +370,8 @@
 
       let me = null;
       try {
-        if (window.KairosLMS && typeof window.KairosLMS.loadMe === 'function') {
-          me = await window.KairosLMS.loadMe();
-        } else if (window.KairosLMS && typeof window.KairosLMS.api === 'function') {
-          const res = await window.KairosLMS.api('GET', './api/me.php');
-          me = res.ok ? (res.data || null) : null;
-        } else {
-          const resp = await fetch('./api/me.php', {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' },
-          });
-          if (resp.ok) {
-            me = await resp.json();
-          }
-        }
+        const session = await KairosIdentity.fetchSession();
+        me = session ? session.me : null;
       } catch (_) {
         me = null;
       }
@@ -854,6 +1044,7 @@
   };
 
   document.addEventListener('DOMContentLoaded', async () => {
+    if (window.KairosIdentity) window.KairosIdentity.render();
     syncThemeState();
     if (typeof window.waitForAppConfig === 'function') {
       try {
@@ -863,6 +1054,7 @@
       }
     }
     await resolveStorageOwner();
+    if (window.KairosIdentity) window.KairosIdentity.render();
     syncThemeState();
     applyUiSettings(readSettings(), false);
     hydrateBranding();
@@ -882,7 +1074,9 @@
   window.addEventListener('pageshow', () => {
     (async () => {
       try {
+        if (window.KairosIdentity) window.KairosIdentity.render();
         await resolveStorageOwner();
+        if (window.KairosIdentity) window.KairosIdentity.render();
         syncThemeState();
         applyUiSettings(readSettings(), false);
         hydrateBranding();
@@ -903,7 +1097,6 @@
       }
     })();
   });
-
   document.addEventListener('click', (event) => {
     if (!settingsPanel || settingsPanel.classList.contains('hidden')) return;
     const target = event.target;

@@ -176,4 +176,4 @@ The June 14 public-course access pass adds no migration. It uses existing `cours
 - **Login Redirect Security**: Client-side sessionStorage-based `kairos:returnUrl` redirect preserves path and query string parameters. Open-redirect prevention rejects external URLs, protocol-relative hosts, and any backslashes (`\`, `%5c`, `%5C`).
 - **Student Assignment Notes**: Students have independent private notes saved via auto-saving `/api/lms/assignments/save_note.php` without creating new submission records. These notes are separate from submission comments and staff private notes.
 - **Staff Grading & Rubric Overrides**: Persistent rubric scoring, grade overrides, and staff private notes are saved in the `lms_grades` table. Staff private notes are strictly hidden from students.
-
+- **Shared Identity Shell**: Authentication status and user attributes are managed through a unified client-side identity renderer `window.KairosIdentity`. Expired sessions (`401` status) trigger a safe redirect preserving the query/hash params in sessionStorage (`kairos:returnUrl`) while applying strict open-redirect filters on redirect endpoints.

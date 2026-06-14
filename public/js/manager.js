@@ -125,30 +125,65 @@ function renderGoogleButton() {
 
 async function bootstrap() {
   try {
-    const r = await fetch('./api/me.php', { credentials: 'same-origin' });
-    if (!r.ok) throw new Error('me.php ' + r.status);
-    const me = await r.json();
+    let me = null;
+    let sessionRoles = null;
+    if (window.KairosIdentity) {
+      const session = await window.KairosIdentity.fetchSession();
+      if (session) {
+        me = session.me;
+        sessionRoles = session.caps;
+      }
+    }
+    if (!me) {
+      const r = await fetch('./api/me.php', { credentials: 'same-origin' });
+      if (!r.ok) throw new Error('me.php ' + r.status);
+      me = await r.json();
+    }
     if (!me || !me.email) {
       showSignin();
       return;
     }
     currentUser = me;
-    const avatarEl = document.getElementById('avatar');
-    const nameEl = document.getElementById('name');
-    const emailEl = document.getElementById('email');
-    if (avatarEl) avatarEl.src = me.picture_url || '';
-    if (nameEl) nameEl.textContent = me.name || '';
-    if (emailEl) emailEl.textContent = me.email || '';
-    showApp();
-    try {
-      const rawCaps = await apiGet('./api/session_capabilities.php');
-      sessionRoles = normalizeSessionRoles(rawCaps);
-      if (typeof window.updateSidebarRoleLinks === 'function') {
-        window.updateSidebarRoleLinks(sessionRoles);
+    const avatarEl = document.getElementById('kSidebarAvatar') || document.getElementById('avatar');
+    const nameEl = document.getElementById('kSidebarName') || document.getElementById('name');
+    const emailEl = document.getElementById('kSidebarRole') || document.getElementById('email');
+    if (avatarEl) {
+      const initials = window.KairosIdentity ? window.KairosIdentity.getInitials(me.name, me.email) : '?';
+      avatarEl.src = me.picture_url || (window.KairosIdentity ? window.KairosIdentity.getAvatarSvg(initials) : '');
+      avatarEl.onerror = () => {
+        if (window.KairosIdentity) avatarEl.src = window.KairosIdentity.getAvatarSvg(initials);
+        avatarEl.onerror = null;
+      };
+    }
+    if (nameEl) nameEl.textContent = me.name || me.email || '';
+    if (emailEl) {
+      let roleLabel = 'Manager';
+      if (sessionRoles) {
+        if (sessionRoles.admin) roleLabel = 'Admin';
+        else if (sessionRoles.manager) roleLabel = 'Manager';
+        else if (sessionRoles.ta) roleLabel = 'TA';
+        else roleLabel = 'Student';
       }
-    } catch (err) {
-      if (err?.status === 401 || err?.status === 403) throw err;
-      sessionRoles = {};
+      emailEl.textContent = roleLabel;
+    }
+    showApp();
+    if (!sessionRoles) {
+      try {
+        const rawCaps = await apiGet('./api/session_capabilities.php');
+        sessionRoles = normalizeSessionRoles(rawCaps);
+      } catch (err) {
+        if (err?.status === 401 || err?.status === 403) throw err;
+        sessionRoles = {};
+      }
+    }
+    if (typeof window.updateSidebarRoleLinks === 'function') {
+      window.updateSidebarRoleLinks(sessionRoles);
+    }
+    if (window.KairosIdentity) {
+      window.KairosIdentity.me = me;
+      window.KairosIdentity.caps = sessionRoles;
+      window.KairosIdentity.loading = false;
+      window.KairosIdentity.render();
     }
     updateNavAvailability();
     if (window.SignoffWS) {
@@ -1005,7 +1040,7 @@ function escapeHtmlAttr(str) {
 }
 
 function setupEvents() {
-  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+  (document.getElementById('kLogoutBtn') || document.getElementById('logoutBtn'))?.addEventListener('click', async () => {
     await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' });
     showSignin();
     renderGoogleButton();

@@ -294,3 +294,16 @@ Humans and AI agents follow the same baseline process:
 
 - Engineering guardrails and architecture policy: `AGENTS.md`
 - Deployment/migration notes: `CHANGES_KAIROS.md` and `docs/runbooks/` (add when introducing operationally significant changes)
+
+---
+
+## Shared Identity Shell Architecture
+
+Kairos enforces a unified, authoritative shared identity renderer (`window.KairosIdentity`) defined in `public/js/theme.js` and loaded on every page.
+
+### Features
+1. **Single Source of Truth**: Resolves the user session and capabilities once from `./api/me.php` and `./api/session_capabilities.php` and caches them in memory.
+2. **Skeleton Shimmer Loading**: On boot, displays a polished skeleton animation inside the avatar and user info blocks (driven by `.k-sidebar__user.is-loading` CSS rules) to prevent layout shifts.
+3. **Initials Fallback**: If the user's Google profile avatar fails to load or is missing, generates a high-contrast SVG containing their initials based on their name or email prefix.
+4. **Redirection Security**: Expired sessions (`401` status) trigger a safe redirect to `/signoff/` while preserving the return URL in sessionStorage, preventing open-redirect vulnerabilities.
+5. **DOM ID Normalization**: Unified across Settings, Admin, Manager, TA, Course, and Dashboard pages by mapping standard IDs (`kSidebarAvatar`, `kSidebarName`, `kSidebarRole`, `kLogoutBtn`).

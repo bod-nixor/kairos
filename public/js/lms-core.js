@@ -467,6 +467,13 @@
 
   async function loadMe() {
     if (_me) return _me;
+    if (window.KairosIdentity) {
+      const session = await window.KairosIdentity.fetchSession();
+      if (session) {
+        _me = session.me;
+        return _me;
+      }
+    }
     const generation = _accessCacheGeneration;
     const r = await api('GET', './api/me.php');
     if (generation !== _accessCacheGeneration) return loadMe();
@@ -476,6 +483,16 @@
 
   async function loadCaps() {
     if (_caps) return _caps;
+    if (window.KairosIdentity) {
+      const session = await window.KairosIdentity.fetchSession();
+      if (session) {
+        _caps = {
+          is_logged_in: true,
+          roles: session.caps
+        };
+        return _caps;
+      }
+    }
     const generation = _accessCacheGeneration;
     const r = await api('GET', './api/session_capabilities.php');
     if (generation !== _accessCacheGeneration) return loadCaps();
@@ -912,6 +929,9 @@
       redirectToSignoffHome();
       return;
     }
+    // Update the user profile info on boot
+    updateUserBar(me);
+
     // Logout button
     const logoutBtn = document.getElementById('kLogoutBtn');
     if (logoutBtn) {

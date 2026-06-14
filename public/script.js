@@ -556,17 +556,17 @@ async function bootstrap() {
     const me = await r.json();
     if (!me?.email) { selfUserId = null; stopNotifySSE(); showSignin(); return; }
 
-    // Fill userbar (old + new selectors)
-    const avatarEl = document.getElementById('avatar');
-    if (avatarEl) avatarEl.src = me.picture_url || '';
-    const nameEl = document.getElementById('name');
-    if (nameEl) nameEl.textContent = me.name || '';
-    // Also fill the new sidebar user bar
-    const sidebarAvatar = document.getElementById('kSidebarAvatar');
-    if (sidebarAvatar) sidebarAvatar.src = me.picture_url || '';
-    const sidebarName = document.getElementById('kSidebarName');
-    if (sidebarName) sidebarName.textContent = me.name || me.email || '';
-    // Note: kSidebarRole is set by applySessionCapabilities() below
+    // Fill userbar (old + new selectors) using KairosIdentity if available
+    if (window.KairosIdentity) {
+      window.KairosIdentity.me = me;
+      window.KairosIdentity.loading = false;
+      window.KairosIdentity.render();
+    } else {
+      const avatarEl = document.getElementById('avatar') || document.getElementById('kSidebarAvatar');
+      const nameEl = document.getElementById('name') || document.getElementById('kSidebarName');
+      if (avatarEl) avatarEl.src = me.picture_url || '';
+      if (nameEl) nameEl.textContent = me.name || me.email || '';
+    }
 
     selfUserId = me.user_id || null;
     currentUserId = (typeof me.user_id === 'number' && Number.isFinite(me.user_id))
@@ -583,9 +583,11 @@ async function bootstrap() {
         const rawReturn = window.sessionStorage.getItem('kairos:returnUrl');
         if (rawReturn) {
           window.sessionStorage.removeItem('kairos:returnUrl');
-          const validUrl = window.KairosLMS && window.KairosLMS.nav && typeof window.KairosLMS.nav.validateReturnUrl === 'function'
-            ? window.KairosLMS.nav.validateReturnUrl(rawReturn)
-            : null;
+          const validUrl = window.KairosIdentity && typeof window.KairosIdentity.validateReturnUrl === 'function'
+            ? window.KairosIdentity.validateReturnUrl(rawReturn)
+            : (window.KairosLMS && window.KairosLMS.nav && typeof window.KairosLMS.nav.validateReturnUrl === 'function'
+              ? window.KairosLMS.nav.validateReturnUrl(rawReturn)
+              : null);
           if (validUrl) {
             window.location.replace(validUrl);
             return;

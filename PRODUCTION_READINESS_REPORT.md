@@ -262,3 +262,16 @@ Vendored Socket.IO SHA-256:
 - Prefer external scripts for new bootstrap behavior; existing inline scripts are restricted by immutable CSP hashes.
 - Add an automated browser suite with test OAuth/session fixtures for every role and all six themes.
 - Cache websocket authorization mappings briefly to reduce information-schema queries at high connection volume.
+
+---
+
+## Shared Identity Shell Pass (June 14, 2026)
+
+We performed a complete pass to unify user profile footer elements, loading states, and redirects across the entire application:
+
+1. **Authoritative Renderer**: Created `window.KairosIdentity` in `public/js/theme.js` to own profile picture display, display names, email/role labels, initials fallbacks, loading/signed-out/error states, and redirection.
+2. **Skeleton Shimmer**: Implemented CSS loading skeleton shimmers (`.k-sidebar__user.is-loading` in `style.css`) to display loading skeletons during initial load and prevent layout shifts.
+3. **Initials Fallback**: Created initials-generating SVG data URI helper (`getAvatarSvg` and `getInitials`) that handles missing/broken avatars cleanly and avoids layout jumps when images fail to load.
+4. **DOM Normalization**: Updated `manager.html` and `ta.html` templates to map standard IDs (`kSidebarAvatar`, `kSidebarName`, `kSidebarRole`, `kLogoutBtn`), and refactored `manager.js` and `ta.js` to support them natively.
+5. **Redirection and Security**: Enforced session expiry redirect flows that store path and query parameters safely in sessionStorage (`kairos:returnUrl`) while rejecting external URLs, protocol-relative hosts, and backslash bypasses.
+6. **Tests Added**: Added `tools/tests/identity_renderer_contract_test.mjs` verifying initials fallback, error loading states, redirect validation, and reinitialization safety.
