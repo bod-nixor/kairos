@@ -16,6 +16,15 @@
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
 
+    function renderUnavailable() {
+        const target = $('assignError');
+        if (!target) return;
+        target.innerHTML = `<div class="k-empty"><div class="k-empty__icon" aria-hidden="true">📤</div><p class="k-empty__title">Assignment unavailable</p><p class="k-empty__desc">This assignment was deleted or is no longer available in this course.</p><a class="btn btn-primary" href="./assignments.html?course_id=${encodeURIComponent(COURSE_ID)}">Back to assignments</a></div>`;
+        hideEl('assignLoaded');
+        hideEl('assignAccessDenied');
+        showEl('assignError');
+    }
+
     let assignData = null;
     let uploadedFiles = [];
     let canManage = false;
@@ -158,7 +167,7 @@
         const panel = document.createElement('section');
         panel.id = 'assignStaffPanel';
         panel.className = 'k-card k-staff-panel';
-        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Assignment Management</h3><div class="k-staff-panel__actions"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="assignMandatoryBtn" type="button"></button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button></div><div id="assignStaffSubmissions" class="k-staff-panel__list"></div>`;
+        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Assignment Management</h3><div class="k-staff-panel__actions"><button class="btn btn-ghost btn-sm" id="assignPublishBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="assignDraftBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm${assignData?.module_linked ? '' : ' hidden'}" id="assignMandatoryBtn" type="button"></button><button class="btn btn-secondary btn-sm" id="assignEditBtn" type="button">Edit Assignment</button><button class="btn btn-danger btn-sm" id="assignDeleteBtn" type="button">Delete assignment</button></div><div id="assignStaffSubmissions" class="k-staff-panel__list"></div>`;
         root.appendChild(panel);
 
         const assignMandatoryBtn = $('assignMandatoryBtn');
@@ -210,6 +219,7 @@
                 onSubmit: async (updatePayload) => {
                     const res = await LMS.api('POST', './api/lms/assignments/update.php', {
                         assignment_id: Number(ASSIGN_ID),
+                        course_id: Number(COURSE_ID),
                         ...updatePayload,
                     });
                     if (!res.ok) return res;
@@ -218,6 +228,25 @@
                     return res;
                 },
             });
+        });
+        $('assignDeleteBtn')?.addEventListener('click', () => {
+            LMS.confirm(
+                'Delete assignment',
+                'This archives the assignment, removes it from every module and active course list, and hides it from student and grading views. Existing submissions, grades, and files remain stored for audit. This cannot be undone from the LMS.',
+                async () => {
+                    const res = await LMS.api('POST', './api/lms/assignments/delete.php', {
+                        assignment_id: Number(ASSIGN_ID),
+                        course_id: Number(COURSE_ID),
+                    });
+                    if (!res.ok) {
+                        LMS.toast(res.error || res.data?.error?.message || 'Assignment could not be deleted.', 'error');
+                        return;
+                    }
+                    LMS.toast('Assignment deleted.', 'success');
+                    window.location.assign(`./assignments.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+                },
+                { okLabel: 'Delete assignment', okClass: 'btn-danger' }
+            );
         });
 
         const target = $('assignStaffSubmissions');
@@ -311,6 +340,10 @@
         if (assignRes.status === 403) {
             LMS.renderAccessDenied($('assignAccessDenied'), 'You do not have access to this assignment.', `/course.html?course_id=${COURSE_ID}`);
             showEl('assignAccessDenied');
+            return;
+        }
+        if (assignRes.status === 404) {
+            renderUnavailable();
             return;
         }
         if (!assignRes.ok) {
@@ -443,10 +476,22 @@
         await renderStaffPanel(submissions);
     }
 
+    function wireRealtime() {
+        if (!window.LmsWS) return;
+        ['assignment.updated', 'assignment.deleted'].forEach((eventName) => {
+            LmsWS.on(eventName, (payload) => {
+                if (String(payload.course_id || '') !== String(COURSE_ID)) return;
+                if (Number(payload.entity_id || 0) !== Number(ASSIGN_ID)) return;
+                loadPage();
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        wireRealtime();
         await loadPage();
     });
 

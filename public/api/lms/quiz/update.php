@@ -75,8 +75,19 @@ try {
         ':due_at' => $dueAt,
         ':id' => $id,
     ]);
-    $pdo->commit();
+
+    $pdo->prepare(
+        "UPDATE lms_module_items
+         SET title = :title, updated_at = CURRENT_TIMESTAMP
+         WHERE course_id = :course_id AND item_type = 'quiz' AND entity_id = :id"
+    )->execute([
+        ':title' => $title,
+        ':course_id' => (int)$existing['course_id'],
+        ':id' => $id,
+    ]);
+
     lms_emit_event($pdo, 'quiz.updated', [
+        'event_name' => 'quiz.updated',
         'event_id' => lms_uuid_v4(),
         'occurred_at' => gmdate('Y-m-d H:i:s'),
         'actor_id' => (int)$user['user_id'],
@@ -86,6 +97,7 @@ try {
         'title' => $title,
         'status' => $status,
     ]);
+    $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

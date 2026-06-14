@@ -3,6 +3,40 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/drive_client.php';
 
+function lms_assignment_restriction_columns_available(PDO $pdo): bool
+{
+    static $availability = [];
+    $connectionId = spl_object_id($pdo);
+    if (array_key_exists($connectionId, $availability)) {
+        return $availability[$connectionId];
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(DISTINCT COLUMN_NAME)
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'lms_assignments'
+           AND COLUMN_NAME IN ('allowed_file_extensions', 'max_file_mb')"
+    );
+    $stmt->execute();
+    $availability[$connectionId] = (int)$stmt->fetchColumn() === 2;
+    return $availability[$connectionId];
+}
+
+function lms_require_assignment_restriction_schema(PDO $pdo): void
+{
+    if (lms_assignment_restriction_columns_available($pdo)) {
+        return;
+    }
+
+    error_log('[kairos] assignment upload restriction columns are missing; migration is required');
+    lms_error(
+        'service_unavailable',
+        'Assignment upload settings are temporarily unavailable.',
+        503
+    );
+}
+
 function lms_assignment_file_type_presets(): array
 {
     return [
@@ -75,6 +109,20 @@ function lms_normalize_allowed_file_extensions($value): string
         lms_error('validation_error', implode('. ', $normalized['errors']) . '.', 422);
     }
     return implode(',', $normalized['extensions']);
+}
+
+/**
+ * An empty saved list means any Kairos-supported, non-dangerous file type.
+ *
+ * @return array<int,string>|null
+ */
+function lms_assignment_allowed_extensions_for_validation($value): ?array
+{
+    $normalized = lms_assignment_normalize_extension_values($value);
+    if ($normalized['errors'] !== []) {
+        lms_error('validation_error', 'Saved assignment upload settings are invalid.', 422);
+    }
+    return $normalized['extensions'] === [] ? null : $normalized['extensions'];
 }
 
 function lms_clamp_max_file_mb($value, int $default = 50): int

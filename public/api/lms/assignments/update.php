@@ -10,56 +10,46 @@ if ($id <= 0) {
     lms_error('validation_error', 'assignment_id required', 422);
 }
 
-// Fetch course_id early to pass to feature flags
+$user = lms_require_roles(['manager', 'admin']);
 $pdo = db();
-$courseId = (int) ($in['course_id'] ?? $_GET['course_id'] ?? 0);
-if ($courseId <= 0) {
-    $stmt = $pdo->prepare('SELECT course_id FROM lms_assignments WHERE assignment_id=:id');
-    $stmt->execute([':id' => $id]);
-    $courseId = (int) $stmt->fetchColumn();
+$scopeStmt = $pdo->prepare(
+    'SELECT assignment_id, course_id
+     FROM lms_assignments
+     WHERE assignment_id = :id AND deleted_at IS NULL
+     LIMIT 1'
+);
+$scopeStmt->execute([':id' => $id]);
+$scope = $scopeStmt->fetch(PDO::FETCH_ASSOC);
+if (!$scope) {
+    lms_error('not_found', 'Assignment not found', 404);
+}
+$courseId = (int)$scope['course_id'];
+if (isset($in['course_id']) && (int)$in['course_id'] !== $courseId) {
+    lms_error('not_found', 'Assignment not found in this course', 404);
 }
 
-// Feature flag check — fail-closed, course scoped
 try {
-    lms_require_feature(['lms_assignments', 'assignments'], $courseId > 0 ? $courseId : null);
+    lms_require_feature(['lms_assignments', 'assignments'], $courseId);
 } catch (Throwable $e) {
-    $courseStr = $courseId > 0 ? "course_id={$courseId}" : 'no course_context';
-    error_log("[kairos] lms_require_feature check failed in update.php ({$courseStr}): " . $e->__toString());
+    error_log("[kairos] lms_require_feature check failed in update.php (course_id={$courseId}): " . get_class($e));
     lms_error('feature_disabled', 'Feature check failed or disabled', 404);
 }
 
-// Pre-auth via helper if testing manually, but _common's lms_require_roles intercepts execution so we just call it
-$user = lms_require_roles(['manager', 'admin']);
+lms_require_course_capability($user, 'manage_course', $courseId);
+lms_require_assignment_restriction_schema($pdo);
 
-// $pdo already defined above
-// Try to fetch assignment including restriction columns; fall back to core columns
-$existing = null;
-$hasRestrictionCols = true;
-try {
-    $existingStmt = $pdo->prepare(
-        'SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points,
-                allowed_file_extensions, max_file_mb, status
-         FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1'
-    );
-    $existingStmt->execute([':id' => $id]);
-    $existing = $existingStmt->fetch();
-} catch (Throwable $e) {
-    // Restriction columns may not exist yet (migration not applied)
-    $hasRestrictionCols = false;
-    error_log('[kairos] assignment select with restriction cols failed, falling back: ' . $e->getMessage());
-    $existingStmt = $pdo->prepare(
-        'SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points, status
-         FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL LIMIT 1'
-    );
-    $existingStmt->execute([':id' => $id]);
-    $existing = $existingStmt->fetch();
-}
-
+$existingStmt = $pdo->prepare(
+    'SELECT assignment_id, course_id, title, instructions, due_at, late_allowed, max_points,
+            allowed_file_extensions, max_file_mb, status
+     FROM lms_assignments
+     WHERE assignment_id = :id AND course_id = :course_id AND deleted_at IS NULL
+     LIMIT 1'
+);
+$existingStmt->execute([':id' => $id, ':course_id' => $courseId]);
+$existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
 if (!$existing) {
     lms_error('not_found', 'Assignment not found', 404);
 }
-
-lms_require_course_capability($user, 'manage_course', (int)$existing['course_id']);
 
 if (array_key_exists('status', $in)) {
     $targetStatus = (string) $in['status'];
@@ -109,55 +99,69 @@ if (array_key_exists('max_points', $in)) {
 }
 
 $status = array_key_exists('status', $in) ? (string) $in['status'] : (string) $existing['status'];
+$allowedFileExtensions = lms_normalize_allowed_file_extensions(
+    array_key_exists('allowed_file_extensions', $in)
+        ? $in['allowed_file_extensions']
+        : ($existing['allowed_file_extensions'] ?? null)
+);
+$maxFileMb = lms_clamp_max_file_mb(
+    array_key_exists('max_file_mb', $in)
+        ? $in['max_file_mb']
+        : ($existing['max_file_mb'] ?? 50),
+    50
+);
 
-// Main assignment update — in its own transaction
 $pdo->beginTransaction();
 try {
-    if ($hasRestrictionCols) {
-        $allowedFileExtensions = lms_normalize_allowed_file_extensions(
-            array_key_exists('allowed_file_extensions', $in)
-            ? $in['allowed_file_extensions']
-            : ($existing['allowed_file_extensions'] ?? null)
-        );
-        $maxFileMb = lms_clamp_max_file_mb(
-            array_key_exists('max_file_mb', $in)
-            ? $in['max_file_mb']
-            : ($existing['max_file_mb'] ?? 50),
-            50
-        );
+    $pdo->prepare(
+        'UPDATE lms_assignments
+         SET title = :title,
+             instructions = :instructions,
+             due_at = :due_at,
+             late_allowed = :late_allowed,
+             max_points = :max_points,
+             allowed_file_extensions = :allowed_file_extensions,
+             max_file_mb = :max_file_mb,
+             status = :status,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE assignment_id = :id AND course_id = :course_id AND deleted_at IS NULL'
+    )->execute([
+        ':title' => $title,
+        ':instructions' => $instructions,
+        ':due_at' => $dueAt,
+        ':late_allowed' => $lateAllowed,
+        ':max_points' => $maxPoints,
+        ':allowed_file_extensions' => $allowedFileExtensions === '' ? null : $allowedFileExtensions,
+        ':max_file_mb' => $maxFileMb,
+        ':status' => $status,
+        ':id' => $id,
+        ':course_id' => $courseId,
+    ]);
 
-        $pdo->prepare(
-            'UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l,
-                    max_points=:m, allowed_file_extensions=:afe, max_file_mb=:mfm,
-                    status=:st, updated_at=CURRENT_TIMESTAMP
-             WHERE assignment_id=:id AND deleted_at IS NULL'
-        )->execute([
-                    ':t' => $title,
-                    ':i' => $instructions,
-                    ':d' => $dueAt,
-                    ':l' => $lateAllowed,
-                    ':m' => $maxPoints,
-                    ':afe' => ($allowedFileExtensions === '' ? null : $allowedFileExtensions),
-                    ':mfm' => $maxFileMb,
-                    ':st' => $status,
-                    ':id' => $id,
-                ]);
-    } else {
-        // Fallback: update without restriction columns
-        $pdo->prepare(
-            'UPDATE lms_assignments SET title=:t, instructions=:i, due_at=:d, late_allowed=:l,
-                    max_points=:m, status=:st, updated_at=CURRENT_TIMESTAMP
-             WHERE assignment_id=:id AND deleted_at IS NULL'
-        )->execute([
-                    ':t' => $title,
-                    ':i' => $instructions,
-                    ':d' => $dueAt,
-                    ':l' => $lateAllowed,
-                    ':m' => $maxPoints,
-                    ':st' => $status,
-                    ':id' => $id,
-                ]);
-    }
+    $pdo->prepare(
+        "UPDATE lms_module_items
+         SET title = :title, updated_at = CURRENT_TIMESTAMP
+         WHERE course_id = :course_id AND item_type = 'assignment' AND entity_id = :id"
+    )->execute([
+        ':title' => $title,
+        ':course_id' => $courseId,
+        ':id' => $id,
+    ]);
+
+    lms_emit_event($pdo, 'assignment.updated', [
+        'event_name' => 'assignment.updated',
+        'event_id' => lms_uuid_v4(),
+        'occurred_at' => gmdate('Y-m-d H:i:s'),
+        'actor_id' => (int)$user['user_id'],
+        'entity_type' => 'assignment',
+        'entity_id' => $id,
+        'course_id' => $courseId,
+        'title' => $title,
+        'status' => $status,
+        'allowed_file_extensions' => $allowedFileExtensions,
+        'max_file_mb' => $maxFileMb,
+    ]);
+
     $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
@@ -167,16 +171,12 @@ try {
     lms_error('update_failed', 'Failed to update assignment.', 500);
 }
 
-// Event emission — OUTSIDE the transaction so failures don't block the update
-lms_emit_event($pdo, 'assignment.updated', [
-    'event_id' => lms_uuid_v4(),
-    'occurred_at' => gmdate('Y-m-d H:i:s'),
-    'actor_id' => (int) $user['user_id'],
-    'entity_type' => 'assignment',
-    'entity_id' => $id,
-    'course_id' => (int) $existing['course_id'],
+lms_ok([
+    'updated' => true,
+    'assignment_id' => $id,
+    'course_id' => $courseId,
     'title' => $title,
     'status' => $status,
+    'allowed_file_extensions' => $allowedFileExtensions,
+    'max_file_mb' => $maxFileMb,
 ]);
-
-lms_ok(['updated' => true]);

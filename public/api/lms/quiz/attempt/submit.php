@@ -31,7 +31,17 @@ if ($attemptId <= 0 || !is_array($responses)) {
 }
 
 $pdo = db();
-$attemptStmt = $pdo->prepare('SELECT attempt_id, assessment_id, course_id, user_id, status FROM lms_assessment_attempts WHERE attempt_id=:id LIMIT 1');
+$attemptStmt = $pdo->prepare(
+    "SELECT attempt.attempt_id, attempt.assessment_id, attempt.course_id, attempt.user_id, attempt.status
+     FROM lms_assessment_attempts attempt
+     JOIN lms_assessments assessment
+       ON assessment.assessment_id = attempt.assessment_id
+      AND assessment.course_id = attempt.course_id
+      AND assessment.deleted_at IS NULL
+      AND assessment.status = 'published'
+     WHERE attempt.attempt_id = :id
+     LIMIT 1"
+);
 $attemptStmt->execute([':id' => $attemptId]);
 $attempt = $attemptStmt->fetch();
 if (!$attempt) {

@@ -70,9 +70,16 @@ assert.doesNotMatch(assignments, /escHtml\(item\.instructions|escHtml\(item\.des
 assert.match(assignment, /desc\.innerHTML = LMS\.sanitizeForRender/);
 assert.match(assignment, /No description provided/);
 assert.match(assignment, /fileInput\.accept = Management\.extensionsToAccept/);
+assert.match(assignment, /Delete assignment/);
+assert.match(assignment, /Assignment unavailable/);
+assert.match(assignment, /assignment\.deleted/);
 assert.match(quizzes, /k-lms-content-card/);
+assert.match(assignments, /assignment\.deleted/);
+assert.match(quizzes, /quiz\.deleted/);
 assert.match(quiz, /Management\.openQuizEditor/);
 assert.match(quiz, /Management\.openQuestionEditor/);
+assert.match(quiz, /Delete quiz/);
+assert.match(quiz, /Quiz unavailable/);
 assert.match(quiz, /startBtn\.onclick = startAttempt/);
 assert.match(quiz, /historyBtn\.onclick = loadHistory/);
 assert.doesNotMatch(quiz, /ensureQuestionEditorModal|options \(comma-separated/i);
@@ -95,6 +102,8 @@ for (const page of ['assignments.html', 'assignment.html', 'quizzes.html', 'quiz
   if (page.includes('assignment') || page.includes('quiz')) {
     assert.match(html, /lms-management-ui\.js/);
   }
+  assert.match(html, /assets\/vendor\/socket\.io\/4\.7\.5\/socket\.io\.min\.js/);
+  assert.match(html, /lms-ws\.js/);
 }
 
 console.log('LMS management UI contract tests passed');

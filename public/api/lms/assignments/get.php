@@ -18,20 +18,8 @@ $debugMode = isset($_GET['debug']) && (string)$_GET['debug'] === '1' && in_array
 
 try {
     $pdo = db();
-    static $assignmentColumnSupport = null;
-    if ($assignmentColumnSupport === null) {
-        $colCheck = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lms_assignments' AND COLUMN_NAME IN ('allowed_file_extensions', 'max_file_mb')");
-        $colCheck->execute();
-        $cols = array_flip(array_map('strtolower', $colCheck->fetchAll(PDO::FETCH_COLUMN)));
-        $assignmentColumnSupport = [
-            'allowed_file_extensions' => isset($cols['allowed_file_extensions']),
-            'max_file_mb' => isset($cols['max_file_mb']),
-        ];
-    }
-
-    $allowedFileExpr = $assignmentColumnSupport['allowed_file_extensions'] ? 'allowed_file_extensions' : "'' AS allowed_file_extensions";
-    $maxFileExpr = $assignmentColumnSupport['max_file_mb'] ? 'max_file_mb' : '50 AS max_file_mb';
-    $stmt = $pdo->prepare("SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, {$allowedFileExpr}, {$maxFileExpr}, status
+    lms_require_assignment_restriction_schema($pdo);
+    $stmt = $pdo->prepare("SELECT assignment_id, course_id, section_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status
         FROM lms_assignments WHERE assignment_id = :assignment_id AND deleted_at IS NULL LIMIT 1");
     $stmt->execute([':assignment_id' => $assignmentId]);
     $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -45,9 +33,16 @@ try {
 
     lms_course_access($user, (int)$assignment['course_id']);
 
-    $moduleStmt = $pdo->prepare("SELECT required_flag, published_flag FROM lms_module_items WHERE item_type = 'assignment' AND entity_id = :id LIMIT 1");
-    $moduleStmt->execute([':id' => $assignmentId]);
-    $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['required_flag' => 0, 'published_flag' => ((string)$assignment['status'] === 'published' ? 1 : 0)];
+    $moduleStmt = $pdo->prepare("SELECT module_item_id, required_flag, published_flag FROM lms_module_items WHERE item_type = 'assignment' AND entity_id = :id AND course_id = :course_id LIMIT 1");
+    $moduleStmt->execute([
+        ':id' => $assignmentId,
+        ':course_id' => (int)$assignment['course_id'],
+    ]);
+    $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: [
+        'module_item_id' => null,
+        'required_flag' => 0,
+        'published_flag' => ((string)$assignment['status'] === 'published' ? 1 : 0),
+    ];
 
     if (
         !lms_can_view_unpublished($user, (int)$assignment['course_id'])
@@ -80,6 +75,7 @@ try {
         'capabilities' => lms_course_capabilities($user, (int)$assignment['course_id']),
         'published_flag' => (int)$module['published_flag'],
         'required_flag' => (int)$module['required_flag'],
+        'module_linked' => $module['module_item_id'] !== null,
     ];
 
     if ($debugMode) {

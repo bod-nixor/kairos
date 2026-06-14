@@ -13,7 +13,7 @@ if ($attemptId <= 0) {
 $pdo = db();
 $stmt = $pdo->prepare('SELECT a.attempt_id, a.assessment_id, a.user_id AS student_user_id, a.status, a.score, a.max_score, a.started_at, a.submitted_at, q.course_id
   FROM lms_assessment_attempts a
-  JOIN lms_assessments q ON q.assessment_id = a.assessment_id
+  JOIN lms_assessments q ON q.assessment_id = a.assessment_id AND q.deleted_at IS NULL
   WHERE a.attempt_id = :attempt_id LIMIT 1');
 $stmt->execute([':attempt_id' => $attemptId]);
 $attempt = $stmt->fetch(PDO::FETCH_ASSOC);

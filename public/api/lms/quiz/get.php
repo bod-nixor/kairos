@@ -53,12 +53,12 @@ try {
     $qStmt->execute($questionParams);
     $questionCount = (int)$qStmt->fetchColumn();
 
-    $moduleStmt = $pdo->prepare("SELECT COALESCE(MAX(required_flag), 0) AS required_flag FROM lms_module_items WHERE item_type = 'quiz' AND entity_id = :assessment_id AND course_id = :course_id");
+    $moduleStmt = $pdo->prepare("SELECT module_item_id, required_flag FROM lms_module_items WHERE item_type = 'quiz' AND entity_id = :assessment_id AND course_id = :course_id LIMIT 1");
     $moduleStmt->execute([
         ':assessment_id' => $assessmentId,
         ':course_id' => (int)$row['course_id'],
     ]);
-    $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['required_flag' => 0];
+    $module = $moduleStmt->fetch(PDO::FETCH_ASSOC) ?: ['module_item_id' => null, 'required_flag' => 0];
     $courseNameStmt = $pdo->prepare('SELECT name FROM courses WHERE course_id = :course_id LIMIT 1');
     $courseNameStmt->execute([':course_id' => (int)$row['course_id']]);
 
@@ -78,6 +78,7 @@ try {
         'available_from' => $row['available_from'],
         'due_at' => $row['due_at'],
         'required_flag' => (int)$module['required_flag'],
+        'module_linked' => $module['module_item_id'] !== null,
         'course_name' => (string)($courseNameStmt->fetchColumn() ?: ''),
         'course_role' => lms_course_role($user, (int)$row['course_id']),
         'capabilities' => lms_course_capabilities($user, (int)$row['course_id']),

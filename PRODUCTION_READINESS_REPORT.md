@@ -14,7 +14,11 @@ capability guesses.
 
 The public-course modernization pass separates public preview, enrolled participation, assigned staff authority, and admin authority. It fixes the downgraded-admin/TA/manager 403 by making student enrollment independent of global role, permits transactional self-enrollment for eligible authenticated users, keeps dependent content and realtime rooms protected, and adds browser-managed speculative course navigation with safe full-navigation fallback.
 
-The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` is required before the new announcement endpoints are deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
+The LMS integrity pass now distinguishes module unlinking from true quiz/assignment deletion, filters archived parents
+from active module/detail/list/grading paths, adds manager/admin delete controls, persists assignment upload settings
+without Drive, and makes realtime content events usable as REST cache-invalidation signals.
+
+The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` and assignment settings migration `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql` are required before the related API/UI is deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
 
 ## Baseline Findings
 
@@ -112,7 +116,27 @@ Production inspection and repository review identified:
 - Excluded SVG and active web/script/executable formats from both UI presets and server policy.
 - Added server MIME detection and OOXML/ODF/container checks before Drive upload or DB transaction.
 - Returned stable sanitized `422` messages for disallowed type, content mismatch, and effective size limit failures.
-- Reused the existing assignment restriction columns; no migration was added for this pass.
+- Removed the update endpoint's silent core-column fallback, which previously returned success while dropping upload
+  setting changes when the restriction columns were unavailable.
+- Added an explicit schema guard shared by create/update/detail/upload and a canonical `db/migrations/` artifact.
+- Assignment update responses now return the normalized saved extension list and max MiB value; the editor and
+  student picker rehydrate those authoritative values.
+- Empty extension policy explicitly means any supported safe format. Active content, including SVG, remains blocked.
+- Metadata-only saves do not initialize Drive. Valid uploads with Drive writes disabled receive a sanitized storage
+  `503` only after extension, MIME/container, and size checks pass.
+
+### Quiz and Assignment Deletion Consistency
+
+- Root cause: Modules deleted only the `lms_module_items` link, but the UI called the action Delete and exposed no
+  separate parent-delete action.
+- Module UI/API now call that operation **Remove from module** and explicitly preserve the underlying content.
+- Assignment/quiz detail pages expose separate confirmed delete actions for assigned managers/admins.
+- Parent deletion is a transactional soft delete: set `deleted_at`, set `status=archived`, remove all module links,
+  and enqueue `assignment.deleted`/`quiz.deleted` before commit.
+- Active module, list, detail, quiz-attempt, question-mutation, submission-grading, and student paths reject deleted
+  parents. Historical submissions, attempts, grades, audit rows, and files remain stored for audit/recovery.
+- Publish and mandatory changes no longer silently recreate a removed module link.
+- Modules, standalone lists, and detail pages re-fetch authoritative REST state on course-scoped realtime events.
 
 ### Public Course Access and Navigation
 
@@ -125,7 +149,7 @@ Production inspection and repository review identified:
 - Added short-lived in-memory bootstrap/course metadata deduplication and realtime invalidation.
 - Added same-origin Speculation Rules prefetch and navigation progress feedback. Normal URLs remain authoritative; WebSockets are not used for navigation.
 - Deferred DOM-swapping partial navigation because existing page controllers do not yet expose safe mount/unmount lifecycles.
-- Added no schema migration.
+- Added no public-course schema migration; the policy uses existing visibility/enrollment tables.
 
 ## Browser Verification
 
@@ -133,6 +157,17 @@ Production baseline:
 
 - Login page rendered at the canonical route with no horizontal overflow.
 - Google Sign-In markup rendered, but the production policy omitted its stylesheet origin.
+
+Local LMS integrity fixture:
+
+- Rendered the assignment editor at `1280x900` Light and `390x844` Default Dark.
+- Confirmed no page or modal horizontal overflow, focus remained inside the open dialog, and the mobile dialog kept
+  its fixed action footer and one-column preset layout.
+- Confirmed saved `Documents` plus custom `.json` restrictions rehydrated and `max_file_mb` rendered as `25`.
+- Confirmed the sanitized preview contained no script/iframe/event-handler nodes and its list excerpt contained no
+  markup.
+- The in-app browser controller could not navigate to localhost because its thread security handoff was unavailable;
+  local headless Chrome was used for equivalent DOM/screenshot checks.
 - `window.io` was unavailable because the production CSP blocked the CDN client.
 - The production Socket.IO polling endpoint itself returned HTTP 200.
 
@@ -210,7 +245,7 @@ Vendored Socket.IO SHA-256:
 
 ## Remaining Requirements
 
-1. Back up the database and apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql`.
+1. Back up the database and apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql`, then `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`.
 2. Deploy the full change set, purge Cloudflare caches, and restart the Python realtime service.
 3. Disable Cloudflare Browser Insights injection and Rocket Loader for `/signoff/*`.
 4. Install locked Composer dependencies and configure the private Shared Drive/service account.

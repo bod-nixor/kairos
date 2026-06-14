@@ -21,36 +21,31 @@ if (!$row) {
     lms_error('not_found', 'Assignment not found', 404);
 }
 
-lms_course_access($user, (int)$row['course_id']);
+lms_require_course_capability($user, 'manage_course', (int)$row['course_id']);
 
 try {
     $pdo->beginTransaction();
 
-    $existsStmt = $pdo->prepare("SELECT module_item_id FROM lms_module_items WHERE item_type='assignment' AND entity_id=:id LIMIT 1 FOR UPDATE");
-    $existsStmt->execute([':id' => $assignmentId]);
+    $existsStmt = $pdo->prepare("SELECT module_item_id FROM lms_module_items WHERE course_id=:course_id AND item_type='assignment' AND entity_id=:id LIMIT 1 FOR UPDATE");
+    $existsStmt->execute([
+        ':course_id' => (int)$row['course_id'],
+        ':id' => $assignmentId,
+    ]);
     $existing = $existsStmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($existing) {
-        $pdo->prepare("UPDATE lms_module_items SET required_flag=:required, updated_at=CURRENT_TIMESTAMP WHERE module_item_id=:module_item_id")
-            ->execute([
-                ':required' => $required,
-                ':module_item_id' => (int)$existing['module_item_id'],
-            ]);
-    } else {
-        $pdo->prepare("INSERT INTO lms_module_items (course_id, section_id, item_type, entity_id, title, position, published_flag, required_flag, created_by)
-            VALUES (:course_id,:section_id,'assignment',:entity_id,:title,1,0,:required,:created_by)")
-            ->execute([
-                ':course_id' => (int)$row['course_id'],
-                ':section_id' => $row['section_id'] === null ? null : (int)$row['section_id'],
-                ':entity_id' => $assignmentId,
-                ':title' => (string)$row['title'],
-                ':required' => $required,
-                ':created_by' => (int)$user['user_id'],
-            ]);
+    if (!$existing) {
+        $pdo->rollBack();
+        lms_error('conflict', 'Add this assignment to a module before changing its mandatory state.', 409);
     }
 
+    $pdo->prepare("UPDATE lms_module_items SET required_flag=:required, updated_at=CURRENT_TIMESTAMP WHERE module_item_id=:module_item_id")
+        ->execute([
+            ':required' => $required,
+            ':module_item_id' => (int)$existing['module_item_id'],
+        ]);
+
     $pdo->commit();
-} catch (PDOException $e) {
+} catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }

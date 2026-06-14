@@ -124,10 +124,21 @@
         showEl('loadedView');
     }
 
+    function wireRealtime() {
+        if (!window.LmsWS) return;
+        ['assignment.created', 'assignment.updated', 'assignment.deleted'].forEach((eventName) => {
+            LmsWS.on(eventName, (payload) => {
+                if (String(payload.course_id || '') !== String(COURSE_ID)) return;
+                loadPage();
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        wireRealtime();
         $('createAssignmentBtn')?.addEventListener('click', createAssignment);
         await loadPage();
     });

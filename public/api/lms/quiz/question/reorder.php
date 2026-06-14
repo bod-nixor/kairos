@@ -14,14 +14,14 @@ if ($questionId <= 0 || !in_array($direction, ['up', 'down'], true)) {
 }
 
 $pdo = db();
-$currentStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.position, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id WHERE q.question_id = :question_id AND q.deleted_at IS NULL LIMIT 1');
+$currentStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.position, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id AND a.deleted_at IS NULL WHERE q.question_id = :question_id AND q.deleted_at IS NULL LIMIT 1');
 $currentStmt->execute([':question_id' => $questionId]);
 $current = $currentStmt->fetch(PDO::FETCH_ASSOC);
 if (!$current) {
     lms_error('not_found', 'Question not found', 404);
 }
 
-lms_course_access($user, (int)$current['course_id']);
+lms_require_course_capability($user, 'manage_course', (int)$current['course_id']);
 
 $pdo->beginTransaction();
 try {

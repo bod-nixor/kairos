@@ -72,6 +72,10 @@ authorization boundary.
 
 Client-provided `course_id` is context only. It must match the relationship loaded from the stored object.
 
+Module-item removal and parent deletion are separate operations. Removing a module item deletes only the link.
+Deleting a quiz/assignment requires `manage_course`, soft-deletes the stored parent, removes all links, and preserves
+historical submissions/attempts/grades. Active child/grading endpoints first require an undeleted parent.
+
 ## Endpoint Matrix
 
 | Endpoint family | Method | Capability/role | Scope and ownership | Unauthorized response |
@@ -83,16 +87,16 @@ Client-provided `course_id` is context only. It must match the relationship load
 | `lms/courses/visibility.php`, `allowlist.php`, `preenroll.php`, settings endpoints | GET/POST | `manage_course` | assigned course; stored course ID | 403/404 |
 | `lms/modules.php`, `lessons.php`, `lessons/get.php`, `resources/get.php`, `quizzes.php`, `quiz/get.php`, `assignments.php`, `assignments/get.php` | GET | `view_course` | object belongs to accessible course; TA/student published-only | 403/404 |
 | `lms/sections/{create,update,delete,reorder}.php` | POST | `manage_course` | section and complete reorder set belong to course; stale expected order rejected | 403/404/409/422 |
-| `lms/module_items/{create,update,delete,reorder}.php` | POST | `manage_course` | item and section belong to course; reorder set is exact; rows locked before write | 403/404/409/422 |
+| `lms/module_items/{create,update,delete,reorder}.php` | POST | `manage_course` | delete means remove link only; item and section belong to course; reorder set is exact | 403/404/409/422 |
 | `lms/lessons/{create,save,update,publish,delete}.php`, `lesson_blocks/*` | POST | `manage_course` | lesson/block chain resolves to assigned course | 403/404 |
 | `lms/resources/{create,upload,update,delete}.php` | POST | `manage_course` | resource belongs to assigned course | 403/404/422 |
 | `lms/resources/download.php` | GET | `view_course` or submission access | local `resource_id`; never accepts arbitrary Drive ID | 403/404 |
-| `lms/quiz/{create,update,publish,mandatory,delete}.php`, `quiz/question/{create,update,delete,reorder}.php` | POST | `manage_course` | quiz/question resolves to assigned course | 403/404/422 |
+| `lms/quiz/{create,update,publish,mandatory,delete}.php`, `quiz/question/{create,update,delete,reorder}.php` | POST | `manage_course` | delete archives quiz and removes links; active question paths require undeleted parent | 403/404/409/422 |
 | `lms/quiz/question/list.php` | GET | `view_course` | published-only for student/TA; answer keys only for grading roles | 403/404 |
 | `lms/quiz/attempt.php`, `quiz/attempt/submit.php` | POST | student | published quiz in enrolled course; attempt owner only | 403/404/409 |
 | `lms/quiz/attempts.php` | GET | owner or `grade_course` | assessment belongs to course | 403/404 |
 | `lms/quiz/attempt/get.php`, `quiz/submissions.php` | GET | `grade_course` | attempt/assessment belongs to assigned course | 403/404 |
-| `lms/assignments/{create,update,publish,mandatory,delete}.php` | POST | `manage_course` | assignment resolves to assigned course | 403/404/422 |
+| `lms/assignments/{create,update,publish,mandatory,delete}.php` | POST | `manage_course` | delete archives assignment/removes links; upload settings persist independently of Drive | 403/404/422/503 |
 | `lms/assignments/upload-policy.php` | GET | `view_course` | policy is non-sensitive; caller must still belong to the course | 403/422 |
 | `lms/assignments/submit.php` | POST | student | published assignment, enrolled course, self only | 403/404/409 |
 | `lms/assignments/submissions.php` | GET | owner or assigned grader | assignment stored course; students receive own released grade only | 403/404 |
@@ -131,7 +135,7 @@ and oversized files. Validation completes before Drive upload and before the sub
 2. A rollback removes both; the worker can only observe committed events.
 3. Course events require `course_id` and publish to `course:<id>`.
 4. Socket connection authorization checks current role, `student_courses`, and staff mappings. Public preview, allowlist, and unclaimed pre-enrollment do not grant a course room.
-5. Clients refresh authoritative REST state on announcement create/update/delete.
+5. Clients refresh authoritative REST state on announcement, module-item, quiz, and assignment mutations.
 
 ## Manual Smoke Plan
 
@@ -144,9 +148,14 @@ and oversized files. Validation completes before Drive upload and before the sub
 7. Verify protected downloads accept only local resource IDs and never reveal Drive IDs.
 8. Verify assignment upload presets rehydrate, the student `accept` filter matches the stored policy, SVG is rejected,
    and a rejected file creates neither a Drive object nor a submission row.
+9. Remove an assignment/quiz from a module and confirm its library record remains; then delete the parent and confirm
+   every active surface returns 404/omits it while historical rows remain stored.
 
 ## Migration Note
 
 Apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql` before deploying the announcement API/UI. It adds publication state, a lookup index, and `lms_announcement_audit`. The application does not mutate schema at runtime.
+
+Apply `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql` before deploying assignment restriction
+updates. Missing columns produce a sanitized `503`; the API never reports a successful partial update.
 
 The June 14 public-course access pass adds no migration. It uses existing `courses.visibility`, `courses.is_active`, `course_allowlist`, `course_pre_enroll`, and `student_courses` structures.
