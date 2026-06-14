@@ -120,6 +120,7 @@
         if (!window.LmsWS) return;
         ['quiz.created', 'quiz.updated', 'quiz.deleted'].forEach((eventName) => {
             LmsWS.on(eventName, (payload) => {
+                if (!payload || typeof payload !== 'object') return;
                 if (String(payload.course_id || '') !== String(COURSE_ID)) return;
                 loadPage();
             });
