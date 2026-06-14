@@ -19,7 +19,6 @@ final class NativeAuthMailer implements AuthMailer
             'Content-Type: text/plain; charset=UTF-8',
             'MIME-Version: 1.0',
         ];
-        $from = trim((string)(getenv('MAIL_FROM_ADDRESS') ?: 'noreply@nixorcorporate.com'));
-        return mail($to, $safeSubject, $textBody, implode("\r\n", $headers), '-f ' . $from);
+        return mail($to, $safeSubject, $textBody, implode("\r\n", $headers), '-f ' . escapeshellarg($fromAddress));
     }
 }
