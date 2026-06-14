@@ -89,6 +89,10 @@ if (!$context['participate_as_student'] && $context['can_self_enroll']) {
     }
 }
 
+if (empty($context['participate_as_student'])) {
+    lms_error('forbidden', 'Student participation is required for this action.', 403);
+}
+
 lms_course_access($user, (int)$assignment['course_id'], false);
 if ((string)$assignment['status'] !== 'published') {
     lms_error('not_allowed', 'Submissions are only allowed for published assignments', 403);

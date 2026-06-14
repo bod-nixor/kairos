@@ -17,6 +17,12 @@ function simulate_assignment_submit(
         return ['status' => 401, 'error' => 'unauthenticated', 'db_written' => false];
     }
 
+    $textSub = trim((string)($post['text_submission'] ?? ''));
+    $hasFile = !empty($files['file']) && ($files['file']['error'] ?? 1) === 0;
+    if ($textSub === '' && !$hasFile) {
+        return ['status' => 422, 'error' => 'validation_error', 'db_written' => false];
+    }
+
     $courseId = (int)$assignment['course_id'];
     $userId = (int)$user['user_id'];
     $email = strtolower((string)($user['email'] ?? ''));
@@ -47,9 +53,6 @@ function simulate_assignment_submit(
 
     $viewCourse = $active && ($isAdmin || $isManager || $isTa || $isEnrolled);
     if (!($viewCourse && $participateAsStudent)) {
-        if ($viewCourse) {
-            return ['status' => 403, 'error' => 'forbidden', 'db_written' => false];
-        }
         return ['status' => 403, 'error' => 'forbidden', 'db_written' => false];
     }
 
@@ -227,6 +230,23 @@ $res = simulate_assignment_submit(
 );
 $assert($res['status'] === 403 && $res['error'] === 'not_allowed', 'unpublished assignment returns 403 not_allowed');
 
+// 7.5. late submission check rejecting submissions when late_allowed is false
+$studentCourses = ['101:10' => true];
+$lateAssignment = $assignment101;
+$lateAssignment['due_at'] = '2020-01-01 00:00:00';
+$lateAssignment['late_allowed'] = false;
+$res = simulate_assignment_submit(
+    ['user_id' => 10, 'role_name' => 'student'],
+    $lateAssignment,
+    ['text_submission' => 'hello'],
+    [],
+    true,
+    false,
+    $studentCourses,
+    $courseRecords
+);
+$assert($res['status'] === 422 && $res['error'] === 'late_not_allowed', 'late submission rejected when late_allowed is false');
+
 // 8. invalid file type returns 422 before Drive
 $studentCourses = ['101:10' => true];
 $res = simulate_assignment_submit(
@@ -293,7 +313,11 @@ $assert($res['status'] === 200 && !empty($studentCourses['102:10']), 'public cou
 
 // Static analysis of submit.php
 $root = dirname(__DIR__, 2);
-$submitSource = (string)file_get_contents($root . '/public/api/lms/assignments/submit.php');
+$submitSource = file_get_contents($root . '/public/api/lms/assignments/submit.php');
+if ($submitSource === false) {
+    fwrite(STDERR, "assignment_submit_policy_test FAILED: Could not read submit.php" . PHP_EOL);
+    exit(1);
+}
 
 $assert(strpos($submitSource, "require_login()") !== false, 'submit.php must use require_login()');
 $assert(strpos($submitSource, "lms_require_roles(['student'])") === false, 'submit.php must not restrict to global student role only');
