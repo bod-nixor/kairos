@@ -262,4 +262,5 @@ rollback statement. Soft-deleted quiz/assignment records must not be mass-restor
 - [ ] Verify that the `.is-loading` skeleton shimmers appear briefly on boot and disappear when the session is successfully resolved.
 - [ ] Confirm that settings/admin pages do not erase the user profile card during bootstrap/role checks.
 - [ ] Confirm that a 401 response from the session endpoints redirects to `/signoff/` safely while preserving query/hash params in sessionStorage.
+- [ ] **Negative test**: Set `sessionStorage.setItem('kairos:returnUrl', 'https://evil.com/signoff/')` then reload — verify that the redirect is blocked and the user lands on the home page instead of the external URL. Also test `//evil.com`, `/other/path`, and backslash variants (`/signoff/\\evil.com`, `/signoff/%5cevil.com`).
 - [ ] Verify theme contrast and readability of the user profile card across all six themes.

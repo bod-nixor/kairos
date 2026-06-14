@@ -126,7 +126,7 @@ function renderGoogleButton() {
 async function bootstrap() {
   try {
     let me = null;
-    let sessionRoles = null;
+    sessionRoles = null;
     if (window.KairosIdentity) {
       const session = await window.KairosIdentity.fetchSession();
       if (session) {

@@ -57,8 +57,8 @@ function createMockElements() {
     };
 }
 
-// Test 1: KairosIdentity is exposed and loads correctly
-{
+// Combined helper: create mock DOM + load theme.js, returns { context, mockElements }
+function loadThemeWithMockDom(overrides = {}) {
     const mockElements = createMockElements();
     const context = executeInContext(['public/js/theme.js'], {
         document: {
@@ -72,8 +72,15 @@ function createMockElements() {
                 return null;
             }
         },
-        matchMedia() { return { matches: false, addEventListener() {} }; }
+        matchMedia() { return { matches: false, addEventListener() {} }; },
+        ...overrides,
     });
+    return { context, mockElements };
+}
+
+// Test 1: KairosIdentity is exposed and loads correctly
+{
+    const { context } = loadThemeWithMockDom();
 
     const identity = context.window.KairosIdentity;
     assert.ok(identity, 'KairosIdentity must be exposed globally');
@@ -82,21 +89,7 @@ function createMockElements() {
 
 // Test 2: Session success renders profile name, avatar, and role
 {
-    const mockElements = createMockElements();
-    const context = executeInContext(['public/js/theme.js'], {
-        document: {
-            getElementById(id) {
-                return mockElements[id] || null;
-            },
-            querySelectorAll() { return []; },
-            addEventListener() {},
-            querySelector(sel) {
-                if (sel === '.k-sidebar__user') return mockElements.kSidebarUser;
-                return null;
-            }
-        },
-        matchMedia() { return { matches: false, addEventListener() {} }; }
-    });
+    const { context, mockElements } = loadThemeWithMockDom();
 
     const identity = context.window.KairosIdentity;
     identity.me = {
@@ -121,21 +114,7 @@ function createMockElements() {
 
 // Test 3: Avatar failure shows initials fallback and missing name falls back safely
 {
-    const mockElements = createMockElements();
-    const context = executeInContext(['public/js/theme.js'], {
-        document: {
-            getElementById(id) {
-                return mockElements[id] || null;
-            },
-            querySelectorAll() { return []; },
-            addEventListener() {},
-            querySelector(sel) {
-                if (sel === '.k-sidebar__user') return mockElements.kSidebarUser;
-                return null;
-            }
-        },
-        matchMedia() { return { matches: false, addEventListener() {} }; }
-    });
+    const { context, mockElements } = loadThemeWithMockDom();
 
     const identity = context.window.KairosIdentity;
     // Missing name -> fallback to email prefix
@@ -174,21 +153,7 @@ function createMockElements() {
 
 // Test 4: Return URL redirects and open-redirect prevention
 {
-    const mockElements = createMockElements();
-    const context = executeInContext(['public/js/theme.js'], {
-        document: {
-            getElementById(id) {
-                return mockElements[id] || null;
-            },
-            querySelectorAll() { return []; },
-            addEventListener() {},
-            querySelector(sel) {
-                if (sel === '.k-sidebar__user') return mockElements.kSidebarUser;
-                return null;
-            }
-        },
-        matchMedia() { return { matches: false, addEventListener() {} }; }
-    });
+    const { context } = loadThemeWithMockDom();
 
     const identity = context.window.KairosIdentity;
     
@@ -207,3 +172,4 @@ function createMockElements() {
 }
 
 console.log('KairosIdentity shared identity renderer contract tests passed successfully.');
+

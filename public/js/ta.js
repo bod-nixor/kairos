@@ -189,6 +189,7 @@ async function bootstrapTA() {
         caps = window.normalizeSessionRoles(rawCaps);
       } catch (err) {
         console.warn('Failed to load session capabilities in TA', err);
+        caps = {};
       }
     }
     if (caps && typeof window.updateSidebarRoleLinks === 'function') {

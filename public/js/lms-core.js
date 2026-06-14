@@ -930,7 +930,7 @@
       return;
     }
     // Update the user profile info on boot
-    updateUserBar(me);
+    KairosNav.updateUserBar(me);
 
     // Logout button
     const logoutBtn = document.getElementById('kLogoutBtn');

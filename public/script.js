@@ -559,6 +559,7 @@ async function bootstrap() {
     // Fill userbar (old + new selectors) using KairosIdentity if available
     if (window.KairosIdentity) {
       window.KairosIdentity.me = me;
+      window.KairosIdentity.caps = window.KairosIdentity.caps || {};
       window.KairosIdentity.loading = false;
       window.KairosIdentity.render();
     } else {
