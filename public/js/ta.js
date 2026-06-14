@@ -39,7 +39,7 @@ const TA_SECTIONS = {
 
 document.addEventListener('DOMContentLoaded', () => {
   bootstrapTA();
-  const logout = document.getElementById('taLogoutBtn');
+  const logout = document.getElementById('kLogoutBtn') || document.getElementById('taLogoutBtn');
   if (logout) {
     logout.addEventListener('click', async () => {
       try { await fetch('./api/logout.php', { method: 'POST', credentials: 'same-origin' }); }
@@ -164,7 +164,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function bootstrapTA() {
   try {
-    const me = await apiGet('./api/me.php');
+    let me = null;
+    let caps = null;
+    if (window.KairosIdentity) {
+      const session = await window.KairosIdentity.fetchSession();
+      if (session) {
+        me = session.me;
+        caps = session.caps;
+      }
+    }
+    if (!me) {
+      me = await apiGet('./api/me.php');
+    }
     if (!me?.email) {
       setTaView('auth');
       return;
@@ -172,29 +183,39 @@ async function bootstrapTA() {
     taState.me = me;
     updateUserbar(me);
 
-    try {
-      const rawCaps = await apiGet('./api/session_capabilities.php');
-      const caps = window.normalizeSessionRoles(rawCaps);
-      if (typeof window.updateSidebarRoleLinks === 'function') {
-        window.updateSidebarRoleLinks(caps);
+    if (!caps) {
+      try {
+        const rawCaps = await apiGet('./api/session_capabilities.php');
+        caps = window.normalizeSessionRoles(rawCaps);
+      } catch (err) {
+        console.warn('Failed to load session capabilities in TA', err);
+        caps = {};
       }
-    } catch (err) {
-      console.warn('Failed to load session capabilities in TA', err);
     }
+    if (caps && typeof window.updateSidebarRoleLinks === 'function') {
+      window.updateSidebarRoleLinks(caps);
+    }
+    if (window.KairosIdentity) {
+      window.KairosIdentity.me = me;
+      window.KairosIdentity.caps = caps;
+      window.KairosIdentity.loading = false;
+      window.KairosIdentity.render();
+    }
+
     if (window.SignoffWS) {
       if (me.user_id != null) {
         window.SignoffWS.setSelfUserId(Number(me.user_id));
       }
-    window.SignoffWS.init({
-      getFilters: () => ({
-        courseId: taState.selectedCourse ? Number(taState.selectedCourse) : null,
-        roomId: taState.selectedRoom ? Number(taState.selectedRoom) : null,
-      }),
-      onQueue: handleQueueBroadcast,
-      onRooms: () => reloadRooms(),
-      onProgress: () => reloadProgress(),
-    });
-  }
+      window.SignoffWS.init({
+        getFilters: () => ({
+          courseId: taState.selectedCourse ? Number(taState.selectedCourse) : null,
+          roomId: taState.selectedRoom ? Number(taState.selectedRoom) : null,
+        }),
+        onQueue: handleQueueBroadcast,
+        onRooms: () => reloadRooms(),
+        onProgress: () => reloadProgress(),
+      });
+    }
   } catch (err) {
     console.error('me.php failed', err);
     setTaView('auth');
@@ -248,12 +269,29 @@ function setTaView(view) {
 }
 
 function updateUserbar(me) {
-  const avatar = document.getElementById('taAvatar');
-  const name = document.getElementById('taName');
-  const email = document.getElementById('taEmail');
-  if (avatar) avatar.src = me.picture_url || '';
-  if (name) name.textContent = me.name || '';
-  if (email) email.textContent = me.email || '';
+  const avatar = document.getElementById('kSidebarAvatar') || document.getElementById('taAvatar');
+  const name = document.getElementById('kSidebarName') || document.getElementById('taName');
+  const email = document.getElementById('kSidebarRole') || document.getElementById('taEmail');
+  if (avatar) {
+    const initials = window.KairosIdentity ? window.KairosIdentity.getInitials(me.name, me.email) : '?';
+    avatar.src = me.picture_url || (window.KairosIdentity ? window.KairosIdentity.getAvatarSvg(initials) : '');
+    avatar.onerror = () => {
+      if (window.KairosIdentity) avatar.src = window.KairosIdentity.getAvatarSvg(initials);
+      avatar.onerror = null;
+    };
+  }
+  if (name) name.textContent = me.name || me.email || '';
+  if (email) {
+    let roleLabel = 'TA';
+    if (window.KairosIdentity && window.KairosIdentity.caps) {
+      const r = window.KairosIdentity.caps;
+      if (r.admin) roleLabel = 'Admin';
+      else if (r.manager) roleLabel = 'Manager';
+      else if (r.ta) roleLabel = 'TA';
+      else roleLabel = 'Student';
+    }
+    email.textContent = roleLabel;
+  }
 }
 
 function renderCourses(courses) {

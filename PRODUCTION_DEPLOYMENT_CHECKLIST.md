@@ -253,3 +253,14 @@ If application rollback is required, restore the prior files first. Retain `lms_
 If application rollback is required, leave the assignment restriction columns and their data in place. Drop them
 only after the prior application is restored and data-loss approval is recorded; the migration contains the manual
 rollback statement. Soft-deleted quiz/assignment records must not be mass-restored as part of application rollback.
+
+## Shared Identity Shell Validation (June 14, 2026 Pass)
+
+- [ ] Confirm `window.KairosIdentity` is exposed and caches the resolved session object successfully in memory.
+- [ ] Verify profile picture/avatar, initials fallback, display name, and role label render correctly on index, settings, admin, manager, and TA pages.
+- [ ] Confirm no layout jumps occur when loading the avatar, and the initials fallback works when an image fails to load.
+- [ ] Verify that the `.is-loading` skeleton shimmers appear briefly on boot and disappear when the session is successfully resolved.
+- [ ] Confirm that settings/admin pages do not erase the user profile card during bootstrap/role checks.
+- [ ] Confirm that a 401 response from the session endpoints redirects to `/signoff/` safely while preserving query/hash params in sessionStorage.
+- [ ] **Negative test**: Set `sessionStorage.setItem('kairos:returnUrl', 'https://evil.com/signoff/')` then reload — verify that the redirect is blocked and the user lands on the home page instead of the external URL. Also test `//evil.com`, `/other/path`, and backslash variants (`/signoff/\\evil.com`, `/signoff/%5cevil.com`).
+- [ ] Verify theme contrast and readability of the user profile card across all six themes.

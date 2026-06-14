@@ -319,7 +319,18 @@ function bindEvents() {
 
 async function bootstrap() {
   try {
-    const me = await fetchJSON('./api/me.php');
+    let me = null;
+    let capsRoles = null;
+    if (window.KairosIdentity) {
+      const session = await window.KairosIdentity.fetchSession();
+      if (session) {
+        me = session.me;
+        capsRoles = session.caps;
+      }
+    }
+    if (!me) {
+      me = await fetchJSON('./api/me.php');
+    }
     if (!me || !me.email) {
       showStatus('Please sign in via the main portal before accessing the admin dashboard.', 'error');
       disableInterface();
@@ -331,11 +342,19 @@ async function bootstrap() {
     els.formsCard?.classList.remove('hidden');
     els.assignCard?.classList.remove('hidden');
 
-    const rawCaps = await fetchJSON('./api/session_capabilities.php');
-    const capsRoles = window.normalizeSessionRoles(rawCaps);
+    if (!capsRoles) {
+      const rawCaps = await fetchJSON('./api/session_capabilities.php');
+      capsRoles = window.normalizeSessionRoles(rawCaps);
+    }
     applyAdminNavRoles(capsRoles);
     if (typeof window.updateSidebarRoleLinks === 'function') {
       window.updateSidebarRoleLinks(capsRoles);
+    }
+    if (window.KairosIdentity) {
+      window.KairosIdentity.me = me;
+      window.KairosIdentity.caps = capsRoles;
+      window.KairosIdentity.loading = false;
+      window.KairosIdentity.render();
     }
     updateAdminNavActive();
   } catch (err) {

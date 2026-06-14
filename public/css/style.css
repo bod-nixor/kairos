@@ -3204,3 +3204,54 @@ body.k-page-body {
 img.k-brand-badge {
   object-fit: contain;
 }
+
+/* ── Sidebar User Loading Skeleton Shimmer ────────────────── */
+.k-sidebar__user.is-loading .k-sidebar__avatar {
+  background: var(--skeleton-bg);
+  position: relative;
+  overflow: hidden;
+  border-color: transparent !important;
+}
+.k-sidebar__user.is-loading .k-sidebar__avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--skeleton-sheen) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: k-shimmer 1.4s infinite;
+}
+.k-sidebar__user.is-loading .k-sidebar__user-name {
+  width: 80px;
+  height: 12px;
+  background: var(--skeleton-bg);
+  border-radius: 4px;
+  color: transparent !important;
+  position: relative;
+  overflow: hidden;
+}
+.k-sidebar__user.is-loading .k-sidebar__user-name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--skeleton-sheen) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: k-shimmer 1.4s infinite;
+}
+.k-sidebar__user.is-loading .k-sidebar__user-role {
+  width: 50px;
+  height: 8px;
+  background: var(--skeleton-bg);
+  border-radius: 3px;
+  color: transparent !important;
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.k-sidebar__user.is-loading .k-sidebar__user-role::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--skeleton-sheen) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: k-shimmer 1.4s infinite;
+}
