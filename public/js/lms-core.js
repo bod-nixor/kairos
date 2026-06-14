@@ -588,8 +588,7 @@
         if (context && typeof context === 'object' && context.capabilities) {
           caps = context.capabilities;
         } else {
-          const session = await loadCaps();
-          caps = courseCapabilities(session);
+          caps = {};
         }
         course.setAttribute('aria-label', 'Course sections');
         course.innerHTML = COURSE_NAV_ITEMS

@@ -113,14 +113,16 @@ try {
     ]);
     $existing = $existingStmt->fetch();
     
+    // If override value is supplied, only manager/admin can set it
+    $hasOverrideParam = (isset($in['override']) && $in['override'] !== '' && $in['override'] !== null);
+    if ($hasOverrideParam && !in_array($user['role_name'], ['manager', 'admin'], true)) {
+        $pdo->rollBack();
+        lms_error('forbidden', 'Only managers can assign override grades', 403);
+    }
+
     // Check if re-releasing (released → released) or overridden -> overridden/released
     $isOverride = false;
     if ($existing && in_array((string)$existing['status'], ['released', 'overridden'], true) && $release) {
-        // Only manager+ can override released grades
-        if (!in_array($user['role_name'], ['manager', 'admin'])) {
-            $pdo->rollBack();
-            lms_error('forbidden', 'Only managers can override released grades', 403);
-        }
         // Flag as override audit action
         $isOverride = true;
     } elseif ($existing && in_array((string)$existing['status'], ['released', 'overridden'], true) && !$release) {
@@ -128,8 +130,27 @@ try {
         lms_error('conflict', 'Released grades cannot be modified without release flag', 409);
     }
 
-    if ($release && isset($in['override']) && $in['override'] !== '' && $in['override'] !== null) {
+    if ($release && $hasOverrideParam) {
         $gradeStatus = 'overridden';
+    }
+
+    // Validate override bounds
+    $validatedOverride = null;
+    if ($hasOverrideParam) {
+        $rawOverride = $in['override'];
+        if (is_numeric($rawOverride)) {
+            $floatVal = (float)$rawOverride;
+            $maxLimit = (float)$params[':max'];
+            if ($floatVal >= 0.0 && $floatVal <= $maxLimit) {
+                $validatedOverride = $floatVal;
+            } else {
+                $pdo->rollBack();
+                lms_error('validation_error', 'Override grade must be between 0 and max points (' . $maxLimit . ')', 422);
+            }
+        } else {
+            $pdo->rollBack();
+            lms_error('validation_error', 'Override grade must be numeric', 422);
+        }
     }
 
     $hasPrivateNote = false;
@@ -191,7 +212,7 @@ try {
         $cols[] = 'grade_override';
         $vals[] = ':go';
         $updates[] = 'grade_override = VALUES(grade_override)';
-        $queryParams[':go'] = (isset($in['override']) && $in['override'] !== '' && $in['override'] !== null) ? (float)$in['override'] : null;
+        $queryParams[':go'] = $validatedOverride;
     }
 
     if ($hasRubricGrades) {

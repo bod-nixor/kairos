@@ -37,7 +37,7 @@ try {
         'notes' => $note !== false ? (string)$note : ''
     ]);
 } catch (Throwable $e) {
-    if ($e instanceof PDOException && ($e->getCode() === '42S02' || strpos($e->getMessage(), "doesn't exist") !== false)) {
+    if ($e instanceof PDOException && ($e->getCode() === '42S02' || strpos($e->getMessage(), "doesn't exist") !== false) && strpos($e->getMessage(), 'lms_assignment_notes') !== false) {
         lms_ok([
             'assignment_id' => $assignmentId,
             'student_user_id' => (int)$user['user_id'],

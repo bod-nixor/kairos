@@ -18,7 +18,7 @@ The LMS integrity pass now distinguishes module unlinking from true quiz/assignm
 from active module/detail/list/grading paths, adds manager/admin delete controls, persists assignment upload settings
 without Drive, and makes realtime content events usable as REST cache-invalidation signals.
 
-The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` and assignment settings migration `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql` are required before the related API/UI is deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
+The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The migrations `db/migrations/20260613_1430_add_announcement_publication_audit.sql`, `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`, `db/migrations/20260614_1600_create_lms_assignment_notes.sql`, and `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql` are required before the related API/UI is deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
 
 ## Baseline Findings
 

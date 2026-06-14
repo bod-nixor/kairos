@@ -13,6 +13,7 @@ if ($assignmentId <= 0) {
     lms_error('validation_error', 'assignment_id required', 422);
 }
 
+$pdo = null;
 try {
     $pdo = db();
     // Verify assignment exists and user belongs to course
@@ -43,10 +44,10 @@ try {
     $pdo->commit();
     lms_ok(['success' => true]);
 } catch (Throwable $e) {
-    if ($pdo->inTransaction()) {
+    if ($pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    if ($e instanceof PDOException && ($e->getCode() === '42S02' || strpos($e->getMessage(), "doesn't exist") !== false)) {
+    if ($e instanceof PDOException && ($e->getCode() === '42S02' || strpos($e->getMessage(), "doesn't exist") !== false) && strpos($e->getMessage(), 'lms_assignment_notes') !== false) {
         lms_ok(['success' => true]);
     }
     error_log('save_note.php failed assignment_id=' . $assignmentId . ' message=' . $e->getMessage());

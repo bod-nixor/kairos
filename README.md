@@ -171,7 +171,7 @@ db/migrations/20260614_1600_create_lms_assignment_notes.sql
 db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql
 ```
 
-The migrations are guarded and idempotent. Application endpoints fail gracefully or fallback to default values/sanitized messages instead of throwing errors if columns or tables are missing.
+The migrations are guarded and idempotent. During staging deployment, the student notes endpoints (get_note.php, save_note.php, delete_note.php) and grading/submission endpoints (submission.php, grade.php) degrade gracefully by falling back to empty states or default values if the new lms_assignment_notes table or grade override columns are missing; executing the migrations is required for full feature functionality.
 
 ---
 

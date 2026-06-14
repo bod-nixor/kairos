@@ -480,17 +480,29 @@
         const saveState = $('studentNoteSaveState');
         if (studentNoteInput) {
             studentNoteInput.value = '';
-            if (saveState) {
-                saveState.textContent = 'Saved';
-                saveState.style.color = '';
-            }
             try {
                 const noteRes = await LMS.api('GET', `./api/lms/assignments/get_note.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`);
                 if (noteRes.ok && noteRes.data) {
-                    studentNoteInput.value = noteRes.data.notes || '';
+                    const notesData = noteRes.data.data?.notes !== undefined
+                        ? noteRes.data.data.notes
+                        : (noteRes.data.notes !== undefined ? noteRes.data.notes : '');
+                    studentNoteInput.value = notesData;
+                    if (saveState) {
+                        saveState.textContent = 'Saved';
+                        saveState.style.color = '';
+                    }
+                } else {
+                    if (saveState) {
+                        saveState.textContent = 'Error loading';
+                        saveState.style.color = '#ef4444';
+                    }
                 }
             } catch (err) {
                 console.warn('Failed to load private notes', err);
+                if (saveState) {
+                    saveState.textContent = 'Error loading';
+                    saveState.style.color = '#ef4444';
+                }
             }
         }
 

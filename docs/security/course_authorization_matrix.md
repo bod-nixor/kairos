@@ -37,7 +37,7 @@ Public course self-enrollment grants student-level participation access dynamica
 | View another student's submission | no | assigned grading only | scoped | all |
 | View grade drafts | no | assigned grading only | scoped | all |
 
-`view_course_public` grants course metadata and the enrol CTA only. It does not grant dependent LMS objects, rooms, queues, or realtime subscriptions. For assignment grading, a TA must also appear in `lms_assignment_tas`. Students receive only the latest grade whose status is `released`.
+`view_course_public` grants course metadata and the enroll CTA only. It does not grant dependent LMS objects, rooms, queues, or realtime subscriptions. For assignment grading, a TA must also appear in `lms_assignment_tas`. Students receive only the latest grade whose status is `released`.
 
 ## Page Matrix
 
@@ -145,9 +145,9 @@ and oversized files. Validation completes before Drive upload and before the sub
 
 ## Manual Smoke Plan
 
-1. Student: preview a public foreign course, enrol, then verify published content only and own released grade only.
-2. TA: verify assigned-course grading/progress; preview and enrol in another public course without receiving foreign staff controls.
-3. Manager: verify full assigned-course editing; preview and enrol in another public course without receiving foreign management controls.
+1. Student: preview a public foreign course, enroll, then verify published content only and own released grade only.
+2. TA: verify assigned-course grading/progress; preview and enroll in another public course without receiving foreign staff controls.
+3. Manager: verify full assigned-course editing; preview and enroll in another public course without receiving foreign management controls.
 4. Admin: verify all-course management, course creation, and staff assign/remove.
 5. For each role, directly open grading, analytics, lesson edit, assignment edit, and course settings URLs.
 6. Verify queue/room and WebSocket subscriptions reject mismatched or foreign course context.

@@ -167,8 +167,12 @@
         // Restore saved values initially (from queue list)
         $('feedbackText') && ($('feedbackText').value = sub.feedback || '');
         $('privateNote') && ($('privateNote').value = sub.private_note || '');
-        if (sub.grade_override !== undefined && $('gradeOverride')) {
-            $('gradeOverride').value = sub.grade_override !== null ? sub.grade_override : '';
+        if ($('gradeOverride')) {
+            if (gradingRole === 'manager' && sub.grade_override !== undefined) {
+                $('gradeOverride').value = sub.grade_override !== null ? sub.grade_override : '';
+            } else {
+                $('gradeOverride').value = '';
+            }
         }
 
         // Fetch full submission detail (lazy load)
@@ -179,7 +183,11 @@
         $('feedbackText') && ($('feedbackText').value = detail.feedback || '');
         $('privateNote') && ($('privateNote').value = detail.private_note || '');
         if ($('gradeOverride')) {
-            $('gradeOverride').value = detail.grade_override !== null && detail.grade_override !== undefined ? detail.grade_override : '';
+            if (gradingRole === 'manager') {
+                $('gradeOverride').value = detail.grade_override !== null && detail.grade_override !== undefined ? detail.grade_override : '';
+            } else {
+                $('gradeOverride').value = '';
+            }
         }
 
         // Render submission view

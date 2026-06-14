@@ -175,7 +175,9 @@ async function bootstrapTA() {
     try {
       const rawCaps = await apiGet('./api/session_capabilities.php');
       const caps = window.normalizeSessionRoles(rawCaps);
-      window.updateSidebarRoleLinks(caps);
+      if (typeof window.updateSidebarRoleLinks === 'function') {
+        window.updateSidebarRoleLinks(caps);
+      }
     } catch (err) {
       console.warn('Failed to load session capabilities in TA', err);
     }

@@ -47,6 +47,8 @@ mariadb -u <user> -p < db/migrations/20260614_1605_add_staff_private_note_to_lms
 - [ ] Verify `lms_announcements.status`, `published_at`, and `idx_lms_announcements_course_status`.
 - [ ] Verify `lms_announcement_audit` and its foreign keys/indexes.
 - [ ] Verify `lms_assignments.allowed_file_extensions` and `lms_assignments.max_file_mb`.
+- [ ] Verify the table `lms_assignment_notes` has been created with primary keys and `student_user_id` index.
+- [ ] Verify the table `lms_grades` contains columns: `staff_private_note`, `grade_override`, `rubric_grades_json`.
 - [ ] Do not run the rollback unless application code has first been rolled back and audit retention has been approved.
 
 ## Environment Verification

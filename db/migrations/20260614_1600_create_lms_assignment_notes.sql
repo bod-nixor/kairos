@@ -12,5 +12,8 @@ CREATE TABLE IF NOT EXISTS lms_assignment_notes (
   CONSTRAINT fk_lms_assignment_notes_student FOREIGN KEY (student_user_id) REFERENCES users (user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE INDEX idx_lms_assignment_notes_student ON lms_assignment_notes (student_user_id);
+
+
 -- Rollback (manual, only after rolling application code back):
 -- DROP TABLE IF EXISTS lms_assignment_notes;
