@@ -56,6 +56,20 @@ try {
     $courseName = (string)($courseNameStmt->fetchColumn() ?: '');
     $effectiveMaxBytes = lms_assignment_effective_max_bytes(max(1, (int)($assignment['max_file_mb'] ?? 50)));
 
+    $rubricStmt = $pdo->prepare('SELECT rubric_id FROM lms_rubrics WHERE assignment_id = :assignment_id LIMIT 1');
+    $rubricStmt->execute([':assignment_id' => $assignmentId]);
+    $rubric = $rubricStmt->fetch(PDO::FETCH_ASSOC);
+    $rubricItems = [];
+    if ($rubric) {
+        $itemsStmt = $pdo->prepare('SELECT rubric_item_id AS id, criterion, description, max_points AS max_pts FROM lms_rubric_items WHERE rubric_id = :rubric_id ORDER BY position ASC, rubric_item_id ASC');
+        $itemsStmt->execute([':rubric_id' => (int)$rubric['rubric_id']]);
+        $rubricItems = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rubricItems as &$item) {
+            $item['max_pts'] = (float)$item['max_pts'];
+        }
+        unset($item);
+    }
+
     $payload = [
         'assignment_id' => (int)$assignment['assignment_id'],
         'course_id' => (int)$assignment['course_id'],
@@ -76,6 +90,7 @@ try {
         'published_flag' => (int)$module['published_flag'],
         'required_flag' => (int)$module['required_flag'],
         'module_linked' => $module['module_item_id'] !== null,
+        'rubric' => $rubricItems,
     ];
 
     if ($debugMode) {

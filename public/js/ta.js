@@ -171,6 +171,14 @@ async function bootstrapTA() {
     }
     taState.me = me;
     updateUserbar(me);
+
+    try {
+      const rawCaps = await apiGet('./api/session_capabilities.php');
+      const caps = window.normalizeSessionRoles(rawCaps);
+      window.updateSidebarRoleLinks(caps);
+    } catch (err) {
+      console.warn('Failed to load session capabilities in TA', err);
+    }
     if (window.SignoffWS) {
       if (me.user_id != null) {
         window.SignoffWS.setSelfUserId(Number(me.user_id));

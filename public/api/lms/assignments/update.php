@@ -148,6 +148,39 @@ try {
         ':id' => $id,
     ]);
 
+    if (isset($in['rubric']) && is_array($in['rubric'])) {
+        $pdo->prepare('DELETE FROM lms_rubrics WHERE assignment_id = :assignment_id')->execute([':assignment_id' => $id]);
+        if (!empty($in['rubric'])) {
+            $pdo->prepare('INSERT INTO lms_rubrics (assignment_id, title, status, created_by) VALUES (:assignment_id, :title, :status, :created_by)')
+                ->execute([
+                    ':assignment_id' => $id,
+                    ':title' => $title . ' Rubric',
+                    ':status' => 'released',
+                    ':created_by' => (int)$user['user_id'],
+                ]);
+            $rubricId = (int)$pdo->lastInsertId();
+            $itemStmt = $pdo->prepare('INSERT INTO lms_rubric_items (rubric_id, criterion, description, max_points, position) VALUES (:rubric_id, :criterion, :description, :max_points, :position)');
+            $position = 0;
+            foreach ($in['rubric'] as $item) {
+                $criterion = trim((string)($item['criterion'] ?? ''));
+                if ($criterion === '') {
+                    continue;
+                }
+                $maxPts = (float)($item['max_pts'] ?? $item['max_points'] ?? 0);
+                if ($maxPts <= 0) {
+                    continue;
+                }
+                $itemStmt->execute([
+                    ':rubric_id' => $rubricId,
+                    ':criterion' => $criterion,
+                    ':description' => isset($item['description']) ? (string)$item['description'] : null,
+                    ':max_points' => $maxPts,
+                    ':position' => $position++,
+                ]);
+            }
+        }
+    }
+
     lms_emit_event($pdo, 'assignment.updated', [
         'event_name' => 'assignment.updated',
         'event_id' => lms_uuid_v4(),

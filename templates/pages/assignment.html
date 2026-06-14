@@ -169,67 +169,84 @@
                             </div>
                         </div>
 
-                        <!-- Right: Submission panel -->
-                        <div class="k-submission-panel" id="submissionPanel">
-                            <div class="k-submission-panel__head">
-                                <h2 class="k-submission-panel__title" id="submissionPanelTitle">Submit Your Work</h2>
+                        <!-- Right Column -->
+                        <div class="k-submission-column" style="display: flex; flex-direction: column; gap: 24px;">
+                            <!-- Right: Submission panel -->
+                            <div class="k-submission-panel" id="submissionPanel">
+                                <div class="k-submission-panel__head">
+                                    <h2 class="k-submission-panel__title" id="submissionPanelTitle">Submit Your Work</h2>
+                                </div>
+                                <div class="k-submission-panel__body">
+
+                                    <!-- Submission type: file | text | url (set by JS) -->
+                                    <div id="fileSubmission" class="hidden">
+                                        <label class="k-label" id="dropzoneLabel">Upload File</label>
+                                        <div class="k-dropzone" id="dropzone" tabindex="0" role="button"
+                                            aria-label="Upload file">
+                                            <span class="k-dropzone__icon" aria-hidden="true">☁️</span>
+                                            <span class="k-dropzone__label">Drop files here or click to browse</span>
+                                            <span class="k-dropzone__hint" id="dropzoneHint">Any file type · Max 50MB per
+                                                file</span>
+                                            <input type="file" id="fileInput" class="hidden" tabindex="-1" />
+                                        </div>
+                                        <div class="k-upload-rule-card" id="uploadRuleCard" aria-live="polite">
+                                            <div><span>Allowed types</span><strong id="allowedTypesText">Any supported file type</strong></div>
+                                            <div><span>Maximum size</span><strong id="maxFileSizeText">50 MB</strong></div>
+                                            <div><span>Points</span><strong id="assignmentPointsText">100 points</strong></div>
+                                        </div>
+                                        <div class="k-file-list" id="fileList"></div>
+                                    </div>
+
+                                    <div id="textSubmission" class="hidden">
+                                        <div class="k-field">
+                                            <label class="k-label" for="textInput">Your Answer</label>
+                                            <textarea class="k-textarea" id="textInput" rows="8"
+                                                placeholder="Type your answer here…"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <div id="urlSubmission" class="hidden">
+                                        <div class="k-field">
+                                            <label class="k-label" for="urlInput">Submission URL</label>
+                                            <input class="k-input" type="url" id="urlInput" placeholder="https://…" />
+                                            <span class="k-field-hint">Link to your GitHub repo, Google Doc, etc.</span>
+                                        </div>
+                                    </div>
+
+
+                                    <div class="k-field" id="submissionCommentField">
+                                        <label class="k-label" for="submissionCommentInput">Comment for staff</label>
+                                        <textarea class="k-textarea" id="submissionCommentInput" rows="3" placeholder="Add context or notes for your submission…"></textarea>
+                                    </div>
+
+                                    <!-- Actions -->
+                                    <div id="submissionActions">
+                                        <button class="btn btn-primary k-button-block" id="submitBtn">Submit</button>
+                                        <p class="k-field-hint k-note-center" id="submissionNote"></p>
+                                    </div>
+
+                                    <!-- Already submitted state -->
+                                    <div id="submittedState" class="hidden">
+                                        <div class="k-status k-status--success k-status-banner">
+                                            <span class="k-status__dot"></span> Submitted
+                                        </div>
+                                        <button class="btn btn-ghost k-button-block" id="resubmitBtn">Submit New
+                                            Version</button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="k-submission-panel__body">
 
-                                <!-- Submission type: file | text | url (set by JS) -->
-                                <div id="fileSubmission" class="hidden">
-                                    <label class="k-label" id="dropzoneLabel">Upload File</label>
-                                    <div class="k-dropzone" id="dropzone" tabindex="0" role="button"
-                                        aria-label="Upload file">
-                                        <span class="k-dropzone__icon" aria-hidden="true">☁️</span>
-                                        <span class="k-dropzone__label">Drop files here or click to browse</span>
-                                        <span class="k-dropzone__hint" id="dropzoneHint">Any file type · Max 50MB per
-                                            file</span>
-                                        <input type="file" id="fileInput" class="hidden" tabindex="-1" />
-                                    </div>
-                                    <div class="k-upload-rule-card" id="uploadRuleCard" aria-live="polite">
-                                        <div><span>Allowed types</span><strong id="allowedTypesText">Any supported file type</strong></div>
-                                        <div><span>Maximum size</span><strong id="maxFileSizeText">50 MB</strong></div>
-                                        <div><span>Points</span><strong id="assignmentPointsText">100 points</strong></div>
-                                    </div>
-                                    <div class="k-file-list" id="fileList"></div>
+                            <!-- Private Notes Panel -->
+                            <div class="k-card" id="studentNotesCard">
+                                <div class="k-card__header" style="padding: 16px 20px; border-bottom: 1px solid var(--k-border-color); display: flex; justify-content: space-between; align-items: center;">
+                                    <h2 class="k-card__title" style="margin: 0; font-size: 16px; font-weight: 600;">📝 My Private Notes</h2>
+                                    <span id="studentNoteSaveState" class="muted small" style="font-size: 12px; color: var(--k-text-muted);">Saved</span>
                                 </div>
-
-                                <div id="textSubmission" class="hidden">
+                                <div class="k-card__body" style="padding: 20px;">
+                                    <p class="muted small" style="margin: 0 0 12px 0; font-size: 12px; color: var(--k-text-muted);">Keep private notes for this assignment. Graders and TAs cannot see these private notes.</p>
                                     <div class="k-field">
-                                        <label class="k-label" for="textInput">Your Answer</label>
-                                        <textarea class="k-textarea" id="textInput" rows="8"
-                                            placeholder="Type your answer here…"></textarea>
+                                        <textarea class="k-textarea" id="studentNoteInput" rows="4" placeholder="Write your private notes here (saved automatically)…" style="width: 100%; min-height: 100px; padding: 10px; border: 1px solid var(--k-border-color); border-radius: 6px; background: var(--k-input-background); color: var(--k-text-normal); font-family: inherit; font-size: 14px; resize: vertical;"></textarea>
                                     </div>
-                                </div>
-
-                                <div id="urlSubmission" class="hidden">
-                                    <div class="k-field">
-                                        <label class="k-label" for="urlInput">Submission URL</label>
-                                        <input class="k-input" type="url" id="urlInput" placeholder="https://…" />
-                                        <span class="k-field-hint">Link to your GitHub repo, Google Doc, etc.</span>
-                                    </div>
-                                </div>
-
-
-                                <div class="k-field" id="submissionCommentField">
-                                    <label class="k-label" for="submissionCommentInput">Comment for staff</label>
-                                    <textarea class="k-textarea" id="submissionCommentInput" rows="3" placeholder="Add context or notes for your submission…"></textarea>
-                                </div>
-
-                                <!-- Actions -->
-                                <div id="submissionActions">
-                                    <button class="btn btn-primary k-button-block" id="submitBtn">Submit</button>
-                                    <p class="k-field-hint k-note-center" id="submissionNote"></p>
-                                </div>
-
-                                <!-- Already submitted state -->
-                                <div id="submittedState" class="hidden">
-                                    <div class="k-status k-status--success k-status-banner">
-                                        <span class="k-status__dot"></span> Submitted
-                                    </div>
-                                    <button class="btn btn-ghost k-button-block" id="resubmitBtn">Submit New
-                                        Version</button>
                                 </div>
                             </div>
                         </div>

@@ -26,9 +26,11 @@ Deploy the complete repository change set, including:
 - `ws_server.py`
 - `db/migrations/20260613_1430_add_announcement_publication_audit.sql`
 - `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`
+- `db/migrations/20260614_1600_create_lms_assignment_notes.sql`
+- `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql`
 - updated security documentation, runbooks, and test files
 
-Apply both SQL migrations before deploying the related API/UI.
+Apply all SQL migrations before deploying the related API/UI.
 
 ## Database Migration
 
@@ -38,6 +40,8 @@ Apply both SQL migrations before deploying the related API/UI.
 ```bash
 mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_audit.sql
 mariadb -u <user> -p < db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
+mariadb -u <user> -p < db/migrations/20260614_1600_create_lms_assignment_notes.sql
+mariadb -u <user> -p < db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql
 ```
 
 - [ ] Verify `lms_announcements.status`, `published_at`, and `idx_lms_announcements_course_status`.

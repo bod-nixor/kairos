@@ -387,9 +387,9 @@ async function refreshSessionCapabilities() {
       caps = {
         is_logged_in: true,
         roles: {
-          student: role === 'student',
-          ta: role === 'ta',
-          manager: role === 'manager',
+          student: true,
+          ta: role === 'ta' || role === 'manager' || role === 'admin',
+          manager: role === 'manager' || role === 'admin',
           admin: role === 'admin',
         },
       };
@@ -577,6 +577,25 @@ async function bootstrap() {
     }
 
     await refreshSessionCapabilities();
+
+    try {
+      if (window.sessionStorage) {
+        const rawReturn = window.sessionStorage.getItem('kairos:returnUrl');
+        if (rawReturn) {
+          window.sessionStorage.removeItem('kairos:returnUrl');
+          const validUrl = window.KairosLMS && window.KairosLMS.nav && typeof window.KairosLMS.nav.validateReturnUrl === 'function'
+            ? window.KairosLMS.nav.validateReturnUrl(rawReturn)
+            : null;
+          if (validUrl) {
+            window.location.replace(validUrl);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Redirect parsing failed:', e);
+    }
+
     showApp();
 
     // Load courses (renderCourseCards handles showing viewDashboard)

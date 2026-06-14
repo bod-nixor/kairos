@@ -30,12 +30,20 @@ if ($assignmentId > 0) {
     }
 }
 
+$hasOverride = false;
+try {
+    $pdo->query('SELECT grade_override FROM lms_grades LIMIT 1');
+    $hasOverride = true;
+} catch (Throwable $_) {}
+
+$scoreCol = $hasOverride ? 'COALESCE(g.grade_override, g.score) AS score, g.grade_override' : 'g.score, NULL AS grade_override';
+
 $sql = 'SELECT s.submission_id AS id, s.assignment_id, s.student_user_id,
                u.name AS student_name, s.status, s.submitted_at, s.is_late,
                LEFT(s.text_submission, 200) AS text_preview,
                s.submission_comment,
                COALESCE(g.status, \'ungraded\') AS grade_status,
-               g.feedback, g.score
+               g.feedback, ' . $scoreCol . '
         FROM lms_submissions s
         JOIN users u ON u.user_id = s.student_user_id
         JOIN lms_assignments a ON a.assignment_id = s.assignment_id AND a.deleted_at IS NULL

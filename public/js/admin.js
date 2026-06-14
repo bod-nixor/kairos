@@ -334,6 +334,7 @@ async function bootstrap() {
     const rawCaps = await fetchJSON('./api/session_capabilities.php');
     const capsRoles = window.normalizeSessionRoles(rawCaps);
     applyAdminNavRoles(capsRoles);
+    window.updateSidebarRoleLinks(capsRoles);
     updateAdminNavActive();
   } catch (err) {
     reportError(err, 'Unable to verify session.');

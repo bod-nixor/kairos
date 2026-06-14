@@ -87,6 +87,9 @@
   function resolveCourseRoleFlags(value) {
     const base = { student: false, ta: false, manager: false, admin: false };
     if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if (value.roles) {
+        return resolveCourseRoleFlags(value.roles);
+      }
       if ('student' in value || 'ta' in value || 'manager' in value || 'admin' in value) {
         return {
           student: !!value.student,
@@ -180,6 +183,12 @@
     }
 
     if (canRedirect) {
+      try {
+        if (global.sessionStorage) {
+          const fullUrl = global.location.pathname + global.location.search + global.location.hash;
+          global.sessionStorage.setItem('kairos:returnUrl', fullUrl);
+        }
+      } catch (_) {}
       global.location.replace(APP_BASE);
     }
   }
@@ -475,9 +484,9 @@
       _caps = {
         is_logged_in: true,
         roles: {
-          student: role === 'student',
-          ta: role === 'ta',
-          manager: role === 'manager',
+          student: true,
+          ta: role === 'ta' || role === 'manager' || role === 'admin',
+          manager: role === 'manager' || role === 'admin',
           admin: role === 'admin',
         },
       };
@@ -563,7 +572,7 @@
       if (header) header.setAttribute('hidden', '');
     },
 
-    setCourseContext(courseId, courseName, context) {
+    async setCourseContext(courseId, courseName, context) {
       this._courseId = courseId;
       this._courseName = courseName;
       const global = document.getElementById('kNavGlobal');
@@ -575,7 +584,13 @@
       if (header) header.removeAttribute('hidden');
       if (nameEl && courseName) nameEl.textContent = courseName;
       if (courseId && course) {
-        const caps = courseCapabilities(context);
+        let caps = null;
+        if (context && typeof context === 'object' && context.capabilities) {
+          caps = context.capabilities;
+        } else {
+          const session = await loadCaps();
+          caps = courseCapabilities(session);
+        }
         course.setAttribute('aria-label', 'Course sections');
         course.innerHTML = COURSE_NAV_ITEMS
           .filter(item => !item.capability || caps[item.capability])
@@ -639,6 +654,25 @@
       else if (r.manager) roleLabel = 'Manager';
       else if (r.ta) roleLabel = 'TA';
       if (roleEl) roleEl.textContent = roleLabel;
+    },
+
+    validateReturnUrl(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const trimmed = raw.trim();
+      if (!trimmed.startsWith('/signoff/')) return null;
+      if (trimmed.includes('//')) return null;
+      if (trimmed.includes('\\')) return null;
+      if (trimmed.toLowerCase().includes('%5c')) return null;
+
+      try {
+        const base = 'https://kairos.nixorcorporate.com';
+        const parsed = new URL(trimmed, base);
+        if (parsed.origin !== base) return null;
+        if (!parsed.pathname.startsWith('/signoff/')) return null;
+        return trimmed;
+      } catch (_) {
+        return null;
+      }
     },
   };
 

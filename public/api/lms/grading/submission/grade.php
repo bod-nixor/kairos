@@ -113,9 +113,9 @@ try {
     ]);
     $existing = $existingStmt->fetch();
     
-    // Check if re-releasing (released → released)
+    // Check if re-releasing (released → released) or overridden -> overridden/released
     $isOverride = false;
-    if ($existing && (string)$existing['status'] === 'released' && $release) {
+    if ($existing && in_array((string)$existing['status'], ['released', 'overridden'], true) && $release) {
         // Only manager+ can override released grades
         if (!in_array($user['role_name'], ['manager', 'admin'])) {
             $pdo->rollBack();
@@ -123,25 +123,48 @@ try {
         }
         // Flag as override audit action
         $isOverride = true;
-    } elseif ($existing && (string)$existing['status'] === 'released' && !$release) {
+    } elseif ($existing && in_array((string)$existing['status'], ['released', 'overridden'], true) && !$release) {
         $pdo->rollBack();
         lms_error('conflict', 'Released grades cannot be modified without release flag', 409);
     }
 
-    // Upsert grade
-    $pdo->prepare(
-        'INSERT INTO lms_grades (course_id, student_user_id, assignment_id, submission_id, status, score, max_score, feedback, graded_by, released_by, released_at)
-         VALUES (:c, :stu, :a, :s, :status, :score, :max, :f, :u, :rel_by, :rel_at)
-         ON DUPLICATE KEY UPDATE
-           score = VALUES(score),
-           max_score = VALUES(max_score),
-           feedback = VALUES(feedback),
-           status = IF(lms_grades.status = \'released\' AND :no_release = 1, lms_grades.status, VALUES(status)),
-           graded_by = IF(lms_grades.status = \'released\' AND :no_release2 = 1, lms_grades.graded_by, VALUES(graded_by)),
-           released_by = IF(VALUES(status) = \'released\', VALUES(released_by), lms_grades.released_by),
-           released_at = IF(VALUES(status) = \'released\', VALUES(released_at), lms_grades.released_at),
-           updated_at = CURRENT_TIMESTAMP'
-    )->execute([
+    if ($release && isset($in['override']) && $in['override'] !== '' && $in['override'] !== null) {
+        $gradeStatus = 'overridden';
+    }
+
+    $hasPrivateNote = false;
+    $hasOverride = false;
+    $hasRubricGrades = false;
+
+    try {
+        $pdo->query('SELECT staff_private_note FROM lms_grades LIMIT 1');
+        $hasPrivateNote = true;
+    } catch (Throwable $_) {}
+
+    try {
+        $pdo->query('SELECT grade_override FROM lms_grades LIMIT 1');
+        $hasOverride = true;
+    } catch (Throwable $_) {}
+
+    try {
+        $pdo->query('SELECT rubric_grades_json FROM lms_grades LIMIT 1');
+        $hasRubricGrades = true;
+    } catch (Throwable $_) {}
+
+    $cols = ['course_id', 'student_user_id', 'assignment_id', 'submission_id', 'status', 'score', 'max_score', 'feedback', 'graded_by', 'released_by', 'released_at'];
+    $vals = [':c', ':stu', ':a', ':s', ':status', ':score', ':max', ':f', ':u', ':rel_by', ':rel_at'];
+    $updates = [
+        'score = VALUES(score)',
+        'max_score = VALUES(max_score)',
+        'feedback = VALUES(feedback)',
+        'status = IF(lms_grades.status IN (\'released\', \'overridden\') AND :no_release = 1, lms_grades.status, VALUES(status))',
+        'graded_by = IF(lms_grades.status IN (\'released\', \'overridden\') AND :no_release2 = 1, lms_grades.graded_by, VALUES(graded_by))',
+        'released_by = IF(VALUES(status) IN (\'released\', \'overridden\'), VALUES(released_by), lms_grades.released_by)',
+        'released_at = IF(VALUES(status) IN (\'released\', \'overridden\'), VALUES(released_at), lms_grades.released_at)',
+        'updated_at = CURRENT_TIMESTAMP'
+    ];
+
+    $queryParams = [
         ':c' => $params[':c'],
         ':stu' => $params[':stu'],
         ':a' => $params[':a'],
@@ -155,7 +178,31 @@ try {
         ':rel_at' => $release ? gmdate('Y-m-d H:i:s') : null,
         ':no_release' => $release ? 0 : 1,
         ':no_release2' => $release ? 0 : 1,
-    ]);
+    ];
+
+    if ($hasPrivateNote) {
+        $cols[] = 'staff_private_note';
+        $vals[] = ':spn';
+        $updates[] = 'staff_private_note = VALUES(staff_private_note)';
+        $queryParams[':spn'] = isset($in['private_note']) ? (string)$in['private_note'] : null;
+    }
+
+    if ($hasOverride) {
+        $cols[] = 'grade_override';
+        $vals[] = ':go';
+        $updates[] = 'grade_override = VALUES(grade_override)';
+        $queryParams[':go'] = (isset($in['override']) && $in['override'] !== '' && $in['override'] !== null) ? (float)$in['override'] : null;
+    }
+
+    if ($hasRubricGrades) {
+        $cols[] = 'rubric_grades_json';
+        $vals[] = ':rgj';
+        $updates[] = 'rubric_grades_json = VALUES(rubric_grades_json)';
+        $queryParams[':rgj'] = (isset($in['grades']) && is_array($in['grades'])) ? json_encode($in['grades']) : null;
+    }
+
+    $sql = 'INSERT INTO lms_grades (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ') ON DUPLICATE KEY UPDATE ' . implode(', ', $updates);
+    $pdo->prepare($sql)->execute($queryParams);
 
     // Immutable audit record (action must match ENUM: draft, override, release)
     $auditAction = $isOverride ? 'override' : ($release ? 'release' : 'draft');

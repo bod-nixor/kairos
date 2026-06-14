@@ -245,7 +245,11 @@ Vendored Socket.IO SHA-256:
 
 ## Remaining Requirements
 
-1. Back up the database and apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql`, then `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`.
+1. Back up the database and apply the following migrations:
+   - `db/migrations/20260613_1430_add_announcement_publication_audit.sql`
+   - `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`
+   - `db/migrations/20260614_1600_create_lms_assignment_notes.sql`
+   - `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql`
 2. Deploy the full change set, purge Cloudflare caches, and restart the Python realtime service.
 3. Disable Cloudflare Browser Insights injection and Rocket Loader for `/signoff/*`.
 4. Install locked Composer dependencies and configure the private Shared Drive/service account.

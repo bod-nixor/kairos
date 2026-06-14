@@ -474,6 +474,56 @@
         renderTimeline(submissions);
         showEl('assignLoaded');
         await renderStaffPanel(submissions);
+
+        // Load student private note
+        const studentNoteInput = $('studentNoteInput');
+        const saveState = $('studentNoteSaveState');
+        if (studentNoteInput) {
+            studentNoteInput.value = '';
+            if (saveState) {
+                saveState.textContent = 'Saved';
+                saveState.style.color = '';
+            }
+            try {
+                const noteRes = await LMS.api('GET', `./api/lms/assignments/get_note.php?assignment_id=${encodeURIComponent(ASSIGN_ID)}&course_id=${encodeURIComponent(COURSE_ID)}${dbg}`);
+                if (noteRes.ok && noteRes.data) {
+                    studentNoteInput.value = noteRes.data.notes || '';
+                }
+            } catch (err) {
+                console.warn('Failed to load private notes', err);
+            }
+        }
+
+        // Setup private note auto-save
+        if (studentNoteInput && saveState && studentNoteInput.dataset.wired !== '1') {
+            studentNoteInput.dataset.wired = '1';
+            let saveTimeout = null;
+
+            studentNoteInput.addEventListener('input', () => {
+                saveState.textContent = 'Saving…';
+                saveState.style.color = 'var(--k-text-muted)';
+
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(async () => {
+                    try {
+                        const res = await LMS.api('POST', './api/lms/assignments/save_note.php', {
+                            assignment_id: Number(ASSIGN_ID),
+                            notes: studentNoteInput.value
+                        });
+                        if (res.ok) {
+                            saveState.textContent = 'Saved';
+                            saveState.style.color = '#10b981'; // vibrant green for light/dark
+                        } else {
+                            saveState.textContent = 'Failed to save';
+                            saveState.style.color = '#ef4444';
+                        }
+                    } catch (err) {
+                        saveState.textContent = 'Failed to save';
+                        saveState.style.color = '#ef4444';
+                    }
+                }, 800);
+            });
+        }
     }
 
     function wireRealtime() {

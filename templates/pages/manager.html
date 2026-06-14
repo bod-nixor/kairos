@@ -42,12 +42,30 @@
     </a>
 
     <div class="k-sidebar__scroll">
-      <nav class="k-nav-group" aria-label="Global">
+      <nav class="k-nav-group" id="kNavGlobal" aria-label="Global">
         <a class="k-nav-item" href="/signoff/">
           <span class="k-nav-item__icon" aria-hidden="true">🏠</span>
           <span class="k-nav-item__text">All Courses</span>
         </a>
       </nav>
+
+      <!-- Role-specific nav items (hidden until caps loaded) -->
+      <nav class="k-nav-group hidden" id="kNavRoles" aria-label="Role tools">
+        <div class="k-nav-group__label">Tools</div>
+        <a class="k-nav-item hidden" id="navTA" href="/signoff/ta" data-nav-key="ta">
+          <span class="k-nav-item__icon" aria-hidden="true">🎓</span>
+          <span class="k-nav-item__text">TA Dashboard</span>
+        </a>
+        <a class="k-nav-item hidden" id="navManager" href="/signoff/manager" data-nav-key="manager">
+          <span class="k-nav-item__icon" aria-hidden="true">📋</span>
+          <span class="k-nav-item__text">Manager</span>
+        </a>
+        <a class="k-nav-item hidden" id="navAdmin" href="/signoff/admin" data-nav-key="admin">
+          <span class="k-nav-item__icon" aria-hidden="true">⚙️</span>
+          <span class="k-nav-item__text">Admin</span>
+        </a>
+      </nav>
+
       <nav class="k-nav-group" aria-label="Manager tools">
         <div class="k-nav-group__label">Manager Tools</div>
         <button class="k-nav-item is-active" id="navCourses">

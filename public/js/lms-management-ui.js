@@ -286,6 +286,11 @@
           <span class="k-field-error hidden" data-field-error="custom_extensions"></span>
           <div class="k-resolved-types" aria-live="polite"><span>Resolved upload policy</span><div data-resolved-types></div></div>
           <label class="k-field-stack k-control-sm"><span class="k-label">Maximum file size (MB)</span><input class="k-input" data-field="max_file_mb" type="number" min="1" max="1024" step="1" value="${LMS.escHtml(String(initial.max_file_mb || 50))}" required /><span class="k-field-error hidden" data-field-error="max_file_mb"></span></label>
+        </section>
+        <section class="k-form-section">
+          <div class="k-form-section__heading"><span class="k-form-section__eyebrow">Rubric</span><h3>Grading Rubric</h3><p>Define criteria for grading this assignment. If empty, grading will use raw score input.</p></div>
+          <div id="editorRubricList" class="k-panel-gap"></div>
+          <button class="btn btn-secondary mt-8" type="button" id="editorAddRubricBtn">+ Add Criterion</button>
         </section>`,
       isCreate ? 'Create assignment' : 'Save changes',
     );
@@ -296,6 +301,57 @@
     const presetGrid = dialog.querySelector('[data-preset-grid]');
     const resolved = dialog.querySelector('[data-resolved-types]');
     const customInput = dialog.querySelector('[data-field="custom_extensions"]');
+    const rubricContainer = dialog.querySelector('#editorRubricList');
+    const addRubricBtn = dialog.querySelector('#editorAddRubricBtn');
+    let rubricData = Array.isArray(initial.rubric) ? [...initial.rubric] : [];
+
+    const renderRubricItems = () => {
+      if (!rubricContainer) return;
+      rubricContainer.innerHTML = rubricData.map((item, index) => `
+        <div class="k-form-grid mt-8" data-rubric-index="${index}" style="grid-template-columns: 1fr 100px auto; align-items: end; gap: 8px;">
+          <label class="k-field-stack" style="margin: 0;">
+            <span class="k-label small">Criterion Name</span>
+            <input class="k-input" type="text" data-rubric-field="criterion" value="${LMS.escHtml(item.criterion || '')}" placeholder="e.g. Correctness" required />
+          </label>
+          <label class="k-field-stack" style="margin: 0;">
+            <span class="k-label small">Max Points</span>
+            <input class="k-input" type="number" data-rubric-field="max_pts" min="0.1" step="0.1" value="${LMS.escHtml(String(item.max_pts || item.max_points || 10))}" required />
+          </label>
+          <button class="btn btn-ghost btn-sm btn-danger" type="button" data-remove-rubric-index="${index}" style="margin-bottom: 4px; border: 1px solid var(--k-border-color);">✕</button>
+        </div>
+      `).join('');
+    };
+
+    if (rubricContainer && addRubricBtn) {
+      renderRubricItems();
+      addRubricBtn.addEventListener('click', () => {
+        rubricData.push({ criterion: '', max_pts: 10 });
+        renderRubricItems();
+      });
+      rubricContainer.addEventListener('click', (event) => {
+        const removeBtn = event.target.closest('[data-remove-rubric-index]');
+        if (removeBtn) {
+          const index = Number(removeBtn.dataset.removeRubricIndex);
+          rubricData.splice(index, 1);
+          renderRubricItems();
+        }
+      });
+      rubricContainer.addEventListener('input', (event) => {
+        const input = event.target.closest('[data-rubric-field]');
+        if (input) {
+          const grid = input.closest('[data-rubric-index]');
+          const index = Number(grid.dataset.rubricIndex);
+          const field = input.dataset.rubricField;
+          if (field === 'criterion') {
+            rubricData[index].criterion = input.value;
+          } else if (field === 'max_pts') {
+            rubricData[index].max_pts = Number(input.value) || 0;
+            rubricData[index].max_points = Number(input.value) || 0;
+          }
+        }
+      });
+    }
+
     const renderPolicy = () => {
       presetGrid.innerHTML = Object.entries(policy.presets).map(([key, preset]) => {
         const isCustom = key === 'custom';
@@ -356,6 +412,17 @@
       if (resolvedPolicy.errors.length) { setFieldError(currentDialog, 'custom_extensions', resolvedPolicy.errors.join(' ')); invalid = true; }
       if (invalid) return { error: 'Review the highlighted fields.' };
 
+      let validRubric = [];
+      if (rubricContainer) {
+        rubricContainer.querySelectorAll('[data-rubric-index]').forEach((grid) => {
+          const crit = grid.querySelector('[data-rubric-field="criterion"]').value.trim();
+          const pts = Number(grid.querySelector('[data-rubric-field="max_pts"]').value);
+          if (crit && Number.isFinite(pts) && pts > 0) {
+            validRubric.push({ criterion: crit, max_pts: pts, max_points: pts });
+          }
+        });
+      }
+
       const payload = {
         title,
         instructions: LMS.sanitizeForRender(editor.innerHTML || '').trim(),
@@ -363,6 +430,7 @@
         max_points: points,
         allowed_file_extensions: resolvedPolicy.extensions.join(','),
         max_file_mb: maxFileMb,
+        rubric: validRubric,
       };
       setSaving(currentDialog, true, isCreate ? 'Create assignment' : 'Save changes');
       try {
