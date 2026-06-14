@@ -12,7 +12,13 @@
 | Manager | Public preview, student enrollment, and explicitly assigned courses | Student participation outside assigned courses; full operational/editorial control only where mapped |
 | Admin | Every course | Manager-equivalent course control plus global course creation and staff assignment |
 
-Global role rank is not a course grant. Student participation is independent of global role, so a TA or manager may also have a `student_courses` row for another course. Staff assignment always wins when deriving the display context for the same course. Admin access is explicit.
+### Authorization Dimensions
+Authorization in Kairos is evaluated along three distinct axes:
+1. **Global Role**: Defined system-wide (via the `roles` table) as `student`, `ta`, `manager`, or `admin`. It dictates baseline application-wide controls but does not grant course-specific access.
+2. **Course Staff Capability**: Granted by course-specific staff mappings (e.g. TA or manager assignments). This yields privileges like course editing (`manage_course`) or grading (`grade_course`) in the assigned courses.
+3. **Course Student Participation**: Granted strictly by user enrollment in `student_courses` for a given course. This is independent of the global role. For example, a TA or manager may be enrolled as a student participant in a separate course. Staff assignment always wins when deriving display contexts for the same course. Crucially, global admins, TAs, or managers do not possess implicit student-level permissions (such as joining queues or submitting assignments) unless they are enrolled as student participants in that specific course.
+
+Public course self-enrollment grants student-level participation access dynamically when a user attempts to submit an assignment or access enrolled areas, provided course visibility and user status satisfy access policies. Enrolled staff do not obtain any management/grading powers through student participation paths.
 
 ## Capability Matrix
 
@@ -98,7 +104,7 @@ historical submissions/attempts/grades. Active child/grading endpoints first req
 | `lms/quiz/attempt/get.php`, `quiz/submissions.php` | GET | `grade_course` | attempt/assessment belongs to assigned course | 403/404 |
 | `lms/assignments/{create,update,publish,mandatory,delete}.php` | POST | `manage_course` | delete archives assignment/removes links; upload settings persist independently of Drive | 403/404/422/503 |
 | `lms/assignments/upload-policy.php` | GET | `view_course` | policy is non-sensitive; caller must still belong to the course | 403/422 |
-| `lms/assignments/submit.php` | POST | student | published assignment, enrolled course, self only | 403/404/409 |
+| `lms/assignments/submit.php` | POST | authenticated | published assignment, student course participation (enrolled or eligible for public-course self-enrollment), self only | 403/404/409/422/503 |
 | `lms/assignments/submissions.php` | GET | owner or assigned grader | assignment stored course; students receive own released grade only | 403/404 |
 | `lms/assignments/tas/set.php` | POST | `manage_course` | assignment belongs to assigned course; assignment-level grader assignment only | 403/404 |
 | `lms/grading/queue.php`, `grading/submission.php` | GET | `grade_course` | submission -> assignment -> course; TA assignment required | 403/404 |
