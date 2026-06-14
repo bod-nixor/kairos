@@ -17,6 +17,7 @@
     const announcementsById = new Map();
     let canManageAnnouncements = false;
     let currentCourseLabel = 'Course';
+    let notificationsReady = false;
 
     function showEl(id) { const el = $(id); if (el) el.classList.remove('hidden'); }
     function hideEl(id) { const el = $(id); if (el) el.classList.add('hidden'); }
@@ -311,7 +312,73 @@
     }
 
     // ── Main load function ─────────────────────────────────────
+    function setCourseChrome(course) {
+        const courseLabel = course.name || course.code || 'Course';
+        currentCourseLabel = courseLabel;
+        LMS.nav.setCourseContext(COURSE_ID, courseLabel, course);
+        LMS.nav.setActive('home');
+        LMS.nav.setBreadcrumb([
+            { name: 'All Courses', href: '/signoff/' },
+            { name: course.code || courseLabel },
+        ]);
+        document.title = `${courseLabel} — Kairos`;
+        return courseLabel;
+    }
+
+    function renderPublicPreview(course) {
+        const container = $('coursePublicPreview');
+        if (!container) return;
+        hideEl('kBellBtn');
+        const canEnrol = !!course.capabilities?.can_self_enroll;
+        const visibilityLabel = course.visibility === 'restricted' ? 'Invited access' : 'Public course';
+        container.innerHTML = `
+          <section class="k-public-course-card" aria-labelledby="publicCourseTitle">
+            <div class="k-public-course-card__eyebrow">${LMS.escHtml(visibilityLabel)}</div>
+            <h1 id="publicCourseTitle">${LMS.escHtml(course.name || 'Course')}</h1>
+            ${course.code ? `<p class="k-public-course-card__code">${LMS.escHtml(course.code)}</p>` : ''}
+            <p class="k-public-course-card__description">${LMS.escHtml(course.description || 'Enrol to access published modules, quizzes, assignments, rooms, and course updates.')}</p>
+            <div class="k-notice-banner">
+              <span aria-hidden="true">ℹ️</span>
+              <div><strong>Public preview</strong><br>You can view this course overview. Enrolment is required before accessing course content or rooms.</div>
+            </div>
+            <div class="k-inline-actions">
+              ${canEnrol ? '<button type="button" class="btn btn-primary" id="courseEnrollBtn">Enrol in course</button>' : ''}
+              <a class="btn btn-ghost" href="/signoff/">Back to all courses</a>
+            </div>
+            <p class="k-text-sm k-text-muted" id="courseEnrollStatus" role="status" aria-live="polite"></p>
+          </section>`;
+        showEl('coursePublicPreview');
+
+        const button = $('courseEnrollBtn');
+        button?.addEventListener('click', async () => {
+            button.disabled = true;
+            button.textContent = 'Enrolling…';
+            const status = $('courseEnrollStatus');
+            if (status) status.textContent = 'Creating your student enrolment…';
+            const result = await LMS.api('POST', './api/lms/courses/join.php', {
+                course_id: Number(COURSE_ID),
+            });
+            if (!result.ok) {
+                button.disabled = false;
+                button.textContent = 'Enrol in course';
+                if (status) status.textContent = result.error || 'Unable to enrol right now.';
+                LMS.toast(result.error || 'Unable to enrol in this course.', 'error');
+                return;
+            }
+            if (status) status.textContent = 'Enrolment complete. Loading course content…';
+            LMS.invalidateSessionContext();
+            if (window.LmsWS) LmsWS.setCourseContext(COURSE_ID);
+            await loadPage();
+            LMS.toast('You are now enrolled in this course.', 'success');
+        });
+    }
+
     async function loadPage() {
+        hideEl('courseAccessDenied');
+        hideEl('courseError');
+        hideEl('courseLoaded');
+        hideEl('coursePublicPreview');
+        showEl('courseSkeleton');
         if (!COURSE_ID) {
             LMS.renderAccessDenied($('courseAccessDenied'), 'No course specified.', '/signoff/');
             hideEl('courseSkeleton');
@@ -319,18 +386,12 @@
             return;
         }
 
-        const [courseRes, statsRes, modulesRes, annRes, actRes] = await Promise.all([
-            LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`),
-            LMS.api('GET', `./api/lms/course_stats.php?course_id=${encodeURIComponent(COURSE_ID)}`),
-            LMS.api('GET', `./api/lms/modules.php?course_id=${encodeURIComponent(COURSE_ID)}&preview=1`),
-            LMS.api('GET', `./api/lms/announcements.php?course_id=${encodeURIComponent(COURSE_ID)}&limit=6`),
-            LMS.api('GET', `./api/lms/activity.php?course_id=${encodeURIComponent(COURSE_ID)}&limit=8`),
-        ]);
+        const courseRes = await LMS.api('GET', `./api/lms/courses.php?course_id=${encodeURIComponent(COURSE_ID)}`);
 
         hideEl('courseSkeleton');
 
-        if (courseRes.status === 403) {
-            LMS.renderAccessDenied($('courseAccessDenied'), 'You are not enrolled in this course.', '/signoff/');
+        if (courseRes.status === 403 || courseRes.status === 404) {
+            LMS.renderAccessDenied($('courseAccessDenied'), 'This course is private or unavailable to your account.', '/signoff/');
             showEl('courseAccessDenied');
             return;
         }
@@ -341,6 +402,25 @@
         }
 
         const course = courseRes.data?.data || courseRes.data || {};
+        const courseLabel = setCourseChrome(course);
+        if (!course.capabilities?.view_course) {
+            renderPublicPreview(course);
+            return;
+        }
+
+        if (window.LmsWS) LmsWS.setCourseContext(COURSE_ID);
+        showEl('kBellBtn');
+        if (!notificationsReady) {
+            await hydrateSeenNotificationIds();
+            notificationsReady = true;
+        }
+
+        const [statsRes, modulesRes, annRes, actRes] = await Promise.all([
+            LMS.api('GET', `./api/lms/course_stats.php?course_id=${encodeURIComponent(COURSE_ID)}`),
+            LMS.api('GET', `./api/lms/modules.php?course_id=${encodeURIComponent(COURSE_ID)}&preview=1`),
+            LMS.api('GET', `./api/lms/announcements.php?course_id=${encodeURIComponent(COURSE_ID)}&limit=6`),
+            LMS.api('GET', `./api/lms/activity.php?course_id=${encodeURIComponent(COURSE_ID)}&limit=8`),
+        ]);
         const stats = statsRes.ok ? (statsRes.data?.data || statsRes.data || {}) : {};
         const modules = modulesRes.ok ? (modulesRes.data?.data || modulesRes.data || []) : [];
         const annPayload = annRes.ok ? (annRes.data?.data || annRes.data || {}) : {};
@@ -348,19 +428,11 @@
         const actPayload = actRes.ok ? (actRes.data?.data || actRes.data || []) : [];
         const activity = Array.isArray(actPayload) ? actPayload : [];
 
-        const courseLabel = course.name || course.code || 'Course';
-        currentCourseLabel = courseLabel;
-        LMS.nav.setCourseContext(COURSE_ID, courseLabel, course);
-        LMS.nav.setActive('home');
-        LMS.nav.setBreadcrumb([
-            { name: 'All Courses', href: '/signoff/' },
-            { name: course.code || courseLabel },
-        ]);
-
         // Banner content
         $('bannerLabel') && ($('bannerLabel').textContent = course.code || '');
         $('bannerTitle') && ($('bannerTitle').textContent = course.name || '');
-        $('bannerRole') && ($('bannerRole').textContent = course.my_role || 'Student');
+        const roleLabels = { admin: 'Admin', manager: 'Assigned Manager', ta: 'Assigned TA', student: 'Enrolled Student' };
+        $('bannerRole') && ($('bannerRole').textContent = roleLabels[course.my_role] || 'Course access');
 
         const pct = stats.completion_pct || 0;
         const progressFill = $('bannerProgressFill');
@@ -410,7 +482,6 @@
         });
         renderNotifications();
 
-        document.title = `${courseLabel} — Kairos`;
         showEl('courseLoaded');
     }
 
@@ -522,7 +593,6 @@
         setupAnnouncementModal();
         setupNotificationsPanel();
 
-        await hydrateSeenNotificationIds();
         renderNotifications();
         await loadPage();
     });

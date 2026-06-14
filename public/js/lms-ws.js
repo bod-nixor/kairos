@@ -55,6 +55,13 @@
 
         const eventName = payload.event_name;
         if (!eventName) return;
+        if (
+            global.KairosLMS
+            && typeof global.KairosLMS.invalidateAccessCache === 'function'
+            && /^(?:course\.enrollment\.|course\.staff\.|user\.role\.|course\.visibility\.)/.test(eventName)
+        ) {
+            global.KairosLMS.invalidateAccessCache();
+        }
 
         // Dispatch to specific event handlers
         const set = _handlers.get(eventName);
@@ -117,7 +124,8 @@
     global.LmsWS = { on, off, emit, setCourseContext, init, channels: LMS_CHANNELS };
 
     const params = new URLSearchParams(global.location ? global.location.search : '');
-    const initialCourseId = params.get('course_id') || params.get('courseId');
+    const deferCourseSubscription = Boolean(global.document?.body?.hasAttribute('data-realtime-defer-course'));
+    const initialCourseId = deferCourseSubscription ? null : (params.get('course_id') || params.get('courseId'));
     if (initialCourseId) {
         _courseId = Number(initialCourseId) || null;
     }

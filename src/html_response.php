@@ -29,6 +29,22 @@ function kairos_generate_csp_nonce(): string
     return base64_encode(random_bytes(24));
 }
 
+function kairos_course_pages(): array
+{
+    return [
+        'analytics',
+        'assignment',
+        'assignments',
+        'course',
+        'grading',
+        'lesson',
+        'modules',
+        'quiz',
+        'quizzes',
+        'resource-viewer',
+    ];
+}
+
 function kairos_build_html_csp(string $nonce): string
 {
     if (!preg_match('/^[A-Za-z0-9+\/]+={0,2}$/D', $nonce)) {
@@ -77,6 +93,18 @@ function kairos_render_html_template(string $page, string $nonce): string
     $html = file_get_contents($templatePath);
     if ($html === false) {
         throw new RuntimeException('Unable to load HTML template.');
+    }
+
+    if (in_array($page, kairos_course_pages(), true)) {
+        $speculationRules = <<<'HTML'
+    <script data-cfasync="false" type="speculationrules" nonce="{{CSP_NONCE}}">{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/signoff/*"},{"selector_matches":"a[data-lms-nav], #kNavCourse a, .k-breadcrumb a"}]},"eagerness":"moderate"}]}</script>
+HTML;
+        $html = str_replace('</head>', $speculationRules . PHP_EOL . '</head>', $html);
+        $html = str_replace(
+            '</body>',
+            '    <script data-cfasync="false" src="./js/navigation.js"></script>' . PHP_EOL . '</body>',
+            $html
+        );
     }
 
     preg_match_all('/<script\b(?![^>]*?(?<![A-Za-z0-9_-])src\b\s*=)[^>]*>/i', $html, $inlineScripts);

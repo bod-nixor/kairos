@@ -675,6 +675,38 @@ body.k-shell-drawer-open .k-shell-overlay {
   color: var(--status-info-text);
 }
 
+.k-navigation-progress {
+  position: fixed;
+  z-index: 10000;
+  inset: 0 0 auto 0;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent;
+}
+
+.k-navigation-progress::after {
+  content: "";
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 12px var(--primary);
+  animation: k-navigation-progress 900ms ease-in-out infinite;
+}
+
+@keyframes k-navigation-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(370%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-navigation-progress::after {
+    animation-duration: 1800ms;
+  }
+}
+
 .k-feedback-list {
   width: min(100%, 600px);
   margin: 0 auto 24px;

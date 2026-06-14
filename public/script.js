@@ -384,13 +384,12 @@ async function refreshSessionCapabilities() {
     let caps;
     if (json && json.ok === true && json.data && json.data.user) {
       const role = String(json.data.user.role || 'student').toLowerCase();
-      // Role hierarchy: admin > manager > ta > student
       caps = {
         is_logged_in: true,
         roles: {
-          student: true,
-          ta: role === 'ta' || role === 'manager' || role === 'admin',
-          manager: role === 'manager' || role === 'admin',
+          student: role === 'student',
+          ta: role === 'ta',
+          manager: role === 'manager',
           admin: role === 'admin',
         },
       };
@@ -799,8 +798,17 @@ async function renderCourseCards() {
 
     availableGrid.innerHTML = availableCourses.map((c) => {
       const canJoin = Boolean(c.can_self_enroll);
-      const joinTitle = canJoin ? 'Join this course' : 'Restricted by enrollment policy';
-      return `<div class="course-card"><span class="badge">${escapeHtml(c.visibility || 'public')}</span><h3 class="course-title">${escapeHtml(c.name || '')}</h3><div class="mt-8"><button class="btn btn-primary" data-join-course="${Number(c.course_id || 0)}" ${canJoin ? '' : 'disabled'} title="${escapeHtml(joinTitle)}">Join Course</button></div></div>`;
+      const joinTitle = canJoin ? 'Enrol in this course' : 'Restricted by enrolment policy';
+      const courseId = Number(c.course_id || 0);
+      return `<div class="course-card">
+        <span class="badge">${escapeHtml(c.visibility || 'public')}</span>
+        <h3 class="course-title">${escapeHtml(c.name || '')}</h3>
+        <div class="muted small">${c.allowlisted ? 'You are invited to enrol.' : 'Preview the course before enrolling.'}</div>
+        <div class="mt-8 k-inline-actions">
+          <a class="btn btn-ghost" data-lms-nav href="./course.html?course_id=${encodeURIComponent(courseId)}">View course</a>
+          <button class="btn btn-primary" data-join-course="${courseId}" ${canJoin ? '' : 'disabled'} title="${escapeHtml(joinTitle)}">Enrol in course</button>
+        </div>
+      </div>`;
     }).join('');
 
     availableGrid.onclick = async (e) => {
@@ -828,11 +836,11 @@ async function renderCourseCards() {
           const message = payload?.error?.message || payload?.message || `Join failed (${res.status})`;
           throw new Error(message);
         }
-        showToast('Joined course successfully', { tone: 'success' });
+        showToast('Enrolled in course successfully', { tone: 'success' });
         await renderCourseCards();
       } catch (err) {
         console.error('Join course failed', err);
-        showToast(`Unable to join course${err?.message ? `: ${err.message}` : ''}`, { tone: 'error' });
+        showToast(`Unable to enrol in course${err?.message ? `: ${err.message}` : ''}`, { tone: 'error' });
       } finally {
         if (!wasDisabled) {
           btn.disabled = false;
@@ -855,7 +863,14 @@ async function renderCourseCards() {
 
     const badge = document.createElement('span');
     badge.className = 'badge';
-    badge.textContent = 'Course #' + (c.course_id ?? '');
+    const accessLabel = c.access_context === 'admin'
+      ? 'Admin access'
+      : c.access_context === 'manager'
+        ? 'Assigned manager'
+        : c.access_context === 'ta'
+          ? 'Assigned TA'
+          : 'Enrolled student';
+    badge.textContent = accessLabel;
 
     const title = document.createElement('h3');
     title.className = 'course-title';
@@ -867,6 +882,7 @@ async function renderCourseCards() {
 
     const lmsLink = document.createElement('a');
     lmsLink.className = 'btn btn-primary';
+    lmsLink.setAttribute('data-lms-nav', '');
     lmsLink.href = './course.html?course_id=' + encodeURIComponent(String(c.course_id ?? ''));
     lmsLink.textContent = 'Course Page';
 
