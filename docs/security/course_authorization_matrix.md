@@ -52,6 +52,9 @@ Public course self-enrollment grants student-level participation access dynamica
 | TA queue/progress surfaces | no | scoped | scoped where supported | all | queue/room/course mappings |
 | Manager surface | no | no | assigned courses | all | manager mapping or admin |
 | Admin surface | no | no | no | yes | explicit admin role |
+| Admin local-account invitation | no | no | no | yes | explicit admin role; no password accepted |
+| Settings password change | own local account | own local account | own local account | own local account | authenticated user + current password |
+| Settings Google linking | own account | own account | own account | own account | authenticated user + CSRF + Google link state |
 | Projector | no | yes | yes | yes | TA-or-higher operational role and scoped data APIs |
 
 The shared course navigation is rendered from `COURSE_NAV_ITEMS` in `public/js/lms-core.js`. Every course page exposes
@@ -120,6 +123,13 @@ historical submissions/attempts/grades. Active child/grading endpoints first req
 | `admin/courses.php`, `admin/assign.php`, `admin/users_search.php`, diagnostics | GET/POST | admin | global; staff assignment remains admin-only | 403/404 |
 | `queue_participants.php`, `queue_eta.php`, queue/room operational endpoints | GET/POST | queue capability | queue -> room -> course plus role/ownership rule | 403/404 |
 | `session_capabilities.php`, `me.php`, user settings | GET/POST | authenticated | current user only; ordinary theme/preferences | 401/403 |
+| `auth/csrf.php` | GET | anonymous | current session only; returns the CSRF token and public local-auth/password-policy configuration | 200; no authorization failure |
+| `auth/login_password.php` | POST | anonymous with CSRF session | active admin-created local account; username/email and password | 401 invalid credentials with generic response; 403 pending/disabled account; 429 temporary lockout or rate limit |
+| `auth/request_password_reset.php` | POST | anonymous with CSRF session | generic response; eligible active local account receives email | 200/429 |
+| `auth/{validate_token,activate,reset_password}.php` | POST | anonymous with CSRF session | purpose-bound, hashed, expiring single-use token | 422 |
+| `auth/change_password.php` | POST | authenticated local user | current user; current password required; session version increments | 401/422 |
+| `auth/google_link_start.php`, `auth/google_link_complete.php` | POST | authenticated | current user; short-lived state, approved Nixor Google identity | 401/409/422 |
+| `admin/local_accounts.php` | GET/POST | admin | create/list/resend pending local accounts; payload cannot set password | 403/409/422/502 |
 | `/websocket/socket.io/` connection | CONNECT | authenticated course access | requested room resolves to course; course mapping checked in DB | connection rejected |
 
 Helpers such as `_common.php`, `_helpers.php`, `_access.php`, and compatibility proxies are not standalone authorization surfaces; their canonical target is covered above.
@@ -168,6 +178,9 @@ Apply `db/migrations/20260614_1600_create_lms_assignment_notes.sql` before deplo
 Apply `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql` before deploying the rubric scoring, override grade, and staff private note persistence updates in the grading system.
 
 The June 14 public-course access pass adds no migration. It uses existing `courses.visibility`, `courses.is_active`, `course_allowlist`, `course_pre_enroll`, and `student_courses` structures.
+
+Apply `db/migrations/20260614_2100_add_local_authentication.sql` before enabling local authentication. Authentication
+method never changes RBAC: local, Google-only, and linked users use the same global role and course assignment policy.
 
 ### Navigation and Capability Rules
 

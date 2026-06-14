@@ -4,7 +4,7 @@
 
 - [ ] Schedule a controlled deployment window.
 - [ ] Back up the current `/signoff/` files and effective Apache configuration.
-- [ ] Take a database backup before applying the announcement and assignment-settings migrations.
+- [ ] Take a database backup before applying the announcement, assignment, grading, and local-auth migrations.
 - [ ] Record the current Python realtime process command and rollback artifact.
 - [ ] Confirm no unrelated working-tree files are included in the deployment package.
 
@@ -28,6 +28,10 @@ Deploy the complete repository change set, including:
 - `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`
 - `db/migrations/20260614_1600_create_lms_assignment_notes.sql`
 - `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql`
+- `db/migrations/20260614_2100_add_local_authentication.sql`
+- `src/auth/`, `public/api/auth/`, and `public/api/admin/local_accounts.php`
+- `public/js/auth-client.js`, `public/js/auth-pages.js`, and updated login/settings/admin/manager scripts
+- `templates/pages/activate.html`, `forgot-password.html`, and `reset-password.html`
 - updated security documentation, runbooks, and test files
 
 Apply all SQL migrations before deploying the related API/UI.
@@ -42,6 +46,7 @@ mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_
 mariadb -u <user> -p < db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
 mariadb -u <user> -p < db/migrations/20260614_1600_create_lms_assignment_notes.sql
 mariadb -u <user> -p < db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql
+mariadb -u <user> -p < db/migrations/20260614_2100_add_local_authentication.sql
 ```
 
 - [ ] Verify `lms_announcements.status`, `published_at`, and `idx_lms_announcements_course_status`.
@@ -49,6 +54,20 @@ mariadb -u <user> -p < db/migrations/20260614_1605_add_staff_private_note_to_lms
 - [ ] Verify `lms_assignments.allowed_file_extensions` and `lms_assignments.max_file_mb`.
 - [ ] Verify the table `lms_assignment_notes` has been created with primary keys and `student_user_id` index.
 - [ ] Verify the table `lms_grades` contains columns: `staff_private_note`, `grade_override`, `rubric_grades_json`.
+- [ ] Verify `users.google_id` is nullable; columns `username`, `google_email`, `password_hash`, `account_status`,
+  `password_changed_at`, `last_login_at`, `failed_login_count`, `locked_until`, `auth_session_version`, `created_at`,
+  and `updated_at` exist; and indexes `uk_users_username`, `uk_users_google_email`, `idx_users_account_status`, and
+  `idx_users_locked_until` exist.
+- [ ] Verify `auth_tokens` has `token_id`, `user_id`, `purpose`, `token_hash`, `expires_at`, `used_at`, `revoked_at`,
+  `created_ip_hash`, `user_agent_hash`, and `created_at`; primary/unique/index keys `PRIMARY`, `uk_auth_tokens_hash`,
+  `idx_auth_tokens_user_purpose`, and `idx_auth_tokens_expiry`; and foreign key `fk_auth_tokens_user`.
+- [ ] Verify `auth_audit_log` has `auth_audit_id`, `event_name`, `actor_user_id`, `subject_user_id`, `identifier_hash`,
+  `ip_hash`, `user_agent_hash`, `status`, `metadata_json`, and `occurred_at`; indexes `idx_auth_audit_event_time`,
+  `idx_auth_audit_actor_time`, and `idx_auth_audit_subject_time`; and foreign keys `fk_auth_audit_actor` and
+  `fk_auth_audit_subject`.
+- [ ] Verify `auth_rate_limits` has `bucket_hash`, `window_started_at`, `attempt_count`, `blocked_until`, and
+  `updated_at`; primary key `PRIMARY`; and indexes `idx_auth_rate_limits_blocked_until` and
+  `idx_auth_rate_limits_updated_at`.
 - [ ] Do not run the rollback unless application code has first been rolled back and audit retention has been approved.
 
 ## Environment Verification
@@ -72,6 +91,11 @@ mariadb -u <user> -p < db/migrations/20260614_1605_add_staff_private_note_to_lms
 - [ ] Confirm the Google OAuth client includes `https://kairos.nixorcorporate.com` and the production callback/origin configuration.
 - [ ] If deploying to a non-production hostname, update the exact HTTPS/WSS CSP origins in `src/html_response.php` before that deployment.
 - [ ] Confirm PHP has access to `random_bytes()`; PHP 8.1+ provides it without an extra package.
+- [ ] Confirm PHP reports `defined('PASSWORD_ARGON2ID') === true`.
+- [ ] Configure `AUTH_PRIVACY_HASH_SECRET` with at least 32 random characters.
+- [ ] Review `ARGON2_MEMORY_COST=19456`, `ARGON2_TIME_COST=2`, `ARGON2_THREADS=1`, and password length limits.
+- [ ] Configure `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, and `SUPPORT_EMAIL`; verify PHP `mail()` delivery in staging.
+- [ ] Keep `LOCAL_AUTH_ENABLED=false` until the migration, mail delivery, and all local-auth smoke tests pass.
 
 ## Cloudflare
 
@@ -166,6 +190,12 @@ The effective CSP must:
 - [ ] Keyboard-test navigation, appearance controls, forms, and dialogs; verify visible focus, Escape close, focus trap, and focus return.
 - [ ] Open assignment and quiz create/edit dialogs in Light and Default Dark; verify section hierarchy, inline
       validation, disabled save state, focus return, and no mobile overflow.
+- [ ] Confirm Google remains the primary login and there is no public password registration action.
+- [ ] Enable local auth in staging and verify password login by username and email, generic wrong-credential errors,
+      pending activation guidance, and safe `/signoff/` return URLs.
+- [ ] Verify activation, forgot-password, and reset-password pages at phone/tablet/desktop sizes in Light and Dark.
+- [ ] Confirm activation/reset fragments disappear from the address bar before API submission.
+- [ ] Confirm keyboard focus, labels, status announcements, disabled submit states, and password guidance.
 
 ## Role and Authorization Smoke Tests
 
@@ -230,6 +260,15 @@ Use non-production test accounts and do not alter real grades/submissions:
 - [ ] Internal course links remain shareable URLs; modifier-click, direct refresh, Back, and Forward use native browser behavior.
 - [ ] Supported browsers prefetch likely same-origin course links; unsupported browsers navigate normally.
 - [ ] Navigation does not create duplicate WebSocket connections or use WebSockets as a page transport.
+- [ ] Admin creates a pending local account without a password field and receives clear mail-delivery status.
+- [ ] Student/TA/manager cannot call `admin/local_accounts.php`.
+- [ ] Resending activation revokes the previous link; expired and used links fail cleanly.
+- [ ] Activated user can log in by username and email; the stored hash begins with Argon2id and is never returned.
+- [ ] Forgot-password returns identical confirmation for known and unknown identifiers.
+- [ ] Password reset invalidates the old password and other authenticated sessions on their next request.
+- [ ] Local user changes password from Settings only after entering the current password.
+- [ ] Local user links an approved Nixor Google account and can then use either login method.
+- [ ] A Google identity already linked elsewhere and a non-Nixor Google identity are rejected and audited.
 
 ## Cache and Monitoring
 
@@ -245,6 +284,9 @@ Use non-production test accounts and do not alter real grades/submissions:
 3. Revert the Cloudflare route rules only if required by the previous release.
 4. Purge `/signoff/*` from Cloudflare and server caches.
 5. Re-run login, CSP, API, and WebSocket smoke checks.
+
+For a local-auth incident, set `LOCAL_AUTH_ENABLED=false` first. Preserve auth tables and audit history. Do not restore
+`users.google_id` to `NOT NULL` while local-only users exist. Follow `docs/runbooks/local_auth_operations.md`.
 
 If application rollback is required, restore the prior files first. Retain `lms_announcement_audit` unless an approved data-retention decision permits the manual rollback documented in the migration. For a Drive incident, set
 `GOOGLE_DRIVE_WRITES_ENABLED=false` first so authenticated reads remain available; use

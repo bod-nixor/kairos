@@ -4,7 +4,7 @@ Kairos is Nixor College’s production academic operations platform, combining q
 
 - **Live URL (canonical):** https://kairos.nixorcorporate.com/signoff/
 - **Primary stack:** vanilla PHP API + vanilla JS/CSS frontend + Python WebSocket relay + MariaDB/MySQL
-- **Identity model:** Google OAuth with hosted-domain restriction (typically `nixorcollege.edu.pk`)
+- **Identity model:** Google OAuth with hosted-domain restriction plus optional admin-invited local accounts
 
 ---
 
@@ -74,6 +74,17 @@ ALLOWED_DOMAIN=nixorcollege.edu.pk
 DEFAULT_ROLE_NAME=student
 GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 
+LOCAL_AUTH_ENABLED=false
+AUTH_PRIVACY_HASH_SECRET=replace-with-at-least-32-random-characters
+ARGON2_MEMORY_COST=19456
+ARGON2_TIME_COST=2
+ARGON2_THREADS=1
+PASSWORD_MIN_LENGTH=12
+PASSWORD_MAX_LENGTH=1024
+MAIL_FROM_ADDRESS=kairos@example.edu
+MAIL_FROM_NAME=Kairos
+SUPPORT_EMAIL=support@example.edu
+
 GOOGLE_DRIVE_ENABLED=false
 GOOGLE_DRIVE_WRITES_ENABLED=false
 GOOGLE_DRIVE_AUTH_MODE=service_account
@@ -104,6 +115,22 @@ composer install --no-dev --classmap-authoritative --no-interaction
 ```
 
 See `docs/runbooks/google_drive_storage.md` before enabling private file storage.
+
+### Google OAuth and local password accounts
+
+- Google remains the primary login and the only public self-registration path.
+- Password accounts are created only by administrators and begin in `pending_activation`.
+- Administrators never enter, receive, or view a password. The user sets it through a single-use activation email.
+- Passwords use PHP Argon2id with validated OWASP-aligned defaults and automatic rehash on successful login.
+- Reset and activation tokens are hashed at rest, single-use, expiring, and delivered in URL fragments so raw tokens
+  are not sent in HTTP query strings.
+- Active local users can link an approved Nixor Google account from Settings and then use either login method.
+- Auth mutations use session CSRF tokens, exact-origin enforcement, database rate limits, account lockouts, session
+  regeneration/versioning, and durable hashed audit events.
+
+Apply `db/migrations/20260614_2100_add_local_authentication.sql`, configure mail and auth secrets, complete staging
+smoke tests, then enable `LOCAL_AUTH_ENABLED=true`. See `docs/security/local_authentication.md` and
+`docs/runbooks/local_auth_operations.md`.
 
 ### LMS rich text and assignment uploads
 
@@ -169,6 +196,7 @@ The assignment upload settings, student private notes, and grading override cont
 db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
 db/migrations/20260614_1600_create_lms_assignment_notes.sql
 db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql
+db/migrations/20260614_2100_add_local_authentication.sql
 ```
 
 The migrations are guarded and idempotent. During staging deployment, the student notes endpoints (get_note.php, save_note.php, delete_note.php) and grading/submission endpoints (submission.php, grade.php) degrade gracefully by falling back to empty states or default values if the new lms_assignment_notes table or grade override columns are missing; executing the migrations is required for full feature functionality.

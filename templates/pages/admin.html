@@ -131,6 +131,73 @@
           </div>
         </section>
 
+        <section class="k-card hidden" id="localAccountsCard">
+          <div class="k-card__header">
+            <h2 class="k-card__title">Invite local account</h2>
+            <p class="muted small mb-0 mt-8">Create a pending account and email a single-use activation link. Administrators never set passwords.</p>
+          </div>
+          <div class="k-card__body k-grid-split">
+            <form id="localAccountForm" class="k-auth-form" novalidate>
+              <div class="grid-two k-grid-split">
+                <div class="k-form-field">
+                  <label for="localAccountName">Full name</label>
+                  <input class="k-input" id="localAccountName" name="name" maxlength="255" autocomplete="name" required />
+                </div>
+                <div class="k-form-field">
+                  <label for="localAccountEmail">Email</label>
+                  <input class="k-input" id="localAccountEmail" name="email" type="email" maxlength="255"
+                    autocomplete="email" required />
+                </div>
+              </div>
+              <div class="grid-two k-grid-split">
+                <div class="k-form-field">
+                  <label for="localAccountUsername">Username</label>
+                  <input class="k-input" id="localAccountUsername" name="username" maxlength="32"
+                    pattern="[a-zA-Z][a-zA-Z0-9._-]{2,31}" autocomplete="off" required />
+                </div>
+                <div class="k-form-field">
+                  <label for="localAccountRole">Platform role</label>
+                  <select class="k-select" id="localAccountRole" name="role" required>
+                    <option value="student">Student</option>
+                    <option value="ta">TA</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid-two k-grid-split">
+                <div class="k-form-field">
+                  <label for="localAccountCourse">Optional course</label>
+                  <select class="k-select" id="localAccountCourse" name="course_id">
+                    <option value="">No initial course assignment</option>
+                  </select>
+                </div>
+                <div class="k-form-field">
+                  <label for="localAccountCourseRole">Course access</label>
+                  <select class="k-select" id="localAccountCourseRole" name="course_role" disabled>
+                    <option value="">No course access</option>
+                    <option value="student">Enrolled student</option>
+                    <option value="ta">Assigned TA</option>
+                    <option value="manager">Assigned manager</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-primary" type="submit">Create account and send activation</button>
+              <p class="k-auth-status" id="localAccountStatus" role="status" aria-live="polite" hidden></p>
+            </form>
+
+            <section aria-labelledby="pendingAccountsTitle">
+              <div class="k-card__header k-card__header--wrap">
+                <h3 class="k-card__title" id="pendingAccountsTitle">Pending accounts</h3>
+                <button class="btn btn-ghost btn-sm" type="button" id="refreshPendingAccountsBtn">Refresh</button>
+              </div>
+              <div id="pendingLocalAccounts" class="list-stack">
+                <div class="muted small">No pending accounts loaded.</div>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section class="k-card" id="coursesCard">
           <div class="k-card__header k-card__header--wrap">
             <h2 class="k-card__title">All Courses</h2>
@@ -285,6 +352,7 @@
 
   <script data-cfasync="false" src="./js/theme.js"></script>
   <script data-cfasync="false" src="./js/session-roles.js"></script>
+  <script data-cfasync="false" src="./js/auth-client.js"></script>
   <script data-cfasync="false" src="./js/admin.js" type="module"></script>
 </body>
 

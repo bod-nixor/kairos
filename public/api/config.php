@@ -11,6 +11,18 @@ $googleClientId = env('GOOGLE_CLIENT_ID');
 $allowedDomain = env('ALLOWED_DOMAIN', '');
 $wsSocketPath = env('WS_SOCKET_PATH', '/websocket/socket.io');
 $wsBaseUrl = env('WS_PUBLIC_URL', 'wss://kairos.nixorcorporate.com');
+$localAuthEnabled = false;
+$passwordMinLength = 12;
+$passwordMaxLength = 1024;
+try {
+    require_once dirname(__DIR__, 2) . '/src/auth/bootstrap.php';
+    $authConfig = kairos_auth_config();
+    $localAuthEnabled = $authConfig->enabled;
+    $passwordMinLength = $authConfig->passwordMinLength;
+    $passwordMaxLength = $authConfig->passwordMaxLength;
+} catch (Throwable $error) {
+    error_log('[kairos] public auth configuration failed: ' . get_class($error));
+}
 
 $config = [
     'googleClientId' => is_string($googleClientId) && $googleClientId !== '' ? $googleClientId : null,
@@ -19,6 +31,11 @@ $config = [
     'wsSocketPath' => is_string($wsSocketPath) && $wsSocketPath !== ''
         ? '/' . ltrim($wsSocketPath, '/')
         : '/websocket/socket.io',
+    'localAuthEnabled' => $localAuthEnabled,
+    'passwordPolicy' => [
+        'minLength' => $passwordMinLength,
+        'maxLength' => $passwordMaxLength,
+    ],
     'branding' => [
         'productName' => 'Kairos',
         'homeLabel' => 'Kairos home',

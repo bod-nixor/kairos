@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  let session = null;
   try {
     if (window.KairosLMS && typeof window.KairosLMS.boot === 'function') {
-      await window.KairosLMS.boot();
+      session = await window.KairosLMS.boot();
     }
   } catch (err) {
     console.error('[Settings] boot failed:', err);
@@ -114,4 +115,110 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   syncControlsFromTheme();
   document.addEventListener('kairos:ui-settings', syncControlsFromTheme);
+
+  const appConfig = typeof window.waitForAppConfig === 'function'
+    ? await window.waitForAppConfig().catch(() => window.SignoffConfig || {})
+    : (window.SignoffConfig || {});
+  const me = session?.me || window.KairosIdentity?.me || {};
+  const changeSection = document.getElementById('changePasswordSection');
+  const changeForm = document.getElementById('changePasswordForm');
+  const changeStatus = document.getElementById('changePasswordStatus');
+  const newPassword = document.getElementById('newPassword');
+  const passwordGuidance = document.getElementById('settingsPasswordGuidance');
+  const googleSection = document.getElementById('googleLinkSection');
+  const googleDescription = document.getElementById('googleLinkDescription');
+  const startGoogleLinkBtn = document.getElementById('startGoogleLinkBtn');
+  const googleButton = document.getElementById('googleLinkButton');
+  const googleStatus = document.getElementById('googleLinkStatus');
+
+  const localEnabled = appConfig.localAuthEnabled === true;
+  changeSection?.classList.toggle('hidden', !(localEnabled && me.has_password));
+  googleSection?.classList.toggle('hidden', !localEnabled);
+
+  newPassword?.addEventListener('input', () => {
+    const result = window.KairosAuth.passwordGuidance(newPassword.value, appConfig.passwordPolicy || {});
+    if (passwordGuidance) {
+      passwordGuidance.textContent = result.message;
+      passwordGuidance.dataset.tone = result.tone;
+    }
+  });
+
+  changeForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = changeForm.querySelector('button[type="submit"]');
+    const currentPassword = changeForm.elements.current_password.value;
+    const nextPassword = changeForm.elements.new_password.value;
+    const confirmation = changeForm.elements.confirm_password.value;
+    if (!currentPassword || !nextPassword || nextPassword !== confirmation) {
+      window.KairosAuth.setStatus(changeStatus, 'Enter the current password and matching new passwords.', 'danger');
+      return;
+    }
+    submit.disabled = true;
+    try {
+      const result = await window.KairosAuth.post('./api/auth/change_password.php', {
+        current_password: currentPassword,
+        new_password: nextPassword,
+      });
+      changeForm.reset();
+      window.KairosAuth.setStatus(changeStatus, result.message, 'success');
+    } catch (error) {
+      window.KairosAuth.setStatus(changeStatus, error.message, 'danger');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  if (me.google_linked) {
+    if (googleDescription) {
+      googleDescription.textContent = 'A Nixor Google account is linked and can be used to sign in. For account security, it cannot currently be removed.';
+    }
+    if (startGoogleLinkBtn) {
+      startGoogleLinkBtn.textContent = 'Google account linked';
+      startGoogleLinkBtn.disabled = true;
+    }
+  } else {
+    startGoogleLinkBtn?.addEventListener('click', async () => {
+      startGoogleLinkBtn.disabled = true;
+      try {
+        const linkSession = await window.KairosAuth.post('./api/auth/google_link_start.php', {});
+        if (!window.google?.accounts?.id || !appConfig.googleClientId) {
+          throw new Error('Google linking is temporarily unavailable.');
+        }
+        window.KairosAuth.setStatus(googleStatus, 'Choose the Nixor Google account to link.', 'neutral');
+        googleButton.classList.remove('hidden');
+        googleButton.innerHTML = '';
+        google.accounts.id.initialize({
+          client_id: appConfig.googleClientId,
+          ux_mode: 'popup',
+          auto_select: false,
+          itp_support: true,
+          callback: async (response) => {
+            try {
+              const result = await window.KairosAuth.post('./api/auth/google_link_complete.php', {
+                credential: response.credential,
+                state: linkSession.state,
+              });
+              googleButton.classList.add('hidden');
+              startGoogleLinkBtn.textContent = 'Google account linked';
+              startGoogleLinkBtn.disabled = true;
+              window.KairosAuth.setStatus(googleStatus, result.message, 'success');
+            } catch (error) {
+              startGoogleLinkBtn.disabled = false;
+              window.KairosAuth.setStatus(googleStatus, error.message, 'danger');
+            }
+          },
+        });
+        google.accounts.id.renderButton(googleButton, {
+          theme: 'outline',
+          size: 'large',
+          shape: 'rectangular',
+          text: 'continue_with',
+          logo_alignment: 'left',
+        });
+      } catch (error) {
+        startGoogleLinkBtn.disabled = false;
+        window.KairosAuth.setStatus(googleStatus, error.message, 'danger');
+      }
+    });
+  }
 });

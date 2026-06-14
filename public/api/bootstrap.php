@@ -192,7 +192,7 @@ function kairos_apply_cors_policy(): void
         header('Access-Control-Allow-Origin: ' . $normalized);
         header('Access-Control-Allow-Credentials: true');
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Accept, Content-Type, X-Requested-With');
+        header('Access-Control-Allow-Headers: Accept, Content-Type, X-Requested-With, X-CSRF-Token');
         header('Vary: Origin');
     }
 
@@ -414,8 +414,11 @@ function require_login(): array
     static $refreshed = [];
     if (!isset($refreshed[$userId])) {
         $stmt = db()->prepare(
-            'SELECT u.user_id, u.email, u.name, u.picture_url, u.role_id, u.updated_at,
-                    COALESCE(r.name, :fallback_role) AS role_name, u.is_active
+            'SELECT u.user_id, u.username, u.email, u.name, u.picture_url, u.role_id, u.updated_at,
+                    COALESCE(r.name, :fallback_role) AS role_name, u.is_active,
+                    u.account_status, u.auth_session_version,
+                    CASE WHEN u.password_hash IS NULL THEN 0 ELSE 1 END AS has_password,
+                    CASE WHEN u.google_id IS NULL THEN 0 ELSE 1 END AS google_linked
              FROM users u
              LEFT JOIN roles r ON r.role_id = u.role_id
              WHERE u.user_id = :uid
@@ -426,15 +429,27 @@ function require_login(): array
             ':fallback_role' => DEFAULT_ROLE_NAME,
         ]);
         $fresh = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$fresh || (isset($fresh['is_active']) && (int)$fresh['is_active'] !== 1)) {
+        $storedSessionVersion = (int)($_SESSION['auth_session_version'] ?? 1);
+        $currentSessionVersion = is_array($fresh)
+            ? (int)($fresh['auth_session_version'] ?? 1)
+            : 0;
+        if (
+            !$fresh
+            || (isset($fresh['is_active']) && (int)$fresh['is_active'] !== 1)
+            || strtolower((string)($fresh['account_status'] ?? 'active')) !== 'active'
+            || $storedSessionVersion !== $currentSessionVersion
+        ) {
             $_SESSION = [];
             if (session_status() === PHP_SESSION_ACTIVE) {
                 session_destroy();
             }
             json_out(['error' => 'unauthenticated'], 401);
         }
-        unset($fresh['is_active']);
+        unset($fresh['is_active'], $fresh['auth_session_version']);
+        $fresh['has_password'] = (bool)$fresh['has_password'];
+        $fresh['google_linked'] = (bool)$fresh['google_linked'];
         $_SESSION['user'] = $fresh;
+        $_SESSION['auth_session_version'] = $currentSessionVersion;
         $refreshed[$userId] = true;
     }
 

@@ -4,11 +4,13 @@ declare(strict_types=1);
 function kairos_html_pages(): array
 {
     return [
+        'activate' => 'activate.html',
         'admin' => 'admin.html',
         'analytics' => 'analytics.html',
         'assignment' => 'assignment.html',
         'assignments' => 'assignments.html',
         'course' => 'course.html',
+        'forgot-password' => 'forgot-password.html',
         'grading' => 'grading.html',
         'index' => 'index.html',
         'lesson' => 'lesson.html',
@@ -18,6 +20,7 @@ function kairos_html_pages(): array
         'quiz' => 'quiz.html',
         'quizzes' => 'quizzes.html',
         'resource-viewer' => 'resource-viewer.html',
+        'reset-password' => 'reset-password.html',
         'room' => 'room.html',
         'settings' => 'settings.html',
         'ta' => 'ta.html',

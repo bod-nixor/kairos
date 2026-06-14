@@ -31,6 +31,13 @@ const els = {
   assignSearchResults: document.getElementById('assignSearchResults'),
   assignments: document.getElementById('assignments'),
   assignmentTitle: document.getElementById('assignmentTitle'),
+  localAccountsCard: document.getElementById('localAccountsCard'),
+  localAccountForm: document.getElementById('localAccountForm'),
+  localAccountCourse: document.getElementById('localAccountCourse'),
+  localAccountCourseRole: document.getElementById('localAccountCourseRole'),
+  localAccountStatus: document.getElementById('localAccountStatus'),
+  pendingLocalAccounts: document.getElementById('pendingLocalAccounts'),
+  refreshPendingAccountsBtn: document.getElementById('refreshPendingAccountsBtn'),
   adminNavLinks: document.querySelectorAll('.admin-nav-link'),
   courseSettingsTitle: document.getElementById('courseSettingsTitle'),
   visibilitySelect: document.getElementById('adminCourseVisibilitySelect'),
@@ -85,6 +92,65 @@ function bindEvents() {
       console.warn('logout failed', err);
     }
     window.location.href = '/signoff/';
+  });
+
+  els.localAccountCourse?.addEventListener('change', () => {
+    const hasCourse = Number(els.localAccountCourse.value || '0') > 0;
+    els.localAccountCourseRole.disabled = !hasCourse;
+    if (!hasCourse) els.localAccountCourseRole.value = '';
+  });
+
+  els.localAccountForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = els.localAccountForm.querySelector('button[type="submit"]');
+    const formData = new FormData(els.localAccountForm);
+    const payload = {
+      action: 'create',
+      name: String(formData.get('name') || '').trim(),
+      email: String(formData.get('email') || '').trim(),
+      username: String(formData.get('username') || '').trim(),
+      role: String(formData.get('role') || 'student'),
+      course_id: Number(formData.get('course_id') || '0'),
+      course_role: String(formData.get('course_role') || ''),
+    };
+    submit.disabled = true;
+    window.KairosAuth.setStatus(els.localAccountStatus, 'Creating the pending account...', 'neutral');
+    try {
+      await window.KairosAuth.post('./api/admin/local_accounts.php', payload);
+      els.localAccountForm.reset();
+      els.localAccountCourseRole.disabled = true;
+      window.KairosAuth.setStatus(els.localAccountStatus, 'Account created and activation email sent.', 'success');
+      await loadPendingLocalAccounts();
+    } catch (error) {
+      window.KairosAuth.setStatus(els.localAccountStatus, error.message, 'danger');
+      if (error.code === 'activation_email_failed') {
+        await loadPendingLocalAccounts();
+      }
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  els.refreshPendingAccountsBtn?.addEventListener('click', () => {
+    loadPendingLocalAccounts().catch((error) => reportError(error, 'Failed to load pending accounts'));
+  });
+
+  els.pendingLocalAccounts?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-resend-activation]');
+    if (!button) return;
+    button.disabled = true;
+    try {
+      await window.KairosAuth.post('./api/admin/local_accounts.php', {
+        action: 'resend_activation',
+        identifier: button.dataset.resendActivation,
+      });
+      window.KairosAuth.setStatus(els.localAccountStatus, 'A new activation email was sent.', 'success');
+      await loadPendingLocalAccounts();
+    } catch (error) {
+      window.KairosAuth.setStatus(els.localAccountStatus, error.message, 'danger');
+    } finally {
+      button.disabled = false;
+    }
   });
 
   els.coursesTableBody?.addEventListener('click', (event) => {
@@ -365,6 +431,10 @@ async function bootstrap() {
 
   try {
     await loadCourses({ preserveSelection: false });
+    if (APP_CONFIG.localAuthEnabled === true) {
+      els.localAccountsCard?.classList.remove('hidden');
+      await loadPendingLocalAccounts();
+    }
   } catch (err) {
     if (err?.status === 403) {
       showForbidden();
@@ -453,6 +523,42 @@ function renderCourses() {
   els.coursesTableBody.innerHTML = rows;
   const count = state.courses.length;
   els.courseCount.textContent = count === 1 ? '1 course' : `${count} courses`;
+  populateLocalAccountCourses();
+}
+
+function populateLocalAccountCourses() {
+  if (!els.localAccountCourse) return;
+  const selected = els.localAccountCourse.value;
+  els.localAccountCourse.innerHTML = '<option value="">No initial course assignment</option>'
+    + state.courses.map((course) => (
+      `<option value="${course.course_id}">${escapeHtml(course.name)}</option>`
+    )).join('');
+  if (state.courses.some((course) => String(course.course_id) === selected)) {
+    els.localAccountCourse.value = selected;
+  }
+}
+
+async function loadPendingLocalAccounts() {
+  if (!els.pendingLocalAccounts || APP_CONFIG.localAuthEnabled !== true) return;
+  els.pendingLocalAccounts.innerHTML = '<div class="muted small">Loading pending accounts...</div>';
+  const payload = await fetchJSON('./api/admin/local_accounts.php');
+  const accounts = Array.isArray(payload?.data?.accounts)
+    ? payload.data.accounts
+    : (Array.isArray(payload?.accounts) ? payload.accounts : []);
+  if (!accounts.length) {
+    els.pendingLocalAccounts.innerHTML = '<div class="muted small">No accounts are waiting for activation.</div>';
+    return;
+  }
+  els.pendingLocalAccounts.innerHTML = accounts.map((account) => `
+    <div class="k-list-row">
+      <div>
+        <strong>${escapeHtml(account.name || account.username || account.email)}</strong>
+        <div class="muted small">${escapeHtml(account.email)} · ${escapeHtml(account.role_name || 'student')}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button"
+        data-resend-activation="${escapeAttr(account.username || account.email)}">Resend activation</button>
+    </div>
+  `).join('');
 }
 
 function selectCourse(courseId, options = {}) {

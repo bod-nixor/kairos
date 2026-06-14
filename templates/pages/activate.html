@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <title>Activate account - Kairos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Activate your administrator-created Kairos account." />
+  <link rel="icon" type="image/png" href="./images/logo.png" />
+  <script data-cfasync="false" nonce="{{CSP_NONCE}}">(function(){try{var s=localStorage.getItem('kairos-theme');document.documentElement.dataset.theme=s||(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){document.documentElement.dataset.theme='light'}})()</script>
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/lms.css" />
+  <link rel="stylesheet" href="./css/kairos-ui.css" />
+  <script data-cfasync="false" src="./js/config.js"></script>
+</head>
+<body class="k-page-body k-pre-auth" data-auth-page="activation">
+  <aside class="k-sidebar hidden" aria-hidden="true"></aside>
+  <div class="k-layout">
+    <header class="k-topbar hidden" aria-hidden="true"></header>
+    <main class="k-main">
+      <div class="k-page">
+        <section class="centerbox k-auth-card" aria-labelledby="authPageTitle">
+          <div class="k-card k-auth-panel">
+            <div class="k-auth-heading">
+              <div class="k-auth-logo"><img class="k-brand-badge" src="./images/logo.png" alt="Kairos" /></div>
+              <h1 class="k-auth-title" id="authPageTitle">Activate your account</h1>
+              <p class="k-auth-subtitle muted">Set a password that only you know.</p>
+            </div>
+            <form class="k-auth-form" id="authActionForm" novalidate>
+              <div class="k-form-field">
+                <label for="authPassword">New password</label>
+                <input class="k-input" id="authPassword" name="password" type="password"
+                  autocomplete="new-password" maxlength="1024" required />
+              </div>
+              <div class="k-form-field">
+                <label for="authPasswordConfirm">Confirm new password</label>
+                <input class="k-input" id="authPasswordConfirm" name="password_confirm" type="password"
+                  autocomplete="new-password" maxlength="1024" required />
+              </div>
+              <p class="muted small" id="authPasswordGuidance">Use at least 12 characters. Long passphrases work well.</p>
+              <button class="btn btn-primary k-auth-submit" type="submit">Activate account</button>
+              <p class="k-auth-status" id="authActionStatus" role="status" aria-live="polite" hidden></p>
+            </form>
+            <p class="k-auth-help muted small"><a href="/signoff/">Back to login</a></p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script data-cfasync="false" src="./js/theme.js"></script>
+  <script data-cfasync="false" src="./js/auth-client.js"></script>
+  <script data-cfasync="false" src="./js/auth-pages.js"></script>
+</body>
+</html>

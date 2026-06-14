@@ -77,14 +77,8 @@ function showForbidden() {
 
 async function handleCredentialResponse(resp) {
   try {
-    const r = await fetch('./api/auth.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ credential: resp.credential })
-    });
-    const data = await r.json();
-    if (!data.success) throw new Error(data.error || 'Auth failed');
+    if (!window.KairosAuth) throw new Error('Sign-in services are unavailable.');
+    await window.KairosAuth.post('./api/auth.php', { credential: resp.credential });
     await bootstrap();
   } catch (err) {
     alert('Login failed: ' + err.message);
