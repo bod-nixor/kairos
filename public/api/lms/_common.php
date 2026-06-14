@@ -238,6 +238,10 @@ function lms_require_submission_access(
     $assignmentId = (int)($submission['assignment_id'] ?? 0);
     $studentUserId = (int)($submission['student_user_id'] ?? 0);
     $userId = (int)($user['user_id'] ?? 0);
+    $assignment = lms_assignment_scope($pdo, $assignmentId);
+    if (!$assignment || (int)$assignment['course_id'] !== $courseId) {
+        lms_error('not_found', 'Submission not found', 404);
+    }
     $courseRole = rbac_course_role($pdo, $user, $courseId);
 
     if ($allowOwner && !$requireGrader && $courseRole === 'student' && $studentUserId === $userId) {
@@ -260,6 +264,7 @@ function lms_is_staff_role(string $role): bool
 function lms_emit_event(PDO $pdo, string $eventName, array $event): void
 {
     try {
+        $event['event_name'] = $eventName;
         // Normalize occurred_at to MySQL DATETIME format (Y-m-d H:i:s)
         $occurredAt = $event['occurred_at'] ?? gmdate('Y-m-d H:i:s');
         if (strtotime($occurredAt) !== false) {

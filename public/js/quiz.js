@@ -22,6 +22,13 @@
         showEl(id);
     }
 
+    function renderUnavailable() {
+        const target = $('quizError');
+        if (!target) return;
+        target.innerHTML = `<div class="k-empty"><div class="k-empty__icon" aria-hidden="true">⚡</div><p class="k-empty__title">Quiz unavailable</p><p class="k-empty__desc">This quiz was deleted or is no longer available in this course.</p><a class="btn btn-primary" href="./quizzes.html?course_id=${encodeURIComponent(COURSE_ID)}">Back to quizzes</a></div>`;
+        showPanel('quizError');
+    }
+
 
     const debugLogs = [];
 
@@ -335,7 +342,7 @@
         const panel = document.createElement('section');
         panel.id = 'quizStaffPanel';
         panel.className = 'k-card k-staff-panel';
-        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Quiz Management</h3><div class="k-staff-panel__actions"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffEditQuizBtn" type="button">Edit Quiz</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button></div><div id="staffQuestions" class="k-staff-panel__list"></div><div id="staffAttempts" class="k-staff-panel__list"></div>`;
+        panel.innerHTML = `<h3 class="k-staff-panel__title">Staff Quiz Management</h3><div class="k-staff-panel__actions"><button class="btn btn-secondary btn-sm" id="staffAddQuestionBtn" type="button">+ Add Question</button><button class="btn btn-ghost btn-sm" id="staffEditQuizBtn" type="button">Edit Quiz</button><button class="btn btn-ghost btn-sm" id="staffPublishQuizBtn" type="button">Publish</button><button class="btn btn-ghost btn-sm" id="staffDraftQuizBtn" type="button">Move to Draft</button><button class="btn btn-ghost btn-sm${quizData?.module_linked ? '' : ' hidden'}" id="staffMandatoryBtn" type="button"></button><button class="btn btn-ghost btn-sm" id="staffLoadAttemptsBtn" type="button">Load Attempts</button><button class="btn btn-danger btn-sm" id="staffDeleteQuizBtn" type="button">Delete quiz</button></div><div id="staffQuestions" class="k-staff-panel__list"></div><div id="staffAttempts" class="k-staff-panel__list"></div>`;
         intro.appendChild(panel);
 
         const staffMandatoryBtn = $('staffMandatoryBtn');
@@ -411,6 +418,25 @@
                     <span>${LMS.escHtml(a.status || 'In progress')}</span>
                     <span>${a.score === null ? 'Awaiting grade' : `${a.score} / ${a.max_score ?? '-'}`}</span>
                 </div>`).join('');
+        });
+        $('staffDeleteQuizBtn')?.addEventListener('click', () => {
+            LMS.confirm(
+                'Delete quiz',
+                'This archives the quiz, removes it from every module and active course list, and hides it from student and grading views. Existing attempts and grades remain stored for audit. A quiz with an in-progress attempt cannot be deleted.',
+                async () => {
+                    const res = await LMS.api('POST', './api/lms/quiz/delete.php', {
+                        assessment_id: Number(QUIZ_ID),
+                        course_id: Number(COURSE_ID),
+                    });
+                    if (!res.ok) {
+                        LMS.toast(res.error || res.data?.error?.message || 'Quiz could not be deleted.', 'error');
+                        return;
+                    }
+                    LMS.toast('Quiz deleted.', 'success');
+                    window.location.assign(`./quizzes.html?course_id=${encodeURIComponent(COURSE_ID)}`);
+                },
+                { okLabel: 'Delete quiz', okClass: 'btn-danger' }
+            );
         });
 
         const qRes = await LMS.api('GET', `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`);
@@ -493,6 +519,10 @@
             showPanel('quizAccessDenied');
             return;
         }
+        if (res.status === 404) {
+            renderUnavailable();
+            return;
+        }
         if (!res.ok) {
             showPanel('quizError');
             $('quizRetryBtn') && $('quizRetryBtn').addEventListener('click', loadPage, { once: true });
@@ -552,6 +582,17 @@
         await renderStaffPanel();
     }
 
+    function wireRealtime() {
+        if (!window.LmsWS) return;
+        ['quiz.updated', 'quiz.deleted'].forEach((eventName) => {
+            LmsWS.on(eventName, (payload) => {
+                if (String(payload.course_id || '') !== String(COURSE_ID)) return;
+                if (Number(payload.entity_id || 0) !== Number(QUIZ_ID)) return;
+                loadPage();
+            });
+        });
+    }
+
     async function startAttempt() {
         const endpoint = './api/lms/quiz/attempt.php';
         const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
@@ -597,6 +638,7 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        wireRealtime();
         await loadPage();
     });
 

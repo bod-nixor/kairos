@@ -12,7 +12,7 @@ if ($id <= 0) {
 }
 
 $pdo = db();
-$existingStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.prompt, q.question_type, q.points, q.position, q.is_required, q.answer_key_json, q.settings_json, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id WHERE q.question_id=:id AND q.deleted_at IS NULL LIMIT 1');
+$existingStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.prompt, q.question_type, q.points, q.position, q.is_required, q.answer_key_json, q.settings_json, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id AND a.deleted_at IS NULL WHERE q.question_id=:id AND q.deleted_at IS NULL LIMIT 1');
 $existingStmt->execute([':id' => $id]);
 $existing = $existingStmt->fetch();
 if (!$existing) {

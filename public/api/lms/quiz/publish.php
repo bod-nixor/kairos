@@ -22,7 +22,7 @@ if (!$row) {
     lms_error('not_found', 'Quiz not found', 404);
 }
 
-lms_course_access($user, (int)$row['course_id']);
+lms_require_course_capability($user, 'manage_course', (int)$row['course_id']);
 
 try {
     $pdo->beginTransaction();
@@ -30,8 +30,11 @@ try {
     $pdo->prepare('UPDATE lms_assessments SET status=:status, updated_at=CURRENT_TIMESTAMP WHERE assessment_id=:id')
         ->execute([':status' => $newStatus, ':id' => $assessmentId]);
 
-    $moduleItemStmt = $pdo->prepare("SELECT module_item_id FROM lms_module_items WHERE item_type='quiz' AND entity_id=:id LIMIT 1 FOR UPDATE");
-    $moduleItemStmt->execute([':id' => $assessmentId]);
+    $moduleItemStmt = $pdo->prepare("SELECT module_item_id FROM lms_module_items WHERE course_id=:course_id AND item_type='quiz' AND entity_id=:id LIMIT 1 FOR UPDATE");
+    $moduleItemStmt->execute([
+        ':course_id' => (int)$row['course_id'],
+        ':id' => $assessmentId,
+    ]);
     $moduleItem = $moduleItemStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($moduleItem) {
@@ -40,18 +43,19 @@ try {
                 ':published' => $published,
                 ':module_item_id' => (int)$moduleItem['module_item_id'],
             ]);
-    } else {
-        $pdo->prepare("INSERT INTO lms_module_items (course_id, section_id, item_type, entity_id, title, position, published_flag, required_flag, created_by)
-            VALUES (:course_id,:section_id,'quiz',:entity_id,:title,1,:published,0,:created_by)")
-            ->execute([
-                ':course_id' => (int)$row['course_id'],
-                ':section_id' => $row['section_id'] === null ? null : (int)$row['section_id'],
-                ':entity_id' => $assessmentId,
-                ':title' => (string)$row['title'],
-                ':published' => $published,
-                ':created_by' => (int)$user['user_id'],
-            ]);
     }
+
+    lms_emit_event($pdo, 'quiz.updated', [
+        'event_name' => 'quiz.updated',
+        'event_id' => lms_uuid_v4(),
+        'occurred_at' => gmdate('Y-m-d H:i:s'),
+        'actor_id' => (int)$user['user_id'],
+        'entity_type' => 'quiz',
+        'entity_id' => $assessmentId,
+        'course_id' => (int)$row['course_id'],
+        'title' => (string)$row['title'],
+        'status' => $newStatus,
+    ]);
 
     $pdo->commit();
 } catch (Throwable $e) {

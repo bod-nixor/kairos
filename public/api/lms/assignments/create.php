@@ -36,6 +36,7 @@ if ($dueAt !== null && strtotime((string)$dueAt) === false) {
 }
 
 $pdo = db();
+lms_require_assignment_restriction_schema($pdo);
 $pdo->beginTransaction();
 try {
     $pdo->prepare('INSERT INTO lms_assignments (course_id, section_id, title, instructions, due_at, late_allowed, max_points, allowed_file_extensions, max_file_mb, status, created_by)
@@ -73,4 +74,8 @@ try {
     lms_error('assignment_create_failed', 'Failed to create assignment', 500);
 }
 
-lms_ok(['assignment_id' => $assignmentId]);
+lms_ok([
+    'assignment_id' => $assignmentId,
+    'allowed_file_extensions' => $allowedFileExtensions,
+    'max_file_mb' => $maxFileMb,
+]);

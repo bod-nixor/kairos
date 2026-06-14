@@ -116,11 +116,22 @@
         showEl('loadedView');
     }
 
+    function wireRealtime() {
+        if (!window.LmsWS) return;
+        ['quiz.created', 'quiz.updated', 'quiz.deleted'].forEach((eventName) => {
+            LmsWS.on(eventName, (payload) => {
+                if (String(payload.course_id || '') !== String(COURSE_ID)) return;
+                loadPage();
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         $('retryBtn') && $('retryBtn').addEventListener('click', loadPage);
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        wireRealtime();
         $('createQuizBtn')?.addEventListener('click', createQuiz);
         await loadPage();
     });

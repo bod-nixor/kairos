@@ -36,6 +36,7 @@ if ($submissionComment !== '' && !function_exists('mb_strlen') && strlen($submis
 }
 
 $pdo = db();
+lms_require_assignment_restriction_schema($pdo);
 $aSt = $pdo->prepare('SELECT assignment_id, course_id, due_at, status, late_allowed, allowed_file_extensions, max_file_mb FROM lms_assignments WHERE assignment_id=:id AND deleted_at IS NULL');
 $aSt->execute([':id' => $assignmentId]);
 $assignment = $aSt->fetch();
@@ -55,13 +56,9 @@ if ($late && (int)$assignment['late_allowed'] === 0) {
 
 $uploadMeta = null;
 if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-    $allowedExtRaw = trim(strtolower((string)($assignment['allowed_file_extensions'] ?? '')));
-    $allowedExts = $allowedExtRaw === ''
-        ? null
-        : array_values(array_filter(array_map(
-            static fn($value): string => trim((string)$value),
-            explode(',', $allowedExtRaw)
-        )));
+    $allowedExts = lms_assignment_allowed_extensions_for_validation(
+        $assignment['allowed_file_extensions'] ?? null
+    );
     $maxMb = max(1, (int)($assignment['max_file_mb'] ?? 50));
     $uploadMeta = lms_validate_uploaded_file(
         $_FILES['file'],

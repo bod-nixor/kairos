@@ -86,7 +86,7 @@
     }
 
     /* =========================================================
-       ADMIN: Edit / Delete Module Item Settings Modal
+       ADMIN: Edit / Remove Module Item Settings Modal
        ========================================================= */
     function openEditItemModal(item) {
         const mid = parseInt(item.module_item_id || 0, 10);
@@ -145,18 +145,18 @@
     function confirmDeleteItem(item) {
         const mid = parseInt(item.module_item_id || 0, 10);
         const title = item.title || item.name || 'this item';
-        LMS.confirm('Delete Module Item', `Are you sure you want to remove "${title}" from this module? The underlying content will not be deleted.`, async () => {
+        LMS.confirm('Remove from module', `Remove "${title}" from this module? The underlying content will stay available in its course library.`, async () => {
             const res = await LMS.api('POST', './api/lms/module_items/delete.php', {
                 module_item_id: mid,
                 course_id: COURSE_ID_INT,
             });
             if (res.ok) {
-                LMS.toast('Item removed', 'success');
+                LMS.toast('Removed from module', 'success');
                 await loadPage();
             } else {
-                LMS.toast(res.data?.error?.message || 'Delete failed', 'error');
+                LMS.toast(res.error || res.data?.error?.message || 'Remove failed', 'error');
             }
-        }, { okLabel: 'Delete', okClass: 'btn-danger' });
+        }, { okLabel: 'Remove', okClass: 'btn-danger' });
     }
 
     /* =========================================================
@@ -831,6 +831,16 @@
         renderModules(modules);
     }
 
+    function wireRealtime() {
+        if (!window.LmsWS) return;
+        ['module_item.removed', 'assignment.created', 'assignment.updated', 'assignment.deleted', 'quiz.created', 'quiz.updated', 'quiz.deleted'].forEach((eventName) => {
+            LmsWS.on(eventName, (payload) => {
+                if (String(payload.course_id || '') !== String(COURSE_ID_INT)) return;
+                loadPage();
+            });
+        });
+    }
+
     /* =========================================================
        INIT
        ========================================================= */
@@ -848,6 +858,7 @@
         const session = await LMS.boot();
         if (!session) return;
         LMS.nav.updateUserBar(session.me);
+        wireRealtime();
         $('addModuleBtn')?.addEventListener('click', () => {
             if (isAdmin) openCreateModal('module');
         });
