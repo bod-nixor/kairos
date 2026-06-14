@@ -143,6 +143,9 @@ async function bootstrap() {
     try {
       const rawCaps = await apiGet('./api/session_capabilities.php');
       sessionRoles = normalizeSessionRoles(rawCaps);
+      if (typeof window.updateSidebarRoleLinks === 'function') {
+        window.updateSidebarRoleLinks(sessionRoles);
+      }
     } catch (err) {
       if (err?.status === 401 || err?.status === 403) throw err;
       sessionRoles = {};

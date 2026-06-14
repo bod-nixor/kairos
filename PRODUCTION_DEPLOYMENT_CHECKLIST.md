@@ -26,9 +26,11 @@ Deploy the complete repository change set, including:
 - `ws_server.py`
 - `db/migrations/20260613_1430_add_announcement_publication_audit.sql`
 - `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`
+- `db/migrations/20260614_1600_create_lms_assignment_notes.sql`
+- `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql`
 - updated security documentation, runbooks, and test files
 
-Apply both SQL migrations before deploying the related API/UI.
+Apply all SQL migrations before deploying the related API/UI.
 
 ## Database Migration
 
@@ -38,11 +40,15 @@ Apply both SQL migrations before deploying the related API/UI.
 ```bash
 mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_audit.sql
 mariadb -u <user> -p < db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
+mariadb -u <user> -p < db/migrations/20260614_1600_create_lms_assignment_notes.sql
+mariadb -u <user> -p < db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql
 ```
 
 - [ ] Verify `lms_announcements.status`, `published_at`, and `idx_lms_announcements_course_status`.
 - [ ] Verify `lms_announcement_audit` and its foreign keys/indexes.
 - [ ] Verify `lms_assignments.allowed_file_extensions` and `lms_assignments.max_file_mb`.
+- [ ] Verify the table `lms_assignment_notes` has been created with primary keys and `student_user_id` index.
+- [ ] Verify the table `lms_grades` contains columns: `staff_private_note`, `grade_override`, `rubric_grades_json`.
 - [ ] Do not run the rollback unless application code has first been rolled back and audit retention has been approved.
 
 ## Environment Verification

@@ -164,19 +164,46 @@
         const overrideField = $('overrideField');
         if (overrideField) overrideField.classList.toggle('hidden', gradingRole !== 'manager');
 
-        // Restore saved values
+        // Restore saved values initially (from queue list)
         $('feedbackText') && ($('feedbackText').value = sub.feedback || '');
         $('privateNote') && ($('privateNote').value = sub.private_note || '');
-        if (sub.grade_override !== undefined && $('gradeOverride')) {
-            $('gradeOverride').value = sub.grade_override;
+        if ($('gradeOverride')) {
+            if (gradingRole === 'manager' && sub.grade_override !== undefined) {
+                $('gradeOverride').value = sub.grade_override !== null ? sub.grade_override : '';
+            } else {
+                $('gradeOverride').value = '';
+            }
         }
 
         // Fetch full submission detail (lazy load)
         const res = await LMS.api('GET', `./api/lms/submission.php?id=${encodeURIComponent(sub.id)}`);
         const detail = res.ok ? (res.data?.data || res.data || sub) : sub;
 
+        // Restore values from detail (accurate from DB)
+        $('feedbackText') && ($('feedbackText').value = detail.feedback || '');
+        $('privateNote') && ($('privateNote').value = detail.private_note || '');
+        if ($('gradeOverride')) {
+            if (gradingRole === 'manager') {
+                $('gradeOverride').value = detail.grade_override !== null && detail.grade_override !== undefined ? detail.grade_override : '';
+            } else {
+                $('gradeOverride').value = '';
+            }
+        }
+
         // Render submission view
         ['submissionFileView', 'submissionTextView', 'submissionUrlView', 'submissionAttachments'].forEach(hideEl);
+
+        // Student comment
+        const commentContainer = $('submissionCommentContainer');
+        const commentText = $('submissionCommentText');
+        if (commentContainer && commentText) {
+            if (detail.submission_comment && detail.submission_comment.trim()) {
+                commentText.textContent = detail.submission_comment.trim();
+                commentContainer.classList.remove('hidden');
+            } else {
+                commentContainer.classList.add('hidden');
+            }
+        }
         if (detail.type === 'file' && detail.file_url) {
             // Normalize Drive URLs to /preview for proper embedding
             const previewUrl = LMS.toDrivePreviewUrl ? LMS.toDrivePreviewUrl(detail.file_url) : detail.file_url;

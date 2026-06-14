@@ -37,7 +37,7 @@ Public course self-enrollment grants student-level participation access dynamica
 | View another student's submission | no | assigned grading only | scoped | all |
 | View grade drafts | no | assigned grading only | scoped | all |
 
-`view_course_public` grants course metadata and the enrol CTA only. It does not grant dependent LMS objects, rooms, queues, or realtime subscriptions. For assignment grading, a TA must also appear in `lms_assignment_tas`. Students receive only the latest grade whose status is `released`.
+`view_course_public` grants course metadata and the enroll CTA only. It does not grant dependent LMS objects, rooms, queues, or realtime subscriptions. For assignment grading, a TA must also appear in `lms_assignment_tas`. Students receive only the latest grade whose status is `released`.
 
 ## Page Matrix
 
@@ -145,9 +145,9 @@ and oversized files. Validation completes before Drive upload and before the sub
 
 ## Manual Smoke Plan
 
-1. Student: preview a public foreign course, enrol, then verify published content only and own released grade only.
-2. TA: verify assigned-course grading/progress; preview and enrol in another public course without receiving foreign staff controls.
-3. Manager: verify full assigned-course editing; preview and enrol in another public course without receiving foreign management controls.
+1. Student: preview a public foreign course, enroll, then verify published content only and own released grade only.
+2. TA: verify assigned-course grading/progress; preview and enroll in another public course without receiving foreign staff controls.
+3. Manager: verify full assigned-course editing; preview and enroll in another public course without receiving foreign management controls.
 4. Admin: verify all-course management, course creation, and staff assign/remove.
 5. For each role, directly open grading, analytics, lesson edit, assignment edit, and course settings URLs.
 6. Verify queue/room and WebSocket subscriptions reject mismatched or foreign course context.
@@ -161,7 +161,19 @@ and oversized files. Validation completes before Drive upload and before the sub
 
 Apply `db/migrations/20260613_1430_add_announcement_publication_audit.sql` before deploying the announcement API/UI. It adds publication state, a lookup index, and `lms_announcement_audit`. The application does not mutate schema at runtime.
 
-Apply `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql` before deploying assignment restriction
-updates. Missing columns produce a sanitized `503`; the API never reports a successful partial update.
+Apply `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql` before deploying assignment restriction updates. Missing columns produce a sanitized `503`; the API never reports a successful partial update.
+
+Apply `db/migrations/20260614_1600_create_lms_assignment_notes.sql` before deploying the student private assignment notes feature.
+
+Apply `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql` before deploying the rubric scoring, override grade, and staff private note persistence updates in the grading system.
 
 The June 14 public-course access pass adds no migration. It uses existing `courses.visibility`, `courses.is_active`, `course_allowlist`, `course_pre_enroll`, and `student_courses` structures.
+
+### Navigation and Capability Rules
+
+- **Sitewide Admin**: Admins see Admin, Manager, and TA/Grading global navigation links on all dashboards. They can access any course management/grading workflows directly or through the sidebar.
+- **Course Manager-as-TA**: A Course Manager automatically inherits TA capabilities (grading, submissions, queues) for their own managed courses without requiring a separate TA mapping.
+- **Login Redirect Security**: Client-side sessionStorage-based `kairos:returnUrl` redirect preserves path and query string parameters. Open-redirect prevention rejects external URLs, protocol-relative hosts, and any backslashes (`\`, `%5c`, `%5C`).
+- **Student Assignment Notes**: Students have independent private notes saved via auto-saving `/api/lms/assignments/save_note.php` without creating new submission records. These notes are separate from submission comments and staff private notes.
+- **Staff Grading & Rubric Overrides**: Persistent rubric scoring, grade overrides, and staff private notes are saved in the `lms_grades` table. Staff private notes are strictly hidden from students.
+

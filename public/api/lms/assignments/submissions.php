@@ -39,9 +39,16 @@ try {
         lms_error('forbidden', 'Assignment is not published', 403);
     }
 
-    $gradeStatusFilter = $canViewAll ? '' : " AND g2.status = 'released'";
+    $hasOverride = false;
+    try {
+        $pdo->query('SELECT grade_override FROM lms_grades LIMIT 1');
+        $hasOverride = true;
+    } catch (Throwable $_) {}
+
+    $gradeCol = $hasOverride ? 'COALESCE(g.grade_override, g.score) AS grade' : 'g.score AS grade';
+    $gradeStatusFilter = $canViewAll ? '' : " AND g2.status IN ('released', 'overridden')";
     $baseSql = 'SELECT s.submission_id, s.assignment_id, s.student_user_id, u.name AS student_name, s.version, s.status, s.submitted_at, s.is_late,
-        s.text_submission, s.submission_comment, g.score AS grade, g.feedback,
+        s.text_submission, s.submission_comment, ' . $gradeCol . ', g.feedback,
         r.resource_id, r.title AS file_name, r.mime_type, r.file_size, r.drive_file_id
         FROM lms_submissions s
         JOIN users u ON u.user_id = s.student_user_id
