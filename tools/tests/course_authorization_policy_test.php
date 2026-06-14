@@ -1,67 +1,76 @@
 <?php
 declare(strict_types=1);
 
-function policy_allows(array $actor, string $capability, int $courseId, array $state): bool
+require_once dirname(__DIR__, 2) . '/src/course_access_policy.php';
+
+function decision(array $overrides = []): array
 {
-    $role = strtolower((string)($actor['role'] ?? ''));
-    $userId = (int)($actor['user_id'] ?? 0);
-    if ($role === 'admin') {
-        return in_array($capability, [
-            'view_course', 'manage_course', 'grade_course', 'update_student_progress',
-            'manage_course_announcements', 'assign_course_staff', 'create_course',
-        ], true);
-    }
-    $assigned = in_array($courseId, $state[$role][$userId] ?? [], true);
-    return match ($capability) {
-        'view_course' => $assigned,
-        'manage_course', 'manage_course_announcements' => $role === 'manager' && $assigned,
-        'grade_course', 'update_student_progress' => in_array($role, ['ta', 'manager'], true) && $assigned,
-        'assign_course_staff', 'create_course' => false,
-        default => false,
-    };
+    return kairos_course_access_decision($overrides + [
+        'authenticated' => true,
+        'course_active' => true,
+        'visibility' => 'restricted',
+        'is_admin' => false,
+        'assigned_manager' => false,
+        'assigned_ta' => false,
+        'enrolled_student' => false,
+        'allowlisted' => false,
+        'pre_enrolled' => false,
+    ]);
 }
 
-$state = [
-    'student' => [10 => [101]],
-    'ta' => [20 => [101]],
-    'manager' => [30 => [101]],
-];
-$student = ['user_id' => 10, 'role' => 'student'];
-$ta = ['user_id' => 20, 'role' => 'ta'];
-$manager = ['user_id' => 30, 'role' => 'manager'];
-$admin = ['user_id' => 40, 'role' => 'admin'];
+$studentEnrolled = decision(['enrolled_student' => true]);
+$studentPublic = decision(['visibility' => 'public']);
+$studentPrivate = decision();
+$taAssigned = decision(['assigned_ta' => true]);
+$taPublicForeign = decision(['visibility' => 'public']);
+$taEnrolledForeign = decision(['visibility' => 'public', 'enrolled_student' => true]);
+$managerAssigned = decision(['assigned_manager' => true]);
+$managerPublicForeign = decision(['visibility' => 'public']);
+$admin = decision(['is_admin' => true]);
+$downgradedTa = decision(['assigned_ta' => true, 'is_admin' => false]);
+$downgradedTaForeign = decision(['visibility' => 'public', 'is_admin' => false]);
+$archived = decision(['course_active' => false, 'visibility' => 'public', 'is_admin' => true]);
+$invited = decision(['allowlisted' => true]);
+$unauthenticated = decision(['authenticated' => false, 'visibility' => 'public']);
 
 $checks = [
-    [!policy_allows($student, 'manage_course', 101, $state), 'student cannot update course settings'],
-    [!policy_allows($student, 'grade_course', 101, $state), 'student cannot access manager grading workflows'],
-    [!policy_allows($student, 'update_student_progress', 101, $state), 'student cannot update another student progress'],
-    [!policy_allows($student, 'manage_course_announcements', 101, $state), 'student cannot mutate announcements'],
-    [!policy_allows($ta, 'manage_course', 101, $state), 'TA cannot edit course settings'],
-    [!policy_allows($ta, 'manage_course_announcements', 101, $state), 'TA cannot mutate announcements'],
-    [policy_allows($ta, 'grade_course', 101, $state), 'TA can grade in an assigned course'],
-    [!policy_allows($ta, 'grade_course', 999, $state), 'TA cannot grade outside assigned courses'],
-    [!policy_allows($ta, 'update_student_progress', 999, $state), 'TA cannot update progress outside assigned courses'],
-    [policy_allows($manager, 'manage_course', 101, $state), 'manager can manage an assigned course'],
-    [!policy_allows($manager, 'manage_course', 999, $state), 'manager cannot access another manager course'],
-    [!policy_allows($manager, 'assign_course_staff', 101, $state), 'manager cannot assign course staff'],
-    [policy_allows($admin, 'create_course', 999, $state), 'admin can create courses'],
-    [policy_allows($admin, 'assign_course_staff', 999, $state), 'admin can assign staff'],
-    [policy_allows($admin, 'manage_course', 999, $state), 'admin can manage every course'],
+    [$studentEnrolled['view_course'], 'student can view enrolled course content'],
+    [$studentEnrolled['participate_as_student'], 'student participation derives from enrollment'],
+    [$studentPublic['view_course_public'] && $studentPublic['view_course_home'], 'student can preview public course'],
+    [$studentPublic['can_self_enroll'] && !$studentPublic['view_course'], 'public preview requires enrollment for content'],
+    [!$studentPrivate['view_course_home'], 'student cannot discover private foreign course'],
+    [$taAssigned['grade_course'] && !$taAssigned['manage_course'], 'assigned TA receives TA capability only'],
+    [$taPublicForeign['view_course_public'] && $taPublicForeign['view_course_home'], 'TA can preview public foreign course'],
+    [!$taPublicForeign['grade_course'] && !$taPublicForeign['manage_course'], 'TA cannot manage or grade foreign public course'],
+    [$taEnrolledForeign['participate_as_student'], 'TA can participate as student in another course'],
+    [$managerAssigned['manage_course'] && $managerAssigned['grade_course'], 'assigned manager can manage course'],
+    [$managerPublicForeign['view_course_public'] && !$managerPublicForeign['manage_course'], 'manager can preview but not manage public foreign course'],
+    [$admin['admin_course'] && $admin['manage_course'] && $admin['view_course'], 'admin retains global active-course authority'],
+    [$downgradedTa['course_role'] === 'ta' && !$downgradedTa['admin_course'], 'downgraded former admin uses current TA context'],
+    [$downgradedTaForeign['course_role'] === 'public' && !$downgradedTaForeign['grade_course'], 'downgraded TA has public-only foreign context'],
+    [!$archived['view_course_home'] && !$archived['admin_course'], 'inactive courses remain inaccessible'],
+    [$invited['view_course_home'] && $invited['can_self_enroll'], 'allowlisted restricted course can be joined'],
+    [!$unauthenticated['view_course_home'], 'public course still requires authentication'],
 ];
 
 $root = dirname(__DIR__, 2);
 $sourceChecks = [
-    ['public/api/lms/courses/_settings_common.php', "/'manage_course'/", 'course settings use manage_course capability'],
-    ['public/api/lms/grading/submission.php', '/lms_require_submission_access/', 'submission detail uses stored submission scope'],
-    ['public/api/lms/grading/submission/grade.php', '/lms_require_submission_access/', 'grade mutation uses stored submission scope'],
-    ['public/api/lms/grading/submission/release.php', '/lms_require_submission_access/', 'grade release uses stored submission scope'],
-    ['public/api/lms/assignments/submissions.php', "/g2\\.status = 'released'/", 'student grade reads filter to released grades'],
-    ['public/api/lms/module_items/update.php', '/module_item_id = :id AND course_id = :cid/', 'module item update scopes object to course'],
-    ['public/api/lms/assignments/get.php', "/assignment\\['course_id'\\].*courseId/", 'assignment lookup rejects foreign course context'],
-    ['public/api/lms/announcements/update.php', '/Announcement not found in this course/', 'announcement update rejects foreign course context'],
-    ['public/api/queue_participants.php', '/rbac_can_view_queue/', 'queue participants remain scope checked'],
-    ['public/api/queue_eta.php', '/rbac_can_view_queue/', 'queue ETA remains scope checked'],
-    ['public/api/lms/resources/download.php', '/lms_authorize_resource_access/', 'protected downloads remain policy checked'],
+    ['public/api/bootstrap.php', '/FROM users u[\s\S]*LEFT JOIN roles/', 'each request refreshes the current DB role'],
+    ['src/rbac.php', '/\\$courses = array_merge\\(\\$courses, rbac_student_course_ids/', 'student enrollment is independent of global role'],
+    ['src/rbac.php', '/LOWER\\(\\$roleIdentifier\\) = \'student\'/', 'legacy role mappings cannot turn staff rows into student participation'],
+    ['public/api/lms/courses.php', '/lms_course_home_access/', 'course detail supports public home access'],
+    ['public/api/lms/courses.php', "/lms_error\\('validation_error', 'Missing or invalid course id\\.', 422\\)/", 'invalid course IDs return a stable validation error'],
+    ['public/api/lms/modules.php', '/lms_course_access/', 'modules still require enrolled or assigned content access'],
+    ['public/api/lms/courses/join.php', '/beginTransaction\\(\\)/', 'self-enrollment is transactional'],
+    ['public/api/lms/courses/join.php', '/INSERT INTO student_courses/', 'self-enrollment writes only student participation'],
+    ['public/api/lms/courses/join.php', '/course\\.enrollment\\.updated/', 'self-enrollment emits post-write invalidation context'],
+    ['public/api/rooms.php', '/rbac_can_access_course/', 'rooms require enrolled or assigned course access'],
+    ['public/api/queue_participants.php', '/rbac_can_view_queue/', 'queue participant reads remain course scoped'],
+    ['public/api/queue_eta.php', '/rbac_can_view_queue/', 'queue ETA remains course scoped'],
+    ['ws_server.py', '/mappings = \\[\\("student_courses", None\\)\\]/', 'realtime accepts student enrollment regardless of global role'],
+    ['ws_server.py', '/course_id is not None and not _user_can_access_course/', 'realtime rejects unauthorized course rooms'],
+    ['public/api/lms/grading/queue.php', "/'grade_course'/", 'grading requires course-scoped grade capability'],
+    ['public/api/lms/analytics_metrics.php', "/'manage_course'/", 'analytics requires course-scoped management'],
 ];
 foreach ($sourceChecks as [$file, $pattern, $message]) {
     $source = (string)file_get_contents($root . '/' . $file);

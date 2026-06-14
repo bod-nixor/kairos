@@ -12,6 +12,7 @@ for (const label of ['Home', 'Modules', 'Quizzes', 'Assignments', 'Grading', 'An
 }
 assert.match(core, /capability: 'grade_course'/);
 assert.match(core, /capability: 'manage_course'/);
+assert.match(core, /label: 'Modules'[\s\S]*capability: 'view_course'/);
 assert.match(core, /courseBread\.href = `\.\/course\.html\?course_id=/);
 assert.match(core, /modulesBread\.href = `\.\/modules\.html\?course_id=/);
 assert.match(core, /aria-current="page"/);
@@ -44,6 +45,11 @@ assert.match(uiCss, /\.k-settings-fab__icon\s*\{[\s\S]*line-height:\s*1/);
 
 const course = read('public/js/course.js');
 assert.match(course, /course\.capabilities\?\.manage_course_announcements/);
+assert.match(course, /course\.capabilities\?\.can_self_enroll/);
+assert.match(course, /Enrol in course/);
+assert.match(course, /Public preview/);
+assert.match(course, /if \(!course\.capabilities\?\.view_course\)/);
+assert.match(course, /LmsWS\.setCourseContext\(COURSE_ID\)/);
 assert.match(course, /data-ann-action="edit"/);
 assert.match(course, /data-ann-action="delete"/);
 assert.match(course, /LMS\.confirm\(\s*'Delete Announcement'/);
@@ -77,6 +83,7 @@ for (const page of coursePages) {
   assert.match(html, /id="kNavCourse"/, `${page} must expose the authoritative course nav mount`);
   assert.match(html, /id="kSidebarName"/, `${page} must retain the profile identity block`);
 }
+assert.match(read('templates/pages/course.html'), /data-realtime-defer-course/);
 
 for (const script of ['lesson.js', 'resource-viewer.js', 'quiz.js', 'assignment.js']) {
   const source = read(`public/js/${script}`);
