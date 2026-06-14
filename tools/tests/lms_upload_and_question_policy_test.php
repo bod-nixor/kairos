@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+if (!function_exists('env')) {
+    function env(string $key, $default = null)
+    {
+        return $default;
+    }
+}
+
 require_once dirname(__DIR__, 2) . '/public/api/lms/assignments/_restriction_helpers.php';
 require_once dirname(__DIR__, 2) . '/public/api/lms/quiz/question/_validation.php';
 
@@ -42,13 +49,20 @@ if ($tmp === false) {
 
 $assert(!lms_upload_size_allowed(1025, 1024), 'oversized upload should fail');
 $assert(lms_upload_size_allowed(1024, 1024), 'upload at the limit should pass');
+$assert(lms_assignment_allowed_extensions_for_validation('') === null, 'empty assignment restriction means any supported safe type');
+$assert(lms_assignment_allowed_extensions_for_validation('PDF,docx,pdf') === ['pdf', 'docx'], 'saved assignment restrictions normalize consistently');
+$assert(lms_assignment_effective_max_bytes(1) <= 1024 * 1024, 'assignment MB limit converts to bytes without exceeding the saved limit');
 
 $submitSource = (string)file_get_contents(dirname(__DIR__, 2) . '/public/api/lms/assignments/submit.php');
 $validationAt = strpos($submitSource, 'lms_validate_uploaded_file');
+$driveEnabledAt = strpos($submitSource, 'lms_drive_writes_enabled');
 $driveAt = strpos($submitSource, '$storage->upload');
 $transactionAt = strpos($submitSource, '$pdo->beginTransaction');
 $assert($validationAt !== false && $driveAt !== false && $validationAt < $driveAt, 'file validation must happen before Drive upload');
+$assert($validationAt !== false && $driveEnabledAt !== false && $validationAt < $driveEnabledAt, 'metadata validation must happen before Drive-disabled error');
 $assert($validationAt !== false && $transactionAt !== false && $validationAt < $transactionAt, 'file validation must happen before DB writes');
+$assert($driveEnabledAt !== false && $transactionAt !== false && $driveEnabledAt < $transactionAt, 'Drive-disabled upload must fail before DB writes');
+$assert(str_contains($submitSource, 'lms_require_assignment_restriction_schema($pdo)'), 'upload must read the canonical assignment restriction schema');
 
 $driveSource = (string)file_get_contents(dirname(__DIR__, 2) . '/public/api/lms/drive_client.php');
 $assert(str_contains($driveSource, 'File type .'), 'file type errors should remain explicit');

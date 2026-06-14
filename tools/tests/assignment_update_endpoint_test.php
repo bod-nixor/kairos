@@ -73,3 +73,42 @@ if ($successPayload['event_name'] !== 'assignment.updated' || $successPayload['e
 }
 
 echo 'assignment_update_endpoint event logic tests passed' . PHP_EOL;
+
+$root = dirname(__DIR__, 2);
+$updateSource = (string)file_get_contents($root . '/public/api/lms/assignments/update.php');
+$getSource = (string)file_get_contents($root . '/public/api/lms/assignments/get.php');
+$createSource = (string)file_get_contents($root . '/public/api/lms/assignments/create.php');
+$editorSource = (string)file_get_contents($root . '/public/js/lms-management-ui.js');
+$assignmentUiSource = (string)file_get_contents($root . '/public/js/assignment.js');
+$eventAt = strpos($updateSource, "lms_emit_event(\$pdo, 'assignment.updated'");
+$commitAt = strpos($updateSource, '$pdo->commit()');
+
+$sourceChecks = [
+    [str_contains($updateSource, 'lms_require_assignment_restriction_schema($pdo)'), 'update must require restriction schema'],
+    [!str_contains($updateSource, 'falling back'), 'update must not silently fall back'],
+    [str_contains($updateSource, 'allowed_file_extensions = :allowed_file_extensions'), 'update must persist allowed extensions'],
+    [str_contains($updateSource, 'max_file_mb = :max_file_mb'), 'update must persist max file MB'],
+    [str_contains($updateSource, "'allowed_file_extensions' => \$allowedFileExtensions"), 'update response must return saved extensions'],
+    [str_contains($updateSource, "'max_file_mb' => \$maxFileMb"), 'update response must return saved max size'],
+    [$eventAt !== false && $commitAt !== false && $eventAt < $commitAt, 'assignment update event must use the transaction outbox'],
+    [!str_contains($updateSource, 'drive'), 'metadata update must not depend on Drive'],
+    [str_contains($getSource, 'allowed_file_extensions, max_file_mb'), 'detail must rehydrate saved restrictions'],
+    [str_contains($createSource, 'lms_require_assignment_restriction_schema($pdo)'), 'create must require restriction schema'],
+    [str_contains($editorSource, "initial.allowed_file_extensions || ''"), 'editor must rehydrate saved extensions'],
+    [str_contains($editorSource, 'initial.max_file_mb || 50'), 'editor must rehydrate saved max size'],
+    [str_contains($assignmentUiSource, 'fileInput.accept = Management.extensionsToAccept'), 'student input accept must use saved restrictions'],
+    [str_contains($assignmentUiSource, 'Maximum ${effectiveMaxMb} MB'), 'student UI must display saved max size'],
+];
+
+foreach ($sourceChecks as [$passed, $message]) {
+    if (!$passed) {
+        $failed[] = $message;
+    }
+}
+
+if ($failed !== []) {
+    fwrite(STDERR, 'Failed: ' . implode(', ', $failed) . PHP_EOL);
+    exit(1);
+}
+
+echo 'assignment restriction persistence contract tests passed' . PHP_EOL;

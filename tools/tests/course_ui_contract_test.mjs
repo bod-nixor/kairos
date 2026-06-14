@@ -50,6 +50,8 @@ assert.match(course, /Enrol in course/);
 assert.match(course, /Public preview/);
 assert.match(course, /if \(!course\.capabilities\?\.view_course\)/);
 assert.match(course, /LmsWS\.setCourseContext\(COURSE_ID\)/);
+assert.match(course, /courses\/join\.php/);
+assert.doesNotMatch(course, /You are not enrolled[\s\S]*can_self_enroll/);
 assert.match(course, /data-ann-action="edit"/);
 assert.match(course, /data-ann-action="delete"/);
 assert.match(course, /LMS\.confirm\(\s*'Delete Announcement'/);
@@ -65,6 +67,12 @@ assert.match(analytics, /course\.capabilities\?\.manage_course/);
 
 const quizzes = read('public/js/quizzes.js');
 assert.doesNotMatch(quizzes, /resolveCourseRoleFlags/);
+
+const courseDetailApi = read('public/api/lms/courses.php');
+const courseDiscoveryApi = read('public/api/lms/courses_discovery.php');
+assert.match(courseDetailApi, /lms_course_home_access/);
+assert.match(courseDetailApi, /can_self_enroll/);
+assert.match(courseDiscoveryApi, /rbac_course_access_context/);
 
 const coursePages = [
   'course.html',
