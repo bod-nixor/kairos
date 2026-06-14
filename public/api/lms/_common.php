@@ -103,13 +103,34 @@ function lms_require_feature(array $flags, ?int $courseId = null): void
 function lms_course_access(array $user, int $courseId, bool $allowStaff = true): void
 {
     $pdo = db();
-    if (rbac_can_access_course($pdo, $user, $courseId)) {
-        if ($allowStaff || rbac_course_role($pdo, $user, $courseId) === 'student') {
-            return;
-        }
+    $context = rbac_course_access_context($pdo, $user, $courseId);
+    if ($context['view_course'] && ($allowStaff || $context['participate_as_student'])) {
+        return;
+    }
+    if ($context['view_course_home'] && $context['can_self_enroll']) {
+        lms_error('forbidden', 'You need to enrol before accessing this content.', 403);
+    }
+    if (!$allowStaff && $context['view_course']) {
+        lms_error('forbidden', 'Student participation is required for this action.', 403);
     }
 
     lms_error('forbidden', 'Course access is required.', 403);
+}
+
+function lms_course_home_access(array $user, int $courseId): array
+{
+    if ($courseId <= 0) {
+        lms_error('validation_error', 'course_id required', 422);
+    }
+
+    $context = rbac_course_access_context(db(), $user, $courseId);
+    if (!$context['course_exists'] || !$context['course_active']) {
+        lms_error('not_found', 'Course not found.', 404);
+    }
+    if (!$context['view_course_home']) {
+        lms_error('not_found', 'Course not found.', 404);
+    }
+    return $context;
 }
 
 function lms_require_course_capability(array $user, string $capability, int $courseId): void
@@ -119,6 +140,10 @@ function lms_require_course_capability(array $user, string $capability, int $cou
     }
     if (rbac_can(db(), $user, $capability, $courseId)) {
         return;
+    }
+    $context = rbac_course_access_context(db(), $user, $courseId);
+    if ($context['view_course_home'] && in_array($capability, ['manage_course', 'grade_course'], true)) {
+        lms_error('forbidden', 'This staff-only page is unavailable for your course role.', 403);
     }
     lms_error('forbidden', 'Insufficient permissions for this course.', 403);
 }
@@ -131,12 +156,19 @@ function lms_course_role(array $user, int $courseId): ?string
 function lms_course_capabilities(array $user, int $courseId): array
 {
     $pdo = db();
+    $context = rbac_course_access_context($pdo, $user, $courseId);
     return [
-        'view_course' => rbac_can($pdo, $user, 'view_course', $courseId),
+        'view_course_public' => (bool)$context['view_course_public'],
+        'view_course_home' => (bool)$context['view_course_home'],
+        'view_course' => (bool)$context['view_course'],
+        'view_course_enrolled' => (bool)$context['view_course_enrolled'],
+        'participate_as_student' => (bool)$context['participate_as_student'],
         'manage_course' => rbac_can($pdo, $user, 'manage_course', $courseId),
         'grade_course' => rbac_can($pdo, $user, 'grade_course', $courseId),
+        'admin_course' => (bool)$context['admin_course'],
         'update_student_progress' => rbac_can($pdo, $user, 'update_student_progress', $courseId),
         'manage_course_announcements' => rbac_can($pdo, $user, 'manage_course_announcements', $courseId),
+        'can_self_enroll' => (bool)$context['can_self_enroll'],
     ];
 }
 

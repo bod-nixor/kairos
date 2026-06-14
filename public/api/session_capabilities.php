@@ -37,10 +37,12 @@ lms_ok([
         'email' => $user['email'] ?? null,
         'name' => $user['name'] ?? null,
         'role' => $user['role_name'],
+        'role_updated_at' => $user['updated_at'] ?? null,
     ],
     'allowed_domains' => $domains,
     'feature_flags' => $flags,
     'capabilities' => [
+        'access_model' => 'course-context-v2',
         'create_course' => rbac_can($pdo, $user, 'create_course'),
         'assign_course_staff' => rbac_can($pdo, $user, 'assign_course_staff'),
     ],

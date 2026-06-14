@@ -4,58 +4,50 @@ require_once __DIR__ . '/_common.php';
 
 $user = require_login();
 $pdo = db();
-$userId = (int)($user['user_id'] ?? 0);
-$role = lms_user_role($user);
-$email = strtolower((string)($user['email'] ?? ''));
-
-$enrolledIds = [];
-$enrollStmt = $pdo->prepare('SELECT course_id FROM student_courses WHERE user_id = :uid');
-$enrollStmt->execute([':uid' => $userId]);
-foreach ($enrollStmt->fetchAll(PDO::FETCH_COLUMN) as $cid) {
-    $enrolledIds[(int)$cid] = true;
-}
-
-$courseRows = $pdo->query('SELECT CAST(course_id AS UNSIGNED) AS course_id, name, COALESCE(code, "") AS code, COALESCE(visibility, "public") AS visibility FROM courses ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
-
-$allowlistedIds = [];
-if ($email !== '') {
-    $allowStmt = $pdo->prepare('SELECT course_id FROM course_allowlist WHERE LOWER(email) = :email');
-    $allowStmt->execute([':email' => $email]);
-    foreach ($allowStmt->fetchAll(PDO::FETCH_COLUMN) as $cid) {
-        $allowlistedIds[(int)$cid] = true;
-    }
-}
+$courseRows = $pdo->query(
+    'SELECT CAST(course_id AS UNSIGNED) AS course_id, name,'
+    . '       COALESCE(code, "") AS code,'
+    . '       COALESCE(visibility, "public") AS visibility'
+    . '  FROM courses'
+    . ' WHERE is_active = 1'
+    . ' ORDER BY name ASC'
+)->fetchAll(PDO::FETCH_ASSOC);
 
 $enrolled = [];
 $available = [];
 foreach ($courseRows as $row) {
     $courseId = (int)$row['course_id'];
+    $access = rbac_course_access_context($pdo, $user, $courseId);
     $item = [
         'course_id' => $courseId,
         'name' => (string)$row['name'],
         'code' => (string)$row['code'],
         'visibility' => (string)$row['visibility'],
+        'enrolled' => (bool)$access['view_course_enrolled'],
+        'assigned_staff' => (bool)($access['assigned_ta'] || $access['assigned_manager']),
+        'access_context' => (string)($access['course_role'] ?? 'public'),
+        'can_self_enroll' => (bool)$access['can_self_enroll'],
+        'capabilities' => [
+            'view_course_public' => (bool)$access['view_course_public'],
+            'view_course' => (bool)$access['view_course'],
+            'participate_as_student' => (bool)$access['participate_as_student'],
+            'grade_course' => (bool)$access['grade_course'],
+            'manage_course' => (bool)$access['manage_course'],
+            'admin_course' => (bool)$access['admin_course'],
+        ],
     ];
 
-    if (isset($enrolledIds[$courseId])) {
-        $item['enrolled'] = true;
+    if ($access['view_course']) {
         $enrolled[] = $item;
         continue;
     }
 
-    $isPublic = $item['visibility'] === 'public';
-    $canJoin = $isPublic || isset($allowlistedIds[$courseId]);
-    if ($role === 'admin') {
-        $canJoin = true;
-    }
-
-    if (!$canJoin) {
+    if (!$access['view_course_home']) {
         continue;
     }
 
-    $item['enrolled'] = false;
-    $item['can_self_enroll'] = true;
-    $item['allowlisted'] = isset($allowlistedIds[$courseId]);
+    $item['allowlisted'] = (bool)$access['allowlisted'];
+    $item['pre_enrolled'] = (bool)$access['pre_enrolled'];
     $available[] = $item;
 }
 

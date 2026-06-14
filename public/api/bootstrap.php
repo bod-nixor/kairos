@@ -414,7 +414,8 @@ function require_login(): array
     static $refreshed = [];
     if (!isset($refreshed[$userId])) {
         $stmt = db()->prepare(
-            'SELECT u.user_id, u.email, u.name, u.picture_url, u.role_id, COALESCE(r.name, :fallback_role) AS role_name, u.is_active
+            'SELECT u.user_id, u.email, u.name, u.picture_url, u.role_id, u.updated_at,
+                    COALESCE(r.name, :fallback_role) AS role_name, u.is_active
              FROM users u
              LEFT JOIN roles r ON r.role_id = u.role_id
              WHERE u.user_id = :uid
