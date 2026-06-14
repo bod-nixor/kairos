@@ -582,8 +582,14 @@ function renderGoogleButton() {
   }
   const target = document.getElementById('googleBtn');
   if (target && !target.hasChildNodes()) {
+    const buttonWidth = Math.max(200, Math.min(360, Math.floor(target.getBoundingClientRect().width)));
     google.accounts.id.renderButton(target, {
-      theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', logo_alignment: 'left'
+      theme: 'outline',
+      size: 'large',
+      shape: 'rectangular',
+      text: 'signin_with',
+      logo_alignment: 'left',
+      width: buttonWidth
     });
   }
 }
