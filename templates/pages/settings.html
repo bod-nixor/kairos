@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="stylesheet" href="./css/lms.css" />
     <link rel="stylesheet" href="./css/kairos-ui.css" />
+    <script data-cfasync="false" src="https://accounts.google.com/gsi/client" async defer></script>
+    <script data-cfasync="false" src="./js/config.js"></script>
     <style>
         .k-theme-grid {
             display: grid;
@@ -204,12 +206,58 @@
                     </div>
                 </div>
 
+                <div class="k-card k-panel-gap" id="accountSecurityCard">
+                    <div class="k-card__header">
+                        <h2 class="k-card__title">Account Security</h2>
+                        <p class="muted small mb-0 mt-8">Manage the login methods attached to your Kairos account.</p>
+                    </div>
+                    <div class="k-card__body k-security-grid">
+                        <section id="changePasswordSection" class="k-security-panel hidden" aria-labelledby="changePasswordTitle">
+                            <div>
+                                <h3 id="changePasswordTitle">Change password</h3>
+                                <p class="muted small">Use a long, unique passphrase. Changing it signs out other sessions.</p>
+                            </div>
+                            <form id="changePasswordForm" class="k-auth-form" novalidate>
+                                <div class="k-form-field">
+                                    <label for="currentPassword">Current password</label>
+                                    <input class="k-input" id="currentPassword" name="current_password" type="password"
+                                        autocomplete="current-password" maxlength="1024" required />
+                                </div>
+                                <div class="k-form-field">
+                                    <label for="newPassword">New password</label>
+                                    <input class="k-input" id="newPassword" name="new_password" type="password"
+                                        autocomplete="new-password" maxlength="1024" required />
+                                </div>
+                                <div class="k-form-field">
+                                    <label for="confirmPassword">Confirm new password</label>
+                                    <input class="k-input" id="confirmPassword" name="confirm_password" type="password"
+                                        autocomplete="new-password" maxlength="1024" required />
+                                </div>
+                                <p class="muted small" id="settingsPasswordGuidance">Use at least 12 characters.</p>
+                                <button class="btn btn-primary" type="submit">Change password</button>
+                                <p class="k-auth-status" id="changePasswordStatus" role="status" aria-live="polite" hidden></p>
+                            </form>
+                        </section>
+
+                        <section id="googleLinkSection" class="k-security-panel" aria-labelledby="googleLinkTitle">
+                            <div>
+                                <h3 id="googleLinkTitle">Google account</h3>
+                                <p class="muted small" id="googleLinkDescription">Link an approved Nixor Google account as an additional login method.</p>
+                            </div>
+                            <button class="btn btn-secondary" type="button" id="startGoogleLinkBtn">Link Google Account</button>
+                            <div id="googleLinkButton" class="k-auth-google-button hidden"></div>
+                            <p class="k-auth-status" id="googleLinkStatus" role="status" aria-live="polite" hidden></p>
+                        </section>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
 
     <script data-cfasync="false" src="./js/theme.js"></script>
     <script data-cfasync="false" src="./js/lms-core.js"></script>
+    <script data-cfasync="false" src="./js/auth-client.js"></script>
     <script data-cfasync="false" src="./js/settings.js"></script>
 </body>
 

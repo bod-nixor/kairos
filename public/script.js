@@ -499,19 +499,62 @@ function showApp() {
 
 async function handleCredentialResponse(resp) {
   try {
-    const r = await fetch('./api/auth.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ credential: resp.credential })
-    });
-    const data = await r.json();
-    if (!data.success) throw new Error(data.error || 'Auth failed');
+    if (!window.KairosAuth) throw new Error('Sign-in services are unavailable.');
+    await window.KairosAuth.post('./api/auth.php', { credential: resp.credential });
     await bootstrap();
   } catch (e) {
-    alert('Login failed: ' + e.message);
+    window.KairosAuth?.setStatus(
+      document.getElementById('passwordLoginStatus'),
+      e.message || 'Google sign-in failed.',
+      'danger'
+    );
     showSignin();
   }
+}
+
+function bindPasswordLogin() {
+  const form = document.getElementById('passwordLoginForm');
+  const divider = document.getElementById('passwordLoginDivider');
+  const status = document.getElementById('passwordLoginStatus');
+  const enabled = APP_CONFIG.localAuthEnabled === true;
+  if (form) form.hidden = !enabled;
+  if (divider) divider.hidden = !enabled;
+  if (!form || !enabled || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector('button[type="submit"]');
+    const identifier = form.elements.identifier.value.trim();
+    const password = form.elements.password.value;
+    if (!identifier || !password) {
+      window.KairosAuth?.setStatus(status, 'Enter your username/email and password.', 'danger');
+      return;
+    }
+    if (submit) submit.disabled = true;
+    window.KairosAuth?.setStatus(status, 'Signing in securely...', 'neutral');
+    try {
+      let returnUrl = null;
+      try {
+        returnUrl = sessionStorage.getItem('kairos:returnUrl');
+      } catch (_) {}
+      const result = await window.KairosAuth.post('./api/auth/login_password.php', {
+        identifier,
+        password,
+        return_url: returnUrl,
+      });
+      form.reset();
+      if (result?.return_url) {
+        try { sessionStorage.removeItem('kairos:returnUrl'); } catch (_) {}
+        window.location.replace(result.return_url);
+        return;
+      }
+      await bootstrap();
+    } catch (error) {
+      window.KairosAuth?.setStatus(status, error.message || 'Sign-in failed.', 'danger');
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
 }
 
 function renderGoogleButton() {
@@ -621,6 +664,7 @@ async function bootstrap() {
 document.addEventListener('DOMContentLoaded', () => {
   const startApp = () => {
     updateAllowedDomainCopy();
+    bindPasswordLogin();
     renderGoogleButton();
     bootstrap();
   };

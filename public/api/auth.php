@@ -1,257 +1,59 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/bootstrap.php';
 
-function upsert_role_and_get_id(PDO $pdo, string $roleName): int {
-  // Ensure roles.name is UNIQUE in your schema (you already set that earlier)
-  $stmt = $pdo->prepare("
-    INSERT INTO roles (name) VALUES (:name)
-    ON DUPLICATE KEY UPDATE role_id = LAST_INSERT_ID(role_id)
-  ");
-  $stmt->execute([':name' => $roleName]);
-  return (int)$pdo->lastInsertId();
+require_once __DIR__ . '/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/src/auth/bootstrap.php';
+
+use Kairos\Auth\AuthException;
+use Kairos\Auth\GoogleIdentityVerifier;
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    json_out(['success' => false, 'error' => 'method_not_allowed'], 405);
 }
-
-/**
- * Minimal JWT verify for Google ID token:
- * - Fetch Google's certs by 'kid' (cached 5 min)
- * - Verify signature + exp/iat + aud + iss
- * - Enforce hd (domain) against ALLOWED_DOMAIN
- */
-function get_google_certs(): array {
-  static $cache = null, $expires = 0;
-  if ($cache && time() < $expires) return $cache;
-
-  $ch = curl_init('https://www.googleapis.com/oauth2/v3/certs');
-  curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 5,
-  ]);
-  $body = curl_exec($ch);
-  if (!$body) throw new Exception('Failed to fetch Google certs');
-  $info = curl_getinfo($ch);
-  curl_close($ch);
-
-  $cache = json_decode($body, true);
-  $ttl = 300;
-  if (!empty($info['download_content_length'])) $ttl = 300;
-  $expires = time() + $ttl;
-  return $cache ?? [];
-}
-
-function base64url_decode_str(string $s): string {
-  $s = strtr($s, '-_', '+/');
-  $pad = strlen($s) % 4;
-  if ($pad) $s .= str_repeat('=', 4 - $pad);
-  $decoded = base64_decode($s, true);
-  if ($decoded === false) {
-    throw new Exception('invalid base64url');
-  }
-  return $decoded;
-}
-
-
-function apply_pending_pre_enrollments(PDO $pdo, int $userId, string $email): void {
-  static $coursePreEnrollExists = null;
-
-  if ($userId <= 0 || $email === '') return;
-
-  if ($coursePreEnrollExists === null) {
-    $check = $pdo->prepare("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'course_pre_enroll' LIMIT 1");
-    $check->execute();
-    $coursePreEnrollExists = (bool)$check->fetchColumn();
-  }
-
-  if (!$coursePreEnrollExists) return;
-
-  $st = $pdo->prepare('SELECT id, course_id FROM course_pre_enroll WHERE LOWER(email)=LOWER(:email)');
-  $st->execute([':email'=>$email]);
-  $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-  if (!$rows) return;
-
-  $enrollStmt = $pdo->prepare('INSERT INTO student_courses (course_id, user_id) VALUES (:cid, :uid) ON DUPLICATE KEY UPDATE user_id = user_id');
-  $claimStmt = $pdo->prepare('UPDATE course_pre_enroll SET claimed_user_id = :uid WHERE id = :id AND (claimed_user_id IS NULL OR claimed_user_id = 0)');
-
-  $startedTx = false;
-  try {
-    if (!$pdo->inTransaction()) {
-      $pdo->beginTransaction();
-      $startedTx = true;
-    }
-
-    foreach ($rows as $row) {
-      $cid = (int)($row['course_id'] ?? 0);
-      $preEnrollId = (int)($row['id'] ?? 0);
-      if ($cid <= 0) continue;
-
-      $enrollStmt->execute([':cid'=>$cid, ':uid'=>$userId]);
-      if ($preEnrollId > 0) {
-        $claimStmt->execute([':uid' => $userId, ':id' => $preEnrollId]);
-      }
-    }
-
-    if ($startedTx) {
-      $pdo->commit();
-    }
-  } catch (Throwable $txErr) {
-    if ($startedTx && $pdo->inTransaction()) {
-      $pdo->rollBack();
-    }
-    throw $txErr;
-  }
-}
-
-function verify_google_id_token(string $idToken, string $clientId): array {
-  $parts = explode('.', $idToken);
-  if (count($parts) !== 3) {
-    throw new Exception('malformed token');
-  }
-  [$h64, $p64, $s64] = $parts;
-  $header = json_decode(base64url_decode_str($h64), true);
-  $payload = json_decode(base64url_decode_str($p64), true);
-  $sig     = base64url_decode_str($s64);
-
-  if (!$header || !$payload) throw new Exception('Invalid token');
-  if (empty($header['kid'])) throw new Exception('No kid');
-  if (!in_array($header['alg'], ['RS256'], true)) throw new Exception('Bad alg');
-
-  // Verify aud, iss, exp, and issued-at sanity.
-  $now = time();
-  if (empty($payload['aud']) || $payload['aud'] !== $clientId) throw new Exception('Bad aud');
-  if (empty($payload['iss']) || !in_array($payload['iss'], ['https://accounts.google.com', 'accounts.google.com'], true)) {
-    throw new Exception('Bad iss');
-  }
-  if (empty($payload['exp']) || $payload['exp'] < $now) throw new Exception('Token expired');
-  if (empty($payload['iat']) || !is_numeric($payload['iat'])) throw new Exception('Bad iat');
-  $iat = (int)$payload['iat'];
-  if ($iat > ($now + 120) || $iat < ($now - 86400)) throw new Exception('Bad iat');
-
-  // Find cert by kid
-  $certs = get_google_certs();
-  if (empty($certs['keys'])) throw new Exception('No certs');
-  $key = null;
-  foreach ($certs['keys'] as $k) {
-    if ($k['kid'] === $header['kid']) { $key = $k; break; }
-  }
-  if (!$key) throw new Exception('No matching cert');
-
-  // Build public key
-  $pem = null;
-  if ($key['kty'] === 'RSA' && !empty($key['n']) && !empty($key['e'])) {
-    $mod = base64url_decode_str($key['n']);
-    $exp = base64url_decode_str($key['e']);
-    $rsa = openssl_pkey_get_details(openssl_pkey_new([
-      'private_key_type' => OPENSSL_KEYTYPE_RSA,
-      'private_key_bits' => 2048
-    ]));
-    // Create an RSA public key from n/e
-    $seq = asn1_sequence(
-      asn1_sequence(asn1_object_identifier("\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01"), asn1_null()),
-      asn1_bit_string(encode_rsa_mod_exp($mod, $exp))
-    );
-    $pem = "-----BEGIN PUBLIC KEY-----\n".chunk_split(base64_encode($seq), 64, "\n")."-----END PUBLIC KEY-----\n";
-  }
-  if (!$pem) throw new Exception('Failed to build public key');
-
-  // Verify signature
-  $ok = openssl_verify("$h64.$p64", $sig, $pem, OPENSSL_ALGO_SHA256);
-  if ($ok !== 1) throw new Exception('Bad signature');
-
-  return $payload;
-}
-
-/* Helpers to build SubjectPublicKeyInfo (quick ASN.1 builders) */
-function asn1_len($l){ if($l<128)return chr($l); $s=''; while($l){$s=chr($l&0xff).$s;$l>>=8;} return chr(0x80|strlen($s)).$s; }
-function asn1_tlv($t,$v){ return $t.asn1_len(strlen($v)).$v; }
-function asn1_sequence(...$parts){ return asn1_tlv("\x30", implode('', $parts)); }
-function asn1_object_identifier($oid){ return asn1_tlv("\x06", $oid); }
-function asn1_null(){ return "\x05\x00"; }
-function asn1_bit_string($s){ return asn1_tlv("\x03", "\x00".$s); }
-function asn1_integer($i){ if($i==='' )$i="\x00"; if(ord($i[0])>0x7f){$i="\x00".$i;} return asn1_tlv("\x02",$i); }
-function encode_rsa_mod_exp($n,$e){ return asn1_sequence(asn1_integer($n), asn1_integer($e)); }
 
 $input = kairos_json_input();
-$credential = $input['credential'] ?? '';
-
-if (!$credential) json_out(['success'=>false, 'error'=>'missing credential'], 400);
-if (!kairos_rate_limit('auth:google:' . kairos_client_ip(), (int)env('AUTH_RATE_LIMIT_ATTEMPTS', 12), (int)env('AUTH_RATE_LIMIT_WINDOW_SECONDS', 300))) {
-  json_out(['success'=>false, 'error'=>'too_many_attempts'], 429);
+kairos_require_auth_csrf($input);
+$credential = trim((string)($input['credential'] ?? ''));
+if ($credential === '') {
+    json_out(['success' => false, 'error' => 'missing_credential'], 400);
+}
+if (!kairos_rate_limit(
+    'auth:google:' . kairos_client_ip(),
+    (int)env('AUTH_RATE_LIMIT_ATTEMPTS', 12),
+    (int)env('AUTH_RATE_LIMIT_WINDOW_SECONDS', 300)
+)) {
+    json_out(['success' => false, 'error' => 'too_many_attempts'], 429);
 }
 
 try {
-  $clientId = env('GOOGLE_CLIENT_ID');
-  if (!is_string($clientId) || $clientId === '') {
-    throw new Exception('Google client ID is not configured');
-  }
-
-  $payload = verify_google_id_token($credential, $clientId);
-
-  // Domain check
-  $hd = $payload['hd'] ?? '';
-  if (strcasecmp($hd, ALLOWED_DOMAIN) !== 0) {
-    throw new Exception('Unauthorized domain');
-  }
-
-  // Upsert user into DB
-  $email   = $payload['email'] ?? '';
-  $name    = $payload['name'] ?? '';
-  $picture = $payload['picture'] ?? '';
-  $sub     = $payload['sub'] ?? ''; // Google unique user ID
-
-  if (!$email || !$sub || !filter_var($email, FILTER_VALIDATE_EMAIL)) throw new Exception('Invalid payload');
-  if (($payload['email_verified'] ?? false) !== true && ($payload['email_verified'] ?? '') !== 'true') {
-    throw new Exception('Unverified email');
-  }
-  $emailDomain = strtolower(substr(strrchr((string)$email, '@') ?: '', 1));
-  if ($emailDomain === '' || strcasecmp($emailDomain, ALLOWED_DOMAIN) !== 0) {
-    throw new Exception('Unauthorized email domain');
-  }
-
-  $pdo = db();
-  
-  // Ensure default role exists and get its id
-  $defaultRoleId = upsert_role_and_get_id($pdo, DEFAULT_ROLE_NAME);
-  
-  $stmt = $pdo->prepare("
-    INSERT INTO users (google_id, email, name, picture_url, is_active, role_id)
-    VALUES (:gid, :email, :name, :pic, 1, :role_id)
-    ON DUPLICATE KEY UPDATE
-      email = VALUES(email),
-      name = VALUES(name),
-      picture_url = VALUES(picture_url),
-      is_active = 1,
-      role_id = COALESCE(users.role_id, VALUES(role_id))
-  ");
-  
-  $stmt->execute([
-    ':gid'      => $sub,
-    ':email'    => $email,
-    ':name'     => $name,
-    ':pic'      => $picture,
-    ':role_id'  => $defaultRoleId,
-  ]);
-
-  // Load user (to get user_id and role_id)
-  $u = $pdo->prepare("SELECT user_id, email, name, picture_url, role_id FROM users WHERE google_id = :gid LIMIT 1");
-  $u->execute([':gid' => $sub]);
-  $user = $u->fetch();
-  if (!$user) {
-    throw new Exception('User reload failed');
-  }
-
-  apply_pending_pre_enrollments($pdo, (int)$user['user_id'], (string)$email);
-
-  session_regenerate_id(true);
-  $_SESSION = [];
-  $_SESSION['user'] = $user;
-
-  json_out(['success'=>true, 'user'=>$user]);
-} catch (Throwable $e) {
-  error_log(json_encode([
-    'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
-    'action' => 'google_auth',
-    'status' => 'failed',
-    'reason_class' => get_class($e),
-  ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-  json_out(['success'=>false, 'error'=>'Authentication failed'], 401);
+    $clientId = trim((string)env('GOOGLE_CLIENT_ID', ''));
+    if ($clientId === '') {
+        throw new RuntimeException('Google client ID is not configured.');
+    }
+    $claims = (new GoogleIdentityVerifier())->verify($credential, $clientId, ALLOWED_DOMAIN);
+    $user = kairos_auth_service()->googleLogin($claims, kairos_auth_context());
+    apply_pending_pre_enrollments(db(), (int)$user['user_id'], (string)$user['email']);
+    kairos_establish_auth_session($user);
+    json_out(['success' => true, 'user' => $user]);
+} catch (AuthException $error) {
+    try {
+        kairos_record_auth_audit('google_login_failed', 'failed', null, '', ['reason' => $error->errorCode]);
+    } catch (Throwable $auditError) {
+        error_log('[kairos] google auth audit failed: ' . get_class($auditError));
+    }
+    error_log(json_encode([
+        'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+        'action' => 'google_auth',
+        'status' => 'failed',
+        'reason_code' => $error->errorCode,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    json_out(['success' => false, 'error' => $error->publicMessage, 'code' => $error->errorCode], $error->httpStatus);
+} catch (Throwable $error) {
+    error_log(json_encode([
+        'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? uniqid('req_', true),
+        'action' => 'google_auth',
+        'status' => 'failed',
+        'reason_class' => get_class($error),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    json_out(['success' => false, 'error' => 'Authentication failed.'], 401);
 }

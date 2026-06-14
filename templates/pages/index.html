@@ -107,31 +107,44 @@
       <div class="k-page">
 
         <!-- Sign-in screen -->
-        <section id="signin" class="centerbox k-auth-card" aria-label="Sign in"
-          style="max-width: 420px; margin-top: 12vh;">
-          <div class="k-card" style="width: 100%; padding: 48px 40px; border-radius: 24px; box-shadow: var(--shadow);">
-            <div style="text-align: center; margin-bottom: 32px;">
-              <div
-                style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 8px 16px rgba(0,0,0,0.04); margin-bottom: 24px;">
-                <img src="./images/logo.png" alt="Kairos" class="k-brand-badge" style="width: 40px; height: 40px;" />
+        <section id="signin" class="centerbox k-auth-card" aria-label="Sign in">
+          <div class="k-card k-auth-panel">
+            <div class="k-auth-heading">
+              <div class="k-auth-logo">
+                <img src="./images/logo.png" alt="Kairos" class="k-brand-badge" />
               </div>
-              <h1 class="title k-auth-title"
-                style="font-size: 28px; font-weight: 700; letter-spacing: -0.04em; color: var(--text); margin-bottom: 8px;">
-                Log in to Kairos</h1>
-              <p class="muted k-auth-subtitle" style="font-size: 15px;">Nixor College operations platform</p>
+              <h1 class="title k-auth-title">Log in to Kairos</h1>
+              <p class="muted k-auth-subtitle">Nixor College operations platform</p>
             </div>
 
-            <div style="display: flex; justify-content: center; margin: 32px 0;">
-              <div id="googleBtn" style="min-height: 44px;"></div>
-            </div>
-
-            <div style="text-align: center; border-top: 1px solid var(--border); padding-top: 24px;">
-              <p class="muted small" style="font-size: 13px; line-height: 1.5; margin: 0;">
-                Access is restricted to <br />
-                <strong data-allowed-domain-text
-                  style="color: var(--text); font-weight: 600;">@nixorcollege.edu.pk</strong> accounts.
+            <div class="k-auth-google">
+              <div id="googleBtn" class="k-auth-google-button"></div>
+              <p class="muted small">
+                Google is the primary login and the only public registration method for
+                <strong data-allowed-domain-text>@nixorcollege.edu.pk</strong>.
               </p>
             </div>
+
+            <div class="k-auth-divider" id="passwordLoginDivider" hidden><span>or</span></div>
+
+            <form id="passwordLoginForm" class="k-auth-form" hidden novalidate>
+              <div class="k-form-field">
+                <label for="passwordLoginIdentifier">Username or email</label>
+                <input class="k-input" id="passwordLoginIdentifier" name="identifier" autocomplete="username"
+                  maxlength="255" required />
+              </div>
+              <div class="k-form-field">
+                <label for="passwordLoginPassword">Password</label>
+                <input class="k-input" id="passwordLoginPassword" name="password" type="password"
+                  autocomplete="current-password" maxlength="1024" required />
+              </div>
+              <button class="btn btn-secondary k-auth-submit" type="submit">Sign in with password</button>
+              <p class="muted small k-auth-help">
+                For accounts created by a Kairos administrator.
+                <a href="./forgot-password">Forgot password?</a>
+              </p>
+              <p id="passwordLoginStatus" class="k-auth-status" role="status" aria-live="polite" hidden></p>
+            </form>
           </div>
         </section>
 
@@ -256,6 +269,7 @@
   <script data-cfasync="false" src="./js/ws.js"></script>
   <script data-cfasync="false" src="./js/lms-core.js"></script>
   <script data-cfasync="false" src="./js/lms-ws.js"></script>
+  <script data-cfasync="false" src="./js/auth-client.js"></script>
   <script data-cfasync="false" src="./script.js"></script>
   <script data-cfasync="false" src="./js/index-page.js"></script>
 </body>

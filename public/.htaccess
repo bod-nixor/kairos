@@ -8,7 +8,7 @@ RewriteRule \.(bak|old|orig|tmp|temp|swp|swo|log|sql|ini|conf|ya?ml|lock|dist|ba
 # Route only known application pages through the nonce-aware HTML responder.
 # API, asset, and realtime paths do not match these rules.
 RewriteRule ^$ html.php?page=index [END,QSA]
-RewriteRule ^(admin|analytics|assignment|assignments|course|grading|index|lesson|manager|modules|projector|quiz|quizzes|resource-viewer|room|settings|ta)(?:\.html)?/?$ html.php?page=$1 [END,QSA]
+RewriteRule ^(activate|admin|analytics|assignment|assignments|course|forgot-password|grading|index|lesson|manager|modules|projector|quiz|quizzes|resource-viewer|reset-password|room|settings|ta)(?:\.html)?/?$ html.php?page=$1 [END,QSA]
 
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"

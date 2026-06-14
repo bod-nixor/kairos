@@ -7,6 +7,11 @@
 
 This pass fixed the known production CSP and realtime failures, centralized course capabilities, closed additional publication and object-scope authorization gaps, added auditable announcement management, repaired transactional module ordering, hardened external embeds, improved Light Mode contrast, stabilized the shared course shell and module interactions, implemented durable private Google Drive storage, and added repeatable regression coverage.
 
+The local-authentication pass adds admin-invited username/email plus password login without creating a public password
+registration path. It introduces Argon2id password storage and rehashing, pending activation, hashed single-use
+activation/reset/link-state tokens, database rate limiting, account lockouts, CSRF-protected auth mutations, session
+version invalidation, hashed auth audit events, password change, and explicit Nixor Google linking.
+
 The assignment and quiz polish pass additionally replaced raw assignment markup in list cards with sanitized excerpts,
 added a shared production-quality assignment/quiz/question editor, introduced rehydratable upload presets and custom
 extension controls, enforced assignment extension/MIME/size policy before storage, and removed page-local navigation
@@ -18,7 +23,7 @@ The LMS integrity pass now distinguishes module unlinking from true quiz/assignm
 from active module/detail/list/grading paths, adds manager/admin delete controls, persists assignment upload settings
 without Drive, and makes realtime content events usable as REST cache-invalidation signals.
 
-The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The migrations `db/migrations/20260613_1430_add_announcement_publication_audit.sql`, `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`, `db/migrations/20260614_1600_create_lms_assignment_notes.sql`, and `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql` are required before the related API/UI is deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
+The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The migrations `db/migrations/20260613_1430_add_announcement_publication_audit.sql`, `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`, `db/migrations/20260614_1600_create_lms_assignment_notes.sql`, `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql`, and `db/migrations/20260614_2100_add_local_authentication.sql` are required before the related API/UI is deployed. Drive writes and local authentication must remain disabled until their separate staging gates are complete.
 
 ## Baseline Findings
 
@@ -85,6 +90,25 @@ Production inspection and repository review identified:
 - Added a protected download/preview endpoint that accepts only a local resource ID, applies course/submission RBAC, revalidates metadata/checksum, and never exposes raw Drive IDs.
 - Added a separate Drive write switch so uploads/deletes can be frozen without disabling authenticated reads.
 - Version-gated deprecated PHP session-ID settings for PHP 8.4 compatibility.
+
+### Local Authentication
+
+- Preserved Google OAuth as the primary login and only public self-registration path.
+- Added admin-only pending local-account creation with optional initial course assignment and no password field.
+- Added activation email, generic password-reset request, reset completion, authenticated password change, and
+  Google-link state/complete endpoints.
+- Added Argon2id configuration validation with OWASP-aligned minimums, 12-character minimum policy, long passphrase
+  support, trivial-password denylist, and automatic rehash after successful login.
+- Stored only token hashes and placed raw activation/reset tokens in URL fragments rather than query strings.
+- Added per-IP and per-identifier database throttles plus per-account failure counters and temporary lockout.
+- Added synchronizer CSRF tokens to every new auth mutation while retaining exact-origin/content-type enforcement.
+- Regenerated sessions after login and added `auth_session_version` invalidation after password reset/change.
+- Added durable auth audit events with HMAC-hashed identifiers, IPs, and user agents; passwords and raw tokens are
+  never logged.
+- Added Settings password change and explicit Google linking. Unlinking is intentionally absent, preventing removal
+  of the last login method.
+- Added activation, forgot-password, and reset-password pages plus a secondary password form under the primary
+  Google login.
 
 ### UI, Responsive, and Accessibility
 
@@ -188,10 +212,18 @@ Local static browser verification after changes:
 - Verified runtime navigation sets: student gets core links, TA adds Grading, manager/admin add Grading and Analytics.
 - Verified modal focus starts inside the dialog, save disables controls and sets busy state, and Escape closes with focus
   restored to the trigger.
+- Verified the local-auth login, activation, forgot-password, and reset-password pages at `390x844` and `1280x900`
+  in dark and light themes with no horizontal overflow and visible form labels.
+- Verified Google remains the primary login action, there is no public password-registration action, reset tokens are
+  removed from the URL fragment before validation, and reset submission stays disabled while validation is pending.
 
 Authenticated student/TA/manager/admin workflows could not be exercised locally without OAuth credentials and a test database. The in-app browser's local-navigation security handoff was also unavailable for the mocked role fixture in this session. Deterministic policy, endpoint-contract, UI, navigation, and realtime-subscription tests cover the flow; exact deployment smoke tests are in the deployment checklist.
 
 Live Google Drive upload/download calls were not run because no production or staging credentials were used. Provider activation remains an explicit deployment gate.
+
+The local PHP runtime supports Argon2id but has no PDO database drivers, so a live MariaDB-backed activation/login cycle
+could not be run on this workstation. Real activation/reset email delivery and Google account linking also remain staging
+checks because no outbound-mail or Google Identity credentials were used.
 
 ## Tests and Results
 
@@ -206,12 +238,15 @@ node tools/tests/csp_nonce_response_test.mjs
 node tools/tests/navigation_performance_test.mjs
 node tools/tests/lms_management_contract_test.mjs
 node tools/tests/ui_hardening_contract_test.mjs
+node tools/tests/local_auth_ui_contract_test.mjs
 php tools/tests/course_authorization_policy_test.php
 php tools/tests/announcement_authorization_test.php
 php tools/tests/resource_embed_policy_test.php
 php tools/tests/sections_reorder_endpoint_test.php
 php tools/tests/drive_storage_test.php
 php tools/tests/lms_upload_and_question_policy_test.php
+php tools/tests/local_auth_password_test.php
+php tools/tests/local_auth_flow_test.php
 php tools/tests/drive_storage_integration_test.php  # safe default: skipped
 git diff --check
 ```
@@ -250,12 +285,15 @@ Vendored Socket.IO SHA-256:
    - `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`
    - `db/migrations/20260614_1600_create_lms_assignment_notes.sql`
    - `db/migrations/20260614_1605_add_staff_private_note_to_lms_grades.sql`
+   - `db/migrations/20260614_2100_add_local_authentication.sql`
 2. Deploy the full change set, purge Cloudflare caches, and restart the Python realtime service.
 3. Disable Cloudflare Browser Insights injection and Rocket Loader for `/signoff/*`.
 4. Install locked Composer dependencies and configure the private Shared Drive/service account.
 5. Enable Drive reads first, then writes only after the staging storage smoke test passes.
 6. Run authenticated role and cross-course authorization smoke tests after deployment.
 7. Confirm Apache applies the new CSP and blocks `/vendor`, `composer.json`, and `composer.lock`.
+8. Configure PHP mail, `AUTH_PRIVACY_HASH_SECRET`, and Argon2id parameters; keep `LOCAL_AUTH_ENABLED=false` until
+   activation/reset/link staging tests pass.
 
 ## Optional Follow-ups
 

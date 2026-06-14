@@ -7,7 +7,7 @@ if (empty($_SESSION['user'])) {
   json_out([]);
 }
 
-$user = $_SESSION['user'];
+$user = require_login();
 $wsInfo = [
   'ws_url' => null,
   'token' => null,
