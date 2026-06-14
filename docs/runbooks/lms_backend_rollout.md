@@ -22,6 +22,17 @@ WHERE Field IN ('allowed_file_extensions', 'max_file_mb');
 
 This LMS polish pass adds no migration and does not mutate schema at runtime.
 
+The public-course access and self-enrollment pass also adds no migration. Before deploy, confirm:
+
+```sql
+SHOW COLUMNS FROM courses WHERE Field IN ('is_active', 'visibility');
+SHOW TABLES LIKE 'student_courses';
+SHOW TABLES LIKE 'course_allowlist';
+SHOW TABLES LIKE 'course_pre_enroll';
+```
+
+Self-enrollment is transactional and writes only `student_courses`. Public preview does not authorize modules, rooms, queues, or realtime subscriptions.
+
 ## Drive configuration
 Install locked PHP dependencies before enabling Drive:
 
@@ -79,6 +90,17 @@ canonical Drive mapping and cleanup state.
 6. Traverse course, modules, lesson, resource, quizzes, quiz, assignments, assignment, grading, and analytics by direct
    load and internal links. Grading follows `grade_course`; Analytics follows `manage_course`.
 7. Repeat at `390x844`, `768x1024`, `1440x900`, and a large desktop in Light and Default Dark.
+
+## Public-course and role-context smoke
+
+1. As an unassigned TA and manager, open an active public course and confirm metadata plus the enrol CTA render without a generic 403.
+2. Confirm Modules, Quizzes, Assignments, Grading, and Analytics are hidden in public-preview context.
+3. Enrol and confirm published student content and rooms become available without a full course-page reload.
+4. Confirm self-enrollment creates a `student_courses` row and no staff mapping.
+5. Confirm assigned-course TA/manager controls remain present only in the assigned course.
+6. Downgrade a former admin, start a fresh request, and confirm the DB role and course mappings determine all controls.
+7. Confirm a public-only user cannot connect to `course:<id>` until enrolled.
+8. Confirm course links remain ordinary URLs and work with direct load, refresh, modifier-click, Back, and Forward.
 
 ## Rollback
 

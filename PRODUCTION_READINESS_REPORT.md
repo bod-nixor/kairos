@@ -1,6 +1,6 @@
 # Kairos Production Readiness Report
 
-**Review date:** June 13, 2026
+**Review date:** June 14, 2026
 **Production route:** `https://kairos.nixorcorporate.com/signoff/`
 
 ## Executive Summary
@@ -11,6 +11,8 @@ The assignment and quiz polish pass additionally replaced raw assignment markup 
 added a shared production-quality assignment/quiz/question editor, introduced rehydratable upload presets and custom
 extension controls, enforced assignment extension/MIME/size policy before storage, and removed page-local navigation
 capability guesses.
+
+The public-course modernization pass separates public preview, enrolled participation, assigned staff authority, and admin authority. It fixes the downgraded-admin/TA/manager 403 by making student enrollment independent of global role, permits transactional self-enrollment for eligible authenticated users, keeps dependent content and realtime rooms protected, and adds browser-managed speculative course navigation with safe full-navigation fallback.
 
 The application code is ready for a controlled staging deployment after the required infrastructure steps in `PRODUCTION_DEPLOYMENT_CHECKLIST.md`. The announcement migration `db/migrations/20260613_1430_add_announcement_publication_audit.sql` is required before the new announcement endpoints are deployed. Drive writes must remain disabled until Composer dependencies, service-account access, and the authenticated staging smoke test are complete.
 
@@ -112,6 +114,19 @@ Production inspection and repository review identified:
 - Returned stable sanitized `422` messages for disallowed type, content mismatch, and effective size limit failures.
 - Reused the existing assignment restriction columns; no migration was added for this pass.
 
+### Public Course Access and Navigation
+
+- Added a pure course-access decision model with named public, enrolled, student-participation, grading, management, and admin capabilities.
+- Made `student_courses` participation available to Student, TA, and Manager users without granting staff authority.
+- Added public course metadata access and an in-page enrol CTA instead of the incorrect generic 403.
+- Made discovery, detail, rooms, queues, and realtime use the same access facts.
+- Made self-enrollment transactional, idempotent, active-course aware, allowlist/pre-enrollment aware, and limited to `student_courses`.
+- Deferred protected course API calls and course WebSocket subscription until enrolled/assigned access is confirmed.
+- Added short-lived in-memory bootstrap/course metadata deduplication and realtime invalidation.
+- Added same-origin Speculation Rules prefetch and navigation progress feedback. Normal URLs remain authoritative; WebSockets are not used for navigation.
+- Deferred DOM-swapping partial navigation because existing page controllers do not yet expose safe mount/unmount lifecycles.
+- Added no schema migration.
+
 ## Browser Verification
 
 Production baseline:
@@ -139,7 +154,7 @@ Local static browser verification after changes:
 - Verified modal focus starts inside the dialog, save disables controls and sets busy state, and Escape closes with focus
   restored to the trigger.
 
-Authenticated student/TA/manager/admin workflows could not be exercised locally without OAuth credentials, a test database, and the Python realtime dependencies. Exact deployment smoke tests are in the deployment checklist.
+Authenticated student/TA/manager/admin workflows could not be exercised locally without OAuth credentials and a test database. The in-app browser's local-navigation security handoff was also unavailable for the mocked role fixture in this session. Deterministic policy, endpoint-contract, UI, navigation, and realtime-subscription tests cover the flow; exact deployment smoke tests are in the deployment checklist.
 
 Live Google Drive upload/download calls were not run because no production or staging credentials were used. Provider activation remains an explicit deployment gate.
 
@@ -152,6 +167,8 @@ bash tools/check-errors.sh
 node tools/tests/realtime_runtime_test.mjs
 node tools/tests/production_contract_test.mjs
 node tools/tests/course_ui_contract_test.mjs
+node tools/tests/csp_nonce_response_test.mjs
+node tools/tests/navigation_performance_test.mjs
 node tools/tests/lms_management_contract_test.mjs
 node tools/tests/ui_hardening_contract_test.mjs
 php tools/tests/course_authorization_policy_test.php
