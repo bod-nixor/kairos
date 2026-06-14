@@ -117,6 +117,20 @@ See `docs/runbooks/google_drive_storage.md` before enabling private file storage
 - PHP validates the assignment restriction, server-detected MIME, container signatures where applicable, and the
   effective assignment/Drive size limit before any Drive upload or submission DB transaction.
 - SVG, HTML, JavaScript, PHP, XML, and executable/script formats are not assignment-upload formats.
+- An empty allowed-extension list means any Kairos-supported safe type. `max_file_mb` is stored in MiB and converted
+  to bytes only for upload validation.
+- Saving assignment metadata never calls Drive. With Drive writes disabled, restriction updates still succeed;
+  a valid file upload returns a storage `503` only after local type/size validation passes.
+
+### LMS removal and deletion semantics
+
+- **Remove from module** deletes only the `lms_module_items` link. The assignment or quiz remains in its course-level
+  library and can be linked again later.
+- **Delete assignment/quiz** soft-deletes the parent (`deleted_at`, `archived`), removes every module link, hides it
+  from active lists/detail/student/grading paths, and emits a course-scoped realtime invalidation event.
+- Historical submissions, attempts, grades, audit rows, and managed files are retained for academic traceability.
+  They are unavailable through active LMS/grading endpoints after the parent is deleted.
+- Only a manager assigned to the course or an admin may remove/delete. Students and TAs cannot invoke these actions.
 
 ### OAuth + local dev caveat
 
@@ -148,6 +162,15 @@ mariadb -u <user> -p < db/migrations/<migration_file>.sql
 ```
 
 For first-time setup, run baseline schema/bootstrap script(s) first, then remaining migrations.
+
+The assignment upload settings contract requires:
+
+```text
+db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
+```
+
+The migration is guarded and idempotent. Application endpoints fail with a sanitized `503` instead of reporting a
+false success if the required columns are missing.
 
 ---
 

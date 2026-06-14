@@ -6,21 +6,22 @@ Run manual SQL migration in order:
 ```bash
 mariadb -u <user> -p < sql/20260221_1200_lms_expansion_core.sql
 mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_audit.sql
+mariadb -u <user> -p < db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
 ```
 
 The announcement migration must run before deploying the announcement detail/mutation UI. Reorder and embed
 hardening require no schema change.
 
-The assignment upload policy uses the existing columns introduced by
-`sql/20260227_1030_assignment_restrictions_and_quiz_question_required.sql`. Confirm those columns exist before
-deploying:
+The assignment upload policy requires the canonical guarded migration
+`db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`. Confirm the columns after applying it:
 
 ```sql
 SHOW COLUMNS FROM lms_assignments
 WHERE Field IN ('allowed_file_extensions', 'max_file_mb');
 ```
 
-This LMS polish pass adds no migration and does not mutate schema at runtime.
+The application never mutates schema at runtime. Missing restriction columns return a sanitized `503` instead of a
+false-success response.
 
 The public-course access and self-enrollment pass also adds no migration. Before deploy, confirm:
 
@@ -86,10 +87,16 @@ canonical Drive mapping and cleanup state.
 2. Student confirms allowed types, maximum effective size, points, due date, and selected filename are visible.
 3. Submit one valid PDF, one disallowed extension, one MIME-mismatched file, one oversized file, and one SVG.
 4. Confirm every rejected file returns sanitized `422`, creates no submission row, and is never uploaded to Drive.
-5. Manager creates/edits a quiz and adds/edits MCQ, multiple-select, true/false, and written-response questions.
-6. Traverse course, modules, lesson, resource, quizzes, quiz, assignments, assignment, grading, and analytics by direct
+5. Disable Drive writes, edit assignment types/max size, save, and reopen; metadata must persist without a storage
+   error. A valid file upload should then return storage `503` after local validation.
+6. Remove an assignment from a module and confirm it remains in Assignments. Delete it from detail and confirm it
+   disappears from Modules, Assignments, direct links, student pages, and active grading while history remains stored.
+7. Repeat the remove/delete checks for a quiz. A quiz with an in-progress attempt must return `409`.
+8. Confirm student, TA, and foreign-course manager remove/delete requests fail.
+9. Manager creates/edits a quiz and adds/edits MCQ, multiple-select, true/false, and written-response questions.
+10. Traverse course, modules, lesson, resource, quizzes, quiz, assignments, assignment, grading, and analytics by direct
    load and internal links. Grading follows `grade_course`; Analytics follows `manage_course`.
-7. Repeat at `390x844`, `768x1024`, `1440x900`, and a large desktop in Light and Default Dark.
+11. Repeat at `390x844`, `768x1024`, `1440x900`, and a large desktop in Light and Default Dark.
 
 ## Public-course and role-context smoke
 
@@ -104,6 +111,6 @@ canonical Drive mapping and cleanup state.
 
 ## Rollback
 
-Restore the previous application files as one artifact. No schema rollback is needed for this pass. Existing
-`allowed_file_extensions` and `max_file_mb` data can remain in place. If upload behavior is implicated, set
+Restore the previous application files as one artifact. Keep `allowed_file_extensions` and `max_file_mb` in place;
+older code can ignore additive columns. Drop them only after code rollback and explicit data-loss approval. If upload behavior is implicated, set
 `GOOGLE_DRIVE_WRITES_ENABLED=false` before rollback so protected reads remain available while new writes stop.

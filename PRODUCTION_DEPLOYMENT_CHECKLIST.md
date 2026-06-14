@@ -4,7 +4,7 @@
 
 - [ ] Schedule a controlled deployment window.
 - [ ] Back up the current `/signoff/` files and effective Apache configuration.
-- [ ] Take a database backup before applying the announcement migration.
+- [ ] Take a database backup before applying the announcement and assignment-settings migrations.
 - [ ] Record the current Python realtime process command and rollback artifact.
 - [ ] Confirm no unrelated working-tree files are included in the deployment package.
 
@@ -25,9 +25,10 @@ Deploy the complete repository change set, including:
 - `public/api/lms/integrations/drive/` and `public/api/lms/resources/download.php`
 - `ws_server.py`
 - `db/migrations/20260613_1430_add_announcement_publication_audit.sql`
+- `db/migrations/20260614_1327_ensure_assignment_upload_settings.sql`
 - updated security documentation, runbooks, and test files
 
-Apply the SQL migration before deploying the announcement API/UI.
+Apply both SQL migrations before deploying the related API/UI.
 
 ## Database Migration
 
@@ -36,10 +37,12 @@ Apply the SQL migration before deploying the announcement API/UI.
 
 ```bash
 mariadb -u <user> -p < db/migrations/20260613_1430_add_announcement_publication_audit.sql
+mariadb -u <user> -p < db/migrations/20260614_1327_ensure_assignment_upload_settings.sql
 ```
 
 - [ ] Verify `lms_announcements.status`, `published_at`, and `idx_lms_announcements_course_status`.
 - [ ] Verify `lms_announcement_audit` and its foreign keys/indexes.
+- [ ] Verify `lms_assignments.allowed_file_extensions` and `lms_assignments.max_file_mb`.
 - [ ] Do not run the rollback unless application code has first been rolled back and audit retention has been approved.
 
 ## Environment Verification
@@ -202,8 +205,17 @@ Use non-production test accounts and do not alter real grades/submissions:
       event handlers, unsafe links, and iframes.
 - [ ] Assignment upload presets and safe custom extensions persist and rehydrate; the student file input `accept`
       attribute matches the resolved policy.
+- [ ] With `GOOGLE_DRIVE_WRITES_ENABLED=false`, edit only assignment upload types/max size; confirm save and re-open
+      succeed without a storage error.
 - [ ] Disallowed extension, MIME mismatch, oversized file, and SVG each return sanitized `422`; confirm no submission
       row and no Drive file are created.
+- [ ] Manager removes an assignment and quiz from a module; confirm each remains in its standalone library and the
+      action text says “Remove from module.”
+- [ ] Manager deletes an assignment and quiz from their detail pages; confirm Modules, standalone lists, direct
+      links, student pages, and active grading views no longer expose them.
+- [ ] Confirm historical submission/grade and attempt/grade rows remain in the database after parent soft deletion.
+- [ ] Student, TA, and foreign-course manager delete/remove API calls return 403/404.
+- [ ] A second browser session receives the course-scoped delete event and refreshes from REST.
 - [ ] Quiz create/edit and question create/edit show polished validation and no raw JSON/debug text.
 - [ ] Submitting student, assigned TA, course manager, and admin can download; another student/unassigned TA receives 403.
 - [ ] Delete a test resource and confirm the DB record is hidden before the Drive file moves to trash.
@@ -232,5 +244,6 @@ If application rollback is required, restore the prior files first. Retain `lms_
 `GOOGLE_DRIVE_WRITES_ENABLED=false` first so authenticated reads remain available; use
 `GOOGLE_DRIVE_ENABLED=false` only when credentials must be fully disabled or revoked.
 
-This LMS polish pass has no new migration. Do not drop or clear existing assignment restriction columns during
-rollback.
+If application rollback is required, leave the assignment restriction columns and their data in place. Drop them
+only after the prior application is restored and data-loss approval is recorded; the migration contains the manual
+rollback statement. Soft-deleted quiz/assignment records must not be mass-restored as part of application rollback.
