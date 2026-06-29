@@ -105,6 +105,45 @@
 
     function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
 
+    function optionValue(opt, fallback) {
+        const raw = opt && (opt.value ?? opt.id ?? fallback);
+        return String(raw);
+    }
+
+    function setSingleChoiceAnswer(area, questionId, value) {
+        answers[questionId] = String(value);
+        area.querySelectorAll('.k-option').forEach((option) => {
+            const selected = option.dataset.val === String(value);
+            option.classList.toggle('is-selected', selected);
+            option.setAttribute('aria-checked', selected ? 'true' : 'false');
+            const input = option.querySelector('input[type="radio"]');
+            if (input) input.checked = selected;
+        });
+        updateDots();
+        updateNavButtons();
+    }
+
+    function setMultiChoiceAnswer(area, questionId, value, selected) {
+        const normalizedValue = String(value);
+        const option = area.querySelector(`.k-option[data-val="${CSS.escape(normalizedValue)}"]`);
+        if (option) {
+            option.classList.toggle('is-selected', selected);
+            option.setAttribute('aria-checked', selected ? 'true' : 'false');
+            const input = option.querySelector('input[type="checkbox"]');
+            if (input) input.checked = selected;
+        }
+        answers[questionId] = Array.from(area.querySelectorAll('.k-option.is-selected')).map(o => String(o.dataset.val));
+        updateDots();
+        updateNavButtons();
+    }
+
+    function isAnswered(questionId) {
+        const value = answers[questionId];
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === 'string') return value.trim() !== '';
+        return value !== undefined && value !== null;
+    }
+
     // ── Question rendering ─────────────────────────────────────
     function renderQuestion(idx) {
         const q = questions[idx];
@@ -131,23 +170,27 @@
         if (q.type === 'multiple_choice' || q.type === 'mcq') {
             area.innerHTML = `<div class="k-options" role="radiogroup" aria-label="Answer options">` +
                 (q.options || []).map((opt, i) => {
-                    const val = opt.value || opt.id || String(i);
-                    const sel = saved === val;
-                    return `<label class="k-option${sel ? ' is-selected' : ''}" data-val="${LMS.escHtml(val)}">
-            <input type="radio" name="q${q.id}" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
+                    const val = optionValue(opt, String(i));
+                    const inputId = `quiz-q${q.id}-opt${i}`;
+                    const sel = String(saved ?? '') === val;
+                    return `<label class="k-option${sel ? ' is-selected' : ''}" for="${LMS.escHtml(inputId)}" data-val="${LMS.escHtml(val)}" role="radio" aria-checked="${sel ? 'true' : 'false'}" tabindex="${previewMode ? '-1' : '0'}">
+            <input id="${LMS.escHtml(inputId)}" type="radio" name="q${q.id}" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
             <span class="k-option__indicator" aria-hidden="true"></span>
             <span class="k-option__label">${LMS.escHtml(opt.text || opt.label || val)}</span>
           </label>`;
                 }).join('') + '</div>';
             area.querySelectorAll('.k-option').forEach(opt => {
-                opt.addEventListener('click', () => {
+                const select = (event) => {
                     if (previewMode) return;
-                    area.querySelectorAll('.k-option').forEach(o => o.classList.remove('is-selected'));
-                    opt.classList.add('is-selected');
-                    const radio = opt.querySelector('input[type="radio"]');
-                    if (radio) radio.checked = true;
-                    answers[q.id] = opt.dataset.val;
-                    updateDots();
+                    if (event) event.preventDefault();
+                    setSingleChoiceAnswer(area, q.id, opt.dataset.val);
+                };
+                opt.addEventListener('click', select);
+                opt.addEventListener('keydown', (event) => {
+                    if (event.key === ' ' || event.key === 'Enter') select(event);
+                });
+                opt.querySelector('input[type="radio"]')?.addEventListener('change', () => {
+                    if (!previewMode) setSingleChoiceAnswer(area, q.id, opt.dataset.val);
                 });
             });
         } else if (q.type === 'true_false' || q.type === 'boolean') {
@@ -177,26 +220,30 @@
                 updateDots();
             });
         } else if (q.type === 'multiple_select' || q.type === 'msa') {
-            const savedArr = Array.isArray(saved) ? saved : [];
+            const savedArr = Array.isArray(saved) ? saved.map(String) : [];
             area.innerHTML = `<div class="k-options" role="group" aria-label="Select all that apply">` +
                 (q.options || []).map((opt, i) => {
-                    const val = opt.value || opt.id || String(i);
+                    const val = optionValue(opt, String(i));
+                    const inputId = `quiz-q${q.id}-chk${i}`;
                     const sel = savedArr.includes(val);
-                    return `<label class="k-option k-option--checkbox${sel ? ' is-selected' : ''}" data-val="${LMS.escHtml(val)}">
-            <input type="checkbox" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
+                    return `<label class="k-option k-option--checkbox${sel ? ' is-selected' : ''}" for="${LMS.escHtml(inputId)}" data-val="${LMS.escHtml(val)}" role="checkbox" aria-checked="${sel ? 'true' : 'false'}" tabindex="${previewMode ? '-1' : '0'}">
+            <input id="${LMS.escHtml(inputId)}" type="checkbox" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
             <span class="k-option__indicator" aria-hidden="true"></span>
-            <span class="k-option__label">${LMS.escHtml(opt.text || val)}</span>
+            <span class="k-option__label">${LMS.escHtml(opt.text || opt.label || val)}</span>
           </label>`;
                 }).join('') + '</div>';
             area.querySelectorAll('.k-option').forEach(opt => {
-                opt.addEventListener('click', () => {
+                const toggle = (event) => {
                     if (previewMode) return;
-                    opt.classList.toggle('is-selected');
-                    const cb = opt.querySelector('input[type="checkbox"]');
-                    if (cb) cb.checked = opt.classList.contains('is-selected');
-                    const vals = Array.from(area.querySelectorAll('.k-option.is-selected')).map(o => o.dataset.val);
-                    answers[q.id] = vals;
-                    updateDots();
+                    if (event) event.preventDefault();
+                    setMultiChoiceAnswer(area, q.id, opt.dataset.val, !opt.classList.contains('is-selected'));
+                };
+                opt.addEventListener('click', toggle);
+                opt.addEventListener('keydown', (event) => {
+                    if (event.key === ' ' || event.key === 'Enter') toggle(event);
+                });
+                opt.querySelector('input[type="checkbox"]')?.addEventListener('change', (event) => {
+                    if (!previewMode) setMultiChoiceAnswer(area, q.id, opt.dataset.val, event.target.checked);
                 });
             });
         }
@@ -210,15 +257,21 @@
         const nextBtn = $('quizNextBtn');
         const submitBtn = $('quizSubmitBtn');
         if (prevBtn) prevBtn.disabled = current === 0;
-        if (nextBtn) nextBtn.classList.toggle('hidden', current >= questions.length - 1);
-        if (submitBtn) submitBtn.classList.toggle('hidden', previewMode || current !== questions.length - 1);
+        if (nextBtn) {
+            nextBtn.classList.toggle('hidden', current >= questions.length - 1);
+            nextBtn.disabled = current >= questions.length - 1;
+        }
+        if (submitBtn) {
+            submitBtn.classList.toggle('hidden', previewMode || current !== questions.length - 1);
+            submitBtn.disabled = !attemptData || previewMode;
+        }
     }
 
     function updateDots() {
         const container = $('quizDots');
         if (!container) return;
         container.innerHTML = questions.map((q, i) => {
-            const cls = i === current ? 'is-current' : (answers[q.id] !== undefined ? 'is-answered' : '');
+            const cls = i === current ? 'is-current' : (isAnswered(q.id) ? 'is-answered' : '');
             return `<button class="k-quiz-dot ${cls}" data-idx="${i}" aria-label="Question ${i + 1}" role="listitem"></button>`;
         }).join('');
         container.querySelectorAll('.k-quiz-dot').forEach(dot => {
@@ -263,7 +316,7 @@
         hideEl('quizStickyHeader');
         showEl('quizTopbar');
 
-        const pct = result.score_pct || 0;
+        const pct = Number.isFinite(Number(result.score_pct)) ? Number(result.score_pct) : (Number(result.max_score) > 0 ? Math.round((Number(result.score || 0) / Number(result.max_score)) * 100) : 0);
         const ringFill = $('scoreRingFill');
         if (ringFill) {
             const offset = 345 * (1 - pct / 100);

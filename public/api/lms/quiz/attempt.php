@@ -53,6 +53,13 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log(json_encode([
+        'context' => 'lms.quiz.attempt.start',
+        'assessment_id' => $assessmentId,
+        'course_id' => $courseId,
+        'user_id' => (int)$user['user_id'],
+        'exception_message' => $e->getMessage(),
+    ]));
     lms_error('attempt_create_failed', 'Unable to start attempt', 500);
 }
 
