@@ -164,6 +164,12 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log(json_encode([
+        'context' => 'lms.quiz.attempt.submit',
+        'attempt_id' => $attemptId,
+        'user_id' => (int)$user['user_id'],
+        'exception_message' => $e->getMessage(),
+    ]));
     lms_error('submit_failed', 'Failed to submit attempt', 500);
 }
 
