@@ -58,6 +58,8 @@
     let secondsLeft = 0;
     let navWired = false;
     let canManage = false;
+    let canPreview = false;
+    let previewMode = false;
 
 
     function wireAttemptNavigation() {
@@ -69,7 +71,7 @@
         $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => submitAttempt(false));
 
         document.addEventListener('keydown', e => {
-            if (!attemptData) return;
+            if (!attemptData && !previewMode) return;
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
             if (e.key === 'j' || e.key === 'ArrowLeft') { if (current > 0) renderQuestion(current - 1); }
             if (e.key === 'k' || e.key === 'ArrowRight') { if (current < questions.length - 1) renderQuestion(current + 1); }
@@ -124,6 +126,7 @@
         if (!area) return;
 
         const saved = answers[q.id];
+        const disabled = previewMode ? ' disabled' : '';
 
         if (q.type === 'multiple_choice' || q.type === 'mcq') {
             area.innerHTML = `<div class="k-options" role="radiogroup" aria-label="Answer options">` +
@@ -131,13 +134,14 @@
                     const val = opt.value || opt.id || String(i);
                     const sel = saved === val;
                     return `<label class="k-option${sel ? ' is-selected' : ''}" data-val="${LMS.escHtml(val)}">
-            <input type="radio" name="q${q.id}" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''} />
+            <input type="radio" name="q${q.id}" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
             <span class="k-option__indicator" aria-hidden="true"></span>
             <span class="k-option__label">${LMS.escHtml(opt.text || opt.label || val)}</span>
           </label>`;
                 }).join('') + '</div>';
             area.querySelectorAll('.k-option').forEach(opt => {
                 opt.addEventListener('click', () => {
+                    if (previewMode) return;
                     area.querySelectorAll('.k-option').forEach(o => o.classList.remove('is-selected'));
                     opt.classList.add('is-selected');
                     const radio = opt.querySelector('input[type="radio"]');
@@ -148,11 +152,12 @@
             });
         } else if (q.type === 'true_false' || q.type === 'boolean') {
             area.innerHTML = `<div class="k-tf-options">
-        <button class="k-tf-btn${saved === 'true' ? ' is-selected' : ''}" data-val="true">True</button>
-        <button class="k-tf-btn${saved === 'false' ? ' is-selected' : ''}" data-val="false">False</button>
+        <button class="k-tf-btn${saved === 'true' ? ' is-selected' : ''}" data-val="true"${disabled}>True</button>
+        <button class="k-tf-btn${saved === 'false' ? ' is-selected' : ''}" data-val="false"${disabled}>False</button>
       </div>`;
             area.querySelectorAll('.k-tf-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    if (previewMode) return;
                     area.querySelectorAll('.k-tf-btn').forEach(b => b.classList.remove('is-selected'));
                     btn.classList.add('is-selected');
                     answers[q.id] = btn.dataset.val;
@@ -163,10 +168,11 @@
             const rows = q.type === 'long_answer' ? 8 : 4;
             area.innerHTML = `<div class="k-field">
         <label class="k-label" for="saInput">Your answer</label>
-        <textarea class="k-textarea" id="saInput" rows="${rows}" placeholder="Type your answer…">${LMS.escHtml(saved || '')}</textarea>
+        <textarea class="k-textarea" id="saInput" rows="${rows}" placeholder="Type your answer…"${disabled}>${LMS.escHtml(saved || '')}</textarea>
         <span class="k-field-hint">Your answer will be manually reviewed by a grader.</span>
       </div>`;
             area.querySelector('#saInput').addEventListener('input', e => {
+                if (previewMode) return;
                 answers[q.id] = e.target.value;
                 updateDots();
             });
@@ -177,13 +183,14 @@
                     const val = opt.value || opt.id || String(i);
                     const sel = savedArr.includes(val);
                     return `<label class="k-option k-option--checkbox${sel ? ' is-selected' : ''}" data-val="${LMS.escHtml(val)}">
-            <input type="checkbox" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''} />
+            <input type="checkbox" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
             <span class="k-option__indicator" aria-hidden="true"></span>
             <span class="k-option__label">${LMS.escHtml(opt.text || val)}</span>
           </label>`;
                 }).join('') + '</div>';
             area.querySelectorAll('.k-option').forEach(opt => {
                 opt.addEventListener('click', () => {
+                    if (previewMode) return;
                     opt.classList.toggle('is-selected');
                     const cb = opt.querySelector('input[type="checkbox"]');
                     if (cb) cb.checked = opt.classList.contains('is-selected');
@@ -204,7 +211,7 @@
         const submitBtn = $('quizSubmitBtn');
         if (prevBtn) prevBtn.disabled = current === 0;
         if (nextBtn) nextBtn.classList.toggle('hidden', current >= questions.length - 1);
-        if (submitBtn) submitBtn.classList.toggle('hidden', current !== questions.length - 1);
+        if (submitBtn) submitBtn.classList.toggle('hidden', previewMode || current !== questions.length - 1);
     }
 
     function updateDots() {
@@ -531,6 +538,7 @@
 
         quizData = res.data?.data || res.data || {};
         canManage = !!quizData.capabilities?.manage_course;
+        canPreview = canManage || !!quizData.capabilities?.grade_course;
         if (URL_MODE === 'edit' && !canManage) {
             showPanel('quizAccessDenied');
             LMS.renderAccessDenied($('quizAccessDenied'), 'You do not have permission to edit this quiz.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
@@ -560,13 +568,19 @@
         $('metaAttempts') && ($('metaAttempts').textContent = quizData.attempts_used || 0);
         $('metaMax') && ($('metaMax').textContent = quizData.max_attempts ? quizData.max_attempts : '∞');
 
-        // Disable start if max attempts reached
+        // Staff preview/manage must not call the student attempt endpoint unless the user is
+        // actually participating as a student in this course.
         const startBtn = $('quizStartBtn');
         if (startBtn) {
             const attemptsUsed = Number(quizData.attempts_used || 0);
             const noAttempts = quizData.max_attempts && attemptsUsed >= Number(quizData.max_attempts);
+            const canTakeAsStudent = !!quizData.capabilities?.participate_as_student;
             startBtn.onclick = null;
-            if (noAttempts) {
+            if (canPreview && !canTakeAsStudent) {
+                startBtn.disabled = false;
+                startBtn.textContent = 'Preview Quiz';
+                startBtn.onclick = previewQuiz;
+            } else if (noAttempts) {
                 startBtn.disabled = true;
                 startBtn.textContent = 'No attempts remaining';
             } else {
@@ -582,6 +596,25 @@
         await renderStaffPanel();
     }
 
+    async function previewQuiz() {
+        previewMode = true;
+        attemptData = null;
+        if (!(await loadQuizQuestions())) return;
+        answers = {};
+        if (!questions.length) {
+            LMS.toast('This quiz has no questions.', 'warning');
+            return;
+        }
+        showPanel('quizAttemptPanel');
+        hideEl('quizTopbar');
+        showEl('quizStickyHeader');
+        hideEl('quizTimer');
+        updateDots();
+        renderQuestion(0);
+        wireAttemptNavigation();
+        LMS.toast('Preview mode: no student attempt was created.', 'success');
+    }
+
     function wireRealtime() {
         if (!window.LmsWS) return;
         ['quiz.updated', 'quiz.deleted'].forEach((eventName) => {
@@ -594,19 +627,15 @@
         });
     }
 
-    async function startAttempt() {
-        const endpoint = './api/lms/quiz/attempt.php';
-        const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
-        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
-        if (!res.ok) {
-            LMS.toast('Could not start quiz: ' + (res.error || 'Error'), 'error');
-            return;
-        }
-        attemptData = res.data?.data || res.data || {};
+    async function loadQuizQuestions() {
         const questionsEndpoint = `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`;
         const qRes = await LMS.api('GET', questionsEndpoint);
         logDebug({ endpoint: questionsEndpoint, method: 'GET', response_status: qRes.status, response_body: qRes.data, parsed_error_message: qRes.error || null });
-        questions = qRes.ok ? (qRes.data?.data?.items || qRes.data?.items || []) : [];
+        if (!qRes.ok) {
+            LMS.toast('Could not load quiz questions: ' + (qRes.error || 'Error'), 'error');
+            return false;
+        }
+        questions = qRes.data?.data?.items || qRes.data?.items || [];
         questions = questions.map((q) => ({
             id: Number(q.question_id || q.id || 0),
             text: q.prompt || q.text || '',
@@ -615,6 +644,20 @@
             position: Number(q.position || 0),
             is_required: Number(q.is_required || 0) === 1,
         }));
+        return true;
+    }
+
+    async function startAttempt() {
+        previewMode = false;
+        const endpoint = './api/lms/quiz/attempt.php';
+        const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
+        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        if (!res.ok) {
+            LMS.toast('Could not start quiz: ' + (res.error || 'Error'), 'error');
+            return;
+        }
+        attemptData = res.data?.data || res.data || {};
+        if (!(await loadQuizQuestions())) return;
         answers = {};
 
         if (!questions.length) {
