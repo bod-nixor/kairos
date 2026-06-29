@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/access_policy.php';
 
 lms_require_feature(['quizzes', 'lms_quizzes']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
@@ -19,9 +20,15 @@ if (!$a) {
     lms_error('not_found', 'Assessment not found', 404);
 }
 
-lms_course_access($user, (int)$a['course_id'], false);
-if ((string)$a['status'] !== 'published') {
-    lms_error('forbidden', 'Quiz is not published', 403);
+$courseId = (int)$a['course_id'];
+$access = rbac_course_access_context($pdo, $user, $courseId);
+$attemptDecision = lms_quiz_student_attempt_decision($access, (string)$a['status']);
+if (!$attemptDecision['allowed']) {
+    lms_error(
+        (string)$attemptDecision['code'],
+        (string)$attemptDecision['message'],
+        (int)$attemptDecision['status']
+    );
 }
 
 $pdo->beginTransaction();
@@ -37,7 +44,7 @@ try {
 
     $pdo->prepare('INSERT INTO lms_assessment_attempts (assessment_id,course_id,user_id) VALUES (:a,:c,:u)')->execute([
         ':a' => $assessmentId,
-        ':c' => (int)$a['course_id'],
+        ':c' => $courseId,
         ':u' => (int)$user['user_id'],
     ]);
     $attemptId = (int)$pdo->lastInsertId();
