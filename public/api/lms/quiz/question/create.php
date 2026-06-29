@@ -115,5 +115,14 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log(json_encode([
+        'context' => 'lms.quiz.question.create',
+        'status' => 'failed',
+        'assessment_id' => $assessmentId,
+        'user_id' => (int)($user['user_id'] ?? 0),
+        'exception_class' => get_class($e),
+        'exception_message' => $e->getMessage(),
+        'exception_code' => $e->getCode(),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     lms_error('question_create_failed', 'Failed to create question', 500);
 }
