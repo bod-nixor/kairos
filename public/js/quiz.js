@@ -609,8 +609,9 @@
         hideEl('quizTopbar');
         showEl('quizStickyHeader');
         hideEl('quizTimer');
-        renderQuestion(0);
         updateDots();
+        renderQuestion(0);
+        wireAttemptNavigation();
         LMS.toast('Preview mode: no student attempt was created.', 'success');
     }
 

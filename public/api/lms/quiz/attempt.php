@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/_common.php';
+require_once __DIR__ . '/access_policy.php';
 
 lms_require_feature(['quizzes', 'lms_quizzes']);
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
@@ -21,17 +22,13 @@ if (!$a) {
 
 $courseId = (int)$a['course_id'];
 $access = rbac_course_access_context($pdo, $user, $courseId);
-if ($access['view_course'] && !$access['participate_as_student']) {
-    lms_error('student_participation_required', 'Starting a quiz attempt requires student participation. Use quiz preview or management tools for staff access.', 403);
-}
-if ($access['view_course_home'] && $access['can_self_enroll']) {
-    lms_error('forbidden', 'You need to enrol before starting this quiz.', 403);
-}
-if (!$access['view_course'] || !$access['participate_as_student']) {
-    lms_error('forbidden', 'You do not have permission to start this quiz.', 403);
-}
-if ((string)$a['status'] !== 'published') {
-    lms_error('forbidden', 'Quiz is not published', 403);
+$attemptDecision = lms_quiz_student_attempt_decision($access, (string)$a['status']);
+if (!$attemptDecision['allowed']) {
+    lms_error(
+        (string)$attemptDecision['code'],
+        (string)$attemptDecision['message'],
+        (int)$attemptDecision['status']
+    );
 }
 
 $pdo->beginTransaction();

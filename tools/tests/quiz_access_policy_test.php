@@ -1,35 +1,26 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__, 2) . '/public/api/lms/quiz/access_policy.php';
+
 function simulate_quiz_access(array $capabilities, string $action, string $status = 'published'): array
 {
-    $viewCourse = (bool)($capabilities['view_course'] ?? false);
-    $viewHome = (bool)($capabilities['view_course_home'] ?? false);
-    $canSelfEnroll = (bool)($capabilities['can_self_enroll'] ?? false);
-    $participate = (bool)($capabilities['participate_as_student'] ?? false);
-    $canPreview = (bool)($capabilities['manage_course'] ?? false) || (bool)($capabilities['grade_course'] ?? false);
-
     if ($action === 'student_attempt') {
-        if ($viewCourse && !$participate) {
-            return ['status' => 403, 'error' => 'student_participation_required', 'attempt_created' => false];
-        }
-        if ($viewHome && $canSelfEnroll) {
-            return ['status' => 403, 'error' => 'forbidden', 'attempt_created' => false];
-        }
-        if (!$viewCourse || !$participate) {
-            return ['status' => 403, 'error' => 'forbidden', 'attempt_created' => false];
-        }
-        if ($status !== 'published') {
-            return ['status' => 403, 'error' => 'forbidden', 'attempt_created' => false];
-        }
-        return ['status' => 200, 'error' => null, 'attempt_created' => true];
+        $decision = lms_quiz_student_attempt_decision($capabilities, $status);
+        return [
+            'status' => (int)$decision['status'],
+            'error' => $decision['code'],
+            'attempt_created' => (bool)$decision['allowed'],
+        ];
     }
 
     if ($action === 'staff_preview') {
-        if (!$viewCourse || !$canPreview) {
-            return ['status' => 403, 'error' => 'forbidden', 'attempt_created' => false];
-        }
-        return ['status' => 200, 'error' => null, 'attempt_created' => false];
+        $decision = lms_quiz_staff_preview_decision($capabilities);
+        return [
+            'status' => (int)$decision['status'],
+            'error' => $decision['code'],
+            'attempt_created' => false,
+        ];
     }
 
     return ['status' => 400, 'error' => 'bad_action', 'attempt_created' => false];
