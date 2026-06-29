@@ -10,9 +10,12 @@ cd "$ROOT_DIR"
 
 echo "==> Running PHP syntax checks"
 php_files=()
+tmp_file="/tmp/php_files_list.txt"
+find . -name '*.php' -print0 | sort -z > "$tmp_file"
 while IFS= read -r -d '' file; do
     php_files+=("$file")
-done < <(find . -name '*.php' -print0 | sort -z)
+done < "$tmp_file"
+rm -f "$tmp_file"
 
 if ((${#php_files[@]} == 0)); then
     echo "No PHP files found"

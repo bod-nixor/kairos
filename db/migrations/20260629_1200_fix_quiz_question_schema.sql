@@ -12,10 +12,6 @@ SET @question_type_enum := (
   LIMIT 1
 );
 
-UPDATE lms_questions
-SET question_type = 'multiple_select'
-WHERE question_type = 'multi_select';
-
 SET @needs_question_type_enum := IF(@question_type_enum IS NULL, 0, IF(LOCATE("'multiple_select'", @question_type_enum) = 0, 1, 0));
 SET @sql := IF(
   @needs_question_type_enum = 1,
@@ -25,6 +21,10 @@ SET @sql := IF(
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+UPDATE lms_questions
+SET question_type = 'multiple_select'
+WHERE question_type = 'multi_select';
 
 -- lms_questions.is_required is used by create/update/list/attempt endpoints.
 SET @has_is_required := (
