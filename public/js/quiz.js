@@ -58,21 +58,86 @@
     let secondsLeft = 0;
     let navWired = false;
     let canManage = false;
-    let canPreview = false;
-    let previewMode = false;
+    let attemptMode = 'idle';
+    let isSubmitting = false;
+
+    function hasOwn(obj, key) {
+        return Object.prototype.hasOwnProperty.call(obj || {}, key);
+    }
+
+    function optionValue(opt, index) {
+        if (opt && typeof opt === 'object') {
+            if (hasOwn(opt, 'value') && opt.value !== null && opt.value !== undefined) return String(opt.value);
+            if (hasOwn(opt, 'id') && opt.id !== null && opt.id !== undefined) return String(opt.id);
+        }
+        return String(index);
+    }
+
+    function optionText(opt, fallback) {
+        if (opt && typeof opt === 'object') {
+            return String(opt.text || opt.label || opt.value || fallback);
+        }
+        return String(opt || fallback);
+    }
+
+    function answerProvided(question) {
+        if (!question) return false;
+        const raw = answers[question.id];
+        if (Array.isArray(raw)) {
+            return raw.some(value => value !== null && value !== undefined && String(value).trim() !== '');
+        }
+        if (raw === null || raw === undefined) return false;
+        return String(raw).trim() !== '';
+    }
+
+    function answeredCount() {
+        return questions.filter(answerProvided).length;
+    }
+
+    function requiredMissingQuestions() {
+        return questions.filter(q => q.is_required && !answerProvided(q));
+    }
+
+    function isPreviewMode() {
+        return attemptMode === 'preview' || !!attemptData?.preview;
+    }
+
+    function canPreviewQuiz() {
+        const caps = quizData?.capabilities || {};
+        return Boolean(caps.manage_course || caps.grade_course || ['admin', 'manager', 'ta'].includes(String(quizData?.course_role || '').toLowerCase()));
+    }
+
+    function canTakeStudentAttempt() {
+        return Boolean(quizData?.capabilities?.participate_as_student);
+    }
+
+    function setButtonBusy(button, busy, busyLabel, readyLabel) {
+        if (!button) return;
+        button.disabled = !!busy;
+        if (busyLabel && readyLabel) {
+            button.textContent = busy ? busyLabel : readyLabel;
+        }
+    }
 
 
     function wireAttemptNavigation() {
         if (navWired) return;
         navWired = true;
 
-        $('quizPrevBtn') && $('quizPrevBtn').addEventListener('click', () => { if (current > 0) renderQuestion(current - 1); });
-        $('quizNextBtn') && $('quizNextBtn').addEventListener('click', () => { if (current < questions.length - 1) renderQuestion(current + 1); });
-        $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => submitAttempt(false));
+        $('quizPrevBtn') && $('quizPrevBtn').addEventListener('click', () => { if (!isSubmitting && current > 0) renderQuestion(current - 1); });
+        $('quizNextBtn') && $('quizNextBtn').addEventListener('click', () => { if (!isSubmitting && current < questions.length - 1) renderQuestion(current + 1); });
+        $('quizSubmitBtn') && $('quizSubmitBtn').addEventListener('click', () => {
+            if (isPreviewMode()) {
+                endPreview();
+                return;
+            }
+            submitAttempt(false);
+        });
 
         document.addEventListener('keydown', e => {
-            if (!attemptData && !previewMode) return;
+            if (!attemptData) return;
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+            if (isSubmitting) return;
             if (e.key === 'j' || e.key === 'ArrowLeft') { if (current > 0) renderQuestion(current - 1); }
             if (e.key === 'k' || e.key === 'ArrowRight') { if (current < questions.length - 1) renderQuestion(current + 1); }
         });
@@ -85,6 +150,7 @@
     }
 
     function startTimer(totalSecs) {
+        stopTimer();
         secondsLeft = totalSecs;
         const el = $('quizTimer');
         if (!el) return;
@@ -105,150 +171,143 @@
 
     function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
 
-    function optionValue(opt, fallback) {
-        const raw = opt && (opt.value ?? opt.id ?? fallback);
-        return String(raw);
-    }
-
-    function setSingleChoiceAnswer(area, questionId, value) {
-        answers[questionId] = String(value);
-        area.querySelectorAll('.k-option').forEach((option) => {
-            const selected = option.dataset.val === String(value);
-            option.classList.toggle('is-selected', selected);
-            option.setAttribute('aria-checked', selected ? 'true' : 'false');
-            const input = option.querySelector('input[type="radio"]');
-            if (input) input.checked = selected;
-        });
-        updateDots();
-        updateNavButtons();
-    }
-
-    function setMultiChoiceAnswer(area, questionId, value, selected) {
-        const normalizedValue = String(value);
-        const option = area.querySelector(`.k-option[data-val="${CSS.escape(normalizedValue)}"]`);
-        if (option) {
-            option.classList.toggle('is-selected', selected);
-            option.setAttribute('aria-checked', selected ? 'true' : 'false');
-            const input = option.querySelector('input[type="checkbox"]');
-            if (input) input.checked = selected;
-        }
-        answers[questionId] = Array.from(area.querySelectorAll('.k-option.is-selected')).map(o => String(o.dataset.val));
-        updateDots();
-        updateNavButtons();
-    }
-
-    function isAnswered(questionId) {
-        const value = answers[questionId];
-        if (Array.isArray(value)) return value.length > 0;
-        if (typeof value === 'string') return value.trim() !== '';
-        return value !== undefined && value !== null;
-    }
-
     // ── Question rendering ─────────────────────────────────────
+    function syncProgressUi() {
+        const total = questions.length || 1;
+        const answered = answeredCount();
+        $('questionNum') && ($('questionNum').textContent = `Question ${current + 1} of ${questions.length}`);
+        $('quizProgressText') && ($('quizProgressText').textContent = `Question ${current + 1} of ${questions.length} • ${answered} answered`);
+
+        const fill = ((current + 1) / total) * 100;
+        const pBar = $('quizProgressFill');
+        if (pBar) {
+            pBar.style.width = fill + '%';
+            const progressRoot = pBar.closest('[role="progressbar"]');
+            if (progressRoot) {
+                progressRoot.setAttribute('aria-valuenow', fill.toFixed(0));
+                progressRoot.setAttribute('aria-label', `Question ${current + 1} of ${questions.length}, ${answered} answered`);
+            }
+        }
+        updateDots();
+    }
+
+    function renderChoiceEmpty(area) {
+        area.innerHTML = '<div class="k-empty k-empty-inline--wide"><p class="k-empty__title">No answer options available</p><p class="k-empty__desc">This question needs answer options before it can be completed.</p></div>';
+    }
+
     function renderQuestion(idx) {
         const q = questions[idx];
         if (!q) return;
         current = idx;
 
-        // Update header
-        $('questionNum') && ($('questionNum').textContent = `Question ${idx + 1} of ${questions.length}`);
         const questionLabel = (q.text || q.prompt || '') + (q.is_required ? ' *' : '');
         $('questionText') && ($('questionText').textContent = questionLabel);
-        $('quizProgressText') && ($('quizProgressText').textContent = `${idx + 1} / ${questions.length}`);
+        $('quizPreviewBanner')?.classList.toggle('hidden', !isPreviewMode());
 
-        const fill = ((idx + 1) / questions.length) * 100;
-        const pBar = $('quizProgressFill');
-        if (pBar) { pBar.style.width = fill + '%'; pBar.closest('[role="progressbar"]') && pBar.closest('[role="progressbar"]').setAttribute('aria-valuenow', fill.toFixed(0)); }
-
-        // Render answer area
         const area = $('answerArea');
         if (!area) return;
 
         const saved = answers[q.id];
-        const disabled = previewMode ? ' disabled' : '';
 
         if (q.type === 'multiple_choice' || q.type === 'mcq') {
-            area.innerHTML = `<div class="k-options" role="radiogroup" aria-label="Answer options">` +
-                (q.options || []).map((opt, i) => {
-                    const val = optionValue(opt, String(i));
-                    const inputId = `quiz-q${q.id}-opt${i}`;
-                    const sel = String(saved ?? '') === val;
-                    return `<label class="k-option${sel ? ' is-selected' : ''}" for="${LMS.escHtml(inputId)}" data-val="${LMS.escHtml(val)}" role="radio" aria-checked="${sel ? 'true' : 'false'}" tabindex="${previewMode ? '-1' : '0'}">
-            <input id="${LMS.escHtml(inputId)}" type="radio" name="q${q.id}" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
-            <span class="k-option__indicator" aria-hidden="true"></span>
-            <span class="k-option__label">${LMS.escHtml(opt.text || opt.label || val)}</span>
-          </label>`;
-                }).join('') + '</div>';
-            area.querySelectorAll('.k-option').forEach(opt => {
-                const select = (event) => {
-                    if (previewMode) return;
-                    if (event) event.preventDefault();
-                    setSingleChoiceAnswer(area, q.id, opt.dataset.val);
+            const options = Array.isArray(q.options) ? q.options : [];
+            if (!options.length) {
+                renderChoiceEmpty(area);
+            } else {
+                const groupName = `quiz-q-${q.id}`;
+                area.innerHTML = `<div class="k-options" role="radiogroup" aria-label="Answer options">` +
+                    options.map((opt, i) => {
+                        const val = optionValue(opt, i);
+                        const inputId = `quiz-q-${q.id}-option-${i}`;
+                        const sel = String(saved ?? '') === val;
+                        return `<label class="k-option${sel ? ' is-selected' : ''}" for="${inputId}" data-val="${LMS.escHtml(val)}">
+              <input id="${inputId}" type="radio" name="${groupName}" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''} />
+              <span class="k-option__indicator" aria-hidden="true"></span>
+              <span class="k-option__label">${LMS.escHtml(optionText(opt, val))}</span>
+            </label>`;
+                    }).join('') + '</div>';
+
+                const radios = Array.from(area.querySelectorAll(`input[type="radio"][name="${groupName}"]`));
+                const syncSelection = (value) => {
+                    answers[q.id] = value;
+                    radios.forEach(input => {
+                        const selected = input.value === value;
+                        input.checked = selected;
+                        input.closest('.k-option')?.classList.toggle('is-selected', selected);
+                    });
+                    syncProgressUi();
                 };
-                opt.addEventListener('click', select);
-                opt.addEventListener('keydown', (event) => {
-                    if (event.key === ' ' || event.key === 'Enter') select(event);
+                radios.forEach(input => {
+                    input.addEventListener('change', () => {
+                        if (input.checked) syncSelection(input.value);
+                    });
                 });
-                opt.querySelector('input[type="radio"]')?.addEventListener('change', () => {
-                    if (!previewMode) setSingleChoiceAnswer(area, q.id, opt.dataset.val);
-                });
-            });
+            }
         } else if (q.type === 'true_false' || q.type === 'boolean') {
-            area.innerHTML = `<div class="k-tf-options">
-        <button class="k-tf-btn${saved === 'true' ? ' is-selected' : ''}" data-val="true"${disabled}>True</button>
-        <button class="k-tf-btn${saved === 'false' ? ' is-selected' : ''}" data-val="false"${disabled}>False</button>
+            const savedVal = String(saved ?? '');
+            area.innerHTML = `<div class="k-tf-options" role="group" aria-label="True or false answer">
+        <button type="button" class="k-tf-btn${savedVal === 'true' ? ' is-selected' : ''}" data-val="true" aria-pressed="${savedVal === 'true' ? 'true' : 'false'}">True</button>
+        <button type="button" class="k-tf-btn${savedVal === 'false' ? ' is-selected' : ''}" data-val="false" aria-pressed="${savedVal === 'false' ? 'true' : 'false'}">False</button>
       </div>`;
             area.querySelectorAll('.k-tf-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    if (previewMode) return;
-                    area.querySelectorAll('.k-tf-btn').forEach(b => b.classList.remove('is-selected'));
+                    area.querySelectorAll('.k-tf-btn').forEach(b => {
+                        b.classList.remove('is-selected');
+                        b.setAttribute('aria-pressed', 'false');
+                    });
                     btn.classList.add('is-selected');
+                    btn.setAttribute('aria-pressed', 'true');
                     answers[q.id] = btn.dataset.val;
-                    updateDots();
+                    syncProgressUi();
                 });
             });
         } else if (q.type === 'short_answer' || q.type === 'text' || q.type === 'long_answer') {
             const rows = q.type === 'long_answer' ? 8 : 4;
+            const inputId = `quiz-q-${q.id}-text`;
             area.innerHTML = `<div class="k-field">
-        <label class="k-label" for="saInput">Your answer</label>
-        <textarea class="k-textarea" id="saInput" rows="${rows}" placeholder="Type your answer…"${disabled}>${LMS.escHtml(saved || '')}</textarea>
+        <label class="k-label" for="${inputId}">Your answer</label>
+        <textarea class="k-textarea" id="${inputId}" rows="${rows}" placeholder="Type your answer…">${LMS.escHtml(saved || '')}</textarea>
         <span class="k-field-hint">Your answer will be manually reviewed by a grader.</span>
       </div>`;
-            area.querySelector('#saInput').addEventListener('input', e => {
-                if (previewMode) return;
+            area.querySelector(`#${inputId}`).addEventListener('input', e => {
                 answers[q.id] = e.target.value;
-                updateDots();
+                syncProgressUi();
             });
         } else if (q.type === 'multiple_select' || q.type === 'msa') {
-            const savedArr = Array.isArray(saved) ? saved.map(String) : [];
-            area.innerHTML = `<div class="k-options" role="group" aria-label="Select all that apply">` +
-                (q.options || []).map((opt, i) => {
-                    const val = optionValue(opt, String(i));
-                    const inputId = `quiz-q${q.id}-chk${i}`;
-                    const sel = savedArr.includes(val);
-                    return `<label class="k-option k-option--checkbox${sel ? ' is-selected' : ''}" for="${LMS.escHtml(inputId)}" data-val="${LMS.escHtml(val)}" role="checkbox" aria-checked="${sel ? 'true' : 'false'}" tabindex="${previewMode ? '-1' : '0'}">
-            <input id="${LMS.escHtml(inputId)}" type="checkbox" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''}${disabled} />
-            <span class="k-option__indicator" aria-hidden="true"></span>
-            <span class="k-option__label">${LMS.escHtml(opt.text || opt.label || val)}</span>
-          </label>`;
-                }).join('') + '</div>';
-            area.querySelectorAll('.k-option').forEach(opt => {
-                const toggle = (event) => {
-                    if (previewMode) return;
-                    if (event) event.preventDefault();
-                    setMultiChoiceAnswer(area, q.id, opt.dataset.val, !opt.classList.contains('is-selected'));
+            const options = Array.isArray(q.options) ? q.options : [];
+            if (!options.length) {
+                renderChoiceEmpty(area);
+            } else {
+                const savedArr = Array.isArray(saved) ? saved.map(value => String(value)) : [];
+                area.innerHTML = `<div class="k-options" role="group" aria-label="Select all that apply">` +
+                    options.map((opt, i) => {
+                        const val = optionValue(opt, i);
+                        const inputId = `quiz-q-${q.id}-option-${i}`;
+                        const sel = savedArr.includes(val);
+                        return `<label class="k-option k-option--checkbox${sel ? ' is-selected' : ''}" for="${inputId}" data-val="${LMS.escHtml(val)}">
+              <input id="${inputId}" type="checkbox" value="${LMS.escHtml(val)}" ${sel ? 'checked' : ''} />
+              <span class="k-option__indicator" aria-hidden="true"></span>
+              <span class="k-option__label">${LMS.escHtml(optionText(opt, val))}</span>
+            </label>`;
+                    }).join('') + '</div>';
+
+                const checkboxes = Array.from(area.querySelectorAll('input[type="checkbox"]'));
+                const syncSelection = () => {
+                    const vals = [];
+                    checkboxes.forEach(input => {
+                        input.closest('.k-option')?.classList.toggle('is-selected', input.checked);
+                        if (input.checked) vals.push(input.value);
+                    });
+                    answers[q.id] = vals;
+                    syncProgressUi();
                 };
-                opt.addEventListener('click', toggle);
-                opt.addEventListener('keydown', (event) => {
-                    if (event.key === ' ' || event.key === 'Enter') toggle(event);
-                });
-                opt.querySelector('input[type="checkbox"]')?.addEventListener('change', (event) => {
-                    if (!previewMode) setMultiChoiceAnswer(area, q.id, opt.dataset.val, event.target.checked);
-                });
-            });
+                checkboxes.forEach(input => input.addEventListener('change', syncSelection));
+            }
+        } else {
+            area.innerHTML = '<div class="k-empty k-empty-inline--wide"><p class="k-empty__title">Unsupported question type</p><p class="k-empty__desc">This question cannot be answered here yet.</p></div>';
         }
 
-        // Nav buttons
+        syncProgressUi();
         updateNavButtons();
     }
 
@@ -256,14 +315,16 @@
         const prevBtn = $('quizPrevBtn');
         const nextBtn = $('quizNextBtn');
         const submitBtn = $('quizSubmitBtn');
-        if (prevBtn) prevBtn.disabled = current === 0;
+        if (prevBtn) prevBtn.disabled = current === 0 || isSubmitting;
         if (nextBtn) {
+            nextBtn.disabled = isSubmitting;
             nextBtn.classList.toggle('hidden', current >= questions.length - 1);
-            nextBtn.disabled = current >= questions.length - 1;
         }
         if (submitBtn) {
-            submitBtn.classList.toggle('hidden', previewMode || current !== questions.length - 1);
-            submitBtn.disabled = !attemptData || previewMode;
+            submitBtn.disabled = isSubmitting;
+            submitBtn.textContent = isPreviewMode() ? 'End Preview' : (isSubmitting ? 'Submitting…' : 'Submit Quiz');
+            submitBtn.setAttribute('aria-label', isPreviewMode() ? 'End quiz preview' : 'Submit quiz');
+            submitBtn.classList.toggle('hidden', current !== questions.length - 1);
         }
     }
 
@@ -271,28 +332,38 @@
         const container = $('quizDots');
         if (!container) return;
         container.innerHTML = questions.map((q, i) => {
-            const cls = i === current ? 'is-current' : (isAnswered(q.id) ? 'is-answered' : '');
-            return `<button class="k-quiz-dot ${cls}" data-idx="${i}" aria-label="Question ${i + 1}" role="listitem"></button>`;
+            const answered = answerProvided(q);
+            const cls = [i === current ? 'is-current' : '', answered ? 'is-answered' : ''].filter(Boolean).join(' ');
+            const label = `Question ${i + 1}${answered ? ', answered' : ', unanswered'}${i === current ? ', current' : ''}`;
+            return `<button type="button" class="k-quiz-dot ${cls}" data-idx="${i}" aria-label="${label}" ${i === current ? 'aria-current="step"' : ''} role="listitem">${i + 1}</button>`;
         }).join('');
         container.querySelectorAll('.k-quiz-dot').forEach(dot => {
-            dot.addEventListener('click', () => renderQuestion(Number(dot.dataset.idx)));
+            dot.addEventListener('click', () => {
+                if (!isSubmitting) renderQuestion(Number(dot.dataset.idx));
+            });
         });
     }
 
     // ── Submit ─────────────────────────────────────────────────
     async function submitAttempt(forced) {
-        stopTimer();
+        if (isPreviewMode()) {
+            endPreview();
+            return;
+        }
+        if (isSubmitting) return;
+        if (!attemptData?.attempt_id) {
+            LMS.toast('No active quiz attempt was found. Please start the quiz again.', 'error');
+            showPanel('quizIntroPanel');
+            return;
+        }
+
         if (!forced) {
-            const unanswered = questions.filter(q => q.is_required && (answers[q.id] === undefined || answers[q.id] === null || (typeof answers[q.id] === 'string' && !answers[q.id].trim()) || (Array.isArray(answers[q.id]) && answers[q.id].length === 0))).length;
-            if (unanswered > 0) {
-                const confirmed = await new Promise(res => {
-                    LMS.confirm('Submit Quiz?',
-                        `You have ${unanswered} unanswered question(s). Are you sure you want to submit?`,
-                        () => res(true), { okLabel: 'Submit Anyway', okClass: 'btn-primary' });
-                    // If user dismissed modal without clicking, resolve false after timeout
-                    setTimeout(() => res(false), 30000);
-                });
-                if (!confirmed) { startTimer(secondsLeft); return; }
+            const missing = requiredMissingQuestions();
+            if (missing.length > 0) {
+                const firstMissingIndex = questions.findIndex(q => q.id === missing[0].id);
+                LMS.toast(`Answer ${missing.length} required question${missing.length === 1 ? '' : 's'} before submitting.`, 'warning');
+                if (firstMissingIndex >= 0) renderQuestion(firstMissingIndex);
+                return;
             }
         }
 
@@ -301,13 +372,31 @@
             responses: answers,
         };
         const endpoint = './api/lms/quiz/attempt/submit.php';
-        const res = await LMS.api('POST', endpoint, payload);
-        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
-        if (!res.ok) {
-            LMS.toast('Failed to submit quiz: ' + (res.error || 'Unknown error'), 'error');
-            return;
+        const timerWasRunning = timerInterval !== null;
+        stopTimer();
+        isSubmitting = true;
+        updateNavButtons();
+        try {
+            const res = await LMS.api('POST', endpoint, payload);
+            logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+            if (!res.ok) {
+                const missingIds = res.data?.error?.details?.missing_question_ids || res.data?.details?.missing_question_ids || [];
+                if (Array.isArray(missingIds) && missingIds.length) {
+                    const firstMissingIndex = questions.findIndex(q => missingIds.map(Number).includes(Number(q.id)));
+                    LMS.toast('Some required questions still need answers.', 'warning');
+                    if (firstMissingIndex >= 0) renderQuestion(firstMissingIndex);
+                } else {
+                    LMS.toast('Failed to submit quiz: ' + (res.error || 'Unknown error'), 'error');
+                }
+                if (!forced && timerWasRunning && secondsLeft > 0) startTimer(secondsLeft);
+                return;
+            }
+            attemptMode = 'completed';
+            showResult(res.data?.data || res.data || {});
+        } finally {
+            isSubmitting = false;
+            updateNavButtons();
         }
-        showResult(res.data?.data || res.data || {});
     }
 
     // ── Result ─────────────────────────────────────────────────
@@ -316,7 +405,11 @@
         hideEl('quizStickyHeader');
         showEl('quizTopbar');
 
-        const pct = Number.isFinite(Number(result.score_pct)) ? Number(result.score_pct) : (Number(result.max_score) > 0 ? Math.round((Number(result.score || 0) / Number(result.max_score)) * 100) : 0);
+        const score = Number(result.score || 0);
+        const maxScore = Number(result.max_score || 0);
+        const pct = Number.isFinite(Number(result.score_pct))
+            ? Number(result.score_pct)
+            : (maxScore > 0 ? Math.round((score / maxScore) * 100) : 0);
         const ringFill = $('scoreRingFill');
         if (ringFill) {
             const offset = 345 * (1 - pct / 100);
@@ -327,7 +420,7 @@
         }
         $('scoreValue') && ($('scoreValue').textContent = pct + '%');
         $('resultTitle') && ($('resultTitle').textContent = pct >= 80 ? 'Great job! 🎉' : pct >= 50 ? 'Not bad!' : 'Keep practicing');
-        $('resultDesc') && ($('resultDesc').textContent = `You scored ${result.score || 0} out of ${result.max_score || 100} points.`);
+        $('resultDesc') && ($('resultDesc').textContent = `You scored ${score} out of ${maxScore || 0} points.`);
 
         if (result.has_manual_grading) {
             showEl('manualPendingBanner');
@@ -591,7 +684,6 @@
 
         quizData = res.data?.data || res.data || {};
         canManage = !!quizData.capabilities?.manage_course;
-        canPreview = canManage || !!quizData.capabilities?.grade_course;
         if (URL_MODE === 'edit' && !canManage) {
             showPanel('quizAccessDenied');
             LMS.renderAccessDenied($('quizAccessDenied'), 'You do not have permission to edit this quiz.', `./modules.html?course_id=${encodeURIComponent(COURSE_ID)}`);
@@ -621,25 +713,47 @@
         $('metaAttempts') && ($('metaAttempts').textContent = quizData.attempts_used || 0);
         $('metaMax') && ($('metaMax').textContent = quizData.max_attempts ? quizData.max_attempts : '∞');
 
-        // Staff preview/manage must not call the student attempt endpoint unless the user is
-        // actually participating as a student in this course.
+        // Configure attempt and preview actions.
         const startBtn = $('quizStartBtn');
+        const studentAttemptBtn = $('quizStartStudentAttemptBtn');
+        const attemptsUsed = Number(quizData.attempts_used || 0);
+        const maxAttempts = Number(quizData.max_attempts || 0);
+        const noAttempts = maxAttempts > 0 && attemptsUsed >= maxAttempts;
+        const canPreview = canPreviewQuiz();
+        const canAttemptAsStudent = canTakeStudentAttempt();
+        if (studentAttemptBtn) {
+            studentAttemptBtn.onclick = null;
+            studentAttemptBtn.classList.add('hidden');
+            studentAttemptBtn.disabled = false;
+            studentAttemptBtn.textContent = 'Start Student Attempt';
+        }
         if (startBtn) {
-            const attemptsUsed = Number(quizData.attempts_used || 0);
-            const noAttempts = quizData.max_attempts && attemptsUsed >= Number(quizData.max_attempts);
-            const canTakeAsStudent = !!quizData.capabilities?.participate_as_student;
             startBtn.onclick = null;
-            if (canPreview && !canTakeAsStudent) {
+            if (canPreview) {
                 startBtn.disabled = false;
                 startBtn.textContent = 'Preview Quiz';
-                startBtn.onclick = previewQuiz;
+                startBtn.onclick = startPreview;
+                if (studentAttemptBtn && canAttemptAsStudent) {
+                    studentAttemptBtn.classList.remove('hidden');
+                    if (noAttempts) {
+                        studentAttemptBtn.disabled = true;
+                        studentAttemptBtn.textContent = 'No student attempts remaining';
+                    } else {
+                        studentAttemptBtn.disabled = false;
+                        studentAttemptBtn.textContent = 'Start Student Attempt';
+                        studentAttemptBtn.onclick = startAttempt;
+                    }
+                }
             } else if (noAttempts) {
                 startBtn.disabled = true;
                 startBtn.textContent = 'No attempts remaining';
-            } else {
+            } else if (canAttemptAsStudent) {
                 startBtn.disabled = false;
                 startBtn.textContent = 'Start Attempt';
                 startBtn.onclick = startAttempt;
+            } else {
+                startBtn.disabled = true;
+                startBtn.textContent = 'Student participation required';
             }
         }
 
@@ -647,25 +761,9 @@
         if (historyBtn) historyBtn.onclick = loadHistory;
         showPanel('quizIntroPanel');
         await renderStaffPanel();
-    }
-
-    async function previewQuiz() {
-        previewMode = true;
-        attemptData = null;
-        if (!(await loadQuizQuestions())) return;
-        answers = {};
-        if (!questions.length) {
-            LMS.toast('This quiz has no questions.', 'warning');
-            return;
+        if (URL_MODE === 'preview' && canPreview) {
+            await startPreview();
         }
-        showPanel('quizAttemptPanel');
-        hideEl('quizTopbar');
-        showEl('quizStickyHeader');
-        hideEl('quizTimer');
-        updateDots();
-        renderQuestion(0);
-        wireAttemptNavigation();
-        LMS.toast('Preview mode: no student attempt was created.', 'success');
     }
 
     function wireRealtime() {
@@ -675,21 +773,24 @@
                 if (!payload || typeof payload !== 'object') return;
                 if (String(payload.course_id || '') !== String(COURSE_ID)) return;
                 if (Number(payload.entity_id || 0) !== Number(QUIZ_ID)) return;
+                if (attemptMode === 'student') {
+                    LMS.toast('Quiz details changed. Your current attempt can continue normally.', 'info');
+                    return;
+                }
                 loadPage();
             });
         });
     }
 
-    async function loadQuizQuestions() {
+    async function loadAttemptQuestions() {
         const questionsEndpoint = `./api/lms/quiz/question/list.php?assessment_id=${encodeURIComponent(QUIZ_ID)}`;
         const qRes = await LMS.api('GET', questionsEndpoint);
         logDebug({ endpoint: questionsEndpoint, method: 'GET', response_status: qRes.status, response_body: qRes.data, parsed_error_message: qRes.error || null });
         if (!qRes.ok) {
             LMS.toast('Could not load quiz questions: ' + (qRes.error || 'Error'), 'error');
-            return false;
+            return [];
         }
-        questions = qRes.data?.data?.items || qRes.data?.items || [];
-        questions = questions.map((q) => ({
+        return (qRes.data?.data?.items || qRes.data?.items || []).map((q) => ({
             id: Number(q.question_id || q.id || 0),
             text: q.prompt || q.text || '',
             type: q.question_type || q.type || 'mcq',
@@ -697,36 +798,95 @@
             position: Number(q.position || 0),
             is_required: Number(q.is_required || 0) === 1,
         }));
-        return true;
     }
 
-    async function startAttempt() {
-        previewMode = false;
-        const endpoint = './api/lms/quiz/attempt.php';
-        const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
-        logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
-        if (!res.ok) {
-            LMS.toast('Could not start quiz: ' + (res.error || 'Error'), 'error');
-            return;
-        }
-        attemptData = res.data?.data || res.data || {};
-        if (!(await loadQuizQuestions())) return;
+    function renderNoQuestionsState() {
+        const target = $('quizError');
+        if (!target) return;
+        target.innerHTML = `<div class="k-empty"><div class="k-empty__icon" aria-hidden="true">⚡</div><p class="k-empty__title">No questions yet</p><p class="k-empty__desc">This quiz cannot be attempted until questions are added.</p><button class="btn btn-primary" type="button" id="quizEmptyBackBtn">Back to quiz</button></div>`;
+        showPanel('quizError');
+        $('quizEmptyBackBtn')?.addEventListener('click', () => showPanel('quizIntroPanel'), { once: true });
+    }
+
+    async function beginQuestionFlow(mode, attempt) {
+        attemptMode = mode;
+        attemptData = attempt;
+        questions = await loadAttemptQuestions();
         answers = {};
+        current = 0;
+        isSubmitting = false;
 
         if (!questions.length) {
-            LMS.toast('This quiz has no questions.', 'warning');
+            attemptMode = 'idle';
+            attemptData = null;
+            renderNoQuestionsState();
             return;
         }
 
         showPanel('quizAttemptPanel');
         hideEl('quizTopbar');
         showEl('quizStickyHeader');
+        $('quizStickyTitle') && ($('quizStickyTitle').textContent = `${quizData?.title || 'Quiz'}${mode === 'preview' ? ' Preview' : ''}`);
 
-        if (quizData.time_limit_min) startTimer(quizData.time_limit_min * 60);
+        if (mode === 'student' && quizData.time_limit_min) {
+            startTimer(quizData.time_limit_min * 60);
+        } else {
+            stopTimer();
+            $('quizTimer')?.classList.add('hidden');
+        }
 
         updateDots();
         renderQuestion(0);
         wireAttemptNavigation();
+    }
+
+    async function startPreview() {
+        if (!canPreviewQuiz()) {
+            LMS.toast('Preview is not available for your course role.', 'error');
+            return;
+        }
+        const startBtn = $('quizStartBtn');
+        setButtonBusy(startBtn, true, 'Loading Preview…', 'Preview Quiz');
+        try {
+            await beginQuestionFlow('preview', { preview: true, attempt_id: null });
+        } finally {
+            setButtonBusy(startBtn, false, 'Loading Preview…', 'Preview Quiz');
+        }
+    }
+
+    function endPreview() {
+        stopTimer();
+        attemptMode = 'idle';
+        attemptData = null;
+        questions = [];
+        answers = {};
+        isSubmitting = false;
+        hideEl('quizStickyHeader');
+        showEl('quizTopbar');
+        showPanel('quizIntroPanel');
+        LMS.toast('Preview ended. No answers were submitted.', 'success');
+    }
+
+    async function startAttempt() {
+        const endpoint = './api/lms/quiz/attempt.php';
+        const startBtn = $('quizStartBtn');
+        const studentAttemptBtn = $('quizStartStudentAttemptBtn');
+        const startReadyLabel = startBtn?.textContent || 'Start Attempt';
+        const studentReadyLabel = studentAttemptBtn?.textContent || 'Start Student Attempt';
+        setButtonBusy(startBtn, true, 'Starting…', startReadyLabel);
+        setButtonBusy(studentAttemptBtn, true, 'Starting…', studentReadyLabel);
+        try {
+            const res = await LMS.api('POST', endpoint, { assessment_id: Number(QUIZ_ID), course_id: Number(COURSE_ID) });
+            logDebug({ endpoint, method: 'POST', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+            if (!res.ok) {
+                LMS.toast('Could not start quiz: ' + (res.error || 'Error'), 'error');
+                return;
+            }
+            await beginQuestionFlow('student', res.data?.data || res.data || {});
+        } finally {
+            setButtonBusy(startBtn, false, 'Starting…', startReadyLabel);
+            setButtonBusy(studentAttemptBtn, false, 'Starting…', studentReadyLabel);
+        }
     }
 
     $('historyBackBtn') && $('historyBackBtn').addEventListener('click', () => showPanel('quizIntroPanel'));
