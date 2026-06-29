@@ -157,5 +157,15 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log(json_encode([
+        'context' => 'lms.quiz.question.update',
+        'status' => 'failed',
+        'question_id' => $id,
+        'assessment_id' => (int)($existing['assessment_id'] ?? 0),
+        'user_id' => (int)($user['user_id'] ?? 0),
+        'exception_class' => get_class($e),
+        'exception_message' => $e->getMessage(),
+        'exception_code' => $e->getCode(),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     lms_error('question_update_failed', 'Failed to update question', 500);
 }
