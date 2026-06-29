@@ -2563,3 +2563,24 @@ body.k-pre-auth #signin {
     transition-duration: 0.01ms !important;
   }
 }
+
+body.k-quiz-page .k-realtime-status {
+  z-index: 900;
+  pointer-events: none;
+  opacity: 0.88;
+}
+
+body.k-quiz-page .k-realtime-status :is(button, a) {
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  body.k-quiz-page .k-realtime-status {
+    left: 12px;
+    right: 12px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    max-width: none;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}
