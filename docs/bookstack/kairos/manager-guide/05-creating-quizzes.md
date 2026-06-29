@@ -22,5 +22,6 @@ Create a draft quiz, add questions, and publish it for Students.
 
 - Only Managers and Admins can create quizzes.
 - A quiz should remain a draft until questions and scoring are checked.
+- Managers and Admins can use **Preview Quiz** to review published or draft quiz content without creating a student attempt.
 - Short-answer questions may require manual review.
 - Check the availability window and time limit before publishing.

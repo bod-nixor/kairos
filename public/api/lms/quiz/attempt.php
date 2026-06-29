@@ -19,7 +19,17 @@ if (!$a) {
     lms_error('not_found', 'Assessment not found', 404);
 }
 
-lms_course_access($user, (int)$a['course_id'], false);
+$courseId = (int)$a['course_id'];
+$access = rbac_course_access_context($pdo, $user, $courseId);
+if ($access['view_course'] && !$access['participate_as_student']) {
+    lms_error('student_participation_required', 'Starting a quiz attempt requires student participation. Use quiz preview or management tools for staff access.', 403);
+}
+if ($access['view_course_home'] && $access['can_self_enroll']) {
+    lms_error('forbidden', 'You need to enrol before starting this quiz.', 403);
+}
+if (!$access['view_course'] || !$access['participate_as_student']) {
+    lms_error('forbidden', 'You do not have permission to start this quiz.', 403);
+}
 if ((string)$a['status'] !== 'published') {
     lms_error('forbidden', 'Quiz is not published', 403);
 }
@@ -37,7 +47,7 @@ try {
 
     $pdo->prepare('INSERT INTO lms_assessment_attempts (assessment_id,course_id,user_id) VALUES (:a,:c,:u)')->execute([
         ':a' => $assessmentId,
-        ':c' => (int)$a['course_id'],
+        ':c' => $courseId,
         ':u' => (int)$user['user_id'],
     ]);
     $attemptId = (int)$pdo->lastInsertId();

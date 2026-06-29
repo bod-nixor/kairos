@@ -20,4 +20,5 @@ Find courses where you have TA access and open the correct course tools.
 ## Notes
 
 - A course may appear differently when you are a TA in one course and a Student in another.
+- When quiz grading access is available, **Preview Quiz** opens quiz content for review without creating a student attempt.
 - Contact a Manager or Admin if an assigned course is missing.
