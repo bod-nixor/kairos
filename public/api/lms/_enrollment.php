@@ -303,11 +303,12 @@ function lms_matching_course_pre_enrollment(PDO $pdo, int $courseId, int $userId
     }
     $hasClaimedUser = rbac_table_has_columns($pdo, 'course_pre_enroll', ['claimed_user_id']);
     $claimedSelect = $hasClaimedUser ? ', claimed_user_id' : ', NULL AS claimed_user_id';
+    $claimSupportSelect = $hasClaimedUser ? ', 1 AS has_claimed_user_id' : ', 0 AS has_claimed_user_id';
     $claimedClause = $hasClaimedUser
         ? ' AND (claimed_user_id IS NULL OR claimed_user_id = 0 OR claimed_user_id = :user_id)'
         : '';
     $stmt = $pdo->prepare(
-        'SELECT id, course_id, email' . $claimedSelect
+        'SELECT id, course_id, email' . $claimedSelect . $claimSupportSelect
         . ' FROM course_pre_enroll'
         . ' WHERE course_id = :course_id AND LOWER(email) = :email'
         . $claimedClause
@@ -323,6 +324,11 @@ function lms_matching_course_pre_enrollment(PDO $pdo, int $courseId, int $userId
     $stmt->execute($params);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return is_array($row) ? $row : null;
+}
+
+function lms_pre_enrollment_supports_claim(?array $preEnrollment): bool
+{
+    return $preEnrollment !== null && (int)($preEnrollment['has_claimed_user_id'] ?? 0) === 1;
 }
 
 function lms_claim_course_pre_enrollment(PDO $pdo, int $courseId, int $userId, string $email): bool
@@ -388,7 +394,8 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
     $preEnrollment = lms_matching_course_pre_enrollment($pdo, $courseId, $userId, $email);
     $hasExistingEnrollment = $context['participate_as_student']
         || lms_student_enrollment_exists($pdo, $courseId, $userId);
-    $requiresPreEnrollmentClaim = $preEnrollment !== null
+    $canClaimPreEnrollment = lms_pre_enrollment_supports_claim($preEnrollment);
+    $requiresPreEnrollmentClaim = $canClaimPreEnrollment
         && !$context['view_course_public']
         && !$context['allowlisted'];
 
@@ -415,7 +422,7 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
         } else {
             $joined = lms_insert_student_enrollment($pdo, $courseId, $userId, $source);
         }
-        if (!$claimedPreEnrollment) {
+        if (!$claimedPreEnrollment && $canClaimPreEnrollment) {
             $claimedPreEnrollment = lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
         }
         if ($joined || $activatedExisting || $claimedPreEnrollment) {

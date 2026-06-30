@@ -35,7 +35,7 @@ function claim_pre_enroll(array &$preEnroll, int $courseId, string $email, int $
         return false;
     }
     if (($preEnroll[$courseId][$email] ?? null) === $userId) {
-        return false;
+        return true;
     }
     $preEnroll[$courseId][$email] = $userId;
     return true;
@@ -99,7 +99,7 @@ function simulate_courses_join(?array $sessionUser, array $payload, array &$stud
             }
         }
         $activated = is_array($studentCourses[$key])
-            && student_enrollment_needs_activation_sim($studentCourses[$key], ['status' => true, 'is_active' => true]);
+            && student_enrollment_needs_activation_sim($studentCourses[$key], ['status' => true, 'enrollment_status' => true, 'is_active' => true]);
         if ($activated) {
             $studentCourses[$key] = ['status' => 'active'];
         }
@@ -179,6 +179,7 @@ $preEnroll = [
     40 => [
         'pre@nixorcollege.edu.pk' => null,
         'pending@nixorcollege.edu.pk' => null,
+        'claimed-self@nixorcollege.edu.pk' => 23,
         'legacy@nixorcollege.edu.pk' => 0,
         'raced@nixorcollege.edu.pk' => 'race',
         'claimed-other@nixorcollege.edu.pk' => 999,
@@ -186,7 +187,8 @@ $preEnroll = [
 ];
 $studentCourses = [
     '10:8' => true,
-    '40:17' => ['status' => 'pending'],
+    '40:17' => ['status' => 'active', 'enrollment_status' => 'pending', 'is_active' => 1],
+    '40:23' => ['status' => 'active'],
 ];
 
 $cases = [
@@ -304,6 +306,19 @@ $cases = [
         'count_delta' => 0,
     ],
     [
+        'name' => 'same-user claimed pre-enroll duplicate join is idempotent',
+        'session' => ['user_id' => 23, 'role_name' => 'student', 'email' => 'claimed-self@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 40],
+        'status' => 200,
+        'joined' => false,
+        'already_enrolled' => true,
+        'pre_enrollment_matched' => true,
+        'pre_enrollment_claimed' => true,
+        'claimed_email' => 'claimed-self@nixorcollege.edu.pk',
+        'claimed_user_id' => 23,
+        'count_delta' => 0,
+    ],
+    [
         'name' => 'unauthenticated user is blocked',
         'session' => null,
         'payload' => ['course_id' => 10],
@@ -394,6 +409,8 @@ $sourceChecks = [
     'enrollment helper activates pending existing enrollment rows' => str_contains($enrollmentSource, 'lms_activate_student_enrollment') && str_contains($enrollmentSource, 'lms_student_enrollment_needs_activation'),
     'enrollment helper matches and claims email pre-enrollments' => str_contains($enrollmentSource, 'lms_matching_course_pre_enrollment') && str_contains($enrollmentSource, 'lms_claim_course_pre_enrollment'),
     'invite-only pre-enrollment must be claimed before enrollment write' => $claimPosition !== false && $insertPosition !== false && $claimPosition < $insertPosition,
+    'legacy pre-enroll schemas without claim tracking remain eligible' => str_contains($enrollmentSource, 'has_claimed_user_id') && str_contains($enrollmentSource, 'lms_pre_enrollment_supports_claim'),
+    'fallback pre-enrollment claim is skipped when there is no matching claimable row' => str_contains($enrollmentSource, '!$claimedPreEnrollment && $canClaimPreEnrollment'),
     'legacy zero claimed pre-enroll rows are treated as unclaimed' => str_contains($enrollmentSource, 'claimed_user_id = 0') && str_contains($rbacSource, 'claimed_user_id = 0'),
     'enrollment failure logger redacts raw account ids' => !str_contains($enrollmentSource, "'user_id' => \$context['user_id']") && str_contains($enrollmentSource, "'user_present'"),
     'enrollment failure logger redacts raw exception messages' => !str_contains($enrollmentSource, "'exception_message'") && str_contains($enrollmentSource, "'message_hash'"),
