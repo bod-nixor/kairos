@@ -253,7 +253,7 @@ function rbac_pre_enrolled_course_ids(PDO $pdo, array $user): array
     }
 
     $claimedClause = rbac_table_has_columns($pdo, 'course_pre_enroll', ['claimed_user_id'])
-        ? ' AND (claimed_user_id IS NULL OR claimed_user_id = :uid)'
+        ? ' AND (claimed_user_id IS NULL OR claimed_user_id = 0 OR claimed_user_id = :uid)'
         : '';
     $stmt = $pdo->prepare(
         'SELECT DISTINCT CAST(course_id AS UNSIGNED)'

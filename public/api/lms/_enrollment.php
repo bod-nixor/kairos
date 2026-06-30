@@ -41,7 +41,7 @@ function lms_student_courses_columns(PDO $pdo): array
     }
 
     $stmt = $pdo->prepare(
-        'SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT, EXTRA'
+        'SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_TYPE'
         . ' FROM information_schema.COLUMNS'
         . ' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table'
     );
@@ -56,6 +56,7 @@ function lms_student_courses_columns(PDO $pdo): array
             'nullable' => strtoupper((string)($row['IS_NULLABLE'] ?? 'NO')) === 'YES',
             'default' => $row['COLUMN_DEFAULT'] ?? null,
             'extra' => strtolower((string)($row['EXTRA'] ?? '')),
+            'type' => (string)($row['COLUMN_TYPE'] ?? ''),
         ];
     }
     return $cache = $columns;
@@ -74,9 +75,19 @@ function lms_require_student_courses_schema(PDO $pdo): array
 
 function lms_student_enrollment_exists(PDO $pdo, int $courseId, int $userId): bool
 {
-    lms_require_student_courses_schema($pdo);
+    return lms_student_enrollment_row($pdo, $courseId, $userId) !== null;
+}
+
+function lms_student_enrollment_row(PDO $pdo, int $courseId, int $userId): ?array
+{
+    $columns = lms_require_student_courses_schema($pdo);
+    $selectColumns = array_map(
+        static fn(string $column): string => rbac_quote_identifier($column),
+        array_keys($columns)
+    );
     $stmt = $pdo->prepare(
-        'SELECT 1 FROM student_courses'
+        'SELECT ' . implode(', ', $selectColumns)
+        . ' FROM student_courses'
         . ' WHERE course_id = :course_id AND user_id = :user_id'
         . ' LIMIT 1'
     );
@@ -84,15 +95,138 @@ function lms_student_enrollment_exists(PDO $pdo, int $courseId, int $userId): bo
         ':course_id' => $courseId,
         ':user_id' => $userId,
     ]);
-    return (bool)$stmt->fetchColumn();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($row) ? $row : null;
+}
+
+function lms_column_enum_values(array $column): array
+{
+    $type = (string)($column['type'] ?? '');
+    if (stripos($type, 'enum(') !== 0) {
+        return [];
+    }
+    if (preg_match_all("/'((?:[^'\\\\]|\\\\.)*)'/", $type, $matches) < 1) {
+        return [];
+    }
+    return array_map(
+        static fn(string $value): string => stripcslashes($value),
+        $matches[1] ?? []
+    );
+}
+
+function lms_student_enrollment_active_status(array $columns, ?string $columnName = null): string
+{
+    $statusColumn = null;
+    if ($columnName !== null && isset($columns[$columnName])) {
+        $statusColumn = $columns[$columnName];
+    } else {
+        $statusColumn = $columns['status'] ?? ($columns['enrollment_status'] ?? null);
+    }
+    if (!is_array($statusColumn)) {
+        return 'active';
+    }
+    $allowed = lms_column_enum_values($statusColumn);
+    if (!$allowed) {
+        return 'active';
+    }
+    foreach (['active', 'enrolled', 'accepted', 'completed'] as $preferred) {
+        foreach ($allowed as $value) {
+            if (strtolower($value) === $preferred) {
+                return $value;
+            }
+        }
+    }
+    return $allowed[0];
+}
+
+function lms_student_enrollment_needs_activation(array $row, array $columns): bool
+{
+    foreach (['status', 'enrollment_status'] as $column) {
+        if (!isset($columns[$column]) || !array_key_exists($column, $row)) {
+            continue;
+        }
+        $status = strtolower(trim((string)($row[$column] ?? '')));
+        if (in_array($status, ['pending', 'invited', 'pre_enrolled', 'pre-enrolled', 'unclaimed', 'inactive'], true)) {
+            return true;
+        }
+    }
+    if (isset($columns['is_active']) && array_key_exists('is_active', $row) && (int)$row['is_active'] !== 1) {
+        return true;
+    }
+    return false;
+}
+
+function lms_student_enrollment_duplicate_updates(array $columns): array
+{
+    $updates = [];
+    foreach (['status', 'enrollment_status', 'is_active'] as $column) {
+        if (isset($columns[$column])) {
+            $quoted = rbac_quote_identifier($column);
+            $updates[] = $quoted . ' = VALUES(' . $quoted . ')';
+        }
+    }
+    foreach (['enrolled_at', 'accepted_at'] as $column) {
+        if (isset($columns[$column])) {
+            $quoted = rbac_quote_identifier($column);
+            $updates[] = $quoted . ' = COALESCE(' . $quoted . ', VALUES(' . $quoted . '))';
+        }
+    }
+    if (!$updates) {
+        $userColumn = rbac_quote_identifier('user_id');
+        $updates[] = $userColumn . ' = ' . $userColumn;
+    }
+    return $updates;
+}
+
+function lms_activate_student_enrollment(PDO $pdo, int $courseId, int $userId): bool
+{
+    $columns = lms_require_student_courses_schema($pdo);
+    $row = lms_student_enrollment_row($pdo, $courseId, $userId);
+    if ($row === null || !lms_student_enrollment_needs_activation($row, $columns)) {
+        return false;
+    }
+
+    $sets = [];
+    $params = [
+        ':course_id' => $courseId,
+        ':user_id' => $userId,
+    ];
+    foreach (['status', 'enrollment_status'] as $column) {
+        if (isset($columns[$column])) {
+            $param = ':activate_' . $column;
+            $sets[] = rbac_quote_identifier($column) . ' = ' . $param;
+            $params[$param] = lms_student_enrollment_active_status($columns, $column);
+        }
+    }
+    if (isset($columns['is_active'])) {
+        $sets[] = rbac_quote_identifier('is_active') . ' = 1';
+    }
+    foreach (['enrolled_at', 'accepted_at'] as $column) {
+        if (isset($columns[$column])) {
+            $quoted = rbac_quote_identifier($column);
+            $sets[] = $quoted . ' = COALESCE(' . $quoted . ', CURRENT_TIMESTAMP)';
+        }
+    }
+    if (isset($columns['updated_at'])) {
+        $sets[] = rbac_quote_identifier('updated_at') . ' = CURRENT_TIMESTAMP';
+    }
+    if (!$sets) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare(
+        'UPDATE student_courses'
+        . ' SET ' . implode(', ', $sets)
+        . ' WHERE course_id = :course_id AND user_id = :user_id'
+        . ' LIMIT 1'
+    );
+    $stmt->execute($params);
+    return $stmt->rowCount() > 0;
 }
 
 function lms_insert_student_enrollment(PDO $pdo, int $courseId, int $userId, string $source): bool
 {
     $columns = lms_require_student_courses_schema($pdo);
-    if (lms_student_enrollment_exists($pdo, $courseId, $userId)) {
-        return false;
-    }
 
     $values = [
         'course_id' => ['sql' => ':insert_course_id', 'params' => [':insert_course_id' => $courseId]],
@@ -101,7 +235,8 @@ function lms_insert_student_enrollment(PDO $pdo, int $courseId, int $userId, str
     $optional = [
         'role' => 'student',
         'course_role' => 'student',
-        'status' => 'active',
+        'status' => lms_student_enrollment_active_status($columns, 'status'),
+        'enrollment_status' => lms_student_enrollment_active_status($columns, 'enrollment_status'),
         'is_active' => 1,
         'source' => $source,
         'enrollment_source' => $source,
@@ -136,32 +271,23 @@ function lms_insert_student_enrollment(PDO $pdo, int $courseId, int $userId, str
     }
 
     $insertColumns = [];
-    $selectValues = [];
-    $params = [
-        ':exists_course_id' => $courseId,
-        ':exists_user_id' => $userId,
-    ];
+    $placeholders = [];
+    $params = [];
     foreach ($values as $column => $value) {
         $insertColumns[] = rbac_quote_identifier($column);
-        $selectValues[] = $value['sql'];
+        $placeholders[] = $value['sql'];
         foreach (($value['params'] ?? []) as $param => $paramValue) {
             $params[$param] = $paramValue;
         }
     }
 
-    $userColumn = rbac_quote_identifier('user_id');
-    $updates = [$userColumn . ' = ' . $userColumn];
-
     $sql = 'INSERT INTO student_courses (' . implode(', ', $insertColumns) . ')'
-        . ' SELECT ' . implode(', ', $selectValues)
-        . ' FROM DUAL WHERE NOT EXISTS ('
-        . 'SELECT 1 FROM student_courses WHERE course_id = :exists_course_id AND user_id = :exists_user_id'
-        . ') ON DUPLICATE KEY UPDATE ' . implode(', ', $updates);
+        . ' VALUES (' . implode(', ', $placeholders) . ')'
+        . ' ON DUPLICATE KEY UPDATE ' . implode(', ', lms_student_enrollment_duplicate_updates($columns));
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    $inserted = $stmt->rowCount() === 1;
-    if ($inserted) {
+    if ($stmt->rowCount() > 0) {
         return true;
     }
     if (lms_student_enrollment_exists($pdo, $courseId, $userId)) {
@@ -170,22 +296,73 @@ function lms_insert_student_enrollment(PDO $pdo, int $courseId, int $userId, str
     throw new RuntimeException('student_courses insert did not create an enrollment row');
 }
 
-function lms_claim_course_pre_enrollment(PDO $pdo, int $courseId, int $userId, string $email): void
+function lms_matching_course_pre_enrollment(PDO $pdo, int $courseId, int $userId, string $email): ?array
+{
+    if ($email === '' || !rbac_table_has_columns($pdo, 'course_pre_enroll', ['course_id', 'email'])) {
+        return null;
+    }
+    $hasClaimedUser = rbac_table_has_columns($pdo, 'course_pre_enroll', ['claimed_user_id']);
+    $claimedSelect = $hasClaimedUser ? ', claimed_user_id' : ', NULL AS claimed_user_id';
+    $claimSupportSelect = $hasClaimedUser ? ', 1 AS has_claimed_user_id' : ', 0 AS has_claimed_user_id';
+    $claimedClause = $hasClaimedUser
+        ? ' AND (claimed_user_id IS NULL OR claimed_user_id = 0 OR claimed_user_id = :user_id)'
+        : '';
+    $stmt = $pdo->prepare(
+        'SELECT id, course_id, email' . $claimedSelect . $claimSupportSelect
+        . ' FROM course_pre_enroll'
+        . ' WHERE course_id = :course_id AND LOWER(email) = :email'
+        . $claimedClause
+        . ' LIMIT 1'
+    );
+    $params = [
+        ':course_id' => $courseId,
+        ':email' => $email,
+    ];
+    if ($hasClaimedUser) {
+        $params[':user_id'] = $userId;
+    }
+    $stmt->execute($params);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return is_array($row) ? $row : null;
+}
+
+function lms_pre_enrollment_supports_claim(?array $preEnrollment): bool
+{
+    return $preEnrollment !== null && (int)($preEnrollment['has_claimed_user_id'] ?? 0) === 1;
+}
+
+function lms_claim_course_pre_enrollment(PDO $pdo, int $courseId, int $userId, string $email): bool
 {
     if ($email === '' || !rbac_table_has_columns($pdo, 'course_pre_enroll', ['course_id', 'email', 'claimed_user_id'])) {
-        return;
+        return false;
     }
     $claimStmt = $pdo->prepare(
         'UPDATE course_pre_enroll'
         . ' SET claimed_user_id = :user_id'
         . ' WHERE course_id = :course_id AND LOWER(email) = :email'
-        . '   AND (claimed_user_id IS NULL OR claimed_user_id = :user_id)'
+        . '   AND (claimed_user_id IS NULL OR claimed_user_id = 0 OR claimed_user_id = :user_id)'
     );
     $claimStmt->execute([
         ':user_id' => $userId,
         ':course_id' => $courseId,
         ':email' => $email,
     ]);
+    if ($claimStmt->rowCount() > 0) {
+        return true;
+    }
+
+    $checkStmt = $pdo->prepare(
+        'SELECT 1 FROM course_pre_enroll'
+        . ' WHERE course_id = :course_id AND LOWER(email) = :email'
+        . '   AND claimed_user_id = :user_id'
+        . ' LIMIT 1'
+    );
+    $checkStmt->execute([
+        ':user_id' => $userId,
+        ':course_id' => $courseId,
+        ':email' => $email,
+    ]);
+    return (bool)$checkStmt->fetchColumn();
 }
 
 function lms_emit_course_enrollment_event(PDO $pdo, int $courseId, int $userId): void
@@ -213,25 +390,42 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
     if (!$context['course_exists'] || !$context['course_active']) {
         throw new LmsEnrollmentHttpError('not_found', 'Course not found.', 404);
     }
-    if ($context['participate_as_student']) {
-        return ['joined' => false, 'already_enrolled' => true, 'course_id' => $courseId];
-    }
-    if (!$context['can_self_enroll']) {
+    $email = strtolower(trim((string)($user['email'] ?? '')));
+    $preEnrollment = lms_matching_course_pre_enrollment($pdo, $courseId, $userId, $email);
+    $hasExistingEnrollment = $context['participate_as_student']
+        || lms_student_enrollment_exists($pdo, $courseId, $userId);
+    $canClaimPreEnrollment = lms_pre_enrollment_supports_claim($preEnrollment);
+    $requiresPreEnrollmentClaim = $canClaimPreEnrollment
+        && !$context['view_course_public']
+        && !$context['allowlisted'];
+
+    if (!$hasExistingEnrollment && !$context['can_self_enroll'] && $preEnrollment === null) {
         throw new LmsEnrollmentHttpError('not_enrollable', 'You are not eligible to join this course.', 403);
     }
-    if (lms_student_enrollment_exists($pdo, $courseId, $userId)) {
-        return ['joined' => false, 'already_enrolled' => true, 'course_id' => $courseId];
-    }
 
-    $email = strtolower(trim((string)($user['email'] ?? '')));
     $started = !$pdo->inTransaction();
     if ($started) {
         $pdo->beginTransaction();
     }
     try {
-        $joined = lms_insert_student_enrollment($pdo, $courseId, $userId, $source);
-        lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
-        if ($joined) {
+        $claimedPreEnrollment = false;
+        if ($requiresPreEnrollmentClaim) {
+            $claimedPreEnrollment = lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
+            if (!$claimedPreEnrollment) {
+                throw new LmsEnrollmentHttpError('not_enrollable', 'You are not eligible to join this course.', 403);
+            }
+        }
+        $activatedExisting = false;
+        if ($hasExistingEnrollment) {
+            $joined = false;
+            $activatedExisting = lms_activate_student_enrollment($pdo, $courseId, $userId);
+        } else {
+            $joined = lms_insert_student_enrollment($pdo, $courseId, $userId, $source);
+        }
+        if (!$claimedPreEnrollment && $canClaimPreEnrollment) {
+            $claimedPreEnrollment = lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
+        }
+        if ($joined || $activatedExisting || $claimedPreEnrollment) {
             lms_emit_course_enrollment_event($pdo, $courseId, $userId);
         }
         if ($started) {
@@ -247,8 +441,10 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
     rbac_student_course_ids($pdo, $userId, true);
 
     return [
-        'joined' => $joined,
-        'already_enrolled' => !$joined,
+        'joined' => $joined || $activatedExisting,
+        'already_enrolled' => !$joined && !$activatedExisting,
+        'pre_enrollment_matched' => $preEnrollment !== null,
+        'pre_enrollment_claimed' => $claimedPreEnrollment,
         'course_id' => $courseId,
     ];
 }
@@ -271,6 +467,10 @@ function lms_log_enrollment_failure(Throwable $error, array $context): void
         'user_ref' => $userRef,
         'source' => $context['source'] ?? null,
     ];
+    if ($error instanceof PDOException) {
+        $payload['sql_state'] = (string)$error->getCode();
+        $payload['driver_error_code'] = $error->errorInfo[1] ?? null;
+    }
     $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
     error_log('[kairos] ' . ($encoded ?: 'course_self_enrollment_failed'));
 }
