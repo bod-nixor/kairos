@@ -1,26 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/_common.php';
+require_once dirname(__DIR__) . '/_helpers.php';
 
 lms_require_feature(['quizzes', 'lms_quizzes']);
-
-function lms_normalize_answer_value($value)
-{
-    if (is_array($value)) {
-        $normalized = [];
-        foreach ($value as $k => $v) {
-            $normalized[$k] = lms_normalize_answer_value($v);
-        }
-        if (array_keys($normalized) === range(0, count($normalized) - 1)) {
-            sort($normalized);
-        } else {
-            ksort($normalized);
-        }
-        return $normalized;
-    }
-    return $value;
-}
 
 $user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $in = lms_json_input();
@@ -58,13 +41,18 @@ if ((string)$attempt['status'] !== 'in_progress') {
     lms_error('conflict', 'Attempt is not in progress', 409);
 }
 
-$questionsStmt = $pdo->prepare('SELECT question_id, question_type, points, is_required, answer_key_json FROM lms_questions WHERE assessment_id=:a AND deleted_at IS NULL');
+$questionsStmt = $pdo->prepare('SELECT question_id, prompt, question_type, points, position, is_required, answer_key_json, answer_explanation, settings_json FROM lms_questions WHERE assessment_id=:a AND deleted_at IS NULL ORDER BY position ASC, question_id ASC');
 $questionsStmt->execute([':a' => (int)$attempt['assessment_id']]);
 $questions = [];
 foreach ($questionsStmt->fetchAll() as $q) {
     $questions[(int)$q['question_id']] = $q;
 }
 
+$settingsByQuestion = [];
+foreach ($questions as $questionId => $question) {
+    $settingsByQuestion[$questionId] = $question['settings_json'] === null ? null : (string)$question['settings_json'];
+}
+$optionsByQuestion = lms_quiz_load_options_by_question($pdo, array_keys($questions), $settingsByQuestion);
 
 $missingRequired = [];
 foreach ($questions as $qid => $question) {
@@ -76,15 +64,7 @@ foreach ($questions as $qid => $question) {
         continue;
     }
     $raw = array_key_exists((string)$qid, $responses) ? $responses[(string)$qid] : $responses[$qid];
-    $empty = false;
-    if (is_string($raw)) {
-        $empty = trim($raw) === '';
-    } elseif (is_array($raw)) {
-        $empty = count(array_filter($raw, static fn($v) => !((is_string($v) && trim($v) === '') || $v === null))) === 0;
-    } else {
-        $empty = $raw === null;
-    }
-    if ($empty) {
+    if (!lms_quiz_answer_provided($raw)) {
         $missingRequired[] = $qid;
     }
 }
@@ -102,35 +82,37 @@ foreach ($questions as $question) {
 
 $pdo->beginTransaction();
 try {
-    foreach ($responses as $qidRaw => $resp) {
-        $qid = (int)$qidRaw;
-        if (!isset($questions[$qid])) {
-            continue;
-        }
-
+    $capturedAt = gmdate('c');
+    foreach ($questions as $qid => $q) {
         $q = $questions[$qid];
         $pts = (float)$q['points'];
-        $needsManual = in_array($q['question_type'], ['long_answer', 'file_upload'], true);
+        $resp = null;
+        if (array_key_exists((string)$qid, $responses)) {
+            $resp = $responses[(string)$qid];
+        } elseif (array_key_exists($qid, $responses)) {
+            $resp = $responses[$qid];
+        }
+        $hasAnswer = lms_quiz_answer_provided($resp);
+        $needsManual = $hasAnswer && in_array($q['question_type'], ['long_answer', 'file_upload'], true);
         $earned = 0.0;
 
-        if (!$needsManual) {
+        if ($hasAnswer && !$needsManual) {
             $answerKey = json_decode((string)$q['answer_key_json'], true);
-            if (is_scalar($answerKey) && is_scalar($resp) && $answerKey === $resp) {
+            $correct = lms_quiz_answer_is_correct((string)$q['question_type'], $answerKey, $resp);
+            if ($correct === true) {
                 $earned = $pts;
-            } elseif (is_array($answerKey) && is_array($resp)) {
-                if (lms_normalize_answer_value($answerKey) === lms_normalize_answer_value($resp)) {
-                    $earned = $pts;
-                }
             }
-        } else {
+        } elseif ($needsManual) {
             $manual = true;
         }
 
         $score += $earned;
-        $pdo->prepare('INSERT INTO lms_assessment_responses (attempt_id,question_id,response_json,score,max_score,needs_manual_grading) VALUES (:a,:q,:r,:s,:m,:n) ON DUPLICATE KEY UPDATE response_json=VALUES(response_json), score=VALUES(score), max_score=VALUES(max_score), needs_manual_grading=VALUES(needs_manual_grading), updated_at=CURRENT_TIMESTAMP')->execute([
+        $snapshot = lms_quiz_question_snapshot($q, $optionsByQuestion[$qid] ?? [], $capturedAt);
+        $pdo->prepare('INSERT INTO lms_assessment_responses (attempt_id,question_id,response_json,question_snapshot_json,score,max_score,needs_manual_grading) VALUES (:a,:q,:r,:snapshot,:s,:m,:n) ON DUPLICATE KEY UPDATE response_json=VALUES(response_json), question_snapshot_json=VALUES(question_snapshot_json), score=VALUES(score), max_score=VALUES(max_score), needs_manual_grading=VALUES(needs_manual_grading), updated_at=CURRENT_TIMESTAMP')->execute([
             ':a' => $attemptId,
             ':q' => $qid,
-            ':r' => json_encode($resp),
+            ':r' => $hasAnswer ? json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+            ':snapshot' => json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ':s' => $earned,
             ':m' => $pts,
             ':n' => $needsManual ? 1 : 0,

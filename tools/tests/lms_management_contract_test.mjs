@@ -83,6 +83,9 @@ assert.match(quiz, /Quiz unavailable/);
 assert.match(quiz, /startBtn\.onclick = startAttempt/);
 assert.match(quiz, /historyBtn\.onclick = loadHistory/);
 assert.doesNotMatch(quiz, /ensureQuestionEditorModal|options \(comma-separated/i);
+assert.match(managementSource, /Explanation \/ Why this answer is correct/);
+assert.match(managementSource, /data-field="answer_explanation"/);
+assert.match(managementSource, /answer_explanation:\s*currentDialog\.querySelector/);
 
 const css = read('public/css/kairos-ui.css');
 for (const selector of [

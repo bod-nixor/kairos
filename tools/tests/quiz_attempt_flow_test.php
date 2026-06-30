@@ -65,7 +65,11 @@ function simulate_quiz_submit(array $user, array $courseContext, array $attempt,
     if (!response_has_required_answers($questions, $responses)) {
         return ['status' => 422, 'error' => 'validation_error'];
     }
-    return ['status' => 200, 'responses' => $responses];
+    $storedResponses = [];
+    foreach ($questions as $qid => $_question) {
+        $storedResponses[(string)$qid] = array_key_exists((string)$qid, $responses) ? $responses[(string)$qid] : ($responses[$qid] ?? null);
+    }
+    return ['status' => 200, 'responses' => $storedResponses];
 }
 
 $student = ['user_id' => 10, 'role_name' => 'student'];
@@ -104,7 +108,7 @@ $cases = [
         'name' => 'student selected MCQ option is submitted as backend option value',
         'actual' => simulate_quiz_submit($student, $participant, ['user_id' => 10, 'status' => 'in_progress'], $questions, ['101' => 'opt_2']),
         'expected_status' => 200,
-        'expected_response' => ['101' => 'opt_2'],
+        'expected_response' => ['101' => 'opt_2', '102' => null],
     ],
     [
         'name' => 'required unanswered item is rejected before grading',
@@ -147,6 +151,14 @@ $submitRequiresStudentParticipation = preg_match(
 ) === 1;
 if (!$submitRequiresStudentParticipation) {
     $failed[] = 'submit endpoint must require student participation for the attempt course';
+}
+
+if (!str_contains($submitSource, 'lms_quiz_answer_is_correct')) {
+    $failed[] = 'submit endpoint must compare submitted option values through the shared quiz answer helper';
+}
+
+if (!str_contains($submitSource, 'foreach ($questions as $qid => $q)') || !str_contains($submitSource, 'question_snapshot_json')) {
+    $failed[] = 'submit endpoint must write submitted review rows and question snapshots for every quiz question';
 }
 
 $startRequiresStudentParticipation =

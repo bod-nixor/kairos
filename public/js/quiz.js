@@ -80,6 +80,40 @@
         return String(opt || fallback);
     }
 
+    function answerValues(value) {
+        if (Array.isArray(value)) {
+            return Array.from(new Set(value.map(entry => String(entry ?? '').trim()).filter(Boolean)));
+        }
+        if (value === null || value === undefined || String(value).trim() === '') return [];
+        return [String(value).trim()];
+    }
+
+    function formatAnswerText(value, opts, type) {
+        const values = answerValues(value);
+        if (!values.length) return 'Unanswered';
+        if (type === 'true_false' || type === 'boolean') {
+            const formatted = values.map(raw => raw.toLowerCase() === 'true' ? 'True' : raw.toLowerCase() === 'false' ? 'False' : raw);
+            return formatted.join(', ');
+        }
+        const options = Array.isArray(opts) ? opts : [];
+        const labelByValue = new Map(options.map((opt, index) => [optionValue(opt, index), optionText(opt, optionValue(opt, index))]));
+        return values.map(raw => labelByValue.get(raw) || raw).join(', ');
+    }
+
+    function appendPreviewAnswerInfo(area, q) {
+        if (!isPreviewMode()) return;
+        const hasCorrect = q.answer_key !== null && q.answer_key !== undefined && answerValues(q.answer_key).length > 0;
+        const explanation = String(q.answer_explanation || q.explanation || '').trim();
+        if (!hasCorrect && !explanation) return;
+        const correctText = hasCorrect ? formatAnswerText(q.answer_key, q.options || [], q.type || q.question_type || '') : '';
+        area.insertAdjacentHTML('beforeend', `
+          <aside class="k-answer-explanation k-answer-explanation--preview" aria-label="Correct answer and explanation">
+            ${hasCorrect ? `<div><span class="k-review-label">Correct answer</span><p>${LMS.escHtml(correctText)}</p></div>` : ''}
+            ${explanation ? `<div><span class="k-review-label">Explanation</span><p>${LMS.escHtml(explanation)}</p></div>` : ''}
+          </aside>
+        `);
+    }
+
     function answerProvided(question) {
         if (!question) return false;
         const raw = answers[question.id];
@@ -313,6 +347,7 @@
             area.innerHTML = '<div class="k-empty k-empty-inline--wide"><p class="k-empty__title">Unsupported question type</p><p class="k-empty__desc">This question cannot be answered here yet.</p></div>';
         }
 
+        appendPreviewAnswerInfo(area, q);
         syncProgressUi();
         updateNavButtons();
     }
@@ -406,6 +441,99 @@
     }
 
     // ── Result ─────────────────────────────────────────────────
+    function reviewText(value, fallback = 'Unanswered') {
+        if (Array.isArray(value)) {
+            const text = value.map(entry => String(entry || '').trim()).filter(Boolean).join(', ');
+            return text || fallback;
+        }
+        const text = String(value ?? '').trim();
+        return text || fallback;
+    }
+
+    function reviewStatus(item) {
+        if (!item?.is_answered) return { key: 'unanswered', label: 'Unanswered', icon: '!' };
+        if (Number(item.needs_manual_grading || 0) === 1 || item.is_correct === null || item.is_correct === undefined) {
+            return { key: 'manual', label: 'Needs review', icon: '...' };
+        }
+        return item.is_correct
+            ? { key: 'correct', label: 'Correct', icon: '✓' }
+            : { key: 'wrong', label: 'Incorrect', icon: '×' };
+    }
+
+    function renderReviewOptions(item) {
+        const options = Array.isArray(item.options) ? item.options : [];
+        if (!options.length) return '';
+        return `<ul class="k-review-options" aria-label="Answer options">` + options.map((option) => {
+            const isSelected = !!option.is_selected;
+            const isCorrect = !!option.is_correct;
+            const classes = ['k-review-option', isSelected ? 'is-selected' : '', isCorrect ? 'is-correct' : '', isSelected && !isCorrect ? 'is-wrong' : ''].filter(Boolean).join(' ');
+            const marker = isCorrect ? '✓' : (isSelected ? '×' : '');
+            return `<li class="${classes}">
+              <span class="k-review-option__marker" aria-hidden="true">${LMS.escHtml(marker)}</span>
+              <span class="k-review-option__text">${LMS.escHtml(option.text || option.value || '')}</span>
+            </li>`;
+        }).join('') + '</ul>';
+    }
+
+    function renderAttemptReview(reviewData, options = {}) {
+        const attempt = reviewData?.attempt || {};
+        const items = reviewData?.items || reviewData?.questions || [];
+        const score = attempt.score === null || attempt.score === undefined ? null : Number(attempt.score);
+        const maxScore = attempt.max_score === null || attempt.max_score === undefined ? null : Number(attempt.max_score);
+        const pct = Number.isFinite(Number(attempt.score_pct))
+            ? Number(attempt.score_pct)
+            : (score !== null && maxScore > 0 ? Math.round((score / maxScore) * 100) : null);
+        const submitted = attempt.submitted_at ? LMS.fmtDateTime(attempt.submitted_at) : 'Not submitted';
+        const title = options.compact ? 'Attempt review' : `Attempt #${attempt.attempt_id || ''} review`;
+        const snapshotNote = items.some(item => item.snapshot_source && item.snapshot_source !== 'snapshot')
+            ? '<p class="k-review-note">Some older attempts may use the current question wording or choices where earlier review details were not saved.</p>'
+            : '';
+
+        return `<section class="k-attempt-review" aria-label="Quiz attempt review">
+          <div class="k-attempt-review__summary">
+            <div>
+              <h3>${LMS.escHtml(title)}</h3>
+              <p>${LMS.escHtml(submitted)} • ${items.length} question${items.length === 1 ? '' : 's'}</p>
+            </div>
+            <span class="k-status ${pct === null ? 'k-status--warning' : pct >= 80 ? 'k-status--success' : pct >= 50 ? 'k-status--warning' : 'k-status--danger'}">${pct === null ? 'Pending' : `${pct}%`}</span>
+            <span class="k-attempt-review__score">${score === null ? 'Awaiting grade' : `${score} / ${maxScore ?? '-'} pts`}</span>
+          </div>
+          ${snapshotNote}
+          <div class="k-review-question-list">
+            ${items.map((item, index) => {
+                const status = reviewStatus(item);
+                const explanation = String(item.answer_explanation || item.explanation || '').trim();
+                return `<article class="k-review-question is-${status.key}">
+                  <div class="k-review-question__head">
+                    <span class="k-review-state k-review-state--${status.key}"><span aria-hidden="true">${status.icon}</span>${status.label}</span>
+                    <span class="k-review-question__points">${item.score === null || item.score === undefined ? 'Pending' : `${item.score} / ${item.max_score ?? '-'} pts`}</span>
+                  </div>
+                  <p class="k-review-question__prompt"><strong>Question ${index + 1}.</strong> ${LMS.escHtml(item.prompt || item.question_text || '')}</p>
+                  <div class="k-review-answer-grid">
+                    <div><span class="k-review-label">Your answer</span><p>${LMS.escHtml(reviewText(item.selected_answer_text))}</p></div>
+                    <div><span class="k-review-label">Correct answer</span><p>${LMS.escHtml(reviewText(item.correct_answer_text, 'No automatic answer key'))}</p></div>
+                  </div>
+                  ${renderReviewOptions(item)}
+                  ${explanation ? `<aside class="k-answer-explanation"><span class="k-review-label">Explanation</span><p>${LMS.escHtml(explanation)}</p></aside>` : ''}
+                </article>`;
+            }).join('')}
+          </div>
+        </section>`;
+    }
+
+    async function loadAttemptReview(attemptId, target, options = {}) {
+        if (!attemptId || !target) return;
+        const endpoint = `./api/lms/quiz/attempt/get.php?attempt_id=${encodeURIComponent(attemptId)}`;
+        target.innerHTML = '<div class="k-skeleton" style="height:160px;border-radius:8px"></div>';
+        const res = await LMS.api('GET', endpoint);
+        logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        if (!res.ok) {
+            target.innerHTML = `<div class="k-empty"><p class="k-empty__title">Review unavailable</p><p class="k-empty__desc">${LMS.escHtml(res.error || 'This attempt cannot be reviewed yet.')}</p></div>`;
+            return;
+        }
+        target.innerHTML = renderAttemptReview(res.data?.data || res.data || {}, options);
+    }
+
     function showResult(result) {
         showPanel('quizResultPanel');
         hideEl('quizStickyHeader');
@@ -447,6 +575,9 @@
         </div>`;
             }).join('');
         }
+        if (feedbackList && result.attempt_id) {
+            loadAttemptReview(result.attempt_id, feedbackList, { compact: true });
+        }
 
         $('resultBackBtn') && ($('resultBackBtn').href = `./course.html?course_id=${encodeURIComponent(COURSE_ID)}`);
         $('resultViewHistoryBtn') && $('resultViewHistoryBtn').addEventListener('click', () => loadHistory(), { once: true });
@@ -468,12 +599,17 @@
         list.innerHTML = attempts.map((a, i) => `
       <div class="k-attempt-row">
         <span class="k-attempt-row__num">#${a.attempt_number || i + 1}</span>
-        <span class="k-attempt-row__date">${LMS.fmtDateTime(a.submitted_at)}</span>
-        <span class="k-status ${a.score_pct >= 80 ? 'k-status--success' : a.score_pct >= 50 ? 'k-status--warning' : 'k-status--danger'}" aria-label="Score">
-          ${a.score_pct}%
+        <span class="k-attempt-row__date">${LMS.escHtml(a.submitted_at ? LMS.fmtDateTime(a.submitted_at) : LMS.fmtDateTime(a.started_at))}</span>
+        <span class="k-status ${a.score_pct === null || a.score_pct === undefined ? 'k-status--warning' : a.score_pct >= 80 ? 'k-status--success' : a.score_pct >= 50 ? 'k-status--warning' : 'k-status--danger'}" aria-label="Score">
+          ${a.score_pct === null || a.score_pct === undefined ? LMS.escHtml(a.status || 'Pending') : `${a.score_pct}%`}
         </span>
-        <span class="k-attempt-meta">${a.score}/${a.max_score} pts</span>
+        <span class="k-attempt-meta">${a.score === null || a.score === undefined ? 'Awaiting grade' : `${a.score}/${a.max_score ?? '-'} pts`}</span>
+        ${(a.submitted_at && a.status !== 'in_progress') ? `<button class="btn btn-ghost btn-sm" type="button" data-review-attempt="${a.attempt_id}">Review</button>` : ''}
       </div>`).join('');
+        const detail = $('attemptReviewDetail');
+        list.querySelectorAll('[data-review-attempt]').forEach((btn) => {
+            btn.addEventListener('click', () => loadAttemptReview(btn.dataset.reviewAttempt, detail));
+        });
     }
 
     async function addQuestion() {
@@ -571,12 +707,17 @@
                 return;
             }
             const items = res.data?.data?.items || res.data?.items || [];
-            target.innerHTML = `<h4>Attempts / Submissions (${items.length})</h4>` + items.map((a) => `
+            target.innerHTML = `<h4>Attempts / Submissions (${items.length})</h4><div class="k-staff-attempt-list">` + items.map((a) => `
                 <div class="k-attempt-row">
                     <strong>${LMS.escHtml(a.student_name || 'Student')}</strong>
                     <span>${LMS.escHtml(a.status || 'In progress')}</span>
                     <span>${a.score === null ? 'Awaiting grade' : `${a.score} / ${a.max_score ?? '-'}`}</span>
-                </div>`).join('');
+                    ${(a.submitted_at && a.status !== 'in_progress') ? `<button class="btn btn-ghost btn-sm" type="button" data-staff-review-attempt="${a.attempt_id}">Review</button>` : ''}
+                </div>`).join('') + '</div><div id="staffAttemptReview" class="k-staff-attempt-review"></div>';
+            const detail = $('staffAttemptReview');
+            target.querySelectorAll('[data-staff-review-attempt]').forEach((btn) => {
+                btn.addEventListener('click', () => loadAttemptReview(btn.dataset.staffReviewAttempt, detail));
+            });
         });
         $('staffDeleteQuizBtn')?.addEventListener('click', () => {
             LMS.confirm(
@@ -810,6 +951,8 @@
             text: q.prompt || q.text || '',
             type: q.question_type || q.type || 'mcq',
             options: Array.isArray(q.options) ? q.options : [],
+            answer_key: q.answer_key ?? null,
+            answer_explanation: q.answer_explanation || q.explanation || '',
             position: Number(q.position || 0),
             is_required: Number(q.is_required || 0) === 1,
         }));

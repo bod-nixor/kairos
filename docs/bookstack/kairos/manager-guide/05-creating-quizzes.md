@@ -12,8 +12,9 @@ Create a draft quiz, add questions, and publish it for Students.
 4. Create the quiz as a draft.
 5. Open the quiz and select **Add Question**.
 6. Add each question, answer choice, correct answer, and points as requested.
-7. Select **Preview Quiz** to test the student-facing layout without creating a student attempt.
-8. Select **Publish** when ready.
+7. Optionally add **Explanation / Why this answer is correct** so Students can understand the answer after submitting.
+8. Select **Preview Quiz** to test the student-facing layout without creating a student attempt.
+9. Select **Publish** when ready.
 
 ## Screenshot
 
@@ -25,5 +26,7 @@ Create a draft quiz, add questions, and publish it for Students.
 - A quiz should remain a draft until questions and scoring are checked.
 - Managers and Admins can use **Preview Quiz** to review published or draft quiz content without creating a student attempt.
 - Previewing a quiz does not submit answers or count against attempt limits.
+- Answer explanations are optional and can be edited later from the question editor.
+- Students see correct answers and explanations only after they submit an attempt.
 - Short-answer questions may require manual review.
 - Check the availability window and time limit before publishing.

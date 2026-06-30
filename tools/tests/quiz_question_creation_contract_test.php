@@ -38,11 +38,22 @@ $createSource = (string)file_get_contents(dirname(__DIR__, 2) . '/public/api/lms
 $assert(str_contains($createSource, "'context' => 'lms.quiz.question.create'"), 'create endpoint should log structured internal failure context');
 $assert(str_contains($createSource, "'exception_message' => $" . "e->getMessage()"), 'create endpoint should log the real exception message server-side');
 $assert(str_contains($createSource, "lms_error('question_create_failed', 'Failed to create question', 500)"), 'create endpoint should keep a safe client-facing error');
+$assert(str_contains($createSource, 'answer_explanation') && str_contains($createSource, 'lms_normalize_question_explanation'), 'create endpoint should accept the optional answer explanation field');
+
+$updateSource = (string)file_get_contents(dirname(__DIR__, 2) . '/public/api/lms/quiz/question/update.php');
+$assert(str_contains($updateSource, 'answer_explanation') && str_contains($updateSource, 'lms_normalize_question_explanation'), 'update endpoint should persist edited answer explanations');
+
+$listSource = (string)file_get_contents(dirname(__DIR__, 2) . '/public/api/lms/quiz/question/list.php');
+$assert(str_contains($listSource, 'if (lms_is_staff_role($role))') && str_contains($listSource, '$item[\'answer_explanation\']'), 'question list should keep explanations inside staff-only payloads');
 
 $migration = (string)file_get_contents(dirname(__DIR__, 2) . '/db/migrations/20260629_1200_fix_quiz_question_schema.sql');
 $assert(str_contains($migration, 'ADD COLUMN is_required'), 'migration should add missing is_required column');
 $assert(str_contains($migration, "'multiple_select'"), 'migration should allow canonical multiple_select enum value');
 $assert(str_contains($migration, 'idx_lms_questions_required'), 'migration should add required-question lookup index');
+
+$reviewMigration = (string)file_get_contents(dirname(__DIR__, 2) . '/db/migrations/20260630_1030_add_quiz_answer_explanations.sql');
+$assert(str_contains($reviewMigration, 'ADD COLUMN answer_explanation TEXT NULL'), 'review migration should add nullable question explanation text');
+$assert(str_contains($reviewMigration, 'ADD COLUMN question_snapshot_json JSON DEFAULT NULL'), 'review migration should add nullable submitted-response snapshots');
 
 $htaccess = (string)file_get_contents(dirname(__DIR__, 2) . '/.htaccess');
 $assert(str_contains($htaccess, 'websocket/socket\\.io'), 'Apache routing should proxy configured Socket.IO path');
