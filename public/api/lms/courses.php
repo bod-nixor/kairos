@@ -53,6 +53,8 @@ $course['access_context'] = $courseRole;
 $course['enrolled'] = (bool)$access['view_course_enrolled'];
 $course['assigned_staff'] = (bool)($access['assigned_ta'] || $access['assigned_manager']);
 $course['can_self_enroll'] = (bool)$access['can_self_enroll'];
+$course['allowlisted'] = (bool)$access['allowlisted'];
+$course['pre_enrolled'] = (bool)$access['pre_enrolled'];
 $course['code'] = $course['code'] ?? $course['name'];
 
 lms_ok($course);

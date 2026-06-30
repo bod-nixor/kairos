@@ -13,7 +13,36 @@ function join_course_id(array $payload): int
     return 0;
 }
 
-function simulate_courses_join(?array $sessionUser, array $payload, array &$studentCourses, array $courses, array $allowlist, array $preEnroll): array
+function pre_enroll_match(array $preEnroll, int $courseId, string $email, int $userId): bool
+{
+    if (!array_key_exists($email, $preEnroll[$courseId] ?? [])) {
+        return false;
+    }
+    $claimedUserId = $preEnroll[$courseId][$email];
+    return $claimedUserId === null || (int)$claimedUserId === 0 || (int)$claimedUserId === $userId;
+}
+
+function claim_pre_enroll(array &$preEnroll, int $courseId, string $email, int $userId): bool
+{
+    if (!pre_enroll_match($preEnroll, $courseId, $email, $userId)) {
+        return false;
+    }
+    if (($preEnroll[$courseId][$email] ?? null) === $userId) {
+        return false;
+    }
+    $preEnroll[$courseId][$email] = $userId;
+    return true;
+}
+
+function enrollment_status_value(mixed $row): string
+{
+    if (is_array($row)) {
+        return strtolower((string)($row['status'] ?? 'active'));
+    }
+    return 'active';
+}
+
+function simulate_courses_join(?array $sessionUser, array $payload, array &$studentCourses, array $courses, array $allowlist, array &$preEnroll): array
 {
     if (!$sessionUser || (int)($sessionUser['user_id'] ?? 0) <= 0) {
         return ['status' => 401, 'error' => 'unauthenticated'];
@@ -33,27 +62,47 @@ function simulate_courses_join(?array $sessionUser, array $payload, array &$stud
     $email = strtolower(trim((string)($sessionUser['email'] ?? '')));
     $key = $courseId . ':' . $userId;
     $alreadyEnrolled = isset($studentCourses[$key]);
+    $matchedPreEnroll = pre_enroll_match($preEnroll, $courseId, $email, $userId);
     if ($alreadyEnrolled) {
+        $status = enrollment_status_value($studentCourses[$key]);
+        $activated = in_array($status, ['pending', 'invited', 'pre_enrolled'], true);
+        if ($activated) {
+            $studentCourses[$key] = ['status' => 'active'];
+        }
+        $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
         return [
             'status' => 200,
-            'data' => ['joined' => false, 'already_enrolled' => true, 'course_id' => $courseId],
+            'data' => [
+                'joined' => $activated,
+                'already_enrolled' => !$activated,
+                'pre_enrollment_matched' => $matchedPreEnroll,
+                'pre_enrollment_claimed' => $claimed,
+                'course_id' => $courseId,
+            ],
         ];
     }
 
     $visibility = strtolower((string)($course['visibility'] ?? 'public'));
     $canJoin = $visibility === 'public'
         || in_array($email, $allowlist[$courseId] ?? [], true)
-        || in_array($email, $preEnroll[$courseId] ?? [], true);
+        || $matchedPreEnroll;
 
     if (!$canJoin) {
         return ['status' => 403, 'error' => 'not_enrollable'];
     }
 
-    $studentCourses[$key] = true;
+    $studentCourses[$key] = ['status' => 'active'];
+    $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
 
     return [
         'status' => 200,
-        'data' => ['joined' => true, 'already_enrolled' => false, 'course_id' => $courseId],
+        'data' => [
+            'joined' => true,
+            'already_enrolled' => false,
+            'pre_enrollment_matched' => $matchedPreEnroll,
+            'pre_enrollment_claimed' => $claimed,
+            'course_id' => $courseId,
+        ],
     ];
 }
 
@@ -83,10 +132,16 @@ $allowlist = [
     20 => ['allowed@nixorcollege.edu.pk'],
 ];
 $preEnroll = [
-    40 => ['pre@nixorcollege.edu.pk'],
+    40 => [
+        'pre@nixorcollege.edu.pk' => null,
+        'pending@nixorcollege.edu.pk' => null,
+        'legacy@nixorcollege.edu.pk' => 0,
+        'claimed-other@nixorcollege.edu.pk' => 999,
+    ],
 ];
 $studentCourses = [
     '10:8' => true,
+    '40:17' => ['status' => 'pending'],
 ];
 
 $cases = [
@@ -111,6 +166,13 @@ $cases = [
         'name' => 'missing course id is validation error',
         'session' => ['user_id' => 9, 'role_name' => 'student', 'email' => 'missing@nixorcollege.edu.pk'],
         'payload' => [],
+        'status' => 422,
+        'error' => 'validation_error',
+    ],
+    [
+        'name' => 'non-numeric course id is validation error',
+        'session' => ['user_id' => 21, 'role_name' => 'student', 'email' => 'bad-id@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 'abc'],
         'status' => 422,
         'error' => 'validation_error',
     ],
@@ -149,7 +211,44 @@ $cases = [
         'payload' => ['course_id' => 40],
         'status' => 200,
         'joined' => true,
+        'pre_enrollment_matched' => true,
+        'pre_enrollment_claimed' => true,
+        'claimed_email' => 'pre@nixorcollege.edu.pk',
+        'claimed_user_id' => 14,
         'count_delta' => 1,
+    ],
+    [
+        'name' => 'pre-enrolled existing account pending row is activated',
+        'session' => ['user_id' => 17, 'role_name' => 'student', 'email' => 'pending@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 40],
+        'status' => 200,
+        'joined' => true,
+        'pre_enrollment_matched' => true,
+        'pre_enrollment_claimed' => true,
+        'claimed_email' => 'pending@nixorcollege.edu.pk',
+        'claimed_user_id' => 17,
+        'student_key' => '40:17',
+        'student_status' => 'active',
+        'count_delta' => 0,
+    ],
+    [
+        'name' => 'legacy zero-claimed pre-enroll can be claimed',
+        'session' => ['user_id' => 18, 'role_name' => 'student', 'email' => 'legacy@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 40],
+        'status' => 200,
+        'joined' => true,
+        'pre_enrollment_matched' => true,
+        'pre_enrollment_claimed' => true,
+        'claimed_email' => 'legacy@nixorcollege.edu.pk',
+        'claimed_user_id' => 18,
+        'count_delta' => 1,
+    ],
+    [
+        'name' => 'pre-enroll claimed by another user is not joinable',
+        'session' => ['user_id' => 19, 'role_name' => 'student', 'email' => 'claimed-other@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 40],
+        'status' => 403,
+        'error' => 'not_enrollable',
     ],
     [
         'name' => 'unauthenticated user is blocked',
@@ -174,6 +273,14 @@ $cases = [
         'joined' => true,
         'count_delta' => 1,
     ],
+    [
+        'name' => 'admin can explicitly join a public course as student',
+        'session' => ['user_id' => 20, 'role_name' => 'admin', 'email' => 'admin@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 10],
+        'status' => 200,
+        'joined' => true,
+        'count_delta' => 1,
+    ],
 ];
 
 foreach ($cases as $case) {
@@ -193,8 +300,20 @@ foreach ($cases as $case) {
     if (isset($case['already_enrolled']) && (bool)($result['data']['already_enrolled'] ?? null) !== $case['already_enrolled']) {
         $failed[] = "{$case['name']} already_enrolled flag mismatch";
     }
+    if (isset($case['pre_enrollment_matched']) && (bool)($result['data']['pre_enrollment_matched'] ?? null) !== $case['pre_enrollment_matched']) {
+        $failed[] = "{$case['name']} pre_enrollment_matched flag mismatch";
+    }
+    if (isset($case['pre_enrollment_claimed']) && (bool)($result['data']['pre_enrollment_claimed'] ?? null) !== $case['pre_enrollment_claimed']) {
+        $failed[] = "{$case['name']} pre_enrollment_claimed flag mismatch";
+    }
     if (isset($case['count_delta']) && $after - $before !== $case['count_delta']) {
         $failed[] = "{$case['name']} enrollment row delta mismatch";
+    }
+    if (isset($case['claimed_email']) && ($preEnroll[(int)$case['payload']['course_id']][$case['claimed_email']] ?? null) !== $case['claimed_user_id']) {
+        $failed[] = "{$case['name']} pre-enroll claim mismatch";
+    }
+    if (isset($case['student_key']) && enrollment_status_value($studentCourses[$case['student_key']] ?? null) !== $case['student_status']) {
+        $failed[] = "{$case['name']} student enrollment status mismatch";
     }
 }
 
@@ -202,6 +321,7 @@ $root = dirname(__DIR__, 2);
 $joinSource = (string)file_get_contents($root . '/public/api/lms/courses/join.php');
 $enrollmentSource = (string)file_get_contents($root . '/public/api/lms/_enrollment.php');
 $courseJs = (string)file_get_contents($root . '/public/js/course.js');
+$dashboardJs = (string)file_get_contents($root . '/public/script.js');
 $rbacSource = (string)file_get_contents($root . '/src/rbac.php');
 
 $sourceChecks = [
@@ -210,15 +330,20 @@ $sourceChecks = [
     'join endpoint logs unexpected enrollment failures with context' => str_contains($joinSource, 'lms_log_enrollment_failure'),
     'enrollment helper uses RBAC course context for active/visibility/eligibility decisions' => str_contains($enrollmentSource, 'rbac_course_access_context'),
     'enrollment helper inserts only student course participation' => str_contains($enrollmentSource, 'INSERT INTO student_courses'),
-    'enrollment helper checks existing enrollment before insert' => str_contains($enrollmentSource, 'lms_student_enrollment_exists'),
-    'enrollment helper returns false for duplicate insert no-ops' => str_contains($enrollmentSource, '$inserted = $stmt->rowCount() === 1') && str_contains($enrollmentSource, 'return false;'),
+    'enrollment helper checks existing enrollment before insert' => str_contains($enrollmentSource, '$hasExistingEnrollment'),
+    'enrollment helper returns false for duplicate insert no-ops' => str_contains($enrollmentSource, 'ON DUPLICATE KEY UPDATE') && str_contains($enrollmentSource, 'return false;'),
+    'enrollment helper activates pending existing enrollment rows' => str_contains($enrollmentSource, 'lms_activate_student_enrollment') && str_contains($enrollmentSource, 'lms_student_enrollment_needs_activation'),
+    'enrollment helper matches and claims email pre-enrollments' => str_contains($enrollmentSource, 'lms_matching_course_pre_enrollment') && str_contains($enrollmentSource, 'lms_claim_course_pre_enrollment'),
+    'legacy zero claimed pre-enroll rows are treated as unclaimed' => str_contains($enrollmentSource, 'claimed_user_id = 0') && str_contains($rbacSource, 'claimed_user_id = 0'),
     'enrollment failure logger redacts raw account ids' => !str_contains($enrollmentSource, "'user_id' => \$context['user_id']") && str_contains($enrollmentSource, "'user_present'"),
-    'enrollment failure logger redacts raw exception messages' => !str_contains($enrollmentSource, "'message' => \$error->getMessage()") && str_contains($enrollmentSource, "'message_hash'"),
-    'enrollment helper supports common non-null enrollment metadata columns' => str_contains($enrollmentSource, "'role' => 'student'") && str_contains($enrollmentSource, "'status' => 'active'"),
+    'enrollment failure logger includes backend exception diagnostics' => str_contains($enrollmentSource, "'exception_message'") && str_contains($enrollmentSource, "'driver_error_code'"),
+    'enrollment helper supports common non-null enrollment metadata columns' => str_contains($enrollmentSource, "'role' => 'student'") && str_contains($enrollmentSource, "'status' => lms_student_enrollment_active_status"),
     'enrollment helper refreshes RBAC student course cache after insert' => str_contains($enrollmentSource, 'rbac_student_course_ids($pdo, $userId, true)'),
     'RBAC student-course cache accepts explicit refresh' => str_contains($rbacSource, 'bool $refresh = false'),
     'course UI maps enrollment error codes to useful messages' => str_contains($courseJs, 'function enrolmentErrorMessage') && str_contains($courseJs, 'result?.errorCode'),
     'staff with full course view are not routed through public preview join UI' => str_contains($courseJs, 'if (!course.capabilities?.view_course)'),
+    'dashboard join UI enables invited pre-enrolled courses' => str_contains($dashboardJs, 'c.can_self_enroll || invited') && str_contains($dashboardJs, 'c.allowlisted || c.pre_enrolled'),
+    'dashboard join UI opens the course after idempotent success' => str_contains($dashboardJs, 'window.location.assign(`./course.html?course_id='),
 ];
 foreach ($sourceChecks as $label => $passed) {
     if (!$passed) {

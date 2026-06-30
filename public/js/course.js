@@ -338,7 +338,7 @@
         const container = $('coursePublicPreview');
         if (!container) return;
         hideEl('kBellBtn');
-        const canEnrol = !!course.capabilities?.can_self_enroll;
+        const canEnrol = !!(course.capabilities?.can_self_enroll || course.can_self_enroll || course.allowlisted || course.pre_enrolled);
         const visibilityLabel = course.visibility === 'restricted' ? 'Invited access' : 'Public course';
         container.innerHTML = `
           <section class="k-public-course-card" aria-labelledby="publicCourseTitle">

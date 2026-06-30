@@ -869,13 +869,14 @@ async function renderCourseCards() {
     }
 
     availableGrid.innerHTML = availableCourses.map((c) => {
-      const canJoin = Boolean(c.can_self_enroll);
-      const joinTitle = canJoin ? 'Enrol in this course' : 'Restricted by enrolment policy';
+      const invited = Boolean(c.allowlisted || c.pre_enrolled);
+      const canJoin = Boolean(c.can_self_enroll || invited);
+      const joinTitle = canJoin ? (invited ? 'Accept course invitation' : 'Enrol in this course') : 'Restricted by enrolment policy';
       const courseId = Number(c.course_id || 0);
       return `<div class="course-card">
         <span class="badge">${escapeHtml(c.visibility || 'public')}</span>
         <h3 class="course-title">${escapeHtml(c.name || '')}</h3>
-        <div class="muted small">${c.allowlisted ? 'You are invited to enrol.' : 'Preview the course before enrolling.'}</div>
+        <div class="muted small">${invited ? 'You are invited to enrol.' : 'Preview the course before enrolling.'}</div>
         <div class="mt-8 k-inline-actions">
           <a class="btn btn-ghost" data-lms-nav href="./course.html?course_id=${encodeURIComponent(courseId)}">View course</a>
           <button class="btn btn-primary" data-join-course="${courseId}" ${canJoin ? '' : 'disabled'} title="${escapeHtml(joinTitle)}">Enrol in course</button>
@@ -908,8 +909,12 @@ async function renderCourseCards() {
           const message = payload?.error?.message || payload?.message || `Join failed (${res.status})`;
           throw new Error(message);
         }
-        showToast('Enrolled in course successfully', { tone: 'success' });
-        await renderCourseCards();
+        if (window.KairosLMS && typeof window.KairosLMS.invalidateSessionContext === 'function') {
+          window.KairosLMS.invalidateSessionContext();
+        }
+        const data = payload?.data || {};
+        showToast(data.already_enrolled ? 'Course enrolment is ready' : 'Enrolled in course successfully', { tone: 'success' });
+        window.location.assign(`./course.html?course_id=${encodeURIComponent(courseId)}`);
       } catch (err) {
         console.error('Join course failed', err);
         showToast(`Unable to enrol in course${err?.message ? `: ${err.message}` : ''}`, { tone: 'error' });
