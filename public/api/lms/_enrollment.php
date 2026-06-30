@@ -151,9 +151,6 @@ function lms_insert_student_enrollment(PDO $pdo, int $courseId, int $userId, str
 
     $userColumn = rbac_quote_identifier('user_id');
     $updates = [$userColumn . ' = ' . $userColumn];
-    if (isset($columns['updated_at'])) {
-        $updates[] = rbac_quote_identifier('updated_at') . ' = CURRENT_TIMESTAMP';
-    }
 
     $sql = 'INSERT INTO student_courses (' . implode(', ', $insertColumns) . ')'
         . ' SELECT ' . implode(', ', $selectValues)
@@ -163,10 +160,14 @@ function lms_insert_student_enrollment(PDO $pdo, int $courseId, int $userId, str
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    if (!lms_student_enrollment_exists($pdo, $courseId, $userId)) {
-        throw new RuntimeException('student_courses insert did not create an enrollment row');
+    $inserted = $stmt->rowCount() === 1;
+    if ($inserted) {
+        return true;
     }
-    return true;
+    if (lms_student_enrollment_exists($pdo, $courseId, $userId)) {
+        return false;
+    }
+    throw new RuntimeException('student_courses insert did not create an enrollment row');
 }
 
 function lms_claim_course_pre_enrollment(PDO $pdo, int $courseId, int $userId, string $email): void
@@ -254,12 +255,20 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
 
 function lms_log_enrollment_failure(Throwable $error, array $context): void
 {
+    $message = $error->getMessage();
+    $userId = isset($context['user_id']) ? (int)$context['user_id'] : 0;
+    $secret = (string)getenv('AUTH_PRIVACY_HASH_SECRET');
+    $userRef = $userId > 0 && $secret !== ''
+        ? substr(hash_hmac('sha256', 'enrollment:' . $userId, $secret), 0, 20)
+        : null;
     $payload = [
         'event' => 'course_self_enrollment_failed',
         'exception' => get_class($error),
-        'message' => $error->getMessage(),
+        'exception_code' => $error->getCode(),
+        'message_hash' => $message !== '' ? substr(hash('sha256', $message), 0, 20) : null,
         'course_id' => $context['course_id'] ?? null,
-        'user_id' => $context['user_id'] ?? null,
+        'user_present' => $userId > 0,
+        'user_ref' => $userRef,
         'source' => $context['source'] ?? null,
     ];
     $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);

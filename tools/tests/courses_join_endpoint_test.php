@@ -57,6 +57,21 @@ function simulate_courses_join(?array $sessionUser, array $payload, array &$stud
     ];
 }
 
+$courseIdCases = [
+    'positive integer course id' => [['course_id' => 10], 10],
+    'trimmed numeric string course id' => [['course_id' => ' 20 '], 20],
+    'missing course id' => [[], 0],
+    'non-numeric string course id' => [['course_id' => 'abc'], 0],
+];
+
+$failed = [];
+foreach ($courseIdCases as $name => [$payload, $expected]) {
+    $actual = join_course_id($payload);
+    if ($actual !== $expected) {
+        $failed[] = "{$name} expected parsed course id {$expected} got {$actual}";
+    }
+}
+
 $courses = [
     10 => ['visibility' => 'public', 'is_active' => true],
     20 => ['visibility' => 'restricted', 'is_active' => true],
@@ -161,7 +176,6 @@ $cases = [
     ],
 ];
 
-$failed = [];
 foreach ($cases as $case) {
     $before = count($studentCourses);
     $result = simulate_courses_join($case['session'], $case['payload'], $studentCourses, $courses, $allowlist, $preEnroll);
@@ -191,12 +205,15 @@ $courseJs = (string)file_get_contents($root . '/public/js/course.js');
 $rbacSource = (string)file_get_contents($root . '/src/rbac.php');
 
 $sourceChecks = [
-    'join endpoint validates course_id through the shared enrollment parser' => str_contains($joinSource, 'lms_enrollment_course_id'),
+    'join endpoint delegates enrollment decisions to the shared enrollment helper' => str_contains($joinSource, 'lms_self_enroll_user_in_course') && str_contains($enrollmentSource, 'function lms_enrollment_course_id'),
     'join endpoint maps expected enrollment errors without using generic 500' => str_contains($joinSource, 'LmsEnrollmentHttpError'),
     'join endpoint logs unexpected enrollment failures with context' => str_contains($joinSource, 'lms_log_enrollment_failure'),
     'enrollment helper uses RBAC course context for active/visibility/eligibility decisions' => str_contains($enrollmentSource, 'rbac_course_access_context'),
     'enrollment helper inserts only student course participation' => str_contains($enrollmentSource, 'INSERT INTO student_courses'),
     'enrollment helper checks existing enrollment before insert' => str_contains($enrollmentSource, 'lms_student_enrollment_exists'),
+    'enrollment helper returns false for duplicate insert no-ops' => str_contains($enrollmentSource, '$inserted = $stmt->rowCount() === 1') && str_contains($enrollmentSource, 'return false;'),
+    'enrollment failure logger redacts raw account ids' => !str_contains($enrollmentSource, "'user_id' => \$context['user_id']") && str_contains($enrollmentSource, "'user_present'"),
+    'enrollment failure logger redacts raw exception messages' => !str_contains($enrollmentSource, "'message' => \$error->getMessage()") && str_contains($enrollmentSource, "'message_hash'"),
     'enrollment helper supports common non-null enrollment metadata columns' => str_contains($enrollmentSource, "'role' => 'student'") && str_contains($enrollmentSource, "'status' => 'active'"),
     'enrollment helper refreshes RBAC student course cache after insert' => str_contains($enrollmentSource, 'rbac_student_course_ids($pdo, $userId, true)'),
     'RBAC student-course cache accepts explicit refresh' => str_contains($rbacSource, 'bool $refresh = false'),
