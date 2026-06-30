@@ -341,7 +341,22 @@ function lms_claim_course_pre_enrollment(PDO $pdo, int $courseId, int $userId, s
         ':course_id' => $courseId,
         ':email' => $email,
     ]);
-    return $claimStmt->rowCount() > 0;
+    if ($claimStmt->rowCount() > 0) {
+        return true;
+    }
+
+    $checkStmt = $pdo->prepare(
+        'SELECT 1 FROM course_pre_enroll'
+        . ' WHERE course_id = :course_id AND LOWER(email) = :email'
+        . '   AND claimed_user_id = :user_id'
+        . ' LIMIT 1'
+    );
+    $checkStmt->execute([
+        ':user_id' => $userId,
+        ':course_id' => $courseId,
+        ':email' => $email,
+    ]);
+    return (bool)$checkStmt->fetchColumn();
 }
 
 function lms_emit_course_enrollment_event(PDO $pdo, int $courseId, int $userId): void
@@ -373,6 +388,9 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
     $preEnrollment = lms_matching_course_pre_enrollment($pdo, $courseId, $userId, $email);
     $hasExistingEnrollment = $context['participate_as_student']
         || lms_student_enrollment_exists($pdo, $courseId, $userId);
+    $requiresPreEnrollmentClaim = $preEnrollment !== null
+        && !$context['view_course_public']
+        && !$context['allowlisted'];
 
     if (!$hasExistingEnrollment && !$context['can_self_enroll'] && $preEnrollment === null) {
         throw new LmsEnrollmentHttpError('not_enrollable', 'You are not eligible to join this course.', 403);
@@ -383,6 +401,13 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
         $pdo->beginTransaction();
     }
     try {
+        $claimedPreEnrollment = false;
+        if ($requiresPreEnrollmentClaim) {
+            $claimedPreEnrollment = lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
+            if (!$claimedPreEnrollment) {
+                throw new LmsEnrollmentHttpError('not_enrollable', 'You are not eligible to join this course.', 403);
+            }
+        }
         $activatedExisting = false;
         if ($hasExistingEnrollment) {
             $joined = false;
@@ -390,7 +415,9 @@ function lms_self_enroll_user_in_course(PDO $pdo, array $user, int $courseId, st
         } else {
             $joined = lms_insert_student_enrollment($pdo, $courseId, $userId, $source);
         }
-        $claimedPreEnrollment = lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
+        if (!$claimedPreEnrollment) {
+            $claimedPreEnrollment = lms_claim_course_pre_enrollment($pdo, $courseId, $userId, $email);
+        }
         if ($joined || $activatedExisting || $claimedPreEnrollment) {
             lms_emit_course_enrollment_event($pdo, $courseId, $userId);
         }
@@ -427,7 +454,6 @@ function lms_log_enrollment_failure(Throwable $error, array $context): void
         'event' => 'course_self_enrollment_failed',
         'exception' => get_class($error),
         'exception_code' => $error->getCode(),
-        'exception_message' => $message !== '' ? substr($message, 0, 500) : null,
         'message_hash' => $message !== '' ? substr(hash('sha256', $message), 0, 20) : null,
         'course_id' => $context['course_id'] ?? null,
         'user_present' => $userId > 0,

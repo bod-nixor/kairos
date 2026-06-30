@@ -19,6 +19,9 @@ function pre_enroll_match(array $preEnroll, int $courseId, string $email, int $u
         return false;
     }
     $claimedUserId = $preEnroll[$courseId][$email];
+    if ($claimedUserId === 'race') {
+        return true;
+    }
     return $claimedUserId === null || (int)$claimedUserId === 0 || (int)$claimedUserId === $userId;
 }
 
@@ -27,11 +30,32 @@ function claim_pre_enroll(array &$preEnroll, int $courseId, string $email, int $
     if (!pre_enroll_match($preEnroll, $courseId, $email, $userId)) {
         return false;
     }
+    if (($preEnroll[$courseId][$email] ?? null) === 'race') {
+        $preEnroll[$courseId][$email] = 999;
+        return false;
+    }
     if (($preEnroll[$courseId][$email] ?? null) === $userId) {
         return false;
     }
     $preEnroll[$courseId][$email] = $userId;
     return true;
+}
+
+function student_enrollment_needs_activation_sim(array $row, array $columns): bool
+{
+    foreach (['status', 'enrollment_status'] as $column) {
+        if (!isset($columns[$column]) || !array_key_exists($column, $row)) {
+            continue;
+        }
+        $status = strtolower(trim((string)($row[$column] ?? '')));
+        if (in_array($status, ['pending', 'invited', 'pre_enrolled', 'pre-enrolled', 'unclaimed', 'inactive'], true)) {
+            return true;
+        }
+    }
+    if (isset($columns['is_active']) && array_key_exists('is_active', $row) && (int)$row['is_active'] !== 1) {
+        return true;
+    }
+    return false;
 }
 
 function enrollment_status_value(mixed $row): string
@@ -63,13 +87,25 @@ function simulate_courses_join(?array $sessionUser, array $payload, array &$stud
     $key = $courseId . ':' . $userId;
     $alreadyEnrolled = isset($studentCourses[$key]);
     $matchedPreEnroll = pre_enroll_match($preEnroll, $courseId, $email, $userId);
+    $visibility = strtolower((string)($course['visibility'] ?? 'public'));
+    $allowlisted = in_array($email, $allowlist[$courseId] ?? [], true);
+    $requiresPreEnrollmentClaim = $matchedPreEnroll && $visibility !== 'public' && !$allowlisted;
     if ($alreadyEnrolled) {
-        $status = enrollment_status_value($studentCourses[$key]);
-        $activated = in_array($status, ['pending', 'invited', 'pre_enrolled'], true);
+        $claimed = false;
+        if ($requiresPreEnrollmentClaim) {
+            $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
+            if (!$claimed) {
+                return ['status' => 403, 'error' => 'not_enrollable'];
+            }
+        }
+        $activated = is_array($studentCourses[$key])
+            && student_enrollment_needs_activation_sim($studentCourses[$key], ['status' => true, 'is_active' => true]);
         if ($activated) {
             $studentCourses[$key] = ['status' => 'active'];
         }
-        $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
+        if (!$claimed) {
+            $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
+        }
         return [
             'status' => 200,
             'data' => [
@@ -82,17 +118,25 @@ function simulate_courses_join(?array $sessionUser, array $payload, array &$stud
         ];
     }
 
-    $visibility = strtolower((string)($course['visibility'] ?? 'public'));
     $canJoin = $visibility === 'public'
-        || in_array($email, $allowlist[$courseId] ?? [], true)
+        || $allowlisted
         || $matchedPreEnroll;
 
     if (!$canJoin) {
         return ['status' => 403, 'error' => 'not_enrollable'];
     }
 
+    $claimed = false;
+    if ($requiresPreEnrollmentClaim) {
+        $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
+        if (!$claimed) {
+            return ['status' => 403, 'error' => 'not_enrollable'];
+        }
+    }
     $studentCourses[$key] = ['status' => 'active'];
-    $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
+    if (!$claimed) {
+        $claimed = claim_pre_enroll($preEnroll, $courseId, $email, $userId);
+    }
 
     return [
         'status' => 200,
@@ -136,6 +180,7 @@ $preEnroll = [
         'pre@nixorcollege.edu.pk' => null,
         'pending@nixorcollege.edu.pk' => null,
         'legacy@nixorcollege.edu.pk' => 0,
+        'raced@nixorcollege.edu.pk' => 'race',
         'claimed-other@nixorcollege.edu.pk' => 999,
     ],
 ];
@@ -251,6 +296,14 @@ $cases = [
         'error' => 'not_enrollable',
     ],
     [
+        'name' => 'stale invite match does not create enrollment after failed claim',
+        'session' => ['user_id' => 22, 'role_name' => 'student', 'email' => 'raced@nixorcollege.edu.pk'],
+        'payload' => ['course_id' => 40],
+        'status' => 403,
+        'error' => 'not_enrollable',
+        'count_delta' => 0,
+    ],
+    [
         'name' => 'unauthenticated user is blocked',
         'session' => null,
         'payload' => ['course_id' => 10],
@@ -312,8 +365,12 @@ foreach ($cases as $case) {
     if (isset($case['claimed_email']) && ($preEnroll[(int)$case['payload']['course_id']][$case['claimed_email']] ?? null) !== $case['claimed_user_id']) {
         $failed[] = "{$case['name']} pre-enroll claim mismatch";
     }
-    if (isset($case['student_key']) && enrollment_status_value($studentCourses[$case['student_key']] ?? null) !== $case['student_status']) {
-        $failed[] = "{$case['name']} student enrollment status mismatch";
+    if (isset($case['student_key'])) {
+        if (!array_key_exists($case['student_key'], $studentCourses)) {
+            $failed[] = "{$case['name']} expected student enrollment row to exist";
+        } elseif (enrollment_status_value($studentCourses[$case['student_key']]) !== $case['student_status']) {
+            $failed[] = "{$case['name']} student enrollment status mismatch";
+        }
     }
 }
 
@@ -323,6 +380,8 @@ $enrollmentSource = (string)file_get_contents($root . '/public/api/lms/_enrollme
 $courseJs = (string)file_get_contents($root . '/public/js/course.js');
 $dashboardJs = (string)file_get_contents($root . '/public/script.js');
 $rbacSource = (string)file_get_contents($root . '/src/rbac.php');
+$claimPosition = strpos($enrollmentSource, '$claimedPreEnrollment = lms_claim_course_pre_enrollment');
+$insertPosition = strpos($enrollmentSource, '$joined = lms_insert_student_enrollment');
 
 $sourceChecks = [
     'join endpoint delegates enrollment decisions to the shared enrollment helper' => str_contains($joinSource, 'lms_self_enroll_user_in_course') && str_contains($enrollmentSource, 'function lms_enrollment_course_id'),
@@ -334,9 +393,11 @@ $sourceChecks = [
     'enrollment helper returns false for duplicate insert no-ops' => str_contains($enrollmentSource, 'ON DUPLICATE KEY UPDATE') && str_contains($enrollmentSource, 'return false;'),
     'enrollment helper activates pending existing enrollment rows' => str_contains($enrollmentSource, 'lms_activate_student_enrollment') && str_contains($enrollmentSource, 'lms_student_enrollment_needs_activation'),
     'enrollment helper matches and claims email pre-enrollments' => str_contains($enrollmentSource, 'lms_matching_course_pre_enrollment') && str_contains($enrollmentSource, 'lms_claim_course_pre_enrollment'),
+    'invite-only pre-enrollment must be claimed before enrollment write' => $claimPosition !== false && $insertPosition !== false && $claimPosition < $insertPosition,
     'legacy zero claimed pre-enroll rows are treated as unclaimed' => str_contains($enrollmentSource, 'claimed_user_id = 0') && str_contains($rbacSource, 'claimed_user_id = 0'),
     'enrollment failure logger redacts raw account ids' => !str_contains($enrollmentSource, "'user_id' => \$context['user_id']") && str_contains($enrollmentSource, "'user_present'"),
-    'enrollment failure logger includes backend exception diagnostics' => str_contains($enrollmentSource, "'exception_message'") && str_contains($enrollmentSource, "'driver_error_code'"),
+    'enrollment failure logger redacts raw exception messages' => !str_contains($enrollmentSource, "'exception_message'") && str_contains($enrollmentSource, "'message_hash'"),
+    'enrollment failure logger includes backend exception diagnostics' => str_contains($enrollmentSource, "'sql_state'") && str_contains($enrollmentSource, "'driver_error_code'"),
     'enrollment helper supports common non-null enrollment metadata columns' => str_contains($enrollmentSource, "'role' => 'student'") && str_contains($enrollmentSource, "'status' => lms_student_enrollment_active_status"),
     'enrollment helper refreshes RBAC student course cache after insert' => str_contains($enrollmentSource, 'rbac_student_course_ids($pdo, $userId, true)'),
     'RBAC student-course cache accepts explicit refresh' => str_contains($rbacSource, 'bool $refresh = false'),
