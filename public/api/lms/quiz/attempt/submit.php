@@ -22,7 +22,7 @@ function lms_normalize_answer_value($value)
     return $value;
 }
 
-$user = lms_require_roles(['student']);
+$user = lms_require_roles(['student', 'ta', 'manager', 'admin']);
 $in = lms_json_input();
 $attemptId = (int)($in['attempt_id'] ?? 0);
 $responses = $in['responses'] ?? [];
@@ -89,6 +89,7 @@ foreach ($questions as $qid => $question) {
     }
 }
 if (!empty($missingRequired)) {
+    error_log('lms/quiz/attempt/submit.php missing_required attempt_id=' . $attemptId . ' user_id=' . (int)$user['user_id'] . ' question_ids=' . implode(',', $missingRequired));
     lms_error('validation_error', 'Required questions must be answered before submission', 422, ['missing_question_ids' => $missingRequired]);
 }
 

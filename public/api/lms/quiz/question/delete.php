@@ -21,10 +21,15 @@ if (!$question) {
 
 lms_require_course_capability($user, 'manage_course', (int)$question['course_id']);
 
-$stmt = $pdo->prepare('UPDATE lms_questions SET deleted_at = CURRENT_TIMESTAMP WHERE question_id=:id AND deleted_at IS NULL');
-$stmt->execute([':id' => $id]);
-if ($stmt->rowCount() === 0) {
-    lms_error('not_found', 'Question not found', 404);
+try {
+    $stmt = $pdo->prepare('UPDATE lms_questions SET deleted_at = CURRENT_TIMESTAMP WHERE question_id=:id AND deleted_at IS NULL');
+    $stmt->execute([':id' => $id]);
+    if ($stmt->rowCount() === 0) {
+        lms_error('not_found', 'Question not found', 404);
+    }
+} catch (Throwable $e) {
+    error_log('lms/quiz/question/delete.php failed question_id=' . $id . ' user_id=' . (int)$user['user_id'] . ' message=' . $e->getMessage());
+    lms_error('question_delete_failed', 'Failed to delete question', 500);
 }
 
 lms_ok(['deleted' => true]);

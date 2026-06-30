@@ -46,7 +46,7 @@ try {
     $countStmt->execute($countParams);
     $attemptsUsed = (int)$countStmt->fetchColumn();
 
-    $questionSql = 'SELECT COUNT(*) FROM lms_questions WHERE assessment_id = :assessment_id';
+    $questionSql = 'SELECT COUNT(*) FROM lms_questions WHERE assessment_id = :assessment_id AND deleted_at IS NULL';
     $questionParams = [':assessment_id' => $assessmentId];
     $debug['steps'][] = ['step' => 'count_questions', 'sql' => $questionSql, 'params' => $questionParams];
     $qStmt = $pdo->prepare($questionSql);

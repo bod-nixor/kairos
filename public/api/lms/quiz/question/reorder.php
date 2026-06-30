@@ -61,5 +61,6 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    error_log('lms/quiz/question/reorder.php failed question_id=' . $questionId . ' user_id=' . (int)$user['user_id'] . ' direction=' . $direction . ' message=' . $e->getMessage());
     lms_error('question_reorder_failed', 'Failed to reorder question', 500);
 }

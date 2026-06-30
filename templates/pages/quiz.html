@@ -15,7 +15,7 @@
     <script data-cfasync="false" src="./js/config.js"></script>
 </head>
 
-<body class="k-page-body k-quiz-page">
+<body class="k-page-body k-quiz-page" data-quiz-page>
 
     <aside class="k-sidebar" id="kSidebar" role="navigation" aria-label="Course navigation">
         <a class="k-sidebar__brand" href="/signoff/" data-home-link="true">
@@ -124,14 +124,25 @@
                                 <span class="k-quiz-meta-item__label">Max attempts</span>
                             </div>
                         </div>
-                        <button class="btn btn-primary k-control-sm" id="quizStartBtn">Start Attempt</button>
+                        <button class="btn btn-primary k-control-sm" id="quizStartBtn" type="button">Start Attempt</button>
                         <div class="k-quiz-panel__actions">
-                            <button class="btn btn-ghost btn-sm" id="quizShowHistoryBtn">View Attempt History</button>
+                            <button class="btn btn-ghost btn-sm hidden" id="quizStartStudentAttemptBtn"
+                                type="button">Start Student Attempt</button>
+                            <button class="btn btn-ghost btn-sm" id="quizShowHistoryBtn" type="button">View Attempt
+                                History</button>
                         </div>
                     </div>
 
                     <!-- PHASE: Active attempt (one question at a time) -->
                     <div id="quizAttemptPanel" class="hidden" aria-label="Quiz attempt" role="form">
+                        <div class="k-notice-banner k-quiz-mode-banner hidden" id="quizPreviewBanner" role="status">
+                            <span class="k-resource-type-icon" aria-hidden="true">Preview</span>
+                            <div>
+                                <strong>Preview mode</strong>
+                                <p class="k-text-meta-sm">Answers are only kept on this screen and are not submitted for
+                                    grading.</p>
+                            </div>
+                        </div>
                         <div id="questionCard" class="k-question-card">
                             <div class="k-question-card__head">
                                 <div class="k-question-card__num" id="questionNum">Question 1 of 10</div>
@@ -143,12 +154,13 @@
                         </div>
                         <!-- Quiz navigation -->
                         <nav class="k-quiz-nav" aria-label="Question navigation">
-                            <button class="btn btn-ghost btn-sm" id="quizPrevBtn" disabled
+                            <button class="btn btn-ghost btn-sm" id="quizPrevBtn" type="button" disabled
                                 aria-label="Previous question">← Prev</button>
                             <div class="k-quiz-dots" id="quizDots" role="list" aria-label="Questions"></div>
-                            <button class="btn btn-ghost btn-sm" id="quizNextBtn" aria-label="Next question">Next
+                            <button class="btn btn-ghost btn-sm" id="quizNextBtn" type="button"
+                                aria-label="Next question">Next
                                 →</button>
-                            <button class="btn btn-primary hidden" id="quizSubmitBtn"
+                            <button class="btn btn-primary hidden" id="quizSubmitBtn" type="button"
                                 aria-label="Submit quiz">Submit Quiz</button>
                         </nav>
                     </div>
@@ -182,7 +194,7 @@
                         <div class="k-feedback-list" id="quizFeedbackList"></div>
 
                         <div class="k-quiz-panel__actions">
-                            <button class="btn btn-ghost" id="resultViewHistoryBtn">View History</button>
+                            <button class="btn btn-ghost" id="resultViewHistoryBtn" type="button">View History</button>
                             <a href="#" class="btn btn-primary" id="resultBackBtn">Back to Course</a>
                         </div>
                     </div>
@@ -191,7 +203,7 @@
                     <div id="quizHistoryPanel" class="k-card hidden" aria-label="Attempt history">
                         <div class="k-card__header">
                             <h2 class="k-card__title">Attempt History</h2>
-                            <button class="btn btn-ghost btn-sm" id="historyBackBtn">← Back</button>
+                            <button class="btn btn-ghost btn-sm" id="historyBackBtn" type="button">← Back</button>
                         </div>
                         <div class="k-attempt-history" id="attemptHistoryList">
                             <div class="k-empty">
@@ -205,7 +217,7 @@
                     <div id="quizError" class="hidden">
                         <div class="k-empty">
                             <div class="k-empty__icon">⚠️</div>
-                            <p class="k-empty__title">Failed to load quiz</p><button class="btn btn-primary"
+                            <p class="k-empty__title">Failed to load quiz</p><button class="btn btn-primary" type="button"
                                 id="quizRetryBtn">Retry</button>
                         </div>
                     </div>
