@@ -62,6 +62,7 @@ assert.ok(quizJs.includes('quizQuestionCount() <= 0'), 'startAttempt must defens
 assert.ok(quizJs.includes('No questions yet'), 'empty quizzes should route to the no-questions fallback');
 assert.ok(quizJs.includes('Correct answer') && quizJs.includes('answer_explanation'), 'completed review and staff preview should render correct answers and explanations');
 assert.ok(quizJs.includes("./api/lms/quiz/attempt/get.php?attempt_id="), 'attempt review should use the completed-attempt detail endpoint');
+assert.ok(quizJs.includes('reviewRequestToken') && quizJs.match(/target\.dataset\.reviewRequestToken !== requestToken/g)?.length >= 2, 'attempt review loading should ignore stale overlapping requests');
 
 for (const selector of ['.k-quiz-wrap', '.k-question-card__text', '.k-option__label', '.k-quiz-nav', '.k-quiz-dot', '.k-attempt-review', '.k-review-question__prompt', '.k-review-option__text']) {
   assert.ok(lmsCss.includes(selector), `missing quiz layout selector ${selector}`);

@@ -44,8 +44,19 @@ try {
 $assert(lms_quiz_answer_is_correct('mcq', 'opt_2', 'opt_2') === true, 'matching MCQ option value should score correct');
 $assert(lms_quiz_answer_is_correct('mcq', 'opt_2', 'opt_1') === false, 'wrong MCQ option value should score incorrect');
 $assert(lms_quiz_answer_is_correct('multiple_select', ['opt_1', 'opt_2'], ['opt_2', 'opt_1']) === true, 'multiple-select comparison should be order-insensitive');
+$assert(lms_quiz_answer_is_correct('true_false', true, 'true') === true, 'true/false comparison should normalize stored boolean true');
+$assert(lms_quiz_answer_is_correct('true_false', false, 'false') === true, 'true/false comparison should normalize stored boolean false');
+$assert(lms_quiz_answer_is_correct('true_false', true, false) === false, 'true/false comparison should reject opposite boolean values');
+$assert(lms_quiz_answer_text(false, [], 'true_false') === 'False', 'true/false review text should normalize boolean false');
 $assert(lms_quiz_answer_text('opt_1', $options, 'mcq') === 'Alpha', 'selected answer text should use stored option values');
 $assert(lms_quiz_answer_text('opt_2', $options, 'mcq') === 'Beta', 'correct answer text should use stored option values');
+$tfOptions = lms_quiz_review_options('true_false', [], false, true);
+$assert($tfOptions[0]['is_correct'] === true && $tfOptions[1]['is_selected'] === true, 'true/false review options should normalize booleans to true/false option values');
+
+$assert(lms_quiz_is_question_response_map(['101' => 'opt_1']) === true, 'question responses should accept object-style question_id keys');
+$assert(lms_quiz_is_question_response_map([101 => 'opt_1']) === true, 'question responses should accept decoded integer question_id keys');
+$assert(lms_quiz_is_question_response_map(['answer only']) === false, 'question responses should reject list-shaped arrays');
+$assert(lms_quiz_is_question_response_map(['abc' => 'answer']) === false, 'question responses should reject non-question keys');
 
 $snapshot = lms_quiz_question_snapshot([
     'question_id' => 101,
@@ -85,6 +96,7 @@ $assert(str_contains($attemptGetSource, '$isOwnerWithStudentAccess') && str_cont
 $assert(str_contains($attemptGetSource, "(string)$" . "attempt['status'] !== 'in_progress'") && str_contains($attemptGetSource, "Attempt review is available after submission"), 'attempt review endpoint should block active attempts');
 $assert(str_contains($questionListSource, 'if (lms_is_staff_role($role))') && str_contains($questionListSource, "answer_explanation"), 'active question list should expose explanations only in the staff-only answer block');
 $assert(str_contains($submitSource, 'question_snapshot_json') && str_contains($submitSource, 'lms_quiz_question_snapshot'), 'submit endpoint should persist submitted question snapshots for review');
+$assert(str_contains($submitSource, 'lms_quiz_is_question_response_map'), 'submit endpoint should reject list-shaped response payloads');
 
 if ($failed !== []) {
     fwrite(STDERR, "quiz_attempt_review_test FAILED:\n" . implode(PHP_EOL, $failed) . PHP_EOL);

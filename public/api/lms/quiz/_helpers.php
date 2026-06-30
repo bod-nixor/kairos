@@ -32,6 +32,28 @@ function lms_quiz_decode_json(mixed $json): mixed
     return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
 }
 
+function lms_quiz_is_question_response_map(array $responses): bool
+{
+    if ($responses === []) {
+        return true;
+    }
+    if (array_is_list($responses)) {
+        return false;
+    }
+    foreach (array_keys($responses) as $key) {
+        if (is_int($key)) {
+            if ($key <= 0) {
+                return false;
+            }
+            continue;
+        }
+        if (!is_string($key) || !ctype_digit($key) || (int)$key <= 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function lms_quiz_answer_provided(mixed $value): bool
 {
     if (is_array($value)) {
@@ -71,16 +93,52 @@ function lms_quiz_normalize_answer_value(mixed $value): mixed
     return trim((string)$value);
 }
 
-function lms_quiz_answer_values(mixed $answer): array
+function lms_quiz_normalize_true_false_answer(mixed $value): ?string
+{
+    if ($value === null) {
+        return null;
+    }
+    if (is_bool($value)) {
+        return $value ? 'true' : 'false';
+    }
+    if (is_int($value) || is_float($value)) {
+        if ((string)$value === '1' || (float)$value === 1.0) {
+            return 'true';
+        }
+        if ((string)$value === '0' || (float)$value === 0.0) {
+            return 'false';
+        }
+    }
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['true', '1'], true)) {
+            return 'true';
+        }
+        if (in_array($normalized, ['false', '0'], true)) {
+            return 'false';
+        }
+    }
+    return null;
+}
+
+function lms_quiz_answer_values(mixed $answer, ?string $questionType = null): array
 {
     if (!lms_quiz_answer_provided($answer)) {
         return [];
     }
+    $type = $questionType === 'multi_select' ? 'multiple_select' : $questionType;
     $values = is_array($answer) ? $answer : [$answer];
     $out = [];
     foreach ($values as $value) {
         if (lms_quiz_answer_provided($value)) {
-            $out[] = trim((string)$value);
+            if ($type === 'true_false') {
+                $normalized = lms_quiz_normalize_true_false_answer($value);
+                if ($normalized !== null) {
+                    $out[] = $normalized;
+                }
+            } else {
+                $out[] = trim((string)$value);
+            }
         }
     }
     return array_values(array_unique($out));
@@ -103,7 +161,9 @@ function lms_quiz_answer_is_correct(string $questionType, mixed $answerKey, mixe
         return lms_quiz_normalize_answer_value($answerKey) === lms_quiz_normalize_answer_value($response);
     }
     if ($type === 'true_false') {
-        return is_scalar($answerKey) && is_scalar($response) && strtolower(trim((string)$answerKey)) === strtolower(trim((string)$response));
+        $normalizedKey = lms_quiz_normalize_true_false_answer($answerKey);
+        $normalizedResponse = lms_quiz_normalize_true_false_answer($response);
+        return $normalizedKey !== null && $normalizedResponse !== null && $normalizedKey === $normalizedResponse;
     }
 
     return null;
@@ -214,7 +274,11 @@ function lms_quiz_answer_text(mixed $answer, array $options, string $questionTyp
     };
 
     if (is_array($answer)) {
-        return array_map($format, lms_quiz_answer_values($answer));
+        return array_map($format, lms_quiz_answer_values($answer, $questionType));
+    }
+    if ($questionType === 'true_false') {
+        $normalized = lms_quiz_normalize_true_false_answer($answer);
+        return $normalized === null ? $format($answer) : $format($normalized);
     }
     return $format($answer);
 }
@@ -232,8 +296,8 @@ function lms_quiz_review_options(string $questionType, array $options, mixed $se
         return [];
     }
 
-    $selected = array_flip(lms_quiz_answer_values($selectedAnswer));
-    $correct = array_flip(lms_quiz_answer_values($correctAnswer));
+    $selected = array_flip(lms_quiz_answer_values($selectedAnswer, $type));
+    $correct = array_flip(lms_quiz_answer_values($correctAnswer, $type));
     $rows = [];
     foreach ($options as $option) {
         if (!is_array($option)) {

@@ -13,7 +13,7 @@ Start, answer, and submit a published course quiz.
 5. Use **Previous**, **Next**, or the numbered question indicators to move.
 6. Review the indicators for unanswered required items.
 7. Select **Submit Quiz** on the final question.
-8. Review the result, then open **Attempt History** to revisit a completed attempt.
+8. Review the result, then select **View History** to revisit a completed attempt.
 9. Select **Review** on a completed attempt to see your selected answer, the correct answer, and any explanation your teacher added.
 
 ## Screenshot

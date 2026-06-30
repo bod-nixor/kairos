@@ -12,6 +12,9 @@ $responses = $in['responses'] ?? [];
 if ($attemptId <= 0 || !is_array($responses)) {
     lms_error('validation_error', 'attempt_id and responses required', 422);
 }
+if (!lms_quiz_is_question_response_map($responses)) {
+    lms_error('validation_error', 'responses must be an object keyed by question_id', 422);
+}
 
 $pdo = db();
 $attemptStmt = $pdo->prepare(

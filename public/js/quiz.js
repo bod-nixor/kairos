@@ -524,9 +524,13 @@
     async function loadAttemptReview(attemptId, target, options = {}) {
         if (!attemptId || !target) return;
         const endpoint = `./api/lms/quiz/attempt/get.php?attempt_id=${encodeURIComponent(attemptId)}`;
+        const requestToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        target.dataset.reviewRequestToken = requestToken;
+        if (target.dataset.reviewRequestToken !== requestToken) return;
         target.innerHTML = '<div class="k-skeleton" style="height:160px;border-radius:8px"></div>';
         const res = await LMS.api('GET', endpoint);
         logDebug({ endpoint, method: 'GET', response_status: res.status, response_body: res.data, parsed_error_message: res.error || null });
+        if (target.dataset.reviewRequestToken !== requestToken) return;
         if (!res.ok) {
             target.innerHTML = `<div class="k-empty"><p class="k-empty__title">Review unavailable</p><p class="k-empty__desc">${LMS.escHtml(res.error || 'This attempt cannot be reviewed yet.')}</p></div>`;
             return;

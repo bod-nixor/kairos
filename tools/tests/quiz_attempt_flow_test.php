@@ -47,6 +47,28 @@ function response_has_required_answers(array $questions, array $responses): bool
     return true;
 }
 
+function responses_are_question_map(array $responses): bool
+{
+    if ($responses === []) {
+        return true;
+    }
+    if (array_is_list($responses)) {
+        return false;
+    }
+    foreach (array_keys($responses) as $key) {
+        if (is_int($key)) {
+            if ($key <= 0) {
+                return false;
+            }
+            continue;
+        }
+        if (!is_string($key) || !ctype_digit($key) || (int)$key <= 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function simulate_quiz_submit(array $user, array $courseContext, array $attempt, array $questions, array $responses): array
 {
     $role = strtolower((string)($user['role_name'] ?? ''));
@@ -61,6 +83,9 @@ function simulate_quiz_submit(array $user, array $courseContext, array $attempt,
     }
     if (($attempt['status'] ?? '') !== 'in_progress') {
         return ['status' => 409, 'error' => 'conflict'];
+    }
+    if (!responses_are_question_map($responses)) {
+        return ['status' => 422, 'error' => 'validation_error'];
     }
     if (!response_has_required_answers($questions, $responses)) {
         return ['status' => 422, 'error' => 'validation_error'];
@@ -116,6 +141,11 @@ $cases = [
         'expected_status' => 422,
     ],
     [
+        'name' => 'list-shaped responses are rejected before grading',
+        'actual' => simulate_quiz_submit($student, $participant, ['user_id' => 10, 'status' => 'in_progress'], $questions, ['opt_2']),
+        'expected_status' => 422,
+    ],
+    [
         'name' => 'user cannot submit another student attempt',
         'actual' => simulate_quiz_submit($student, $participant, ['user_id' => 99, 'status' => 'in_progress'], $questions, ['101' => 'opt_2']),
         'expected_status' => 403,
@@ -155,6 +185,10 @@ if (!$submitRequiresStudentParticipation) {
 
 if (!str_contains($submitSource, 'lms_quiz_answer_is_correct')) {
     $failed[] = 'submit endpoint must compare submitted option values through the shared quiz answer helper';
+}
+
+if (!str_contains($submitSource, 'lms_quiz_is_question_response_map')) {
+    $failed[] = 'submit endpoint must reject list-shaped responses before per-question processing';
 }
 
 if (!str_contains($submitSource, 'foreach ($questions as $qid => $q)') || !str_contains($submitSource, 'question_snapshot_json')) {

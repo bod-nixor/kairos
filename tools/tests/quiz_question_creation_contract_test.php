@@ -54,6 +54,8 @@ $assert(str_contains($migration, 'idx_lms_questions_required'), 'migration shoul
 $reviewMigration = (string)file_get_contents(dirname(__DIR__, 2) . '/db/migrations/20260630_1030_add_quiz_answer_explanations.sql');
 $assert(str_contains($reviewMigration, 'ADD COLUMN answer_explanation TEXT NULL'), 'review migration should add nullable question explanation text');
 $assert(str_contains($reviewMigration, 'ADD COLUMN question_snapshot_json JSON DEFAULT NULL'), 'review migration should add nullable submitted-response snapshots');
+$assert(str_contains($reviewMigration, '@has_question_snapshot = 1') && str_contains($reviewMigration, 'DROP COLUMN question_snapshot_json'), 'review migration rollback should guard question_snapshot_json drop');
+$assert(str_contains($reviewMigration, '@has_answer_explanation = 1') && str_contains($reviewMigration, 'DROP COLUMN answer_explanation'), 'review migration rollback should guard answer_explanation drop');
 
 $htaccess = (string)file_get_contents(dirname(__DIR__, 2) . '/.htaccess');
 $assert(str_contains($htaccess, 'websocket/socket\\.io'), 'Apache routing should proxy configured Socket.IO path');
