@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/_common.php';
 require_once dirname(__DIR__) . '/drive_client.php';
 require_once __DIR__ . '/_restriction_helpers.php';
+require_once __DIR__ . '/../_enrollment.php';
 
 const LMS_MAX_TEXT_SUBMISSION_LENGTH = 20000;
 const LMS_MAX_SUBMISSION_COMMENT_LENGTH = 2000;
@@ -47,44 +48,17 @@ if (!$assignment) {
 $context = rbac_course_access_context($pdo, $user, (int)$assignment['course_id']);
 if (!$context['participate_as_student'] && $context['can_self_enroll']) {
     try {
-        $pdo->{'beginTransaction'}();
-        $userId = (int)$user['user_id'];
         $courseId = (int)$assignment['course_id'];
-        $ins = $pdo->prepare(
-            'INSERT INTO student_courses (course_id, user_id)'
-            . ' VALUES (:cid, :uid)'
-            . ' ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)'
-        );
-        $ins->execute([':cid' => $courseId, ':uid' => $userId]);
-
-        $email = strtolower(trim((string)($user['email'] ?? '')));
-        if ($email !== '' && rbac_table_has_columns($pdo, 'course_pre_enroll', ['course_id', 'email', 'claimed_user_id'])) {
-            $claimStmt = $pdo->prepare(
-                'UPDATE course_pre_enroll'
-                . ' SET claimed_user_id = :uid'
-                . ' WHERE course_id = :cid AND LOWER(email) = :email'
-                . '   AND (claimed_user_id IS NULL OR claimed_user_id = :uid)'
-            );
-            $claimStmt->execute([':uid' => $userId, ':cid' => $courseId, ':email' => $email]);
-        }
-
-        lms_emit_event($pdo, 'course.enrollment.updated', [
-            'event_name' => 'course.enrollment.updated',
-            'event_id' => lms_uuid_v4(),
-            'occurred_at' => gmdate('Y-m-d H:i:s'),
-            'actor_id' => $userId,
-            'entity_type' => 'course_enrollment',
-            'entity_id' => $userId,
-            'course_id' => $courseId,
-            'delta' => ['enrolled' => true],
-        ]);
-        $pdo->{'commit'}();
+        lms_self_enroll_user_in_course($pdo, $user, $courseId, 'assignment_submit');
         $context = rbac_course_access_context($pdo, $user, $courseId);
+    } catch (LmsEnrollmentHttpError $e) {
+        lms_error($e->errorCode, $e->getMessage(), $e->status, $e->details);
     } catch (Throwable $e) {
-        if ($pdo->{'inTransaction'}()) {
-            $pdo->{'rollBack'}();
-        }
-        error_log('assignment_submit_self_enroll_failed: ' . $e->getMessage());
+        lms_log_enrollment_failure($e, [
+            'course_id' => (int)$assignment['course_id'],
+            'user_id' => (int)($user['user_id'] ?? 0),
+            'source' => 'assignment_submit',
+        ]);
         lms_error('system_error', 'Unable to enroll in this course.', 500);
     }
 }

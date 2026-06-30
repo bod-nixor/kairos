@@ -191,10 +191,10 @@ function rbac_student_course_mappings(): array
     ];
 }
 
-function rbac_student_course_ids(PDO $pdo, int $userId): array
+function rbac_student_course_ids(PDO $pdo, int $userId, bool $refresh = false): array
 {
     static $cache = [];
-    if (isset($cache[$userId])) {
+    if (!$refresh && isset($cache[$userId])) {
         return $cache[$userId];
     }
     if ($userId <= 0) {

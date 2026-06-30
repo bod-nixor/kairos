@@ -325,6 +325,15 @@
         return courseLabel;
     }
 
+    function enrolmentErrorMessage(result) {
+        const code = result?.errorCode || result?.data?.error?.code || '';
+        if (code === 'validation_error') return 'This course link is missing a valid course ID.';
+        if (code === 'not_found') return 'This course is no longer available for enrolment.';
+        if (code === 'not_enrollable' || code === 'forbidden') return 'You are not eligible to enrol in this course.';
+        if (code === 'unauthenticated' || result?.status === 401) return 'Please sign in before enrolling in this course.';
+        return result?.error || 'Unable to enrol right now.';
+    }
+
     function renderPublicPreview(course) {
         const container = $('coursePublicPreview');
         if (!container) return;
@@ -359,10 +368,11 @@
                 course_id: Number(COURSE_ID),
             });
             if (!result.ok) {
+                const message = enrolmentErrorMessage(result);
                 button.disabled = false;
                 button.textContent = 'Enrol in course';
-                if (status) status.textContent = result.error || 'Unable to enrol right now.';
-                LMS.toast(result.error || 'Unable to enrol in this course.', 'error');
+                if (status) status.textContent = message;
+                LMS.toast(message, 'error');
                 return;
             }
             if (status) status.textContent = 'Enrolment complete. Loading course content…';
