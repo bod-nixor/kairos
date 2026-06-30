@@ -28,10 +28,15 @@ function extractFunctionSource(source, functionName) {
 assert.match(quizHtml, /data-quiz-page/, 'quiz page should expose page-scoped realtime/layout hooks');
 assert.match(quizHtml, /id="quizStartStudentAttemptBtn"/, 'staff who are enrolled need an explicit student attempt action');
 assert.match(quizHtml, /id="quizPreviewBanner"/, 'preview mode must be visibly separate from real attempts');
+assert.match(quizHtml, /id="attemptReviewDetail"/, 'attempt history should have a dedicated review detail target');
 
 for (const symbol of [
   'function optionValue',
+  'function formatAnswerText',
+  'function appendPreviewAnswerInfo',
   'function requiredMissingQuestions',
+  'function renderAttemptReview',
+  'function loadAttemptReview',
   'function beginQuestionFlow',
   'function startPreview',
   'function startAttempt',
@@ -55,12 +60,17 @@ assert.ok(quizJs.includes('studentAttemptBtn') && quizJs.includes('startAttempt'
 assert.ok(quizJs.includes('attemptMode') && quizJs.includes('current attempt can continue normally'), 'realtime updates must not interrupt active attempts');
 assert.ok(quizJs.includes('quizQuestionCount() <= 0'), 'startAttempt must defensively block empty quizzes before creating attempts');
 assert.ok(quizJs.includes('No questions yet'), 'empty quizzes should route to the no-questions fallback');
+assert.ok(quizJs.includes('Correct answer') && quizJs.includes('answer_explanation'), 'completed review and staff preview should render correct answers and explanations');
+assert.ok(quizJs.includes("./api/lms/quiz/attempt/get.php?attempt_id="), 'attempt review should use the completed-attempt detail endpoint');
+assert.ok(quizJs.includes('reviewRequestToken') && quizJs.match(/target\.dataset\.reviewRequestToken !== requestToken/g)?.length >= 2, 'attempt review loading should ignore stale overlapping requests');
 
-for (const selector of ['.k-quiz-wrap', '.k-question-card__text', '.k-option__label', '.k-quiz-nav', '.k-quiz-dot']) {
+for (const selector of ['.k-quiz-wrap', '.k-question-card__text', '.k-option__label', '.k-quiz-nav', '.k-quiz-dot', '.k-attempt-review', '.k-review-question__prompt', '.k-review-option__text']) {
   assert.ok(lmsCss.includes(selector), `missing quiz layout selector ${selector}`);
 }
 assert.match(lmsCss, /\.k-question-card__text\s*\{[\s\S]*overflow-wrap:\s*anywhere/, 'long question text must wrap');
 assert.match(lmsCss, /\.k-option__label\s*\{[\s\S]*overflow-wrap:\s*anywhere/, 'long option text must wrap');
+assert.match(lmsCss, /\.k-review-question__prompt\s*\{[\s\S]*overflow-wrap:\s*anywhere/, 'long review prompts must wrap');
+assert.match(lmsCss, /\.k-review-option__text\s*\{[\s\S]*overflow-wrap:\s*anywhere/, 'long review option text must wrap');
 assert.ok(lmsCss.includes('grid-template-columns: auto minmax(0, 1fr) auto'), 'desktop quiz nav should keep controls predictable');
 assert.ok(lmsCss.includes('grid-template-columns: 1fr 1fr'), 'mobile quiz nav should wrap controls');
 assert.ok(lmsCss.includes('.k-page-body[data-quiz-page] .k-realtime-status'), 'quiz pages should move realtime status away from controls');

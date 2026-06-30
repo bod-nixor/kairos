@@ -12,7 +12,7 @@ if ($id <= 0) {
 }
 
 $pdo = db();
-$existingStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.prompt, q.question_type, q.points, q.position, q.is_required, q.answer_key_json, q.settings_json, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id AND a.deleted_at IS NULL WHERE q.question_id=:id AND q.deleted_at IS NULL LIMIT 1');
+$existingStmt = $pdo->prepare('SELECT q.question_id, q.assessment_id, q.prompt, q.question_type, q.points, q.position, q.is_required, q.answer_key_json, q.answer_explanation, q.settings_json, a.course_id FROM lms_questions q JOIN lms_assessments a ON a.assessment_id = q.assessment_id AND a.deleted_at IS NULL WHERE q.question_id=:id AND q.deleted_at IS NULL LIMIT 1');
 $existingStmt->execute([':id' => $id]);
 $existing = $existingStmt->fetch();
 if (!$existing) {
@@ -42,6 +42,15 @@ $isRequired = array_key_exists('is_required', $in) ? (!empty($in['is_required'])
 $answerKeyJson = array_key_exists('answer_key', $in)
     ? json_encode($in['answer_key'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
     : $existing['answer_key_json'];
+$answerExplanation = $existing['answer_explanation'] === null ? null : (string)$existing['answer_explanation'];
+if (array_key_exists('answer_explanation', $in) || array_key_exists('explanation', $in)) {
+    $explanationInput = array_key_exists('answer_explanation', $in) ? $in['answer_explanation'] : $in['explanation'];
+    try {
+        $answerExplanation = lms_normalize_question_explanation($explanationInput);
+    } catch (InvalidArgumentException $e) {
+        lms_error('validation_error', $e->getMessage(), 422);
+    }
+}
 
 $settings = json_decode((string)$existing['settings_json'], true) ?: [];
 if (!is_array($settings)) {
@@ -110,7 +119,7 @@ if (array_key_exists('answer_key', $in)) {
 
 $pdo->beginTransaction();
 try {
-    $updateStmt = $pdo->prepare('UPDATE lms_questions SET prompt=:p, question_type=:t, points=:pts, position=:position, is_required=:is_required, answer_key_json=:ans, settings_json=:set, updated_at=CURRENT_TIMESTAMP WHERE question_id=:id AND deleted_at IS NULL');
+    $updateStmt = $pdo->prepare('UPDATE lms_questions SET prompt=:p, question_type=:t, points=:pts, position=:position, is_required=:is_required, answer_key_json=:ans, answer_explanation=:explanation, settings_json=:set, updated_at=CURRENT_TIMESTAMP WHERE question_id=:id AND deleted_at IS NULL');
     $updateStmt->execute([
         ':p' => $prompt,
         ':t' => $questionType,
@@ -118,6 +127,7 @@ try {
         ':position' => $position,
         ':is_required' => $isRequired,
         ':ans' => $answerKeyJson,
+        ':explanation' => $answerExplanation,
         ':set' => $settingsJson,
         ':id' => $id,
     ]);

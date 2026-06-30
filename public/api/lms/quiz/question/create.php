@@ -28,6 +28,7 @@ lms_require_course_capability($user, 'manage_course', (int)$assessment['course_i
 $points = isset($in['points']) && is_numeric($in['points']) ? (float)$in['points'] : 1.0;
 $isRequired = !empty($in['is_required']) ? 1 : 0;
 $answerKey = $in['answer_key'] ?? $in['correct_answer'] ?? null;
+$explanationInput = array_key_exists('answer_explanation', $in) ? $in['answer_explanation'] : ($in['explanation'] ?? null);
 $settings = $in['settings'] ?? [];
 $options = [];
 
@@ -43,6 +44,7 @@ if (!is_array($settings)) {
 $settings['options'] = $options;
 try {
     $definition = lms_validate_question_definition($questionType, $points, $options, $answerKey);
+    $answerExplanation = lms_normalize_question_explanation($explanationInput);
 } catch (InvalidArgumentException $e) {
     lms_error('validation_error', $e->getMessage(), 422);
 }
@@ -68,8 +70,8 @@ try {
         $position = (int)$posStmt->fetchColumn();
     }
 
-    $insertStmt = $pdo->prepare('INSERT INTO lms_questions (assessment_id, prompt, question_type, points, position, is_required, answer_key_json, settings_json)
-        VALUES (:assessment_id, :prompt, :question_type, :points, :position, :is_required, :answer_key_json, :settings_json)');
+    $insertStmt = $pdo->prepare('INSERT INTO lms_questions (assessment_id, prompt, question_type, points, position, is_required, answer_key_json, answer_explanation, settings_json)
+        VALUES (:assessment_id, :prompt, :question_type, :points, :position, :is_required, :answer_key_json, :answer_explanation, :settings_json)');
     $insertStmt->execute([
         ':assessment_id' => $assessmentId,
         ':prompt' => $prompt,
@@ -78,6 +80,7 @@ try {
         ':position' => $position,
         ':is_required' => $isRequired,
         ':answer_key_json' => $answerKeyJson,
+        ':answer_explanation' => $answerExplanation,
         ':settings_json' => $settingsJson,
     ]);
 

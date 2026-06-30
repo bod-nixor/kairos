@@ -527,6 +527,7 @@
             <label class="k-field-stack"><span class="k-label">Answer options</span><textarea class="k-textarea" data-field="options" rows="5" placeholder="One option per line">${LMS.escHtml(optionLines)}</textarea><span class="k-field-error hidden" data-field-error="options"></span></label>
             <label class="k-field-stack"><span class="k-label">Correct option number</span><input class="k-input" data-field="answer" value="${LMS.escHtml(answerSeedToInput(initial.answer_key ?? initial.answer_raw ?? ''))}" placeholder="e.g. 2 or 1, 3" /><span class="k-field-hint" data-answer-hint>Use the option number shown by its line order.</span><span class="k-field-error hidden" data-field-error="answer"></span></label>
           </div>
+          <label class="k-field-stack"><span class="k-label">Explanation / Why this answer is correct</span><textarea class="k-textarea" data-field="answer_explanation" rows="3" placeholder="Optional reasoning shown after submission.">${LMS.escHtml(initial.answer_explanation || initial.explanation || '')}</textarea></label>
           <label class="k-inline-checkbox k-question-required"><input data-field="is_required" type="checkbox" ${initial.is_required ? 'checked' : ''} /><span><strong>Required question</strong><small>Students must answer before submitting.</small></span></label>
         </section>`,
       editing ? 'Save question' : 'Add question',
@@ -586,6 +587,7 @@
         points,
         options: optionTexts.map((text, index) => ({ value: `opt_${index + 1}`, text })),
         answer_key: answerKey,
+        answer_explanation: currentDialog.querySelector('[data-field="answer_explanation"]').value.trim(),
         is_required: currentDialog.querySelector('[data-field="is_required"]').checked ? 1 : 0,
       };
       setSaving(currentDialog, true, editing ? 'Save question' : 'Add question');

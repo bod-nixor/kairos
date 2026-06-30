@@ -226,9 +226,6 @@ function rbac_student_course_ids(PDO $pdo, int $userId, bool $refresh = false): 
                 $ids[$cid] = true;
             }
         }
-        if ($ids) {
-            break;
-        }
     }
     $cache[$userId] = array_keys($ids);
     sort($cache[$userId]);
