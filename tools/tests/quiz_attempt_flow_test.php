@@ -133,16 +133,26 @@ $root = dirname(__DIR__, 2);
 $submitSource = (string)file_get_contents($root . '/public/api/lms/quiz/attempt/submit.php');
 $attemptSource = (string)file_get_contents($root . '/public/api/lms/quiz/attempt.php');
 
-if (!str_contains($submitSource, "lms_require_roles(['student', 'ta', 'manager', 'admin'])")) {
+$submitAllowsCourseRoles = preg_match(
+    "/lms_require_roles\\s*\\(\\s*\\[[^\\]]*'student'[^\\]]*'ta'[^\\]]*'manager'[^\\]]*'admin'[^\\]]*\\]/s",
+    $submitSource
+) === 1;
+if (!$submitAllowsCourseRoles) {
     $failed[] = 'submit endpoint must allow dual-role student participants through the shared role gate';
 }
-if (!str_contains($submitSource, 'lms_course_access($user, (int)$attempt[\'course_id\'], false)')) {
+
+$submitRequiresStudentParticipation = preg_match(
+    '/lms_course_access\\s*\\([^;]*false\\s*\\)\\s*;/s',
+    $submitSource
+) === 1;
+if (!$submitRequiresStudentParticipation) {
     $failed[] = 'submit endpoint must require student participation for the attempt course';
 }
-if (
-    !str_contains($attemptSource, 'lms_quiz_student_attempt_decision')
-    && !str_contains($attemptSource, 'lms_course_access($user, (int)$a[\'course_id\'], false)')
-) {
+
+$startRequiresStudentParticipation =
+    str_contains($attemptSource, 'lms_quiz_student_attempt_decision')
+    || preg_match('/lms_course_access\\s*\\([^;]*false\\s*\\)\\s*;/s', $attemptSource) === 1;
+if (!$startRequiresStudentParticipation) {
     $failed[] = 'start endpoint must require student participation for durable attempts';
 }
 

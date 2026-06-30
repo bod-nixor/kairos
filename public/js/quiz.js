@@ -111,6 +111,12 @@
         return Boolean(quizData?.capabilities?.participate_as_student);
     }
 
+    function quizQuestionCount() {
+        const raw = quizData?.question_count ?? quizData?.total_questions ?? 0;
+        const count = Number(raw);
+        return Number.isFinite(count) ? Math.max(0, count) : 0;
+    }
+
     function setButtonBusy(button, busy, busyLabel, readyLabel) {
         if (!button) return;
         button.disabled = !!busy;
@@ -719,6 +725,7 @@
         const attemptsUsed = Number(quizData.attempts_used || 0);
         const maxAttempts = Number(quizData.max_attempts || 0);
         const noAttempts = maxAttempts > 0 && attemptsUsed >= maxAttempts;
+        const hasQuestions = quizQuestionCount() > 0;
         const canPreview = canPreviewQuiz();
         const canAttemptAsStudent = canTakeStudentAttempt();
         if (studentAttemptBtn) {
@@ -735,7 +742,11 @@
                 startBtn.onclick = startPreview;
                 if (studentAttemptBtn && canAttemptAsStudent) {
                     studentAttemptBtn.classList.remove('hidden');
-                    if (noAttempts) {
+                    if (!hasQuestions) {
+                        studentAttemptBtn.disabled = false;
+                        studentAttemptBtn.textContent = 'No questions yet';
+                        studentAttemptBtn.onclick = renderNoQuestionsState;
+                    } else if (noAttempts) {
                         studentAttemptBtn.disabled = true;
                         studentAttemptBtn.textContent = 'No student attempts remaining';
                     } else {
@@ -744,6 +755,10 @@
                         studentAttemptBtn.onclick = startAttempt;
                     }
                 }
+            } else if (!hasQuestions) {
+                startBtn.disabled = false;
+                startBtn.textContent = 'No questions yet';
+                startBtn.onclick = renderNoQuestionsState;
             } else if (noAttempts) {
                 startBtn.disabled = true;
                 startBtn.textContent = 'No attempts remaining';
@@ -868,6 +883,10 @@
     }
 
     async function startAttempt() {
+        if (quizQuestionCount() <= 0) {
+            renderNoQuestionsState();
+            return;
+        }
         const endpoint = './api/lms/quiz/attempt.php';
         const startBtn = $('quizStartBtn');
         const studentAttemptBtn = $('quizStartStudentAttemptBtn');

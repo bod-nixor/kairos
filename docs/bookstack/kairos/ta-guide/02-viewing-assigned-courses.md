@@ -12,7 +12,7 @@ Find courses where you have TA access and open the correct course tools.
 4. Select a room when working with a live queue.
 5. Use **All Courses** to open the course home, modules, assignments, or quizzes.
 6. Use **Grading** inside the course when grading access is available.
-7. Open a quiz and select **Preview Quiz** when you need to check quiz-taking layout without submitting a student attempt.
+7. From the course home, Quizzes, or Grading page, open a quiz and select **Preview Quiz** when you need to check quiz-taking layout without creating a student attempt.
 
 ## Screenshot
 
